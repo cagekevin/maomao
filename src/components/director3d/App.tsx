@@ -95,6 +95,7 @@
 
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { logger } from '../base/core/logger.ts';
+import { reportDegrade } from '../base/core/degrade.ts';
 // 【TD-06-14】canvas 异步产出走唯一出口（原自写 Promise + `reject('PNG 生成失败')` = 第二份判据与文案）
 import { canvasToBlob } from '../base/core/utils.ts';
 import type { ChangeEvent } from 'react';
@@ -632,7 +633,12 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }: Dir
       .then((canvas) => {
         if (active) setMonitorReferenceBackground(canvas);
       })
-      .catch(() => {
+      .catch((e: unknown) => {
+        // 【TD-18-23】原为裸 `.catch(() => setMonitorReferenceBackground(null))`：监看背景静默消失，
+        // 零留痕 ⇒ "为什么没背景"事后无从归因（ADR-0019 形态①静默吞）。
+        // 判据：监看背景是**非阻断降级**（导出路径同一函数失败会抛、走各自的错误提示），
+        // 故这里只留痕不弹 toast —— 背景缺失本身已由 UI 状态可见，再加 toast 属重复宣告。
+        reportDegrade({ layer: '3D 应用', key: '参考图导出（监看背景）', e: e as Error });
         if (active) setMonitorReferenceBackground(null);
       });
     return () => {

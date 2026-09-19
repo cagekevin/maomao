@@ -107,6 +107,43 @@ export async function handleUpload(req: IncomingMessage, res: ServerResponse): P
 const uploadLog = (status: number, msg: string) =>
   console.log(`[upload] ${logTs()} | ${status} | ${msg}`);
 
+/**
+ * 落盘成功后「登记 resource 行」的**唯一实现**（ADR-0012 判据3：写盘成功判据不可拆两半）。
+ *
+ * 【为什么收口（TD-18-24）】三处上传分支（multipart / dataUri / fileUrl）此前各写一遍同一段判据，
+ *   且**三处不一致**：multipart 与 dataUri **裸调** `recordUploadedFileRow` —— 登记抛错会被路由外层
+ *   catch 归因成"上传失败 / 500"，而**盘已落、行未登记**这个关键事实被抹掉；只有 fileUrl 分支做了
+ *   分离归因 + 留痕。同一真相三份实现必然漂移 ⇒ 现收口为一份。
+ *
+ * 【归因口径】「盘上有文件」与「库里有行」是「上传成功」的两半，各自失败必须**分开归因**：
+ *   - 相对路径解析不出 → 500「落盘了，但 url 不可解析」。
+ *     url 由本进程生成 ⇒ 解析不出属**内部契约违约**，必须 fail-loud（不得静默跳过登记照回 `{code:0}`）。
+ *   - 登记行抛错 → 500「落盘了，但登记失败」—— **不得**与"下载失败 / 落盘失败"混为一谈（归因错会把排查引偏）。
+ *
+ * @param url 落盘结果的 url（绝对 `http://…/files/…` 或相对 `/files/…` 均可，口径见 `relativePathFromFileUrl`）
+ * @returns 登记是否成功。**false 时响应已发出**，调用方必须立即 `return`。
+ */
+async function registerUploadedRowOrFail(
+  res: ServerResponse,
+  url: string,
+  meta: { projectId?: string | null; folder?: string; name?: string },
+): Promise<boolean> {
+  const rel = relativePathFromFileUrl(url);
+  if (!rel) {
+    uploadLog(500, `落盘 url 无法解析为相对路径，未登记行: ${url}`);
+    sendError(res, 'Persisted but url is not a resolvable /files/ path', 500);
+    return false;
+  }
+  try {
+    await recordUploadedFileRow(rel, meta);
+  } catch (e) {
+    uploadLog(500, `登记 resource 行失败: ${rel} | ${(e as Error).message}`);
+    sendError(res, 'Persisted but failed to register resource row', 500);
+    return false;
+  }
+  return true;
+}
+
 async function handleUploadFormData(req: IncomingMessage, res: ServerResponse): Promise<void> {
   const { fields, files } = await parseMultipart(req);
 
@@ -151,13 +188,16 @@ async function handleUploadFormData(req: IncomingMessage, res: ServerResponse): 
     // 改前 `if (!dedup.deduped)` 命中即跳过 → 行留旧目录，而调用方（发送到素材库 / 面板上传）
     // 已被回以成功 = **假成功**（用户：点了却库里没有）；且行 name 恒为磁盘哈希名。
     // 物理 url / contentId / id 均不动（docs/122 context-only：id 跟磁盘、folder/name 跟声明）。
-    if (!fileUrlPath.startsWith('/files/')) {
-      // 【TD-08-31】此前无守卫：`replace` 不命中就把整条 url 当相对路径传下去 ⇒ 行 id/url 全是脏值。
-      uploadLog(500, `落盘 url 非 /files/ 形态，未登记行: ${fileUrlPath}`);
-      return sendError(res, 'Persisted but returned url is not a /files/ path', 500);
-    }
-    const relPath = fileUrlPath.replace(/^\/files\//, '');
-    await recordUploadedFileRow(relPath, { projectId, folder: subfolder, name: saveName });
+    // 【TD-18-24 收口】原为手写 `startsWith('/files/')` + `replace(/^\/files\//,'')` 自解析相对路径
+    // （`relativePathFromFileUrl` 的第二份实现）+ 裸调登记 ⇒ 改委托唯一实现（解析 + 登记 + 分离归因）。
+    if (
+      !(await registerUploadedRowOrFail(res, fileUrlPath, {
+        projectId,
+        folder: subfolder,
+        name: saveName,
+      }))
+    )
+      return;
     const thumbnailUrl = dedup.savedPath
       ? await tryGenerateThumbnail(dedup.savedPath, fileUrlPath)
       : undefined;
@@ -236,14 +276,15 @@ async function handleUploadJson(req: IncomingMessage, res: ServerResponse): Prom
     const url = saved.url;
     // 【TD-12-5】登记行并写 projectId（否则行由 rescan 建、project_id 恒 NULL）
     // 【TD-12-12】行显示名取发起方声明的 `displayName`（base64 落盘名是内容寻址，不能当显示名）
-    const rel = relativePathFromFileUrl(url);
-    if (!rel) {
-      // 【TD-08-31】原为静默跳过登记并照回 `{code:0}` ⇒ 盘上有文件、库里没行（素材库看不见）= 假成功。
-      // 刚落盘就解析不出相对路径属**内部契约违约**（url 由本进程生成），必须 fail-loud。
-      uploadLog(500, `落盘 url 无法解析为相对路径，未登记行: ${url}`);
-      return sendError(res, 'Persisted but url is not a resolvable /files/ path', 500);
-    }
-    await recordUploadedFileRow(rel, { projectId, folder: subfolder, name: body.displayName });
+    // 【TD-18-24 收口】解析 + 登记 + 分离归因改委托唯一实现（原为裸调登记，抛错会被外层归因成"上传失败"）。
+    if (
+      !(await registerUploadedRowOrFail(res, url, {
+        projectId,
+        folder: subfolder,
+        name: body.displayName,
+      }))
+    )
+      return;
     uploadLog(200, `dataUri -> ${url}`);
     // 【2026-09-17 补生产者 · 用户裁定「生产者没给就是漏给」】contentId 与 multipart（:175）/ fileUrl（:410）
     // 两分支**同一口径**回传：落盘权威已算出它（`saveBase64ToFile` 一直在用），此前只是没往外给。
@@ -287,21 +328,16 @@ async function respondRemoteUrlUpload(
   // 【TD-08-31】登记行是"上传成功"的**另一半**（盘上有文件 + 库里有行）；取不到 rel / 登记抛错
   // 都在原实现里混进了上面那个 catch ⇒ 一律被归因成「下载失败 400」（归因错，把排查引偏），
   // 或 `if (rel)` 静默跳过后照回 `{code:0}`（盘有行无 = 假成功）。现按真实原因分开报，且都留痕。
-  const rel = relativePathFromFileUrl(result.url);
-  if (!rel) {
-    uploadLog(500, `落盘 url 无法解析为相对路径，未登记行: ${result.url}`);
-    return sendError(res, 'Downloaded but url is not a resolvable /files/ path', 500);
-  }
-  try {
-    await recordUploadedFileRow(rel, {
+  // 【TD-18-24 收口】本分支原是**唯一正确形态**（分离归因）；现把它提为三处共用的唯一实现
+  // （multipart / dataUri 两处裸调登记 ⇒ 已改委托），同一判据只留一份。
+  if (
+    !(await registerUploadedRowOrFail(res, result.url, {
       projectId: opts.projectId,
       folder: opts.subfolder,
       name: opts.name,
-    });
-  } catch (e) {
-    uploadLog(500, `登记 resource 行失败: ${rel} | ${(e as Error).message}`);
-    return sendError(res, 'Downloaded but failed to register resource row', 500);
-  }
+    }))
+  )
+    return;
   uploadLog(200, `fileUrl ${opts.fileUrl}`);
   return json(res, { code: 0, data: result });
 }

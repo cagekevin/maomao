@@ -18,8 +18,14 @@
  *  - 受限重试：仅网络/超时错误自动重试（业务 4xx/5xx 不重试），默认最多 3 次。
  *
  * 【返回】parseJson=true（默认）时返回解析后的 JSON；HTTP 非 2xx 抛 HttpError。
+ * 【失败面（TD-18-22 收口，全部诚实可见，不再压成 `{}`）】
+ *  - 非 2xx（无论 parseJson）→ `HttpError(status, message, data)`；`message` 优先取错误信封，
+ *    非 JSON 错误体则**原文进 message**（TD-03-11 本意，此前因 body 二次读取必拒而从未生效）；
+ *  - 2xx 但**读不到体**（响应流中断）→ `logger.error` + 抛错（中止类原样上抛，禁重分类）；
+ *  - 2xx 但**体非空且不是合法 JSON**（网关改写 / 传输截断）→ `logger.error` + 抛错；
+ *  - 2xx 且**体为空**（如 204）→ 真空，静默返回 `{}`（`CLAUDE.md §5.1①`，不是失败）。
  */
-import { withTimeout, isTimeoutError } from '../utils/asyncGuard.ts';
+import { withTimeout, isTimeoutError, tryParse } from '../utils/asyncGuard.ts';
 import { logger } from '../core/logger.ts';
 
 /**
@@ -126,24 +132,116 @@ export function extractErrorDetail(data: unknown): ErrorDetail {
   };
 }
 
+/** 2xx 响应体读不到时的**用户可见文案**（生产者发布，调用方只转发、禁止自造）。 */
+const RESPONSE_BODY_UNREADABLE_MESSAGE = '响应体读取中断（响应被截断或连接中断），请重试';
+
+/** 2xx 但响应体不是合法 JSON 时的**用户可见文案**（生产者发布，调用方只转发、禁止自造）。 */
+const RESPONSE_BODY_INVALID_MESSAGE = '响应体不是合法 JSON（可能被网关改写或传输截断）';
+
 /**
- * parseJson:false 模式兜底读取错误体（二进制/流式出口共用）。body 只能消费一次，读取后即抛错。
- * 优先 json（OpenAI 错误信封），非法则回退 text，全失败兜底空对象 → HttpError 仅带 status。
+ * **2xx 响应体解析的唯一出口**（TD-18-22）。
+ *
+ * 【为什么要有它】原实现 `res.ok ? await res.json().catch(() => ({})) : …` 把「2xx 但体不是合法 JSON」
+ *   静默压成 `{}` 后**照常下发作成功**（ADR-0019 兜底形态②「压平无留痕」）——调用方拿到空对象、
+ *   零日志、无从归因（典型成因：网关/代理改写响应、传输被截断）。失败必须诚实可见。
+ *
+ * 【两态判据（不是"压平"的两个分支）】
+ *  - **真空**：2xx 且无内容体（如 204）→ `{}`。真空静默返回空值是**合法语义**
+ *    （`CLAUDE.md §5.1①`），不是失败，不许被报成失败；
+ *  - **非法**：体非空却解析不出 → **抛错**（文案由本模块发布，`cause` 保留原始解析错误）。
+ *
+ * 【读体失败（`read.ok === false`）】= 真失败（响应流中断），不许伪装成"空成功"（原为静默 `{}`）：
+ *   `logger.error` 留痕后抛出；**中止类（AbortError）必须原样上抛** —— 换掉类别会让上层「已停止」
+ *   判定失效（禁重分类）。
+ *
+ * @returns 解析后的 JSON。**返回类型 `any` 是既有契约、不是本次新增的宽松面**：原实现走 `res.json()`
+ *   （`lib.dom` 亦为 `any`），本层不做 schema 校验 —— 响应体形状只有调用方知道，由调用方声明期望形状。
+ *   本次只是把"推断出来的 any"写成"写明的 any"（行为零变化）。
  */
-async function readErrorBody(res: Response): Promise<unknown> {
-  try {
-    return await res.json();
-  } catch {
-    // catch-ok: PARSE_FALLBACK
-    /* 非 JSON 错误体 */
+function parseSuccessBodyOf(read: BodyReadResult, res: Response, tag: string, method: string): any {
+  if (!read.ok) {
+    logger.error('http', '[请求] 响应体读取失败', {
+      method,
+      url: tag,
+      status: res.status,
+      cause: (read.error as { message?: string })?.message,
+    });
+    if ((read.error as { name?: string })?.name === 'AbortError') throw read.error;
+    throw new Error(RESPONSE_BODY_UNREADABLE_MESSAGE, { cause: read.error });
   }
+  const t = read.text.trim();
+  if (!t) return {};
   try {
-    return { message: await res.text() };
-  } catch {
-    // catch-ok: PARSE_FALLBACK
-    /* 无 body */
+    return JSON.parse(t);
+  } catch (e) {
+    // 【一诚实】2xx 但体非空且解析不出 = 真失败：留痕（带体首段作证据）后诚实抛出，绝不压成 `{}`。
+    logger.error('http', '[请求] 2xx 响应体不是合法 JSON', {
+      method,
+      url: tag,
+      status: res.status,
+      bodyHead: read.text.slice(0, 200),
+    });
+    throw new Error(RESPONSE_BODY_INVALID_MESSAGE, { cause: e });
   }
-  return {};
+}
+
+/**
+ * **非 2xx 响应体解析的唯一出口**（文本入口；body 只能消费一次，故与成功态共用同一份文本）。
+ *
+ * 优先 JSON（OpenAI / 后端错误信封）；非 JSON 时把**原文**装进 `{ message }` —— 这正是 TD-03-11 的本意
+ * （排障要看到代理 HTML / 崩溃页原文）。空体 → `{}`（HttpError 仍带 `status`，主事实不丢）。
+ *
+ * 【原 `readErrorBody(res)` 的缺陷（已删）】它先 `res.json()` 再 `res.text()` 取原文，而真实 Response 的
+ * body **只能消费一次** ⇒ 第二条 text 必拒 ⇒ 「保留上游真实错误文本」从未在真实链路成立，
+ * 只有允许二次读取的测试替身才会走到那条分支（假绿）。改为文本入口后该能力才真正成立。
+ */
+function parseErrorBody(text: string): unknown {
+  const t = text.trim();
+  if (!t) return {};
+  const r = tryParse(() => JSON.parse(t));
+  return r.ok ? r.value : { message: text };
+}
+
+/** 响应体读取结果（判别联合）：`ok:false` 表示**这次读取失败**，不是"体为空"。 */
+type BodyReadResult = { ok: true; text: string } | { ok: false; error: unknown };
+
+/**
+ * **响应体读取的唯一出口**。body 只能消费一次 ⇒ 全模块只有这一处 `res.text()`。
+ *
+ * 返回**判别联合**而不是把失败压成 `''`：`''` 会让「读失败」与「体为空」不可区分
+ * （正是 ADR-0019 形态②要拆的「压平」），而这两者的正确处置完全相反 ——
+ * 体为空是真空（合法），读失败是真失败（2xx 下必须诚实抛出）。
+ */
+async function readBodyText(res: Response): Promise<BodyReadResult> {
+  try {
+    return { ok: true, text: await res.text() };
+  } catch (error) {
+    return { ok: false, error };
+  }
+}
+
+/**
+ * 非 2xx 响应体解析（**唯一出口**）：读失败 → 留痕 + 视为空体。
+ *
+ * 失败响应的**主事实是 HTTP 状态**：连错误体都读不到时，HttpError 仍带 `status`，
+ * 不得把这次读体失败重分类成"读体错误"（禁重分类）—— 但**必须留痕**，否则"错误体为何为空"无从归因。
+ */
+function parseErrorBodyOf(
+  read: BodyReadResult,
+  res: Response,
+  tag: string,
+  method: string,
+): unknown {
+  if (!read.ok) {
+    logger.warn('http', '[请求] 失败响应体读取失败（HttpError 仅带状态码）', {
+      method,
+      url: tag,
+      status: res.status,
+      cause: (read.error as { message?: string })?.message,
+    });
+    return {};
+  }
+  return parseErrorBody(read.text);
 }
 
 /**
@@ -218,15 +316,20 @@ export async function httpRequest<_T = unknown>(
           internalCtrl.signal,
         );
         if (parseJson) {
-          // 【TD-03-11 修复】失败响应体非 JSON（后端崩溃页/代理 HTML/空体）时，不得清空为 `{}`——
-          // 否则 extractErrorDetail 取不到 message，HttpError 丢失真实报文，排障只能看到状态码。
-          // 故非 2xx 走 readErrorBody（json → text 原文 → 兜底），保留上游真实错误文本。
-          const data = res.ok ? await res.json().catch(() => ({})) : await readErrorBody(res);
+          // 【TD-18-22 收口】响应体**只读一次**（真实 Response 的 body 只能消费一次），成败两态共用同一份文本。
+          // 原实现 `res.ok ? await res.json().catch(() => ({})) : await readErrorBody(res)` 有两处缺陷：
+          //  ① 2xx 但体不是合法 JSON → 静默压成 `{}` 照常下发作成功（兜底形态②「压平无留痕」）；
+          //  ② `readErrorBody` 的「json 失败再 text 取原文」在真实 Response 上是**死代码**（见其注释）。
+          const read = await readBodyText(res);
           if (!res.ok) {
             // HttpError.message 只承载业务 message（B2）；HTTP 状态由 HttpError.status 单独暴露，不再拼前缀
+            const data = parseErrorBodyOf(read, res, tag, method);
             const { message } = extractErrorDetail(data);
             throw new HttpError(res.status, message, data);
           }
+          // 【一诚实】2xx 却读不到体 = 真失败（响应流中断），体非法 = 真失败（网关改写/截断）——
+          // 两者都在 parseSuccessBodyOf 内留痕并诚实抛出，绝不伪装成"空成功"（原为静默 `{}`）。
+          const data = parseSuccessBodyOf(read, res, tag, method);
           if (!silentSuccess) {
             logger.debug(
               'http',
@@ -239,7 +342,7 @@ export async function httpRequest<_T = unknown>(
         }
         if (!res.ok) {
           // parseJson:false（二进制/流式出口）也要尽量保留上游错误体，避免非 2xx 时错误信息丢失
-          const data = await readErrorBody(res);
+          const data = parseErrorBodyOf(await readBodyText(res), res, tag, method);
           const { message } = extractErrorDetail(data);
           throw new HttpError(res.status, message, data);
         }

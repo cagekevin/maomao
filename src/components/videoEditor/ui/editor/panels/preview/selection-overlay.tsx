@@ -12,6 +12,8 @@ import type {
 import type { MediaAsset } from '@/components/videoEditor/types/assets';
 import { FONT_SIZE_SCALE_REFERENCE } from '@/components/videoEditor/constants/text-constants';
 import { isBottomAlignedSubtitleText } from '@/components/videoEditor/engine/timeline/text-utils';
+// 字体族栈（**已有实现，不自己拼**）：与画布 `ctx.font` 用同一份，否则量出的宽高与渲染不一致。
+import { buildFontFamilyStack } from '@/components/videoEditor/engine/services/renderer/font-stack';
 
 type ScaleHandle = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
 type ResizeHandle = 'left' | 'right';
@@ -107,33 +109,75 @@ function computeTextBounds({
   const hasBoxWidth = elementBoxWidth !== undefined && elementBoxWidth > 0;
   const scaledBoxWidth = hasBoxWidth ? elementBoxWidth * scaleFactor : 0;
 
-  let estimatedWidth: number;
-  let estimatedHeight: number;
+  // 【2026-09-19 修复"框子跟不上"】原为**估算公式**（`字符数 × 字号 × 0.6`），
+  // 而画布用 `ctx.measureText` 真实测量（见 `engine/.../nodes/text-node.ts`）——
+  // 同一件事两份判据。`0.6 em` 是**西文字符**的平均宽度，汉字是全角（≈1.0 em）
+  // ⇒ 中文文本的框子明显偏窄（换成中文字体后暴露）。
+  //
+  // 现改为**与渲染同一套测量**：建离屏 canvas、设上与渲染逐字相同的 `font`
+  // （字号 / 字重 / 斜体 / 族栈写法与 `text-node.ts` 对齐），再用 `measureText` 取真实宽高。
+  // 仅替换算式，函数签名 / 返回形状 / 调用方一律不变。
+  const measureContext = document.createElement('canvas').getContext('2d');
+  // 拿不到 2D 上下文 → **不静默兜底**（框子用猜的尺寸 = 用户可见的错误结果）：
+  // 抛错由 ErrorBoundary 接住，比"框子悄悄错位"诚实。
+  if (!measureContext) {
+    throw new Error('selection-overlay: 无法创建文本测量用的 2D 上下文');
+  }
+  measureContext.font = `${element.fontStyle} ${element.fontWeight} ${scaledFontSize}px ${buildFontFamilyStack({ fontFamily: element.fontFamily })}`;
+
+  let measuredWidth: number;
+  let measuredHeight: number;
   const elementScale = element.transform.scale;
 
   if (hasBoxWidth) {
-    estimatedWidth = scaledBoxWidth;
-    const lineHeight = scaledFontSize * 1.3;
-    const charsPerLine = Math.max(1, Math.floor(scaledBoxWidth / (scaledFontSize * 0.6)));
-    const lineCount = Math.max(1, Math.ceil(element.content.length / charsPerLine));
-    estimatedHeight = lineCount * lineHeight;
+    // 多行：换行逐字试（与 `text-node.ts::wrapText` 同算法），行高 `fontSize * 1.3` 同值
+    const lines: string[] = [];
+    for (const paragraph of element.content.split('\n')) {
+      if (paragraph === '') {
+        lines.push('');
+        continue;
+      }
+      let currentLine = '';
+      for (const char of Array.from(paragraph)) {
+        const testLine = currentLine + char;
+        if (measureContext.measureText(testLine).width > scaledBoxWidth && currentLine !== '') {
+          lines.push(currentLine);
+          currentLine = char;
+        } else {
+          currentLine = testLine;
+        }
+      }
+      if (currentLine !== '') lines.push(currentLine);
+    }
+    if (lines.length === 0) lines.push('');
+    // 宽度取**最宽的那行**（内容实际占宽；盒子宽只是换行上限）
+    let widest = 0;
+    for (const line of lines) {
+      widest = Math.max(widest, measureContext.measureText(line).width);
+    }
+    measuredWidth = widest;
+    measuredHeight = lines.length * scaledFontSize * 1.3;
   } else {
-    estimatedWidth = element.content.length * scaledFontSize * 0.6;
-    estimatedHeight = scaledFontSize * 1.4;
+    // 单行：与 `text-node.ts::renderSingleLine` 同口径（ascent/descent，缺失时回落 0.8/0.2 em）
+    const metrics = measureContext.measureText(element.content);
+    const ascent = metrics.actualBoundingBoxAscent ?? scaledFontSize * 0.8;
+    const descent = metrics.actualBoundingBoxDescent ?? scaledFontSize * 0.2;
+    measuredWidth = metrics.width;
+    measuredHeight = ascent + descent;
   }
 
   const centerX = canvasWidth / 2 + element.transform.position.x;
   const baseY = canvasHeight / 2 + element.transform.position.y;
   const isBottomAligned = isBottomAlignedSubtitleText({ element });
-  const scaledEstimatedWidth = estimatedWidth * elementScale;
-  const scaledEstimatedHeight = estimatedHeight * elementScale;
-  const topY = isBottomAligned ? baseY - scaledEstimatedHeight : baseY - scaledEstimatedHeight / 2;
+  const scaledMeasuredWidth = measuredWidth * elementScale;
+  const scaledMeasuredHeight = measuredHeight * elementScale;
+  const topY = isBottomAligned ? baseY - scaledMeasuredHeight : baseY - scaledMeasuredHeight / 2;
 
   return {
-    left: (centerX - scaledEstimatedWidth / 2) * displayScale,
+    left: (centerX - scaledMeasuredWidth / 2) * displayScale,
     top: topY * displayScale,
-    width: scaledEstimatedWidth * displayScale,
-    height: scaledEstimatedHeight * displayScale,
+    width: scaledMeasuredWidth * displayScale,
+    height: scaledMeasuredHeight * displayScale,
     rotate: element.transform.rotate,
   };
 }

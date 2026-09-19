@@ -68,7 +68,9 @@ describe('httpRequest — 结构化错误信封透传 message（B2 无 HTTP 前�
     (global.fetch as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
       ok: false,
       status: 422,
-      json: () => Promise.resolve({ error: { code: 'business', message: '参数非法' } }),
+      // 【TD-18-22】替身必须带 `text()`：httpClient 现只经 `res.text()` 读体一次
+      // （真实 Response 的 body 只能消费一次，替身只给 `json()` 会与真实契约脱钩）。
+      text: () => Promise.resolve('{"error":{"code":"business","message":"参数非法"}}'),
     });
     await expect(httpRequest('/api/x')).rejects.toMatchObject({
       name: 'HttpError',
@@ -81,7 +83,7 @@ describe('httpRequest — 结构化错误信封透传 message（B2 无 HTTP 前�
     (global.fetch as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
       ok: false,
       status: 500,
-      json: () => Promise.resolve({ error: 'server err' }),
+      text: () => Promise.resolve('{"error":"server err"}'),
     });
     await expect(httpRequest('/api/x')).rejects.toThrow(HttpError);
   });

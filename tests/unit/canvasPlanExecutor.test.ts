@@ -470,3 +470,33 @@ describe('Gap B 依赖批 DAG 拓扑调度（兄弟依赖步并行）', () => {
     expect(aToB).toHaveLength(1);
   });
 });
+
+describe('融合兜底步（TD-18-31 锁）', () => {
+  it('融合兜底步会被追加，且其 id 不是裸 Date.now（零随机段 ⇒ 同毫秒必撞）', async () => {
+    const ctx = makeCtx();
+    await executePlan({
+      ctx,
+      generations: [
+        { id: 'a', prompt: '一只猫' },
+        { id: 'b', prompt: '一只狗' },
+      ],
+      userText: '把这两张图融合一下',
+    });
+
+    // 节点 id 形如 `plan-<step.id>-p_<rand>`（见 createGenNode），故按片段捞回 step.id
+    const nodeIds = ctx
+      .nodes()
+      .map((n) => n.id)
+      .filter((id) => id.includes('__auto_fusion'));
+    // ① 顺带锁住"融合兜底"本身（此前零覆盖）
+    expect(
+      nodeIds.length,
+      '多步 + 融合意图 + 无显式 fusion 步 ⇒ 应自动追加融合兜底步',
+    ).toBeGreaterThan(0);
+
+    const stepIds = nodeIds.map((id) => (id.match(/^plan-(.+)-p_/) ?? [])[1]).filter(Boolean);
+    expect(stepIds.length).toBeGreaterThan(0);
+    // ② 旧实现 `__auto_fusion_${Date.now()}` 只有一段纯数字（零随机段）⇒ 与唯一入口口径不符
+    for (const sid of stepIds) expect(sid).not.toMatch(/^__auto_fusion_\d+$/);
+  });
+});

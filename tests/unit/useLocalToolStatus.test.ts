@@ -18,9 +18,25 @@ const { useLocalToolStatus } = await import('../../src/hooks/useLocalToolStatus.
 // 用 any 别名承载（运行时 fetch 已被 vi.stubGlobal 替换为 vi.fn）
 let fetchMock: ReturnType<typeof vi.fn>;
 
-const okBody = { ok: true, json: async () => ({ status: 'ok' }) };
-const badBody = { ok: true, json: async () => ({ status: 'down' }) };
-const notOk = { ok: false, status: 503, json: async () => ({}) };
+/**
+ * 【替身必须忠实于被替身的真实契约（Response）】—— 本文件**唯一**的响应替身构造器。
+ *
+ * `runCheck` 经 `httpRequest`（`parseJson` 默认 true）读 `/api/status`，而 httpClient 自 TD-18-22 起
+ * **只经 `res.text()` 读体**：真实 Response 的 body 只能消费一次，且必须能区分
+ * 「真空（204）/ 体非空但非法 JSON / 读体失败」—— 用 `json()` 做不到（空体与非法体都抛 SyntaxError）。
+ * 只给 `json()` 的替身与真实 Response **脱钩** = 假绿，故一律给出 `text()`。
+ */
+function mockRes(
+  body: unknown,
+  { ok = true, status = 200 }: { ok?: boolean; status?: number } = {},
+) {
+  const text = typeof body === 'string' ? body : JSON.stringify(body);
+  return { ok, status, text: async () => text, json: async () => JSON.parse(text) };
+}
+
+const okBody = mockRes({ status: 'ok' });
+const badBody = mockRes({ status: 'down' });
+const notOk = mockRes({}, { ok: false, status: 503 });
 
 beforeEach(() => {
   vi.stubGlobal('fetch', vi.fn());

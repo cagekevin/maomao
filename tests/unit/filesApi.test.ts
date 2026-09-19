@@ -16,11 +16,29 @@ const api = await import('@/components/base/api/filesApi.ts');
 // TD-03-18 用例复用真源常量（不裸写目录名，避免又一处"表外字面量"）
 const { UPLOAD_DIRS } = await import('@/components/base/utils/uploadDirs.ts');
 
+/**
+ * 【替身必须忠实于被替身的真实契约（Response）】—— 本文件**唯一**的响应替身构造器。
+ *
+ * httpClient 自 TD-18-22 起**只经 `res.text()` 读体**：真实 Response 的 body 只能消费一次，
+ * 且必须能区分「真空（204）/ 体非空但非法 JSON / 读体失败」三种情形 —— 用 `json()` 做不到
+ * （空体与非法体都抛 SyntaxError，不可区分）。因此替身**必须给出 `text()`**。
+ *
+ * 只给 `json()` 的替身与真实 Response **脱钩**：真实链路根本走不到那条分支，测试却绿 = 假绿。
+ * 此后新增替身一律经本函数构造，不要再手写 `{ ok, status, json }` 字面量。
+ */
+function mockRes(
+  body: unknown,
+  { ok = true, status = 200 }: { ok?: boolean; status?: number } = {},
+) {
+  const text = typeof body === 'string' ? body : JSON.stringify(body);
+  return { ok, status, text: async () => text, json: async () => JSON.parse(text) };
+}
+
 function uploadResp(url: any) {
-  return { ok: true, status: 200, json: async () => ({ code: 0, data: { url } }) };
+  return mockRes({ code: 0, data: { url } });
 }
 function failResp() {
-  return { ok: false, status: 500, json: async () => ({}) };
+  return mockRes({}, { ok: false, status: 500 });
 }
 
 beforeEach(() => fetchMock.mockReset());
@@ -30,11 +48,8 @@ const DATA_PNG = 'data:image/png;base64,iVBORw0KGgo=';
 
 // ── 【TD-08-28】contentId 透传契约：生产者（后端落盘权威）给全 ⇒ 消费者不再自算 sha1 ──
 describe('filesApi — contentId 透传（TD-08-28）', () => {
-  const respWithCid = (url: string, contentId?: string) => ({
-    ok: true,
-    status: 200,
-    json: async () => ({ code: 0, data: { url, contentId } }),
-  });
+  const respWithCid = (url: string, contentId?: string) =>
+    mockRes({ code: 0, data: { url, contentId } });
 
   it('multipart 上传：后端回传 contentId → `UploadOutcome.contentId` 上浮（files.ts:175）', async () => {
     fetchMock.mockResolvedValue(respWithCid('http://x/a.png', 'sha1:abc'));
@@ -111,7 +126,7 @@ describe('filesApi — saveInlineToLocal', () => {
       .mockImplementationOnce(async () => {
         throw new Error('net');
       })
-      .mockResolvedValue({ ok: true, status: 200, json: async () => ({}) });
+      .mockResolvedValue(mockRes({}));
     // 200 但后端没回 url ＝ **落盘未完成** —— 必须落在 ok:false（原来与"成功"共用 null）。
     expect(await api.saveInlineToLocal(DATA_PNG)).toEqual({
       ok: false,
@@ -135,6 +150,8 @@ describe('filesApi — saveResultToTasks', () => {
   it('[TD-02-58] blob: 临时地址 → 委托唯一原语后**真上传落盘**（blob 刷新即失效，原 skipped 等于丢结果）', async () => {
     // 【契约变更】原用例锁的是本文件**第二份分流**的口径（blob → skipped:true + 不发请求），
     // 与唯一原语 `persistUrlToUploads`（blob 先取字节再上传）**分叉**。现委托原语：真落盘，skipped:false。
+    // 替身说明：blob 分支经 `httpRequest(..., { parseJson:false })` —— 该出口成功时**原样返回 Response**、
+    // 不读体（见 httpClient.ts 第 362 行），由调用方 `.blob()` 消费 ⇒ 此处**合法地不需要 `text()`**。
     fetchMock
       .mockResolvedValueOnce({
         ok: true,
@@ -250,7 +267,7 @@ describe('filesApi — saveTextToTasks', () => {
       .mockImplementationOnce(async () => {
         throw new Error('net');
       })
-      .mockResolvedValue({ ok: true, status: 200, json: async () => ({}) });
+      .mockResolvedValue(mockRes({}));
     expect(await api.saveTextToTasks('hi')).toEqual({ ok: false, message: expect.any(String) });
   });
 });
@@ -305,7 +322,7 @@ describe('filesApi — uploadFileToLocal', () => {
       .mockImplementationOnce(async () => {
         throw new Error('net');
       })
-      .mockResolvedValue({ ok: true, status: 200, json: async () => ({}) });
+      .mockResolvedValue(mockRes({}));
     expect(await api.uploadFileToLocal(new Blob(['x']))).toEqual({
       ok: false,
       message: expect.any(String),
@@ -348,7 +365,7 @@ describe('filesApi — downloadRemoteToLocal（网页拖图后台本地化）', 
       .mockImplementationOnce(async () => {
         throw new Error('net');
       })
-      .mockResolvedValue({ ok: true, status: 200, json: async () => ({}) });
+      .mockResolvedValue(mockRes({}));
     expect(await api.downloadRemoteToLocal('http://x/b.png')).toEqual({
       ok: false,
       message: expect.any(String),
@@ -467,12 +484,13 @@ describe('filesApi — persistUrlToUploads', () => {
   });
 
   it('blob: → 前端 fetch 取 Blob 后 multipart 上传（后端拿不到 blob:）', async () => {
+    // 同 TD-02-58 用例：`parseJson:false` 出口返回原始 Response（不读体）⇒ 替身只需 `blob()`，
+    // 原来多写的 `json: async () => ({})` 是**永不会被调用的死方法**（真实 Response 上 json/blob 互斥），已删。
     fetchMock
       .mockResolvedValueOnce({
         ok: true,
         status: 200,
         blob: async () => new Blob(['x'], { type: 'image/png' }),
-        json: async () => ({}),
       })
       .mockResolvedValueOnce(uploadResp('http://127.0.0.1:18080/files/migrated/n.png'));
     const out = await api.persistUrlToUploads('blob:http://x/y', {
@@ -531,7 +549,7 @@ describe('filesApi — persistUrlToUploads', () => {
       .mockImplementationOnce(async () => {
         throw new Error('net');
       })
-      .mockResolvedValue({ ok: true, status: 200, json: async () => ({}) });
+      .mockResolvedValue(mockRes({}));
     const out = await api.persistUrlToUploads('blob:http://x/y');
     expect(out.ok).toBe(false);
     expect(out.ok ? '' : out.reason).toBe('exception');

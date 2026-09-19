@@ -1,5 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
-import { FONT_OPTIONS, type FontFamily } from '@/components/videoEditor/constants/font-constants';
+import {
+  FONT_OPTIONS,
+  labelOfFont,
+  previewFontFamily,
+  type FontFamily,
+} from '@/components/videoEditor/constants/font-constants';
 import { ArrowDown, ArrowUp } from 'lucide-react';
 import { cn } from '@/components/videoEditor/utils/ui';
 
@@ -61,8 +66,18 @@ export function FontPicker({ value, onValueChange, className }: FontPickerProps)
         onClick={() => setOpen(!open)}
         className="flex h-6 w-full cursor-pointer items-center justify-between gap-1 rounded border px-2 text-left"
       >
-        <span className="truncate" style={{ fontFamily: value }}>
-          {value || '选择字体'}
+        {/* 【2026-09-19】预览必须走 `previewFontFamily`（= 该字体自己的 fallback 链），
+            **不能**裸用 `fontFamily: value`：本清单新增的中文字体 `value` 是**语义名**
+            （「中文黑体」），不是真实字体名 —— 裸用会让浏览器静默回落，预览行又变成
+            "所有字体长得一样"（正是文件头记录的那次翻车形态）。 */}
+        {/* `value` 可缺省（受控 props）：缺省时预览用默认字体栈、文案走占位词。
+            不用 `?? ''` 塞空串 —— 那会让 `<span style={{fontFamily: ''}}>` 静默继承，
+            与"没有值"无从区分；这里显式分两支。 */}
+        <span
+          className="truncate"
+          style={{ fontFamily: value ? previewFontFamily(value) : undefined }}
+        >
+          {value ? labelOfFont(value) : '选择字体'}
         </span>
         {open ? (
           <ArrowUp className="size-3 shrink-0 opacity-50" />
@@ -86,7 +101,8 @@ export function FontPicker({ value, onValueChange, className }: FontPickerProps)
                 role="option"
                 aria-selected={isActive}
                 data-active={isActive || undefined}
-                style={{ fontFamily: font.value }}
+                // 同触发器：预览走 fallback 链（语义名裸用会静默回落 ⇒ 列表项千篇一律）
+                style={{ fontFamily: previewFontFamily(font.value) }}
                 onClick={() => {
                   onValueChange?.(font.value);
                   setOpen(false);

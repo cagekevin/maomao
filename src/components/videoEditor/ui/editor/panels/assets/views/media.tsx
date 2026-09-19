@@ -5,6 +5,9 @@ import { mediaDisplayUrl } from '@/components/videoEditor/lib/mediaDisplayUrl';
 import { useRenderAssetResolver } from '@/components/base/utils/assetUrl.ts';
 // 【2026-09-17 TD-16-29②】图片失败态的唯一实现（两段回退 + 显式占位），替代裸 <img>
 import LazyImage from '@/components/base/ui/LazyImage.tsx';
+// 【2026-09-19】视频封面运行时抽帧 —— **唯一原语**（与画布 AssetNode 同源）：
+// 内部走 `captureFrame.ts` 的 `drawVideoFrame`（seek + drawImage 的唯一实现），不新造第二份抽帧判据。
+import { useVideoPoster } from '@/hooks/useVideoPoster.ts';
 // 【TD-22-64 · 2026-09-18】时长显示唯一实现（此前本文件自持一份 `formatDuration`，与
 // nodes/VideoProcessNode 的同名实现重复；落 base/core 是两域唯一可共用的层）
 import { formatDuration } from '@/components/base/core/utils.ts';
@@ -517,7 +520,22 @@ function MediaItemWithContextMenu({
 }) {
   return (
     <ContextMenu>
-      <ContextMenuTrigger>{children}</ContextMenuTrigger>
+      {/* 【2026-09-19 结构性缺陷修复 · 一个根因造成三个症状】
+          原为 `<ContextMenuTrigger>{children}</ContextMenuTrigger>`（**缺 `asChild`**）。
+          本仓的 `MenuTrigger`（自研，非 Radix）在不传 `asChild` 时会渲染一个
+          **`<button type="button">`** 包裹 children —— 实测取证：
+            `<button type="button"><div class="w-full">CARD</div></button>`
+          于是每个网格格的子节点成了一个**收缩包裹（shrink-to-fit）的 button**，
+          `DraggableItem` 的 `containerClassName="w-full"` 参照的是这个 button 的宽度
+          （而非网格格的宽度）⇒ **宽度链塌陷**，同一根因同时产生三个症状：
+            ① 网格列失效：卡片撑成整宽 / 相互压盖（截图实测）；
+            ② 卡片态加减号不在右下角（`absolute` 相对塌陷的盒子定位，挤到中间）；
+            ③ 名称显示完整超长串（`truncate` 失去可裁的约束宽）。
+          另外它还是**非法嵌套**：`DraggableItem` 内部含真实 `<button>`（加/减号），
+          按钮嵌按钮属非法 HTML。
+          修法 = `asChild`：触发器把事件挂到 children 自身（`MenuTrigger` 走 `<Slot>` 分支），
+          **不再注入包裹元素** ⇒ 宽度链恢复，三个症状一次消除。 */}
+      <ContextMenuTrigger asChild>{children}</ContextMenuTrigger>
       <ContextMenuContent>
         <ContextMenuItem onClick={() => onExportClip({ item })}>{'导出片段'}</ContextMenuItem>
         <ContextMenuItem
@@ -568,12 +586,10 @@ function GridView({
   registerElement: (id: string, element: HTMLElement | null) => void;
 }) {
   return (
-    <div
-      className="grid gap-2.5"
-      style={{
-        gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))',
-      }}
-    >
+    // 【2026-09-19】固定**一排 2 个**（原为 `repeat(auto-fill, minmax(150px, 1fr))` 自适应列数：
+    // 面板一宽就变 3~4 列，卡片忽大忽小，且与"图片/视频卡片一致"的诉求相冲）。
+    // 列数由用户口径定死 ⇒ 卡片宽度随面板等比、**比例恒定**，图片与视频天然同尺寸。
+    <div className="grid grid-cols-2 gap-2.5">
       {items.map((item) => (
         <div key={item.id} ref={(el) => registerElement(item.id, el)}>
           <MediaItemWithContextMenu item={item} onRemove={onRemove} onExportClip={onExportClip}>
@@ -711,6 +727,15 @@ function MediaPreview({
   // TD-22-52：显示走 maomao 统一图片出口（服务端按需出小图 + 尊重「显示缩略图」开关）
   const resolveThumb = useRenderAssetResolver();
   const shouldShowDurationBadge = variant === 'grid';
+  // 【2026-09-19 收口】视频封面 = 运行时按需抽帧，与画布 AssetNode **同一原语**
+  // （`useVideoPoster` → `captureFrame.drawVideoFrame`，seek + drawImage 的唯一实现）。
+  //
+  // 【为什么 hook 必须提到所有 early return 之前】本组件按 `item.type` 早返回（image/audio/未知），
+  // 若把 hook 写在 video 分支里，它就是**条件调用** —— 同一条目 type 变化（或同位置换条目）即触发
+  // React 「Rendered fewer hooks than expected」崩溃。故一律无条件置顶，非视频传 `enabled:false`
+  // （hook 内部对 `!enabled` 直接短路，不做任何抽帧）。
+  const posterInput = mediaDisplayUrl({ asset: item, resolve: resolveThumb }) || item.url || '';
+  const videoPoster = useVideoPoster(posterInput, item.type === 'video');
 
   if (item.type === 'image') {
     return (
@@ -723,7 +748,9 @@ function MediaPreview({
           src={mediaDisplayUrl({ asset: item, resolve: resolveThumb })}
           alt={item.name}
           className="size-full"
-          imgClassName="size-full object-cover"
+          // 【2026-09-19】补 `rounded`：原先图片无圆角、视频有 ⇒ 同一网格里两种外观（用户报"尺寸和比例不一样"）。
+          // 现与视频分支逐字一致（`size-full rounded object-cover`），比例同由外层 AspectRatio(16:9) 钉死。
+          imgClassName="size-full rounded object-cover"
           eager
         />
       </div>
@@ -731,12 +758,14 @@ function MediaPreview({
   }
 
   if (item.type === 'video') {
-    if (item.thumbnailUrl) {
+    // 封面 = 运行时抽帧（`videoPoster` 已在组件顶层无条件取得，见上方 hook 说明）。
+    // 抽帧失败/未就绪 → `videoPoster` 为空串 → 落到下方诚实占位（不冒充有封面）。
+    if (videoPoster) {
       return (
         <div className="relative size-full">
           {/* 同上：视频封面失败必须显式，不留给浏览器裂图 */}
           <LazyImage
-            src={item.thumbnailUrl}
+            src={videoPoster}
             alt={item.name}
             className="size-full"
             imgClassName="size-full rounded object-cover"
@@ -747,6 +776,7 @@ function MediaPreview({
       );
     }
 
+    // 封面尚未抽出 / 抽帧失败：仍给时长角标（诚实告知"这是视频、多长"，不冒充有封面）
     return (
       <MediaTypePlaceholder icon={Video} label={'视频'} duration={item.duration} variant="muted" />
     );

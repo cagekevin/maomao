@@ -11,7 +11,8 @@ export interface TextStylePreset {
     backgroundColor?: string;
     stroke?: TextStroke;
     shadow?: TextShadow;
-    fontWeight?: 'normal' | 'bold';
+    /** 预览字重（数字，与 `TextElement.fontWeight` 同口径）。 */
+    fontWeight?: number;
   };
 }
 

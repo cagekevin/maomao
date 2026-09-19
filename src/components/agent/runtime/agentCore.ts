@@ -221,6 +221,15 @@ export const SSE_MALFORMED_MESSAGE = 'SSE 数据行不是合法 JSON（响应流
 export const SSE_STREAM_UNREADABLE_MESSAGE = 'AI 回复解析失败：响应流损坏或被截断，请重试';
 
 /**
+ * 非流式响应**读体失败**时的用户可见文案（**生产者发布**；消费者只转发，禁止自己拼）。
+ *
+ * 【为什么需要（TD-18-21）】原 `res.text().catch(() => '')` 把「读体失败」压成空串 ⇒ 解析得 `null`
+ *   ⇒ `content: ''` ⇒ 返回一条**空回复**：用户看到"AI 没说话"、日志里也没有任何异常（假成功）。
+ *   读体失败（响应流中断 / 被代理截断）是**真失败**，必须在根因处炸开并留痕。
+ */
+export const NON_STREAM_BODY_UNREADABLE_MESSAGE = 'AI 回复读取失败：响应被截断或连接中断，请重试';
+
+/**
  * chat 断连（超时 / 中止）时的**诚实告知**（**生产者发布**；消费者只转发）。
  *
  * 【TD-01-26 A · 2026-09-18】chat **无句柄** —— 后端**显式设计**为不消费 `frontTaskId`、不建任务行

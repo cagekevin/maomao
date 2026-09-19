@@ -88,7 +88,7 @@ export const DEFAULT_TEXT_ELEMENT: Omit<TextElement, 'id'> = {
   color: '#ffffff',
   backgroundColor: 'transparent',
   textAlign: 'center',
-  fontWeight: 'normal',
+  fontWeight: 400,
   fontStyle: 'normal',
   textDecoration: 'none',
   duration: TIMELINE_CONSTANTS.DEFAULT_ELEMENT_DURATION,

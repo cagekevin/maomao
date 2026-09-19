@@ -1247,21 +1247,35 @@ test('【TD-08-31】非法 subfolder → 400 且不落盘不建行（禁止静�
   assert.equal(rows.length, 0, '被拒请求不得留下 resource 行');
 });
 
-test('【TD-08-31】rescan：目录不可读 → errors 如实回传（不再静默漏扫）', async () => {
-  const bad = path.join(dbMod.getUploadDir(), 'migrated', 'noread');
-  fs.mkdirSync(bad, { recursive: true });
-  fs.writeFileSync(path.join(bad, 'a.png'), RED_PNG_BUFFER);
-  fs.chmodSync(bad, 0o000); // 造"读不到"：原实现静默 return，调用方仍收到"扫描成功"
-  try {
-    const res = makeRes();
-    await resourcesMod.handleResourcesRescan(makeJsonReq(), res);
-    const body = parseResBody(res);
-    assert.equal(body.code, 0, '其余部分能扫成 → 不整体报错');
-    assert.ok(body.data.errors >= 1, `必须如实回报漏扫处数，实际 errors=${body.data.errors}`);
-  } finally {
-    fs.chmodSync(bad, 0o700);
-  }
-});
+// 【2026-09-19 · TD-08-44】本用例靠 `chmod 0o000` 造「不可读目录」，但**两种环境造不出来**：
+//   ① Windows —— POSIX 权限位不生效，目录照样能读 ⇒ `errors` 恒 0 ⇒ 断言必红（不是被测代码坏了）；
+//   ② 以 root 运行 —— root 绕过权限位，同样读得到。
+// 这两种情况下**判据本身不成立**，应**跳过并写明理由**，而不是让它在别人的机器上恒红
+// （跳过 ≠ 通过：skip reason 会打在 TAP 输出里，不会被误读成"这条被验证过了"）。
+const canMakeDirUnreadable = process.platform !== 'win32' && process.getuid?.() !== 0;
+test(
+  '【TD-08-31】rescan：目录不可读 → errors 如实回传（不再静默漏扫）',
+  {
+    skip: canMakeDirUnreadable
+      ? false
+      : '平台限制：Windows / root 下 chmod 0o000 造不出不可读目录（权限位不生效），本用例判据不成立',
+  },
+  async () => {
+    const bad = path.join(dbMod.getUploadDir(), 'migrated', 'noread');
+    fs.mkdirSync(bad, { recursive: true });
+    fs.writeFileSync(path.join(bad, 'a.png'), RED_PNG_BUFFER);
+    fs.chmodSync(bad, 0o000); // 造"读不到"：原实现静默 return，调用方仍收到"扫描成功"
+    try {
+      const res = makeRes();
+      await resourcesMod.handleResourcesRescan(makeJsonReq(), res);
+      const body = parseResBody(res);
+      assert.equal(body.code, 0, '其余部分能扫成 → 不整体报错');
+      assert.ok(body.data.errors >= 1, `必须如实回报漏扫处数，实际 errors=${body.data.errors}`);
+    } finally {
+      fs.chmodSync(bad, 0o700);
+    }
+  },
+);
 
 test('TD-12-5·JSON dataUri 上传携 projectId → 行写入 project_id', async () => {
   const res = makeRes();

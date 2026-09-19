@@ -143,6 +143,27 @@ describe('agentRuntime.roundTrip —— 非流式工具开关 (§6.3)', () => {
     expect(r.tool_calls!).toBeUndefined();
   });
 
+  it('【TD-18-21】非流式响应体读取失败 → 抛错（不伪装成空回复）+ logger 留痕（文案来自生产者）', async () => {
+    // 回归锁：原 `res.text().catch(() => '')` 把读体失败压成空串 → 解析得 null → `content: ''`
+    // → 返回一条空回复（用户看到"AI 没说话"、日志零异常、无从重试）= 假成功。
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      text: async () => {
+        throw new TypeError('terminated');
+      },
+      headers: { get: () => null },
+      body: null,
+    }));
+    vi.stubGlobal('fetch', fetchMock);
+    const ctx = makeCtx({ streamMode: 'non-stream' });
+    await expect(
+      roundTrip(ctx, [{ role: 'user', content: 'hi' }], new AbortController().signal, ctx.onStream),
+    ).rejects.toThrow(/AI 回复读取失败/);
+    // 开发者侧留痕（读者正确：用户看 UI 状态，开发者看 logger）
+    expect(ctx.logger.error).toHaveBeenCalled();
+  });
+
   it('【§6.3 流式默认】流式模型 → 请求体含 tools（无论开关），走 SSE', async () => {
     let captured;
     // 流式响应：构造可读流

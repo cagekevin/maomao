@@ -283,18 +283,42 @@ export function parseCookies(input: string, fallbackHost?: string): AccountCooki
   }
 }
 
+/**
+ * 扩展 API 边界调用的**唯一实现**：调用失败 → `null`（调用方按"拿不到"继续降级）+ **留痕**。
+ *
+ * 【为什么收口（TD-18-14）】`chrome.tabs.query` / `chrome.scripting.executeScript` 的失败处置此前
+ *   散成 3 份且**互相不一致**：`fetchActiveTab` 吞成 `null`；`readTabLocalStorage` 的 `query` 是**裸调**
+ *   （异常直穿 → 整个"保存环境"被归因成「切换环境失败」，与它自己的 JSDoc「读取失败返回 null，
+ *   不阻断保存/切换」直接矛盾）；`scripting` 又吞成 `null`。同一判据三份实现必然漂移 ⇒ 收口为一份。
+ *
+ * 【判据：这是"动作失败"还是"探测语义"？】**动作失败** —— 扩展 API 调用没做成，用户侧表现为
+ *   「环境少存了一部分（localStorage 快照）」却零解释 ⇒ **必须留痕**（读者 = 开发者，`logger.warn`）。
+ *   对照：`isChromeExtension()` / `hasLocalStorage()` 那类"能力在不在"的探测语义**不留痕** ——
+ *   失败与"不在"对调用方是同一个答案，刷日志只会淹没正常路径（判据见 `core/degrade.ts` 头注）。
+ *
+ * 【为什么它不是"探测原语本体"】本函数**不定义**失败语义，只**转发**外部 API 的失败并附证据（cause）。
+ *
+ * @param what 调用点自述（进日志，定位"哪一次扩展调用没成"）
+ * @param act 扩展 API 调用（失败即降级，不重试 —— 权限/无活动标签页属确定性拒绝）
+ */
+async function chromeApiOrNull<T>(what: string, act: () => Promise<T>): Promise<T | null> {
+  try {
+    return await act();
+  } catch (e) {
+    logger.warn('账号环境', `扩展 API 调用失败（${what}），本次按「拿不到」继续降级`, {
+      cause: (e as { message?: string })?.message,
+    });
+    return null;
+  }
+}
+
 // 抓取当前激活标签页（复刻官方 Sa L1882-1897：url/favIcon/cookies/title前5字）
 async function fetchActiveTab(): Promise<ChromeTabLike | null> {
   if (!isExtensionEnv()) return null;
-  try {
-    const [tab] = await chrome.tabs!.query({ active: true, currentWindow: true });
-    return tab || null;
-  } catch {
-    // catch-ok: BROWSER_API
-    // chrome API 调用失败（权限/无活动标签页）属扩展环境预期 → null，
-    // 调用方按「抓不到标签页」继续降级；属外部 API 边界，非 app 内失败语义。
-    return null;
-  }
+  const tabs = await chromeApiOrNull('tabs.query（当前激活标签页）', () =>
+    chrome.tabs!.query({ active: true, currentWindow: true }),
+  );
+  return tabs?.[0] || null;
 }
 
 function dicebear(seed?: string): string {
@@ -399,12 +423,17 @@ async function collectAllCookies(url: string): Promise<AccountCookie[]> {
  */
 async function readTabLocalStorage(): Promise<Record<string, string> | null> {
   if (!isExtensionEnv()) return null;
-  const [tab] = await chrome.tabs!.query({ active: true, currentWindow: true });
+  // 【TD-18-14 收口】query 原为**裸调**（异常直穿 ⇒ 整个"保存环境"被归因成「切换环境失败」，
+  // 与本函数 JSDoc「读取失败返回 null，不阻断保存/切换」矛盾）→ 与 fetchActiveTab 委托同一实现。
+  const tabs = await chromeApiOrNull('tabs.query（当前激活标签页）', () =>
+    chrome.tabs!.query({ active: true, currentWindow: true }),
+  );
+  const tab = tabs?.[0];
   if (!tab?.id || !tab?.url || !/^https?:/i.test(tab.url)) return null;
-  try {
-    // world: 'MAIN' 让注入代码跑在页面主世界，能访问页面真正的 localStorage（ISOLATED world 是扩展自己的）
-    const [res] = await chrome.scripting!.executeScript({
-      target: { tabId: tab.id },
+  // 【TD-18-14 收口】scripting 注入失败原为第三份 catch-ok → 委托同一实现（含留痕）。
+  const injected = await chromeApiOrNull('scripting.executeScript（读页面 localStorage）', () =>
+    chrome.scripting!.executeScript({
+      target: { tabId: tab.id! },
       world: 'MAIN',
       func: () => {
         try {
@@ -416,28 +445,27 @@ async function readTabLocalStorage(): Promise<Record<string, string> | null> {
           return out;
         } catch {
           // catch-ok: BROWSER_API
-          // 注入到页面主世界读 localStorage 被拒（权限 / 受限页）属环境预期 → null，
-          // 外层按「拿不到快照」继续，不影响 cookie 切换主流程。
+          // 【这一处是**唯一不可收口**的站点】本函数体被序列化后注入页面主世界执行，
+          // **物理上引用不到模块内的 `chromeApiOrNull`**（跨上下文，闭包不随函数体过界）。
+          // 语义与外围一致（主世界读 localStorage 被拒 → 判「拿不到快照」），由外层统一按 null 降级。
           return null;
         }
       },
-    });
-    const rr =
-      res && typeof res.result === 'object' && res.result !== null && !Array.isArray(res.result)
-        ? res.result
-        : null;
-    if (!rr) return null;
-    // 注入函数写侧产出 string 值，但读侧仍逐值取 string 子集（F28：值类型不整体断言为 Record<string,string>）
-    const out: Record<string, string> = {};
-    for (const [k, v] of Object.entries(rr as Record<string, unknown>)) {
-      if (typeof v === 'string') out[k] = v;
-    }
-    return out;
-  } catch {
-    // catch-ok: BROWSER_API
-    // chrome.scripting 注入失败（非 http(s) 页 / 无权限）属扩展环境预期 → null。
-    return null;
+    }),
+  );
+  const rr =
+    injected?.[0]?.result &&
+    typeof injected[0].result === 'object' &&
+    !Array.isArray(injected[0].result)
+      ? (injected[0].result as Record<string, unknown>)
+      : null;
+  if (!rr) return null;
+  // 注入函数写侧产出 string 值，但读侧仍逐值取 string 子集（F28：值类型不整体断言为 Record<string,string>）
+  const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries(rr)) {
+    if (typeof v === 'string') out[k] = v;
   }
+  return out;
 }
 
 /**

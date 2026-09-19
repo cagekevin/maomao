@@ -50,13 +50,110 @@ export interface FontOption {
    * 渲染侧拼成 `"value", fallback1, fallback2` 交给浏览器。
    */
   fallback: string[];
+  /**
+   * 该字体**实际可用**的字重档位（UI 只列这些）。
+   *
+   * 【为什么字重必须挂在本结构上，而不是"全局 5 档"】
+   * 字重能力**随字体而异**，而 `ctx.font` 对字体没有的字重是**静默取最近档**：
+   *   · 苹方 / 思源 ≈ 6~7 档；· Arial / Helvetica / 微软雅黑 / 宋体 = **只有 400 / 700**。
+   * 若给"全局 5 档"下拉，用户在微软雅黑上选 500 → 该字体无此档 → Canvas 回落 400
+   * → 用户："我选了粗细，画布没变化"（= 幽灵项回潮，同文件头记录的那次翻车同形）。
+   * ⇒ **只列"本字体的 fallback 链上各平台都保证存在"的档位**：宁可少列，不可让用户选到不存在的档。
+   */
+  weights: FontWeightOption[];
 }
 
+/** 一个可选字重档位。 */
+export interface FontWeightOption {
+  /** 写入 `TextElement.fontWeight` 的数字（CSS/Canvas 的 `font-weight` 值）。 */
+  value: number;
+  label: string;
+}
+
+/** 只保证 `400 / 700` 的字体（绝大多数非可变字体：Arial / 微软雅黑 / 宋体…）共用此档位表。 */
+const WEIGHTS_REGULAR_BOLD: FontWeightOption[] = [
+  { value: 400, label: '常规' },
+  { value: 700, label: '加粗' },
+];
+
+/**
+ * 可用字体清单。
+ *
+ * ══════════════════════════════════════════════════════════════
+ * 【本次新增中文字体（2026-09-19）】用户："默认有 5 种，没有中文"。
+ *
+ * 为什么**不新增字体文件**（即"为什么这不是加一行下载"）：
+ *   中文（尤其中文字体）在**用户机器上必然存在** —— 操作系统要显示中文。
+ *   故按本文件头纪律，它们属「**系统字体 → 直接列**」那一类，**零下载**。
+ *
+ * 为什么 `value` 是「中文黑体 / 中文宋体」这样的**语义名**，而非某个具体字体名：
+ *   **不存在一款跨平台都有、且名字相同的中文字体**（这正是 `fallback` 链存在的意义）：
+ *     macOS  = 苹方 PingFang SC ／ 宋体 Songti SC
+ *     Windows= 微软雅黑 Microsoft YaHei ／ 宋体 SimSun
+ *     Linux  = 思源黑体（Source Han Sans ／ Noto Sans CJK，「思源」是 Adobe 名、
+ *             「Noto」是 Google 发行名，两个名字都要列 —— 不同发行版装的不同）
+ *   用户选的是「我要**黑体中文**」这个**排版意图**，具体由链解析成该机器上真实存在的字体。
+ *   ⇒ 同一份工程在 macOS / Windows 上都能正常显示中文（各取本机那款）。
+ *
+ * ⚠️ 纪律不变：**这里只允许出现"用户机器上可能存在"的名字**。思源/Noto 只进
+ *   `fallback`（"若有则用"），**不单独作为可选项** —— 否则在没装它们的机器上就是一个幽灵项。
+ * ══════════════════════════════════════════════════════════════
+ */
 export const FONT_OPTIONS: FontOption[] = [
-  { value: 'Arial', label: 'Arial', fallback: ['Helvetica', 'sans-serif'] },
-  { value: 'Helvetica', label: 'Helvetica', fallback: ['Arial', 'sans-serif'] },
-  { value: 'Times New Roman', label: 'Times New Roman', fallback: ['Times', 'serif'] },
-  { value: 'Georgia', label: 'Georgia', fallback: ['Times New Roman', 'serif'] },
+  // ── 中文（通用族，跨平台由 fallback 链解析） ──
+  {
+    value: '中文黑体',
+    label: '中文黑体',
+    fallback: [
+      'PingFang SC', // macOS 苹方
+      'Microsoft YaHei', // Windows 微软雅黑
+      'Source Han Sans SC', // Linux 思源黑体（Adobe 名）
+      'Noto Sans CJK SC', // Linux 思源黑体（Google 发行名）
+      'Heiti SC', // macOS 旧版黑体
+      'SimHei', // Windows 中易黑体
+      'sans-serif',
+    ],
+    // 链上"最弱"的平台（微软雅黑 / 宋体体系）只有 400/700 ⇒ 全平台一致只列这两档
+    weights: WEIGHTS_REGULAR_BOLD,
+  },
+  {
+    value: '中文宋体',
+    label: '中文宋体',
+    fallback: [
+      'Songti SC', // macOS 宋体
+      'SimSun', // Windows 宋体
+      'Source Han Serif SC', // Linux 思源宋体（Adobe 名）
+      'Noto Serif CJK SC', // Linux 思源宋体（Google 发行名）
+      'STSong', // macOS 华文宋体
+      'serif',
+    ],
+    weights: WEIGHTS_REGULAR_BOLD,
+  },
+  // ── 西文（系统自带） ──
+  {
+    value: 'Arial',
+    label: 'Arial',
+    fallback: ['Helvetica', 'sans-serif'],
+    weights: WEIGHTS_REGULAR_BOLD,
+  },
+  {
+    value: 'Helvetica',
+    label: 'Helvetica',
+    fallback: ['Arial', 'sans-serif'],
+    weights: WEIGHTS_REGULAR_BOLD,
+  },
+  {
+    value: 'Times New Roman',
+    label: 'Times New Roman',
+    fallback: ['Times', 'serif'],
+    weights: WEIGHTS_REGULAR_BOLD,
+  },
+  {
+    value: 'Georgia',
+    label: 'Georgia',
+    fallback: ['Times New Roman', 'serif'],
+    weights: WEIGHTS_REGULAR_BOLD,
+  },
 ] as const;
 
 /**
@@ -67,12 +164,69 @@ export const FONT_OPTIONS: FontOption[] = [
 export type FontFamily = string;
 
 /**
- * 取某字体的回落链 —— **唯一定义处**。
- * 未知字体（如旧数据里的幽灵字体名）返回通用无衬线链，
+ * 取某字体的**完整族栈**（栈首 = 该字体自己，其后是回落链）—— **唯一定义处**。
+ *
+ * ⚠️ **栈首必须包含 `fontFamily` 自身**（2026-09-19 修复）。
+ * 原实现只返回 `fallback`（**不含自己**），于是 `buildFontFamilyStack` 的产出丢了栈首：
+ *   · `Arial`      → `"Helvetica", "sans-serif"`  ← **Arial 丢了**（靠 Helvetica 长得像才没被发现，
+ *                     而本文件的 `@example` 一直写着正确的 `"Arial", "Helvetica", sans-serif`
+ *                     —— **文档与实现不一致**，是这条缺陷长期潜伏的原因）；
+ *   · 新增的中文语义名（`中文黑体`）→ 连它自己都不在栈里，完全靠 `fallback` 链碰巧命中。
+ * ⇒ 现在**统一把 `value` 放栈首**：真实字体名（Arial）与语义名（中文黑体）**同一形态**，
+ *    `ctx.font` 与 CSS 预览共用这一份输出（不再各自拼、不再一含一不含）。
+ *
+ * 未知字体（如旧数据里的幽灵字体名）→ 原样保留在栈首，后接通用无衬线链，
  * 于是"渲染一个不存在的字体"不会变成"渲染不出来"，只会变成"渲染成默认无衬线"。
  */
 export function getFontFallbackChain({ fontFamily }: { fontFamily: string }): string[] {
-  return (
-    FONT_OPTIONS.find((font) => font.value === fontFamily)?.fallback ?? ['Arial', 'sans-serif']
-  );
+  const fallback = FONT_OPTIONS.find((font) => font.value === fontFamily)?.fallback ?? [
+    'Arial',
+    'sans-serif',
+  ];
+  // 去重：清单里若有字体把自己也写进 fallback，不重复出现（防将来手滑写重）
+  return [fontFamily, ...fallback.filter((name) => name !== fontFamily)];
+}
+
+/**
+ * 取某字体**实际可用**的字重档位 —— **唯一定义处**（UI 与渲染层共用，防两处各列一份）。
+ *
+ * 未知字体（含旧数据里的幽灵字体名）→ 回落 `400 / 700`（最保守：几乎所有字体都有这两档）。
+ * 判据与理由见 `FontOption.weights` 注释。
+ */
+export function getFontWeights({ fontFamily }: { fontFamily: string }): FontWeightOption[] {
+  return FONT_OPTIONS.find((font) => font.value === fontFamily)?.weights ?? WEIGHTS_REGULAR_BOLD;
+}
+
+/**
+ * 该字体的 **CSS `font-family` 预览值**（带引号的完整回落链）—— 供 UI 预览（下拉项 / 触发器）。
+ *
+ * 【为什么不复用 `engine/…/font-stack.ts` 的 `buildFontFamilyStack`】
+ * 那个函数产出的是给 **`ctx.font`** 吃的字符串，属**渲染层**（engine）；本函数给 **CSS** 用，
+ * 属**展示层**。UI 去 import engine 会构成跨层依赖（层的方向：UI → constants，不反着来）。
+ * 两者唯一的重叠只是"给每个名字加引号"—— 属同一 `getFontFallbackChain` 真源的**两种输出**，
+ * 各在自己那层拼（判据层差异，不硬合并；见 ADR-0031）。
+ *
+ * 【为什么预览**必须**走链而不能裸用 `value`】
+ * 本清单的中文字体 `value` 是**语义名**（「中文黑体」），不是真实字体名。
+ * 裸用 → 浏览器静默回落 → 下拉里所有中文项长得一模一样（= 文件头记录的那次翻车形态）。
+ *
+ * @param fontFamily 字体名（清单内 value，或未知名）
+ * @returns 形如 `"中文黑体", "PingFang SC", "Microsoft YaHei", sans-serif`
+ */
+export function previewFontFamily(fontFamily: string): string {
+  // 栈首已由 `getFontFallbackChain` 保证是 fontFamily 自身（见其注释）——
+  // 此处**不再自己拼一次** value，否则会重复（这正是 2026-09-19 修掉的那种"两份拼法"）。
+  return getFontFallbackChain({ fontFamily })
+    .map((f) => `"${f}"`)
+    .join(', ');
+}
+
+/**
+ * 字体的**显示名**（下拉与触发器显示用）。
+ *
+ * 清单内 → 用它的 `label`；未知（含旧工程数据里的字体名）→ 原样显示该名字，
+ * 让用户能看出"这个元素现在挂着一个清单里没有的字体"，而不是显示空白。
+ */
+export function labelOfFont(fontFamily: string): string {
+  return FONT_OPTIONS.find((font) => font.value === fontFamily)?.label ?? fontFamily;
 }

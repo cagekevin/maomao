@@ -152,3 +152,24 @@ describe('不分项目（按 agentKey 全局隔离）（T6）', () => {
     expect(getCachedProjectMemories('agentA').some((m) => m.id === 'b1')).toBe(false);
   });
 });
+
+describe('withLock 锁链记账（TD-18-27 锁）', () => {
+  it('操作失败：调用方仍拿到失败，且不产生 unhandled rejection', async () => {
+    const cs = await import('../../src/components/base/core/contentStore.ts');
+    vi.mocked(cs.contentSetAsync).mockRejectedValueOnce(new Error('boom'));
+
+    const unhandled: unknown[] = [];
+    const onUnhandled = (e: unknown) => unhandled.push(e);
+    process.on('unhandledRejection', onUnhandled);
+    try {
+      // ① 操作失败必须对调用方可见（withLock 原样 `return next`，不吞操作结果）
+      await expect(saveProjectMemory('agent-lock', { content: 'x' })).rejects.toThrow();
+      // ② 给 unhandledRejection 一个宏任务的机会：旧实现在 `next.finally()` 的**派生** promise
+      //    上漏了一个无人处理的 rejection（外层 try/catch 包不住 promise rejection＝假护栏）。
+      await new Promise((r) => setTimeout(r, 10));
+      expect(unhandled).toEqual([]);
+    } finally {
+      process.off('unhandledRejection', onUnhandled);
+    }
+  });
+});

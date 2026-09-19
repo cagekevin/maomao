@@ -445,10 +445,14 @@ export default function AssistantTablePanel({
       if (isEditableTarget(e)) return;
       const t = e.target as HTMLElement | null;
       // 编辑态：用户在改格内文字 → Ctrl/Cmd+C/V 走 textarea 原生（业界），不拦
-      if (editingCell) {
-        if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA')) return;
-        return;
-      }
+      // 【2026-09-19 · TD-11-14】原此处还有一行手写判据
+      //   `if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA')) return;`
+      // 它是**不可达的幽灵死代码**，两条各自独立的理由：
+      //   ① 上面 `:445` 的 `isEditableTarget(e)` 已覆盖 INPUT / TEXTAREA（见 `base/core/uiHooks.ts:26-31`，
+      //      且还额外含 `isContentEditable` 与 `closest` 上溯）⇒ 该条件是它的**真子集**，永不命中；
+      //   ② 即便命中，紧随其后的 `return;` **恒执行** ⇒ 该条件对控制流**毫无影响**。
+      // 且它属 ADR-0029 禁止的「手写可编辑判据副本」。已删 —— **行为完全不变**。
+      if (editingCell) return;
       // 【业界铁律·勿改回严格 contains 版】选中格是只读 div（不聚焦），单击后 DOM 焦点常落在 body →
       //   keydown 的 e.target 不在面板内。若写成「仅 when panelRef.contains(t) 才接管」，Ctrl+C/V 会被
       //   整个拦掉（连 toast 都不弹，2026-09-08 实测）。正确语义：已选中格（focusedCell）即接管复制粘贴；

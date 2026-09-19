@@ -371,9 +371,10 @@
   color: rgb(var(--ve-danger));
 }
 
-/* 卡片态：两个钮**都在左下角、横向并排**（2026-09-15 用户裁定；原先是一左一右两角）。
+/* 卡片态：两个钮**都在右下角、横向并排、右对齐**（2026-09-19 用户裁定；原先是左下角）。
    浮在画面上 → 自带中性半透明底（`backdrop-blur` 让底下的画面不干扰图标可读性）。
-   横向位置按"钮宽 22px + 间距 4px"排布，故第二颗在 `left: 32px`；改宽度时这里要同步。 */
+   右对齐靠 `right` 定位（不是 `left` 硬算）：**从右边起算**，卡片宽度变化时两颗钮
+   整体贴右不变；若改钮宽/间距，只需同步这里的两个 `right` 值。 */
 .ve-scope .ve-card-plus,
 .ve-scope .ve-card-minus {
   position: absolute;
@@ -387,11 +388,12 @@
   background: rgb(0 0 0 / 0.68);
   color: #fff;
 }
+/* 右对齐：减号在最右（right:6px），加号在其左侧（6 + 22 + 4 = 32px）。顺序仍是「先加后减」。 */
 .ve-scope .ve-card-plus {
-  left: 6px;
+  right: 32px;
 }
 .ve-scope .ve-card-minus {
-  left: 32px;
+  right: 6px;
 }
 
 /* 时间线片段 */

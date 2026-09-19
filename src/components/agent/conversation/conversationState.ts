@@ -384,9 +384,16 @@ async function hydrateAsync(k: string): Promise<void> {
             KV_TIMEOUT,
             `旧键活跃 id 迁 KV 超时(${k})`,
           );
-        } catch {
-          // catch-ok: MIGRATION
-          /* 与上述存量迁移同款兜底语义 */
+        } catch (e) {
+          // 【2026-09-19 · TD-18-30】原注释「与上述存量迁移同款兜底语义」**不成立** ——
+          // 上面 `:363-368` 那处迁移失败有 `logger.warn` 留痕，**这处曾是零留痕**：
+          // 旧键（无项目后缀的 `agent_conversations`）会话迁移失败 ⇒ 内存态沿用、KV 没写进去，
+          // 下次水化又回到空 ⇒ **会话无声丢失，且线上查不到任何迹**。
+          // 现按上面**同款**留痕（同域同判据，不另发明写法）。
+          logger.warn('AI助手', '旧键会话迁 KV 失败，沿用内存态', {
+            key: convKey(k),
+            error: (e as { message?: string })?.message || String(e),
+          });
         }
       } else {
         conversations = [];

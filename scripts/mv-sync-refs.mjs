@@ -149,8 +149,10 @@ function isExemptAbs(abs) {
 }
 
 // 【修复 2: 动态多根 + 可配置 Alias 解析】
-// 别名前缀表：from(import 里出现的前缀) → to(相对所在扫描根的目录)。默认 @/ → src/。
-// 可用 --alias <from>:<to> 追加子项目/自定义别名（如 @proto/ → src/protocol/、~core/ → src/core/）。
+// 别名前缀表：from(import 里出现的前缀) → to(相对**仓库根**的目录，与 tsconfig `paths` 同口径)。
+// 默认 @/ → src/。可用 --alias <from>:<to> 追加子项目/自定义别名（如 @proto/ → src/protocol/、~core/ → src/core/）。
+// 【2026-09-19 修正】原注释写「相对所在扫描根」，与上面的 --alias 示例自相矛盾，且是别名解析错位的
+// 根源（见 resolveSpec 内的修复说明）—— 本表的值一律相对仓库根。
 const DEFAULT_ALIASES = [['@/', 'src/']];
 const aliasTable = new Map(DEFAULT_ALIASES);
 
@@ -177,7 +179,7 @@ function matchAlias(spec) {
 /**
  * 把 import 说明符解析为绝对路径。
  *  相对(. / ../) → 相对 fromFile 所在目录；
- *  别名(命中 aliasTable) → 相对 fromFile 所在扫描根的 <alias.to>/剩余段；
+ *  别名(命中 aliasTable) → 相对**仓库根**的 <alias.to>/剩余段（与 tsconfig `paths` 同口径）；
  *  / 开头 → 当作相对根路径（相对 fromFile 所在扫描根）。
  * @returns {string|null}
  */
@@ -185,7 +187,14 @@ function resolveSpec(spec, fromFile) {
   const fromDir = dirname(fromFile);
   if (spec.startsWith('.')) return resolve(fromDir, spec);
   const m = matchAlias(spec);
-  if (m) return resolve(getAliasRoot(fromFile), m.to, spec.slice(m.alias.length));
+  // 【2026-09-19 工具债当场修（A10）】别名分支原为 `resolve(getAliasRoot(fromFile), m.to, 剩余段)`，
+  // 而 getAliasRoot 返回的**已经**是扫描根（本仓 = `<root>/src`），to 又是 `'src/'` ⇒ 解析成
+  // `<root>/src/src/…`（**不存在**）⇒ 全库 `@/…` 别名 import 被**静默丢弃**，`refs` 系统性少报 fan-in。
+  // 实证：`src/components/videoEditor/ui/editor/panels/panel-base-view.tsx` 有 18 处真实 import，
+  // `refs` 却报「模块引用 0 处」。危害不止少报：ADR-0030 的**删码判据就是 fan-in**（报 0 = 诱导删活代码）。
+  // 口径真源 = tsconfig `paths`（`"@/*": ["./src/*"]`）⇒ 别名一律**相对仓库根**解析。
+  // 附带修正下方注释（原写「相对所在扫描根」，与 --alias 示例 `'@proto/:/src/protocol/'` 自相矛盾）。
+  if (m) return resolve(root, m.to, spec.slice(m.alias.length));
   if (spec.startsWith('/')) return resolve(getAliasRoot(fromFile), spec.slice(1));
   return null;
 }
@@ -358,11 +367,20 @@ function computeNewSpec(fromFile, newAbs, oldSpec) {
 
   // 旧 spec 原本是别名形式 → 保持别名前缀；alias 惯用不带后缀，仅当显式 --suffix 非 auto 时补全
   const m = matchAlias(oldSpec);
-  if (m && newAbs.startsWith(currentRoot)) {
-    const aliasRel = stripExt(toPosix(relative(resolve(currentRoot, m.to), newAbs)));
-    return suffixMode === 'auto'
-      ? m.alias + aliasRel
-      : m.alias + applySpecSuffix(aliasRel, targetExt, suffixMode);
+  if (m) {
+    // 【2026-09-19 工具债当场修（A10）】别名基址必须与 `resolveSpec` **同口径**（相对仓库根）。
+    // 原为 `resolve(currentRoot, m.to)`，而 currentRoot 已是扫描根 `<root>/src`、m.to 又是 `'src/'`
+    // ⇒ 基址成了 `<root>/src/src` ⇒ 生成 `@/../components/…` 这种**解析不到**的说明符
+    // （`@/` = `src/`，`src/../` = 仓库根 ⇒ 实际指向 `<root>/components/…`）。
+    // 此分支此前几乎走不到（`resolveSpec` 的同一处错位让别名 import 根本不进 ref 图），
+    // 修好 resolveSpec 后才会被触发 —— 两处是**同一根因**，必须同修，否则改名/搬移会**写坏**别名 import。
+    const aliasBase = resolve(root, m.to);
+    if (newAbs.startsWith(aliasBase)) {
+      const aliasRel = stripExt(toPosix(relative(aliasBase, newAbs)));
+      return suffixMode === 'auto'
+        ? m.alias + aliasRel
+        : m.alias + applySpecSuffix(aliasRel, targetExt, suffixMode);
+    }
   }
 
   // 普通相对路径：去掉目标扩展名算出 stem，再按 suffix 策略决定产物扩展名

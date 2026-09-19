@@ -23,6 +23,10 @@
  * ════════════════════════════════════════════════════════════════
  */
 import { INPUT_PANEL_NODE_TYPES } from './nodeDefaults.ts';
+// 深拷贝走**唯一入口** `deepClone`（ADR-0005 决议 1 / 判据 3）：本文件此前直呼 `structuredClone`，
+// 等于在入口之外又留一处实现 —— 将来改拷贝策略（或给它加约束）时，这里会被漏改。
+// 2026-09-19 · TD-18-15 收口（`base/canvas` → `../core/` 已有 idGen / config / logger 等多处先例，不成环）。
+import { deepClone } from '../core/utils.ts';
 
 /**
  * 各节点类型的 data 默认值（**新建节点唯一真源**）。
@@ -117,5 +121,5 @@ export function defaultNodeData(type: string): Record<string, unknown> {
   // 【必须深拷贝】NODE_DATA_DEFAULTS 的数组/对象字面量是**共享实例**：浅合并（{...defaults}）会让
   // 所有新建节点共用同一个 `images: []` / `timelineTracks: []` 数组——任一节点就地 push 即污染
   // 其它节点与后续新建节点（历史 palette.data 同样存在此隐患，2026-09-12 收口时一并修）。
-  return { ...injected, ...structuredClone(defaults) };
+  return { ...injected, ...deepClone(defaults) };
 }

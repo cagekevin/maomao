@@ -755,7 +755,9 @@ export async function executePlan({
       );
       if (fusionIntent && !hasFusion && steps.length >= 2) {
         const fusionStep = {
-          id: `__auto_fusion_${Date.now()}`,
+          // id 走 idGen 唯一入口（TD-18-18 收口的第 8 站 · TD-18-31）：原 `__auto_fusion_${Date.now()}`
+          // **零随机段**，同毫秒内两个融合步即撞 id（前缀 `__auto_fusion` 无消费者，可安全换）。
+          id: generateId('__auto_fusion'),
           title: '融合成品',
           prompt: buildFusionPrompt(steps, userText || ''),
           dependency_mode: 'fusion',

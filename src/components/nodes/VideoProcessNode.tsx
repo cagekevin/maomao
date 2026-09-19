@@ -249,7 +249,14 @@ interface VClip {
   duration?: number;
   sourceStart?: number;
   sourceEnd?: number;
-  timelineStart?: number;
+  // 【2026-09-19 · TD-21-24】**必填**：`VClip` 只由 `tracks` 这个 useMemo 产出，而它**恒赋值**
+  // （`:416` 取自 `cl.timelineStart ?? cursor`、`:455` 取自 `base`）⇒ 归一化后**不可能缺失**。
+  // 此前声明为可选，导致下游 6 处 `?? 0` 兜底——它们**永远走不到**，却让每个读者以为"这里可能没有"；
+  // 且"缺失时按 0 / 按 cursor / 不兜底"三种口径互相矛盾（债）。
+  // 现把不变量下沉到**类型层**（真护栏）：将来谁产出不带 `timelineStart` 的 `VClip`，**TS 直接报错**。
+  // ⚠️ 与 `TimelineClip.timelineStart?: number` 的区别**是刻意的**：那是**持久化/外部导入**形状，
+  // 字段确实可能缺 ⇒ 归一化点的 `?? cursor`（`:404`）**可达且必须保留**。
+  timelineStart: number;
   muted?: boolean;
   trackId?: string;
   [key: string]: unknown;
@@ -476,7 +483,7 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
         .filter((t) => t.kind === 'video')
         .flatMap((t) =>
           [...t.clips]
-            .sort((a, b) => (a.timelineStart ?? 0) - (b.timelineStart ?? 0))
+            .sort((a, b) => a.timelineStart - b.timelineStart)
             .filter((c) => c.url && (c.duration ?? 0) > 0)
             .map((c) => ({ ...c, muted: !!t.muted || c.muted })),
         ),
@@ -843,7 +850,7 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
     const clip = tracks.flatMap((t) => t.clips).find((c) => c.id === clipId);
     if (!clip) return;
     const startX = e.clientX;
-    const startTimeline = clip.timelineStart ?? 0;
+    const startTimeline = clip.timelineStart;
     // P3：move 高频 → rAF 合并（elementsFromPoint + updateClip 从每事件一次降到每帧一次）
     const batch = createRafBatch((clientX, clientY) => {
       const dx = pxDeltaToTime(clientX - startX, PX_PER_SEC);
@@ -854,7 +861,7 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
         ...tracks.flatMap((t) =>
           t.clips
             .filter((c) => c.id !== clipId)
-            .flatMap((c) => [c.timelineStart ?? 0, (c.timelineStart ?? 0) + (c.duration ?? 0)]),
+            .flatMap((c) => [c.timelineStart, c.timelineStart + (c.duration ?? 0)]),
         ),
       ];
       const a = snapTo(candidate, snapTargets);
@@ -1293,7 +1300,7 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
     let max = 0;
     for (const t of tracks)
       for (const c of t.clips) {
-        const end = (c.timelineStart ?? 0) + (c.duration ?? 0);
+        const end = c.timelineStart + (c.duration ?? 0);
         if (end > max) max = end;
       }
     return max;
@@ -1320,7 +1327,7 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
     for (const tr of tracks) {
       if (tr.kind !== 'video') continue;
       const clip = tr.clips.find(
-        (c) => t >= (c.timelineStart ?? 0) && t <= (c.timelineStart ?? 0) + (c.duration ?? 0),
+        (c) => t >= c.timelineStart && t <= c.timelineStart + (c.duration ?? 0),
       );
       if (clip) {
         if (selectedClipId !== clip.id) {
@@ -1356,7 +1363,7 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
         key={clip.id}
         className="absolute top-1 h-12 z-10"
         style={{
-          left: timeToX(clip.timelineStart ?? 0, PX_PER_SEC, 0),
+          left: timeToX(clip.timelineStart, PX_PER_SEC, 0),
           width: timeDeltaToPx(clip.duration ?? 0, PX_PER_SEC),
         }}
         onPointerDown={(e) => {

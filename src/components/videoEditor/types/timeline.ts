@@ -165,7 +165,21 @@ export interface TextElement extends BaseTimelineElement {
   color: string;
   backgroundColor: string;
   textAlign: 'left' | 'center' | 'right';
-  fontWeight: 'normal' | 'bold';
+  /**
+   * 字重（CSS / Canvas 的 `font-weight` 数字值，如 400 / 700）。
+   *
+   * 【2026-09-19 由 `'normal' | 'bold'` 改为数字】原二值形态有两个问题：
+   *  ① 表达能力只有两档，而中文字体（苹方 / 思源等）本身有 6~7 档；
+   *  ② 渲染层为把它塞进 CSS 语法做了**二值压平**（旧 `text-node.ts`：
+   *     `fontWeight === 'bold' ? 'bold' : 'normal'`）⇒ 除 `bold` 外一切都被渲染成 400
+   *     —— 即便数据里写了 500 / 600，画布也**静默渲染成 400**（选了没反应）。
+   * 改为数字后渲染层**直通**，不再有压平这一步。
+   *
+   * ⚠️ **可选档位随字体而异**（见 `constants/font-constants.ts` 的 `FontOption.weights`）：
+   * UI 只列当前字体实际有的档，不做"全局 5 档"（否则在微软雅黑上选 500 会被静默取最近档）。
+   * 【老工程】不做迁移（项目约定：不为存量兼容）——旧值 `'normal'/'bold'` 不再被解析。
+   */
+  fontWeight: number;
   fontStyle: 'normal' | 'italic';
   textDecoration: 'none' | 'underline' | 'line-through';
   hidden?: boolean;

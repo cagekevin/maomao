@@ -4,6 +4,30 @@ import { toAbsoluteFileUrl } from '../utils/assetUrl.ts';
 import { useMediaLoadFailed } from '../utils/useMediaLoadFailed.ts';
 
 /**
+ * 媒体控制（play / pause）的**唯一实现**：被浏览器拒绝属**策略性**预期，不阻断 UI。
+ *
+ * 【为什么收口（TD-18-14）】同一段「取 ref → 调媒体方法 → 吞掉策略性拒绝」的判据此前在本文件
+ *   **逐字写了两遍**（各带一份同样的 `catch-ok: BROWSER_API` 文案）。同一判据两份实现必然漂移 ⇒ 收口为一份。
+ *
+ * 【为什么不留痕】这是**策略性拒绝**（autoplay 政策 / 元素已卸载），不是"我们的动作失败"：
+ *   ① 调用方紧接着用 `setPlaying(...)` 把**真实状态**呈现给用户（读者已对，不是静默）；
+ *   ② 在 Chrome 的 autoplay 政策下这是**常态**，留痕只会把正常路径刷成噪音。
+ *   判据同「探测语义」（见 `core/degrade.ts` 头注：失败与"不可用"对调用方是同一答案时不留痕）。
+ */
+function quietMediaControl(
+  ref: React.RefObject<HTMLVideoElement | null> | undefined,
+  act: (v: HTMLVideoElement) => void,
+): void {
+  try {
+    const v = ref?.current;
+    if (v) act(v);
+  } catch {
+    // catch-ok: BROWSER_API —— 本处即该判据的唯一实现：媒体控制被浏览器拒绝属策略预期
+    // （autoplay 政策 / 元素已卸载），真实结果由调用方以 UI 状态呈现（`setPlaying`）。
+  }
+}
+
+/**
  * 视频缩略图统一组件：静音封面 + 居中悬浮播放按钮。
  * 用于 VideoGenerate（节点主体，点击真正播放）、
  * TaskCenter / GeneratedView（结果/资源的视频缩略图）、
@@ -73,11 +97,10 @@ function VideoThumbnail({
 
   const enterPlay = () => {
     setPlaying(true);
-    // 同一用户手势里显式 play()，绕开 autoplay 政策
-    try {
-      const v = (effectiveVideoRef as React.RefObject<HTMLVideoElement | null>)?.current;
-      v?.play?.();
-    } catch {} // catch-ok: BROWSER_API —— 媒体控制被浏览器拒绝属策略预期（autoplay 政策），非"释放失败"（改判 2026-09-14）
+    // 同一用户手势里显式 play()，绕开 autoplay 政策（失败处置见 quietMediaControl）
+    quietMediaControl(effectiveVideoRef as React.RefObject<HTMLVideoElement | null>, (v) =>
+      v.play(),
+    );
   };
 
   // playable 模式：双击容器 → 拦截原生双击全屏 + 开大图
@@ -85,10 +108,9 @@ function VideoThumbnail({
     if (!playable) return;
     e.preventDefault();
     e.stopPropagation();
-    try {
-      const v = (effectiveVideoRef as React.RefObject<HTMLVideoElement | null>)?.current;
-      v?.pause?.();
-    } catch {} // catch-ok: BROWSER_API —— 媒体控制被浏览器拒绝属策略预期（autoplay 政策），非"释放失败"（改判 2026-09-14）
+    quietMediaControl(effectiveVideoRef as React.RefObject<HTMLVideoElement | null>, (v) =>
+      v.pause(),
+    );
     setPlaying(false);
     onContainerDoubleClick?.();
   };

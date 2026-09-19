@@ -81,8 +81,12 @@ function loadCustom(): Record<string, Playbook> {
 /** 持久化自定义列表（contentStore 对 local 键自动 JSON.stringify 写 localStorage + 更新缓存）。
  *  【2026-09-17 TD-24-4 阶段1】自确认：原 try/catch 永死（contentSet 当时从不抛持久化失败），
  *  且注释里的 persist:failed 兜底对本路径不可靠 —— 工作流是用户资产，写不进去必须让用户知道。 */
-function persist(obj: unknown) {
-  confirmPersist(contentSet(PLAYBOOKS_KEY, obj), {
+function persist(obj: unknown): boolean {
+  // 【2026-09-19 · TD-24-4 收尾】返回**真实结果**（`confirmPersist` 仅在 `landed ∈ {local,kv}` 时 true）。
+  // 此前 `saveCustomPlaybook` / `deleteCustomPlaybook` 无条件 `return true` ⇒ 调用方若据此弹"已保存"，
+  // 就会在落盘失败时**宣布成功**（返回值粉饰）。用户可见的失败提示已由 `confirmPersist` 的 toast 承担，
+  // 这里只负责把"到底成没成"如实告诉调用方。
+  return confirmPersist(contentSet(PLAYBOOKS_KEY, obj), {
     layer: 'scriptbox·playbook',
     key: PLAYBOOKS_KEY,
     toast: '剧本盒子工作流未能保存（本地存储不可用）',
@@ -133,8 +137,8 @@ export function saveCustomPlaybook(pb: Playbook): boolean {
   }
   const list = loadCustom();
   list[pb.id] = { ...pb, builtin: false };
-  persist(list);
-  return true;
+  // 如实返回：落盘失败 ⇒ false（不再无条件 true）
+  return persist(list);
 }
 
 /**
@@ -147,8 +151,8 @@ export function deleteCustomPlaybook(id: string): boolean {
   const list = loadCustom();
   if (!(id in list)) return false;
   delete list[id];
-  persist(list);
-  return true;
+  // 如实返回：落盘失败 ⇒ false（不再无条件 true）
+  return persist(list);
 }
 
 /**

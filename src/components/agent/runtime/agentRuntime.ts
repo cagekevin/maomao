@@ -33,7 +33,7 @@ import { CHAT_TOTAL_TIMEOUT } from '../../base/core/config.ts';
 // 复用 agentCore 的权威消息/工具调用类型（同 runtime 目录，避免重定义漂移）
 import type { ChatMessage, ToolCall, SSEAccumulator, SSEChunkOutcome } from './agentCore.ts';
 // 整条流不可读时的**用户可见文案**由生产者发布（agentCore 导出），消费者只转发、禁止自造。
-import { SSE_STREAM_UNREADABLE_MESSAGE } from './agentCore.ts';
+import { SSE_STREAM_UNREADABLE_MESSAGE, NON_STREAM_BODY_UNREADABLE_MESSAGE } from './agentCore.ts';
 
 /** roundTrip 返回的 assistant 消息：在 ChatMessage 基础上携带运行期必填字段。 */
 interface RuntimeAssistantMessage extends ChatMessage {
@@ -291,7 +291,21 @@ async function resolveBody(
   // 文字与图片 URL 全丢且无任何提示（偶发、难定位）。改为：先读 text → 容错解析，解析失败
   // 兜底为原始文本（渲染层仍能从文本抽 URL 出图），并打 ERROR 日志，绝不静默丢内容。
   if (isNonStream) {
-    const rawText = await res.text().catch(() => '');
+    // 【TD-18-21】读体本身失败（响应流中断 / 被代理截断）**不是**"模型回了空"：
+    //   原 `.catch(() => '')` 把它压成空串 → 解析得 null → `content: ''` → 返回一条空回复，
+    //   用户看到"AI 没说话"、日志零异常（假成功、无从重试）。读体失败必须在根因处炸开 + 留痕；
+    //   文案由**生产者**发布（`NON_STREAM_BODY_UNREADABLE_MESSAGE`），经 useAgentChat 的 catch →
+    //   setError(文案) + 状态机 failed（可重试），用户可见且可行动。
+    let rawText: string;
+    try {
+      rawText = await res.text();
+    } catch (e) {
+      logger.error('AI助手', '非流式响应体读取失败', {
+        model,
+        error: (e as { message?: string })?.message,
+      });
+      throw new Error(NON_STREAM_BODY_UNREADABLE_MESSAGE, { cause: e });
+    }
     const json = safeParseNonStreamJSON(rawText, logger) as OpenAIMessageEnvelope | null;
     // ── [debug] 非流式链路 · 跳③：响应体读取 + 解析结果（定位"收不到回复"） ──
     logger.debug(

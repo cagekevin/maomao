@@ -978,7 +978,15 @@ export default function AgentPanel({
           if (!r?.ok && typeof showToast === 'function')
             showToast(r?.error || '保存长期记忆失败', { type: 'error' });
         })
-        .catch((e) => logger.error('Agent', '保存长期记忆失败', e));
+        .catch((e) => {
+          logger.error('Agent', '保存长期记忆失败', e);
+          // 【2026-09-19 · TD-24-4 收尾】异常分支此前**只有日志**：用户点了「确认」，卡片不关、
+          // 记忆也没存进去，却零反馈。与上面 `!r?.ok` 分支**同款处理**（失败可见性对称）。
+          if (typeof showToast === 'function')
+            showToast(`保存长期记忆失败：${(e as { message?: string })?.message || '未知错误'}`, {
+              type: 'error',
+            });
+        });
       return;
     }
     closeAwaitingConfirm();

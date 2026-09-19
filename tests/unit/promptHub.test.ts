@@ -50,7 +50,7 @@ describe('提示词社区库 §2.19 数据层', () => {
     // 仅该源 url 返回数据，其余源 reject → 解析为空数组，不污染
     fetchImpl = (url: any) =>
       url === src.url
-        ? Promise.resolve({ ok: true, json: () => Promise.resolve(raw) })
+        ? Promise.resolve({ ok: true, text: () => Promise.resolve(JSON.stringify(raw)) })
         : Promise.reject(new Error('skip'));
     const { loadPromptHub } = await import('../../src/components/base/prompt/promptHubStore.ts');
     const { items } = await loadPromptHub();
@@ -77,7 +77,7 @@ describe('提示词社区库 §2.19 数据层', () => {
     ];
     fetchImpl = (url: any) =>
       url === src.url
-        ? Promise.resolve({ ok: true, json: () => Promise.resolve(raw) })
+        ? Promise.resolve({ ok: true, text: () => Promise.resolve(JSON.stringify(raw)) })
         : Promise.reject(new Error('skip'));
     const { loadPromptHub } = await import('../../src/components/base/prompt/promptHubStore.ts');
     const { items } = await loadPromptHub();
@@ -87,7 +87,10 @@ describe('提示词社区库 §2.19 数据层', () => {
   });
 
   it('源拉取失败不崩：返回空数组并记 lastError，UI 可显示错误', async () => {
-    fetchImpl = () => Promise.resolve({ ok: false, status: 500, json: () => Promise.resolve({}) });
+    // 【TD-18-22】替身必须带 `text()`：httpClient 现只经 `res.text()` 读体一次（真实 Response 的 body
+    // 只能消费一次，替身只给 `json()` 会与真实契约脱钩）。
+    fetchImpl = () =>
+      Promise.resolve({ ok: false, status: 500, text: () => Promise.resolve('{}') });
     const { loadPromptHub, getPromptHubErrors } =
       await import('../../src/components/base/prompt/promptHubStore.ts');
     const { items } = await loadPromptHub();
@@ -103,7 +106,8 @@ describe('提示词社区库 §2.19 数据层', () => {
     let calls = 0;
     const okJson = (url: any) =>
       url === src.url
-        ? ((calls += 1), Promise.resolve({ ok: true, json: () => Promise.resolve(raw) }))
+        ? ((calls += 1),
+          Promise.resolve({ ok: true, text: () => Promise.resolve(JSON.stringify(raw)) }))
         : Promise.reject(new Error('skip'));
     fetchImpl = okJson;
     const { loadPromptHub } = await import('../../src/components/base/prompt/promptHubStore.ts');
@@ -111,7 +115,8 @@ describe('提示词社区库 §2.19 数据层', () => {
     // 第二次：缓存命中，该源不再 fetch（其余源仍 reject，不算 calls）
     fetchImpl = (url: any) =>
       url === src.url
-        ? ((calls += 1), Promise.resolve({ ok: true, json: () => Promise.resolve(raw) }))
+        ? ((calls += 1),
+          Promise.resolve({ ok: true, text: () => Promise.resolve(JSON.stringify(raw)) }))
         : Promise.reject(new Error('skip'));
     await loadPromptHub();
     expect(calls).toBe(1);
@@ -124,7 +129,7 @@ describe('提示词社区库 §2.19 数据层', () => {
     const raw = [{ title: 'A', prompt: 'p' }];
     fetchImpl = (url: any) =>
       url === src.url
-        ? Promise.resolve({ ok: true, json: () => Promise.resolve(raw) })
+        ? Promise.resolve({ ok: true, text: () => Promise.resolve(JSON.stringify(raw)) })
         : Promise.reject(new Error('skip'));
     const { loadPromptHub, getCachedPromptHub } =
       await import('../../src/components/base/prompt/promptHubStore.ts');

@@ -5,7 +5,7 @@
  * 唯一真源，业务代码一律从本文件 import，禁止在调用方就地手抄替代
  * （单一规则原则，见 CLAUDE.md §5.4(9)「同一件事只允许一种实现」）：
  *  · clamp(v, lo?, hi?)               通用数值钳制唯一真源（TD-18-6 收口，第二份已删）
- *  · deepClone<T>                     JSON 深拷贝唯一入口（业务代码禁止手写 JSON.parse(JSON.stringify())）
+ *  · deepClone<T>                     深拷贝唯一入口（业务代码禁止手写 JSON.parse(JSON.stringify())，也禁裸 structuredClone）
  *  · fileNameFromUrl                  URL→文件名唯一实现（曾 12 份内联，TD-16-14 / TD-08-20 收口）
  *  · toAbsoluteFileUrl                /files/ 相对路径→完整 URL 唯一实现（TD-06-7 收口，消除循环依赖）
  *  · dataUrlToBlob / safeFileName     各自语义唯一实现（曾散落多文件，已收口）
@@ -122,8 +122,9 @@ type RafBatchFn<T extends (...args: any[]) => void> = {
  *
  * 【消费面取证（2026-09-18）】`director3d` 与 `clipboard` 传入的均为**纯 JSON 数据**
  *   （`project.ts` 里的 `Map`/`Set` 全是局部计算，不在被克隆结构内）⇒ 两实现对现有消费方**行为等价**。
- *   能力取证：`structuredClone` 在 node 与 jsdom（vitest）环境均可用，仓内已有先例
- *   （`nodeDataSchema.ts:120` · `d3dPersistence.ts`）。
+ *   能力取证：`structuredClone` 在 node 与 jsdom（vitest）环境均可用。
+ *   【2026-09-19 · TD-18-15】原写的两处「先例」（`nodeDataSchema.ts:120` · `d3dPersistence.ts`）
+ *   现**都已收口到本函数**（全仓裸 `structuredClone` 归零）⇒ 先例即本函数自身，不再另指调用点。
  *
  * 【何时不该用】需要「丢函数 / 把 Date 归一成字符串」的**归一化**语义时，请显式走 JSON 序列化 —— 别借本函数。
  */

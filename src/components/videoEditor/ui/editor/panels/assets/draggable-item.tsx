@@ -154,11 +154,20 @@ export function DraggableItem({
               )}
             </AspectRatio>
             {shouldShowLabel && (
-              <span className="ve-card-name w-full truncate text-left" title={name}>
+              // 【2026-09-19 名称收口】截断**只有一份判据 = 本元素的 CSS `truncate`**
+              // （按容器真实宽度出省略号；卡片固定一排 2 个 ⇒ 宽度确定，观感稳定）。
+              //
+              // 被替换的旧实现（一句话两个错）：
+              //   `name.length > 8 ? `${name.slice(0,16)}...${name.slice(-3)}` : name`
+              //   ① 判据 `>8` 与切点 `16` **不一致** ⇒ 9~16 字的名称进"长名分支"却整名未被切掉，
+              //      渲染成「**整名 + ... + 末 3 字**」的乱码（实测 `my_video_01.mp4` → `my_video_01.mp4...mp4`）；
+              //   ② 它与 `truncate` 是**两份截断判据维护同一真相** ⇒ 必然漂移。
+              //
+              // 现形态：作者只提供**完整名称**；截断交 CSS。完整名在 `title`（悬停可看）
+              // 与 `sr-only`（读屏）里 —— 三处同源，不各自加工。
+              <span className="ve-card-name block w-full truncate text-left" title={name}>
                 <span className="sr-only">{name}</span>
-                <span aria-hidden="true">
-                  {name.length > 8 ? `${name.slice(0, 16)}...${name.slice(-3)}` : name}
-                </span>
+                <span aria-hidden="true">{name}</span>
               </span>
             )}
           </div>
@@ -196,7 +205,12 @@ export function DraggableItem({
             <span className="w-full flex-1 truncate text-sm text-left">{name}</span>
           </button>
           {!isDragging && (onAddToTimeline || onRemoveFromTimeline) && (
-            <div className="flex shrink-0 items-center gap-0.5 pr-1">
+            // 【2026-09-19】补 `ml-auto`：显式把动作钮**推到最右**（右对齐）。
+            // 原实现只靠 `flex-1` 行本体"吃掉剩余空间"间接实现右对齐 —— 一旦行本体
+            // 因内容/父级约束没撑满（或将来改成 `w-auto`），两颗钮就会**跟着名称跑**、
+            // 不在一条竖直线上。`ml-auto` 把"右对齐"变成**这一层自己声明的判据**，
+            // 不依赖祖先的宽度行为（用户口径：列表态加减号要贴最右对齐）。
+            <div className="ml-auto flex shrink-0 items-center gap-0.5 pr-1">
               {/* 顺序与卡片态一致：先加（左）后减（右）。 */}
               {onAddToTimeline && <PlusButton variant="inline" onClick={handleAddToTimeline} />}
               {onRemoveFromTimeline && (
@@ -235,7 +249,9 @@ export function DraggableItem({
                   <PlusButton
                     variant="card"
                     onClick={handleAddToTimeline}
-                    tooltipText="Add to timeline or drag to position"
+                    // 【2026-09-19】原文案为英文（本编辑器其余 UI 文案一律中文，且卡片态加号无 tooltip）
+                    // ⇒ 同一动作两种文案、两种语言，属描述层第二份真相。统一为中文口径。
+                    tooltipText="添加到时间轴（或拖到指定位置）"
                   />
                 )}
               </AspectRatio>

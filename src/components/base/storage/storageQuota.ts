@@ -155,6 +155,8 @@ export async function enumerateLocalEntries(): Promise<Array<{
     // catch-ok: BROWSER_API
     // 存储读取受限（隐私模式/权限）属环境预期；降级为「不可用」，
     // UI 展示降级文案而非崩（读者已对：用户侧可见，非静默）。
+    // 【TD-18-14 判非债（2026-09-18）· 判据见 ADR-0032】判据与"扩展 API 边界调用失败"不同（这是**读取受限 → 降级为不可用**，
+    // 且降级已由 UI 呈现），收口它 = 把两种判据合并 ⇒ 按 ADR-0031「判据重复禁合并」保留分层。
     return null;
   }
 }

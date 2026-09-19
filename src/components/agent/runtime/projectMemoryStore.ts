@@ -66,18 +66,20 @@ const locks = new Map<string, Promise<unknown>>();
 function withLock(key: string, fn: () => Promise<unknown>): Promise<unknown> {
   const prev = locks.get(key) || Promise.resolve();
   const next = prev.then(fn, fn);
-  locks.set(
-    key,
-    next.catch(() => {}), // catch-ok: LOCK_CHAIN
-  );
-  try {
-    next.finally(() => {
-      if (locks.get(key) === next) locks.delete(key);
-    });
-  } catch {
-    // catch-ok: LOCK_CHAIN
-    /* 忽略 finally 隐患 */
-  }
+  // 【2026-09-19 · TD-18-27】原实现有两处缺陷，同根因（把"锁链记账"和"操作结果"两个 promise 混用）：
+  //   ① `locks.set(key, next.catch(() => {}))` 存的是**派生** promise，而 finally 里比较
+  //      `locks.get(key) === next` ⇒ **恒假** ⇒ 清理分支是**死代码**（锁条目永不释放）；
+  //   ② `try { next.finally(…) } catch {}` 是**假护栏**：try/catch 包不住 promise rejection ——
+  //      `next` 失败时，`next.finally()` 的**派生** promise **无人处理** ⇒ **unhandled rejection**。
+  // 现统一由 `guarded` 承载"锁链记账"：它**永不 reject** ⇒ 其 `finally` 派生 promise 也永不 reject
+  // ⇒ 不需要 try/catch；且比较对象同为 `guarded` ⇒ 清理分支**真正生效**。
+  // 【为什么允许吞】操作**本身**的失败由下面的 `return next` 原样交给调用方（可见、可处理）；
+  // 这里吞的只是"锁链记账"那一份 rejection —— 它不代表任何业务结果，重复记只会造第二份真相。
+  const guarded = next.catch(() => {}); // catch-ok: LOCK_CHAIN
+  locks.set(key, guarded);
+  guarded.finally(() => {
+    if (locks.get(key) === guarded) locks.delete(key);
+  });
   return next;
 }
 

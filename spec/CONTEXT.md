@@ -51,10 +51,13 @@
 ### B. 组件与 Hook 规范
 
 * **组件目录归类**：已全部归类至 `nodes/`、`panels/`、`scriptbox/`、`base/`、`edges/`。**禁止新增平铺顶层组件**。
+  （**例外 · 本处为何仍带判决句**：属「组织约定」，用户已裁定**暂缓**重构 —— 见 TD-23-2 / TD-23-3 / TD-23-4；
+  暂缓期间保留原文，避免规则丢失。）
 
 * **Hook 分类**：分为数据桥接、交互、能力、引擎、状态、lod。命名 `useXxx`，只封装逻辑不写 UI，纯逻辑需可单测。
 
-* **配置集中**：环境变量统一在 `config.ts` 读一次。魔法数字/超时/阈值命名常量。禁止各文件裸读 env 或裸写数字。
+* **配置集中**：环境变量统一在 `config.ts` 读一次；魔法数字/超时/阈值命名常量。
+  **判据 / 违反判据 → ADR-0033**（本处只留指针，不抄判据正文）。
 
 ### C. 重型重构 SOP（目录迁移 / 大范围改动必走）
 
@@ -100,7 +103,8 @@
 
 * **节点类型/参数记忆契约**：`useNodePrefs` 首参（节点命名空间）必须先登记 `contracts.ts` 的 `NODE_TYPES`（编译期由 `npm run check:node-types` 拦截），禁止散落裸字符串当命名空间；拼错会让该节点「上次参数」跨窗口静默失效。
 
-* **节点统一范式**：外壳用 `NodeShell`（禁止手写外壳）；UI 用 `useState(data.xxx)`、写回用 `setNodes` 不可变更新；上游数据走 `useConnectedInputs`。详见 `spec/NEW-NODE-GUIDE.md`。
+* **节点统一范式**：外壳用 `NodeShell`；UI 用 `useState(data.xxx)`、写回用 `setNodes` 不可变更新；上游数据走 `useConnectedInputs`。详见 `spec/NEW-NODE-GUIDE.md`。
+  **判据（禁止手写外壳等） → ADR-0034**。
 
 * **管线契约（产出声明三张表）**：`useConnectedInputs.ts` 的 `SINGLE_OUTPUT_FIELDS`（单 URL 产出，字段名显式）+ `NODE_OUTPUTS`（复合产出：多端口/多图/数组归一，用 `arrayImages`）+ `NO_OUTPUT_NODE_TYPES`（无自有产出）是「下游自动拿上游数据」的唯一声明（2026-09-12 / TD-02-11：原靠 `genericOutput` 猜三个魔法字段名，现降级为未登记类型的安全网）。有产出的节点必须登记，覆盖性由 `uncoveredOutputNodeTypes()` 单测保证。
 
@@ -110,7 +114,8 @@
 
 * **节点生成**：统一走 `useGenerateNode.ts`（聚合 providers/模型、默认模型回填、`useSyncNodeData` 外部同步后委托 `useNodeGeneration.ts` 契约写回），禁止手写生成样板。四类生成节点（Prompt/Text/Template/DiscountVideo）改走该 hook，模型域与上报类型不一致时用 `reportType` 解耦。
 
-* **错误/异步**：统一走 `genErrors.ts` + `asyncGuard.ts`，禁止节点自写网络错误判定，禁止无超时 Promise。
+* **错误/异步**：统一走 `genErrors.ts` + `asyncGuard.ts`。
+  **判据（禁自写网络错误判定 / 禁无超时 Promise） → ADR-0035**；「能否重试」另见 **ADR-0018**（两者互补）。
 
 * **收口硬性豁免**：只有面临性能独占、领域硬隔离、上游契约钉死或安全隔离时允许不收口，且必须在代码处注释原因。
 
@@ -153,7 +158,9 @@
 | **⑥ 工具**  | `idGen.ts` / `utils.ts`            | 通用纯工具集合。                                                                                                                                                                                                                                                                                                                                                                            | 手写 `Date.now().toString(36)` 造 ID                        |
 | **⑦ 下载**  | `clipboard.downloadUrl`            | 统一文件下载与导出。                                                                                                                                                                                                                                                                                                                                                                          | 自写 `createObjectURL + a.download`                        |
 
-> **协作规则（不越层）**：弹提示→②、记日志→③、广播→①、存数据→④、算/转换→⑤⑥、下载→⑦。**禁止越层**（toast 不写日志、logger 不弹提示）。新增事件/存储键/错误类型先到 `contracts.ts` 登记再实现。
+> **协作规则（不越层）**：弹提示→②、记日志→③、广播→①、存数据→④、算/转换→⑤⑥、下载→⑦。
+> **判据（禁止越层代劳） → ADR-0036**。新增事件/存储键/错误类型先到 `contracts.ts` 登记再实现
+> （**该子项已由闸 `check:events` / `check:keys` 强制**）。
 
 > **debug 开关（查 bug 临时日志用，已升级为通用 DEBUG）**：`config.ts` 的 `DEBUG`（`isDebugModuleOn(module)`）按模块分类控制 `logger.debug` 输出，默认全关、不上报后端。模块位集中在 `DEBUG_MODULES = ['asset','agent','image','text']`（素材库 / AI 助手 / 图片生成全链路 / 文本节点）。开启：`.env` 加 `VITE_DEBUG_ALL=1`（全开）或 `VITE_DEBUG_<MODULE>=1`（单模块），运行时 `window.__DEBUG_ALL` / `window.__DEBUG_<MODULE>`。asset 模块位的判定入口 = `isDebugModuleOn('asset')`（**运行时实时读**；不提供顶层缓存常量）。**新增模块直接在** **`DEBUG_MODULES`** **登记，禁止再起独立散开关**。详见 CLAUDE.md §3.2（改 bug 先加日志）。
 

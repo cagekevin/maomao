@@ -10,18 +10,9 @@ export interface TtsResult {
   blob: Blob;
 }
 
-function base64ToArrayBuffer({ base64 }: { base64: string }): ArrayBuffer {
-  const binaryString = atob(base64);
-  const bytes = new Uint8Array(binaryString.length);
-  for (let i = 0; i < binaryString.length; i++) {
-    bytes[i] = binaryString.charCodeAt(i);
-  }
-  return bytes.buffer;
-}
-
 export async function generateSpeechFromText({
-  text,
-  voice,
+  text: _text,
+  voice: _voice,
 }: {
   text: string;
   voice?: string;
@@ -31,35 +22,21 @@ export async function generateSpeechFromText({
   //
   // ⚠️ **当前为诚实占位**（用户裁定「方案甲」）：
   //   localTool 尚未实现该端点 → 调用即**明确报错**，不静默、不假装成功。
-  //   将来接入：在 localTool 加 `/api/tts` 路由（走其 `netProxy` 出站收口），
-  //   再把下一行的 URL 改为 `${apiBase}/api/tts` 即可（apiBase 见 config.ts）。
+  //   将来接入（三步，原骨架即此三步，需要时见 git 历史）：
+  //     ① `POST ${apiBase}/api/tts`（apiBase 见 config.ts；localTool 侧新增路由走其 `netProxy` 出站收口）；
+  //     ② 取回 `{ audio: base64 }` → 解码为 ArrayBuffer；
+  //     ③ `new AudioContext().decodeAudioData(...)` 得 `buffer`，与 `blob` 一起返回。
+  //   本函数**有意不使用** `text` / `voice`（`_` 前缀 = 有意不用；接入时去掉前缀即可）。
   // 依据：docs/133 §〇.4（误删审计）+ 用户 2026-09-14 裁定。
+  //
+  // 【2026-09-19 · TD-18-25】原不可达骨架（`fetch '/api/tts/generate'` + 解析 + 解码）**已删**：
+  //   ① 它位于本 `throw` 之后 = **永不可达**，只靠一条压制「不可达」告警的 eslint 注释存活
+  //      （那条注释本身就是"这里是死代码"的自供状）；
+  //   ② 它带着一枚**永不执行**的 `catch-ok` 豁免标记（`PARSE_FALLBACK`）—— 那是 `asyncGuard`
+  //      原语之外**最后一处**手写 `PARSE_FALLBACK`（删后 `src` 归零），留着就是污染普查口径；
+  //   ③ 它指向**我们已决定不搬**的 Next 路由 ⇒ 留着只会把后来人引向错端点。
+  //   原以为删它会留下死代码，实测「它的专属 helper `base64ToArrayBuffer`」一并删除（唯一消费者即骨架）。
   throw new Error('语音生成（TTS）待接入：localTool 尚无 /api/tts 端点。详见 docs/133。');
-
-  // eslint-disable-next-line no-unreachable -- 保留原实现骨架，待接入时启用
-  const response = await fetch('/api/tts/generate', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ text, voice }),
-  });
-
-  if (!response.ok) {
-    const error = await response.json().catch(() => null); // catch-ok: PARSE_FALLBACK
-    throw new Error(error?.error ?? `TTS request failed: ${response.status}`);
-  }
-
-  const { audio } = (await response.json()) as { audio: string };
-  const arrayBuffer = base64ToArrayBuffer({ base64: audio });
-  const blob = new Blob([arrayBuffer], { type: 'audio/mpeg' });
-
-  const audioContext = new AudioContext();
-  const buffer = await audioContext.decodeAudioData(arrayBuffer.slice(0));
-
-  return {
-    duration: buffer.duration,
-    buffer,
-    blob,
-  };
 }
 
 function findAvailableAudioTrack({

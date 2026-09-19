@@ -189,6 +189,31 @@ export class ProgressController {
   }
 }
 
+/**
+ * 探测视频帧率 —— **唯一实现**（原 `:203` / `:315` / `:381` 三处逐字重复 `.catch((): null => null)`）。
+ *
+ * 【为什么保留降级而不上抛（TD-22-66）】帧率是**探活项**，不是整体成败的判据：同一个 `input` 上的
+ *   时长 / 宽高已经能拿到，为一个探活项把整段解析判死是过度反应 ⇒ 失败返回 `null`（= "未知"）。
+ * 【为什么必须留痕】原写法把失败**静默归一成 null**，下游再 `?? 0` ⇒ "探活失败"被伪装成
+ *   "帧率 = 0"（一个物理上不成立、却长得像合法值的形态），线上永远查不到 —— 违反 ADR-0019
+ *   形态④（默认值兜底）。本文件 `:180-188` 已有同款判据：**「不阻断」≠「不可见」**。
+ * 【与 `:665` 那条判据的关系】那里是"被调方已是判别联合 ⇒ 直接转发"；此处被调方**裸抛**，且
+ *   值是探活项 ⇒ 按"降级 + 留痕"处理，而不是把探测失败升级成整体失败。
+ * ⚠️ 三处下游的默认值**互不一致**（`?? 0` / `?? 0` / `?? 30`），本轮**刻意未统一**（零炸，
+ *   统一默认值属业务决策）⇒ 只收口"探活 + 留痕"这一步。
+ */
+async function probeAveragePacketRate(
+  track: { computePacketStats(packetCount: number): Promise<{ averagePacketRate: number }> },
+  packetCount = 120,
+): Promise<number | null> {
+  try {
+    return (await track.computePacketStats(packetCount)).averagePacketRate;
+  } catch (e) {
+    logger.warn('视频引擎', '帧率探活失败（fps 按未知处理）', e);
+    return null;
+  }
+}
+
 /** 读视频元数据（官方 Ec）→ { duration, width, height, fps } */
 export async function readVideoMetadata(blob: Blob): Promise<VideoMetadata> {
   const input = await xc(blob);
@@ -196,18 +221,18 @@ export async function readVideoMetadata(blob: Blob): Promise<VideoMetadata> {
     if (!(await input.canRead())) throw new Error('无法识别视频格式');
     const track = await input.getPrimaryVideoTrack();
     if (!track) throw new Error('输入文件不包含视频轨道');
-    const [duration, width, height, stats] = await Promise.all([
+    const [duration, width, height, packetRate] = await Promise.all([
       input.getDurationFromMetadata(),
       track.getDisplayWidth(),
       track.getDisplayHeight(),
-      track.computePacketStats(120).catch((): null => null),
+      probeAveragePacketRate(track),
     ]);
     const dur = duration ?? (await input.computeDuration());
     return {
       duration: Number.isFinite(dur) ? dur : 0,
       width,
       height,
-      fps: Cc(stats?.averagePacketRate ?? 0),
+      fps: Cc(packetRate ?? 0),
     };
   } finally {
     input.dispose();
@@ -311,9 +336,7 @@ export async function processVideo(
     const width = (t.mode === 'sizeFrameRate' ? t.width : await videoTrack.getDisplayWidth()) ?? 0;
     const height =
       (t.mode === 'sizeFrameRate' ? t.height : await videoTrack.getDisplayHeight()) ?? 0;
-    const fps = Cc(
-      (await videoTrack.computePacketStats(120).catch((): null => null))?.averagePacketRate ?? 0,
-    );
+    const fps = Cc((await probeAveragePacketRate(videoTrack)) ?? 0);
     const finalFps = (t.mode === 'sizeFrameRate' ? t.fps : fps) ?? 0;
     const mimeType =
       t.mode === 'extractAudio'
@@ -378,7 +401,7 @@ export async function concatVideos(
     }
     if (t.controller?.isCanceled) throw new ConversionCanceled();
 
-    const stats = await items[0].video.computePacketStats(120).catch((): null => null);
+    const packetRate = await probeAveragePacketRate(items[0].video);
     let maxW = 0;
     let maxH = 0;
     for (const it of items) {
@@ -389,7 +412,7 @@ export async function concatVideos(
     }
     const outW = Sc(t.width ?? maxW);
     const outH = Sc(t.height ?? maxH);
-    const outFps = Cc(t.fps ?? stats?.averagePacketRate ?? 30);
+    const outFps = Cc(t.fps ?? packetRate ?? 30);
     const totalDur = items.reduce((s, it) => s + it.duration, 0);
 
     const target = new BufferTarget();

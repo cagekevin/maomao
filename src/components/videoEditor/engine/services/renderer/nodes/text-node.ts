@@ -99,7 +99,10 @@ export class TextNode extends BaseNode<TextNodeParams> {
       renderer.context.scale(this.params.transform.scale, this.params.transform.scale);
     }
 
-    const fontWeight = this.params.fontWeight === 'bold' ? 'bold' : 'normal';
+    // 【2026-09-19】`fontWeight` 数据层已是**数字**（见 `types/timeline.ts`），此处**直通**。
+    // 原为 `fontWeight === 'bold' ? 'bold' : 'normal'` —— 二值压平会把 500/600 等档位
+    // 静默渲染成 400（= 用户"选了粗细没变化"），且与新类型不再兼容。
+    const fontWeight = this.params.fontWeight;
     const fontStyle = this.params.fontStyle === 'italic' ? 'italic' : 'normal';
     const textBaseline = this.params.textBaseline || 'middle';
     const scaledFontSize = scaleFontSize({

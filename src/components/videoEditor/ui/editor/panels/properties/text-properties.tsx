@@ -4,6 +4,8 @@ import { Textarea } from '@/components/videoEditor/ui/ui/textarea';
 import { FontPicker } from '@/components/videoEditor/ui/ui/font-picker';
 
 import type { FontFamily } from '@/components/videoEditor/constants/font-constants';
+// 字重档位的**唯一真源**：随字体而异（见该文件内 `FontOption.weights` 的判据）。
+import { getFontWeights } from '@/components/videoEditor/constants/font-constants';
 import type {
   TextElement,
   TextStroke,
@@ -375,23 +377,38 @@ export function TextProperties({ elements: elementRefs }: { elements: TextElemen
                   </PropertyItemValue>
                 </PropertyItem>
                 <PropertyItem>
+                  {/* 【2026-09-19】字重从「B 开关（两档）」改为**按当前字体给档位**的横向选择。
+                      判据：字重可选范围**随字体而异**（Arial/微软雅黑只有 400/700；苹方/思源有 6~7 档），
+                      而 `ctx.font` 对不存在的字重是**静默取最近档** ⇒ 列出该字体没有的档
+                      等于制造"选了没反应"的幽灵项。故档位来源 = `getFontWeights(当前字体)`
+                      （`constants/font-constants.ts` 的唯一真源），**不写全局固定清单**。
+                      非浏览器可见文案：档位名由该真源给（常规 / 加粗…），此处只渲染。 */}
+                  <PropertyItemLabel>{'字重'}</PropertyItemLabel>
+                  <PropertyItemValue>
+                    <div className="flex items-center gap-1">
+                      {getFontWeights({ fontFamily: element.fontFamily }).map((weight) => (
+                        <Button
+                          key={weight.value}
+                          variant={element.fontWeight === weight.value ? 'default' : 'outline'}
+                          size="sm"
+                          onClick={() =>
+                            editor.timeline.updateElements({
+                              updates: buildBatchUpdates({ fontWeight: weight.value }),
+                            })
+                          }
+                          className="h-8 px-2.5"
+                          style={{ fontWeight: weight.value }}
+                        >
+                          {weight.label}
+                        </Button>
+                      ))}
+                    </div>
+                  </PropertyItemValue>
+                </PropertyItem>
+                <PropertyItem>
                   <PropertyItemLabel>{'样式'}</PropertyItemLabel>
                   <PropertyItemValue>
                     <div className="flex items-center gap-2">
-                      <Button
-                        variant={element.fontWeight === 'bold' ? 'default' : 'outline'}
-                        size="sm"
-                        onClick={() =>
-                          editor.timeline.updateElements({
-                            updates: buildBatchUpdates({
-                              fontWeight: element.fontWeight === 'bold' ? 'normal' : 'bold',
-                            }),
-                          })
-                        }
-                        className="h-8 px-3 font-bold"
-                      >
-                        B
-                      </Button>
                       <Button
                         variant={element.fontStyle === 'italic' ? 'default' : 'outline'}
                         size="sm"
@@ -930,7 +947,9 @@ function PresetButton({ preset, onClick }: { preset: TextStylePreset; onClick: (
     : {
         color: preview.color,
         backgroundColor: preview.backgroundColor,
-        fontWeight: preview.fontWeight ?? 'bold',
+        // 【2026-09-19】补 `?? 700` 的默认值说明：预设未声明字重时按"加粗"预览（与既有观感一致）。
+        // 数字口径与 `TextElement.fontWeight` 统一 —— 不再混用 `'bold'` 字符串（避免两套写法）。
+        fontWeight: preview.fontWeight ?? 700,
         // 与画布渲染同判据（`width > 0`）：`width: 0` 的预设不该画出 0.5px 的"假描边"。
         WebkitTextStroke: hasTextStroke(preview.stroke)
           ? `${Math.max(preview.stroke.width * 0.5, 0.5)}px ${preview.stroke.color}`

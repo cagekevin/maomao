@@ -16,12 +16,37 @@
  */
 
 import type { AssistantStreamEvent, ParseStreamOptions } from './types.js';
+// 【2026-09-19 · TD-18-29】「哪些 HTTP 状态码算可重试」的**唯一真源**是这里的 `RETRYABLE_HTTP_STATUSES`
+// （408/429/5xx，与 `protocol/poll.ts` 同源）。本文件原先自写 `status >= 500` —— 与真源相比**漏了 408/429**，
+// 是第三份口径。
+// ⚠️ 现状（一并写明，免后来人误判）：本字段**全仓零读者**，且 `relay.streamChat` 这条链路目前是**预留**
+// （未接线，用户 2026-09-19 确认）⇒ 改它对现有行为**零影响**；此处只做口径归一，等接线时即是正确值。
+import { RETRYABLE_HTTP_STATUSES } from './httpTransport.js';
 
 interface ToolCallBufferEntry {
   callId: string;
   toolId: string;
   argumentsJson: string;
 }
+/**
+ * HTTP 失败响应 → 可展示文案（**唯一实现**；原在 `:126` / `:272` 两处**逐字重复**，2026-09-19 收口 · TD-18-28）。
+ *
+ * - 优先取上游 JSON 的 `error.message`；
+ * - 错误体**不是 JSON** 时（网关 / 代理常直接回 HTML）**带上原文片段** —— 旧写法用一个空 catch 块
+ *   把上游给的唯一线索整个丢掉，与前端 `httpClient` 的标准不一致（非 JSON 错误体原文进 message，见 TD-18-22）。
+ *   截取长度设上限，防把整页 HTML 灌进 UI。
+ */
+function errorMessageFrom(status: number, errorBody: string): string {
+  const fallback = `请求失败 (${status})`;
+  try {
+    const err = JSON.parse(errorBody) as JsonMessage;
+    return err.error?.message || fallback;
+  } catch {
+    const raw = errorBody.trim().slice(0, 120);
+    return raw ? `${fallback}：${raw}` : fallback;
+  }
+}
+
 interface JsonChunkDelta {
   role?: string;
   content?: string;
@@ -123,18 +148,12 @@ export async function parseStream(
 
   if (!response.ok) {
     const errorBody = await response.text().catch(() => '');
-    let errorMsg = `请求失败 (${response.status})`;
-    try {
-      const err = JSON.parse(errorBody) as JsonMessage;
-      errorMsg = err.error?.message || errorMsg;
-    } catch {
-      /* ignore */
-    }
+    const errorMsg = errorMessageFrom(response.status, errorBody);
     onEvent({
       type: 'error',
       code: 'HTTP_ERROR',
       message: errorMsg,
-      retryable: response.status >= 500,
+      retryable: RETRYABLE_HTTP_STATUSES.includes(response.status),
     });
     onEvent({ type: 'done', finishReason: 'error' });
     throw new Error(errorMsg);
@@ -269,18 +288,12 @@ export async function parseNonStream(
 
   if (!response.ok) {
     const errorBody = await response.text().catch(() => '');
-    let errorMsg = `请求失败 (${response.status})`;
-    try {
-      const err = JSON.parse(errorBody) as JsonMessage;
-      errorMsg = err.error?.message || errorMsg;
-    } catch {
-      /* ignore */
-    }
+    const errorMsg = errorMessageFrom(response.status, errorBody);
     onEvent({
       type: 'error',
       code: 'HTTP_ERROR',
       message: errorMsg,
-      retryable: response.status >= 500,
+      retryable: RETRYABLE_HTTP_STATUSES.includes(response.status),
     });
     onEvent({ type: 'done', finishReason: 'error' });
     throw new Error(errorMsg);
