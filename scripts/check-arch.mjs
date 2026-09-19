@@ -366,32 +366,47 @@ if (structuralCycles.size) {
   }
 }
 
-// ── 2. base/ 禁反向依赖业务域（**反向判据**，非手写域名清单）· docs/123 G-1 ──
-// 【为什么改成反向判据（7 步法附录 A4）】原实现用 BUSINESS_RE 手写域名（nodes|scriptbox|agent|panels）。
-// 「每来一个业务域就要记得加一次」**本身就是母体**：下一个业务域（videoEditor / edges / …）必然重演同一坑。
-// 实测已漏：`src/components/edges/` 不在名单内 → `base/ui/NodeShell.tsx → edges/CustomHandle.tsx` 长期无守卫
-//   （该边已修：CustomHandle 下沉 `base/ui/`，2026-09-13 —— 反向判据上线即抓出它，正是本改法的价值证明）。
-// 反向判据 = base/ 不得 import `src/components/` 下**任何非 base/ 目录**：一次改完，自动覆盖未来所有业务域。
-console.log('\n🏗 分层边界：base/ 禁止反向依赖业务域（反向判据）');
-// 豁免：NodePalette 节点注册表单源、lazyNode 重节点懒加载包装（刻意引用 nodes，已验证无环）
-const BASE_ALLOWLIST = new Set([
-  join(SRC, 'components/base/canvas/NodePalette.ts'),
-  join(SRC, 'components/base/canvas/lazyNode.tsx'),
-]);
+// ── 2. 分层边界：**横切子目录**禁反向依赖业务域 · docs/123 G-1 ──
+//
+// 【守什么】依赖只能指向更稳定的方向。横切层（无业务语义的通用原语）若 import 业务域 ⇒
+//   ① 成环风险 ② 横切层无法独立演化（改一个域就波及地基）。
+//
+// 【🔴 2026-09-19 判据修正：作用域从「整个 base/」收窄到「base/ 的横切子目录」】
+//   原判据 = `relFrom.startsWith('src/components/base/')` —— 等于假设「base/ 里全是横切层」。
+//   但本仓 `base/` 是**「横切层 + 域」的容器**（`docs/DOMAIN-MODULES.md §2.2` 实测）：
+//     · 横切：core · utils · ui · api · storage · panels
+//     · 域  ：canvas · store · editors · prompt · creative · media · depthVideo
+//   ⇒ 拿「横切不许依赖域」去管 `base/canvas`（**它本身就是域**）= 把「稳定性层级」与「目录位置」混为一谈。
+//   实证（2026-09-19）：全仓 `base/` 出向依赖**仅 1 处来源** = `base/canvas → nodes`（12 条，域→域，本该允许）；
+//   其余 13 个子目录**零出向依赖** ⇒ 收窄后纯度仍 100%，且 `BASE_ALLOWLIST`（2 条清单式例外）**整个删除**。
+//
+// 【为什么"横切子目录登记表"不是母体】原作者弃用域名清单的理由是「每来一个业务域就要记得加一次」。
+//   但**会增殖的是「域」，不会增殖的是「横切子目录」** —— 横切是稳定集合，域由本规则**自动覆盖**（无需登记）。
+//   故本表登记的是**稳定侧**，与 `contracts.ts` 的 NODE_TYPES / STORAGE_KEYS 同族（登记表 = 本仓既有机制）。
+//
+// 【何时该改】新增/删除 `base/` 下的**横切**子目录时同步本表；**域**子目录不要加进来。
+// 【怎么改】把新横切子目录加进 `BASE_CROSS_CUTTING`。若某横切子目录确实要依赖某域 ⇒ 先问
+//   「它是不是其实属于那个域」（多半是域物住横切层，应迁出而不是加白名单）。
+console.log('\n🏗 分层边界：base/ 的横切子目录禁止反向依赖业务域');
+const BASE_CROSS_CUTTING = new Set(['core', 'utils', 'ui', 'api', 'storage', 'panels']);
+const BASE_PREFIX = 'src/components/base/';
 let baseViol = 0;
 for (const [from, deps] of graph) {
   const relFrom = from.slice(root.length + 1).replace(/\\/g, '/');
-  if (!relFrom.startsWith('src/components/base/')) continue;
-  if (BASE_ALLOWLIST.has(from)) continue;
+  if (!relFrom.startsWith(BASE_PREFIX)) continue;
+  const sub = relFrom.slice(BASE_PREFIX.length).split('/')[0];
+  // base/ 下的**域容器**（canvas/store/editors/prompt/creative/media/depthVideo）与 components/ 下的域同级
+  // ⇒ 允许出向依赖（域→域、域→横切都合法）。base/ 根下的散件（如 nodeImage.ts）同理跳过。
+  if (!BASE_CROSS_CUTTING.has(sub)) continue;
   for (const dep of deps) {
     const relDep = dep.slice(root.length + 1).replace(/\\/g, '/');
-    if (relDep.startsWith('src/components/') && !relDep.startsWith('src/components/base/')) {
+    if (relDep.startsWith('src/components/') && !relDep.startsWith(BASE_PREFIX)) {
       baseViol++;
-      fail(`base 反向依赖业务域: ${relFrom} → ${relDep}`);
+      fail(`横切层反向依赖业务域: ${relFrom} → ${relDep}`);
     }
   }
 }
-if (!baseViol) console.log('  ✅ base/ 无反向依赖业务域');
+if (!baseViol) console.log(`  ✅ 横切层（${[...BASE_CROSS_CUTTING].join(' / ')}）无反向依赖业务域`);
 
 // ─────────────────────────────────────────────────────────────────
 // 【已删 · 退役留痕（2026-09-15 · TD-22-53）】原规则 4（`videoEditor/core/` 依赖白名单）与
