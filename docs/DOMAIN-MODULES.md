@@ -208,7 +208,10 @@ V2 §4.1 原文「**跨域** hooks 放 `src/hooks/`」被实测误用成"所有 
 
 ## 3 · 归属判定（查实 2026-09-19 · 5 个子 Agent 取证）
 
-### 3.1 域清单（**19 个**）
+### 3.1 域清单（**按目录轴的中间产物 · 已被 §3.1.3 能力轴取代**）
+
+> ⚠️ **本表是"按目录逐个取证"的过程产物，不是最终划分** —— 最终划分见 **§3.1.3（能力轴）**。
+> 保留它的原因：它是 §3.1.1 / §3.1.2 三处修订的取证底账。**禁止按本表开工**。
 
 | # | 域 | 位置 | 文件 | 门面 |
 | --- | --- | --- | --- | --- |
@@ -252,6 +255,456 @@ V2 §4.1 原文「**跨域** hooks 放 `src/hooks/`」被实测误用成"所有 
 | **`base/media` 名不副实** | 它只被 **3 处**消费（`App.tsx` / `ImportMediaModal` / 测试），真实职责 = **「可引用媒体源」注册表**（`mediaRefRegistry` + `mediaRefTypes` + `libraryBrowse` + `providers/*`），被素材域 / 生成域 / 画布**共同**使用 | **收窄为「媒体引用协议层」**（接近横切契约性质）；"媒体引用**域**"这个命名是**名不副实** |
 
 > 明细（各自边界与归属）**待逐个取证后重出 §3.1**（不预设合并方案）。
+
+### 3.1.3 🔴 **划分轴修正：目录轴 → 能力轴**（2026-09-19 · 用户质疑「划分有大问题」引出）
+
+**用户的质疑成立，而且问题不在某一处判错，在「轴」用错了**：
+
+```
+我用的轴：代码目录（base/canvas、nodes、edges、base/media、base/api …）
+正确的轴：业务能力（产品/用户能说成"一个东西"的）
+两条轴不一致 ⇒ 目录恰好内聚的蒙对；散在多目录的漏域；一目录多能力的被当成一个域
+```
+
+**决定性证据：产品自己在代码里写明了它的能力分法**
+
+| 位置 | 产品的一级能力（原文） |
+| --- | --- |
+| `TopNav.tsx:69-71` | **画布** · **多开**（两个一级视图）+「设置」` :261` +「AI 助手」` :284` |
+| `NodePalette.ts:106-109` | **文本工具 / 图片工具 / 视频工具 / 其他工具** |
+| `LeftPanel.tsx:21-24` | **任务 / 生成 / 素材 / 提示词**（左栏四页签） |
+| `SettingsFrame.tsx:25-30` | AI 助手 / 第三方API配置 / 账号 / 其他设置 / 存储监控 |
+| `NODE_TYPES`（`contracts.ts`） | 16 种节点（`assetNode`…`ghostTarget`） |
+| 后端 `localTool/src/routes/`(18) | 文件 / 生成 / 任务 / 项目 / 资源 / 供应商 / 平台 / 系统 / 日志 / KV / 代理(hf·iconify) / 局部编辑 / 管理 |
+
+**产品的归类实测**：`图片`·`图片盒子`·`图片切分`·`图片拼图`·`全景图`·**`3D导演台`**·**`人脸打码`**·**`循环生成`** → 全归 **`cat:'image'`**；
+`视频生成`·`视频抽帧`·`视频处理` → **`cat:'video'`**；`编组`·`剧本盒子` → **`cat:'other'`**（`NodePalette.ts:123-255`）。
+
+**对照差距（这就是"大问题"）**：
+
+| 产品轴（4 类工具） | 我的目录轴清单 | 差 |
+| --- | --- | --- |
+| **图片工具** | 拆成 图像编辑域 + 画布域(nodes) + 中继域 | ❌ **"图片"根本没作为能力域存在**；零件散 3 处 |
+| **视频工具** | 塞在画布域 + `depthVideo` + 横切 | ⚠️ 已补「视频域」，但仍散 |
+| **文本工具** | 拆成 提示词域 + 创作库域 + 中继域 | ❌ **"文本"没作为能力域存在**；零件散 3 处 |
+| **其他工具**（编组/剧本盒子） | 画布域 + scriptbox | ✅ 基本一致 |
+
+**⇒ 修正后的域清单（能力轴 · 采用产品/用户语言）**：
+
+```
+一级能力域（产品可感知：「一个东西」）
+  图片能力  ⊃ 图片生成 · 图片盒子 · 图片切分 · 图片拼图 · 全景 · 3D导演台 · 人脸打码 · 循环生成 · 放大/压缩
+  视频能力  ⊃ 视频生成 · 视频抽帧 · 视频处理 · 深度视频(sub) · 时间轴换算
+  文本能力  ⊃ 文本生成 · 提示词输入 · 创作库预设
+  素材能力  ⊃ 素材库 · 素材节点 · 导入 · 来源注册          （与"生成"不同数据源，用户 09-17 已裁定）
+  生成能力  ⊃ 提交/轮询/落盘/结果来源                       （跨内容类型的共享链路）
+  剪辑器    （videoEditor，独立应用）
+  剧本盒子  （scriptbox）
+  3D导演台  （director3d）
+  AI 助手   ⊃ 对话 · 运行时 · 会话 · 表格(sub)
+宿主 / 编排层
+  画布      ⊃ 机制 · 节点宿主 · 边 · 编组   ← 产品把「编组」归 other，说明画布是**宿主**不是内容能力
+基础设施域
+  设置 · 多开/账号 · 云同步 · 供应商 · 文件 · 项目 · 任务 · 平台/系统 · 日志
+横切层（无域前缀）
+  契约(contracts) · 事件(eventBus) · 存储(contentStore) · HTTP · UI 原语 · logger · 遥测 · 媒体引用协议
+```
+
+**🔴 与旧清单的关系（防 SSOT 第二份）**：下方 **§3.1 的"目录轴清单"已被本节取代**，
+仅作为「按目录逐文件取证」的**中间产物**保留（它的 §3.1.1 / §3.1.2 三处修订仍然有效并已并入本节能力轴）。
+
+**待取证（下一步）**：能力轴的**文件级归属**逐条取证 —— 特别是
+① 「图片能力」的零件清单（`imageGenerate` 节点 + `base/editors/*` + `gridSplit/merge` + `panorama` + `faceMosaic` + `imageUpscale/Compress/Pixel`）；
+② 「文本能力」的零件清单（`textGenerate` + `base/prompt/*` + `base/creative/*`）；
+③ 判断 `生成能力` 与三内容能力的分界（`generate.ts` 是共享链路还是各能力的私有）。
+
+#### 3.1.3.1 文件级取证结论（第一批 · 2026-09-19）
+
+**① 「生成链路」是共享基础设施，不是任何内容能力的私有** ✅ 判据成立
+
+| 出口 | 调用点（实测） | 被几个能力用 |
+| --- | --- | --- |
+| `generateImage` | `nodes/ImageGenerate.tsx:319` · `nodes/_template/TemplateNode.tsx:274` · `scriptbox/scriptBoxEngine.ts`（头注 `:154` 自述走它） | 图片 · 剧本盒子 |
+| `generateVideo` | `nodes/VideoGenerate.tsx:236` | 视频 |
+| `chatCompletions` | `nodes/TextGenerate.tsx:210` · `agent/runtime/contextCompression.ts:149` · `scriptbox/scriptBoxEngine.ts`（`:153`） | 文本 · AI 助手 · 剧本盒子 |
+| `chatStream` | `agent/runtime/agentRuntime.ts:227`（**唯一**） | AI 助手 |
+
+⇒ 4 路出口被 **4 个不同能力**调用 ⇒ `base/api/generate.ts` 是**跨内容类型的共享链路**
+⇒ 归「生成能力（AI 中继）」为**基础设施**，**不归**图片/视频/文本任何一方。这与 P1 判据（有业务语义 ⇒ 是域）一致：它是**独立的域**，只是被多域消费。
+
+**② 🔴 反直觉发现：「提示词输入」与「创作库预设」不是"文本能力"的零件 —— 它们被图片/视频/文本三者共用**
+
+| 件 | 实测消费方（域维度） | 新判定 |
+| --- | --- | --- |
+| `base/prompt/*`（`PromptInput`/`promptChips`/`promptLayout`…） | `nodes/{ImageGenerate, TextGenerate, VideoGenerate, _template/TemplateNode}` + `base/panels/FullscreenEditor` | **跨内容类型共享原语**（≠ 文本能力私有） |
+| `base/creative/*`（`creativePresets`/`CreativeLibraryButton`…） | `nodes/{Image, Text, Video}Generate` + `agent/canvas/canvasHost` + `hooks/useNodeData` + 自身 views | **跨内容类型共享原语**（预设库可含图片/视频/文本提示词） |
+
+⇒ **修正刚才的草稿**：不能写成「文本能力 ⊃ 提示词输入 · 创作库预设」；它们应保持**独立域（提示词域 / 创作库域）**，
+被三个内容能力**共用**。内容能力（图片/视频/文本）的零件 = **该内容类型的节点 + 该内容类型专属的处理**；
+**共享输入与共享预设留在共享域**。
+
+**③ 「图片能力」的专属零件成立** ✅：`base/editors/*` 的消费方只在图片侧
+（`nodes/ImageGenerate.tsx` · `nodes/useImageHoverActions.tsx`；`ImageZoomDialog` 除外——它是横切，10+ 消费方）。
+
+**④ 🔴 命名歧义（新发现）**：**「生成」一词在代码里指两个不同东西**
+
+| 词 | 指 | 位置 | 判定 |
+| --- | --- | --- | --- |
+| 「生成」 | **生成结果浏览**（左栏页签 = AI 产出的素材） | `LeftPanel.tsx:22`（`key:'generated'`）+ `base/media/providers/generatedSource` + `base/panels/GeneratedView` | 属**素材域**的一个来源 |
+| 「生成」 | **生成链路**（提交/轮询/落盘） | `base/api/generate.ts` · `pollTask.ts` · `relayProxy.ts` | 属**生成能力/中继域** |
+
+⇒ 两个"生成"必须**分别命名**（如 `generatedAssets`=生成结果来源 vs `generationRelay`=生成链路），否则就是撞名家族里的新成员。
+
+**待取证（第二批）**：图片/视频/文本三个内容能力的**专属零件**逐条列出（含 `nodes/*` 16 个节点的**能力归属表**：
+每个节点归哪个内容能力或哪个机制），以及 `nodes/_template/TemplateNode` 这个"蓝本"是否该留在源码树。
+
+#### 3.1.3.2 节点能力归属表（第二批取证 · 每行实测其业务域 import）
+
+| 节点 | 实测跨域依赖（业务域） | **能力归属** |
+| --- | --- | --- |
+| `ImageGenerate.tsx` | 中继 `base/api/index` · `creative` · `canvas` | **图片能力 ⊃ 生成**（共用 creative） |
+| `ImageBoxNode.tsx` | `base/api/filesApi` · `base/editors/ImageZoomDialog` | **图片能力 ⊃ 图片盒子** |
+| `GridSplitNode.tsx` | `base/panels/FullscreenShell` · `canvas` | **图片能力 ⊃ 切分** |
+| `GridMergeNode.tsx` | `base/editors/{OverlayEditor,ImageZoomDialog}` · `canvas` | **图片能力 ⊃ 拼图** |
+| `PanoramaNode.tsx` | `base/editors/PanoViewer` · `base/panels/*` · `canvas` | **图片能力 ⊃ 全景** |
+| `FaceMosaicNode.tsx` | `base/editors/FaceMosaicEditor` · `ImageZoomDialog` · `canvas` | **图片能力 ⊃ 打码** |
+| `VideoGenerate.tsx` | 中继 · `creative` · **`depthVideo`** · `canvas` | **视频能力 ⊃ 生成** |
+| `VideoExtractNode.tsx` | （本次 grep 过滤了 `utils/`，**需复核**） | **视频能力 ⊃ 抽帧**（待复核实现落点） |
+| `VideoProcessNode.tsx` | `base/store/nodeRuntimeStore` · `canvas` | **视频能力 ⊃ 处理** |
+| `TextGenerate.tsx` | 中继 · `creative` · `canvas` | **文本能力 ⊃ 生成** |
+| `AssetNode.tsx` | **`depthVideo`** · `canvas` · 中继 | **素材能力**（入口，内含视频子能力） |
+| `ScriptBoxNode.tsx` | `scriptbox/*` ×6 | **剧本盒子（独立应用）** |
+| `Director3DNode.tsx` | `director3d/Director3DOverlay` | **3D导演台（独立应用）** |
+| **`GroupNode.tsx`** | **仅通用层** | **画布机制 ⊃ 编组** |
+| **`GhostTargetNode.tsx`** | **仅通用层** | **画布机制**（连线占位，非真实节点） |
+| **`LoopNode.tsx`** | **仅通用层**（`canvas` 除外） | **画布机制 ⊃ 循环**（产品归 `cat:image`，但依赖图说明它是编排机制） |
+| **`useImageHoverActions.tsx`** | `base/editors/{ImageEditor,InlineImageCropper}` · `filesApi` | ⚠️ **不是节点**：图片能力的辅助 hook，**住在 `nodes/` = 游离物** |
+
+**⇒ 结构性发现：`nodes/` 一个目录里混着四种东西**
+
+| 种类 | 成员 | 按能力轴该去哪 |
+| --- | --- | --- |
+| **内容能力节点**（11） | 图片 6 + 视频 3 + 文本 1 + 素材 1 | 各自能力域 |
+| **画布机制节点**（3） | `GroupNode` · `GhostTargetNode` · `LoopNode` | **画布域**（它们是编排机制，不是内容能力） |
+| **能力辅助 hook**（1） | `useImageHoverActions` | 图片能力域（游离物归位） |
+| **独立应用入口**（2） | `ScriptBoxNode` · `Director3DNode` | scriptbox / director3d（仅入口挂载点留在 `nodes/`） |
+
+⇒ 这解释了为什么 `nodes/` 一直"像画布域又不全是"：**它是「画布机制节点 + 各能力的 UI 挂载点」的混合目录**（D15 的判定成立，并可细化为本表）。
+
+**待取证（第三批）**：
+① `VideoExtractNode` 的实现落点（是否走 `base/utils/captureFrame`）；
+② 图片能力的**非节点零件**（`imageCompress`/`imageUpscale`/`imagePixel` 各属谁）；
+③ `nodes/_template/TemplateNode` 这个"零生产消费的蓝本"是否该迁出源码树（D6）。
+
+#### 3.1.3.3 第三批取证 · 🔴 **两笔"反向依赖"**（换能力轴后才看得见）
+
+**零件归属（实测消费方）**：
+
+| 零件 | 消费方 | 归属 |
+| --- | --- | --- |
+| `base/utils/captureFrame.ts` | `nodes/VideoExtractNode.tsx:19`（`drawVideoFrame`/`setCrossOriginForReadable`） | **视频能力 ⊃ 抽帧**（域物住横切层） |
+| `base/utils/imageCompress.ts` | `base/editors/{ImageEditor,InlineImageCropper}` · `nodes/useImageHoverActions` · **`base/utils/assetUrl.ts`** | **图片能力**（域物住横切层） |
+| `base/utils/imageUpscale.ts` | `nodes/useImageHoverActions` | **图片能力** |
+| `base/utils/imagePixel.ts` | **`base/api/generate.ts`** | 数据是"图片像素表" ⇒ **图片能力**（见下方反向依赖 ②） |
+
+**🔴 反向依赖 ①：横切层 → 图片能力**
+
+```
+src/components/base/utils/assetUrl.ts  →  src/components/base/utils/imageCompress.ts
+```
+`assetUrl` 是**横切层**（URL 处理，被多域消费），却依赖**图片能力的件** ⇒ 说明 `assetUrl` 里**混着图片处理职责**（它不只做 URL）。
+⇒ 处置方向：把图片处理部分从 `assetUrl` 剥离，或将 `imageCompress` 保持为横切（**取决于**「压缩」是图片语义还是通用语义 —— 待判）。
+
+**🔴 反向依赖 ②：基础设施（中继）→ 图片能力**
+
+```
+src/components/base/api/generate.ts  →  src/components/base/utils/imagePixel.ts
+```
+`generate.ts`（生成链路 = 基础设施，被 4 个能力共用）依赖 `imagePixel`（图片像素表）⇒
+**基础设施依赖内容能力** ⇒ 以后加一种内容类型就要改基础设施（**换轴前看不见，因为那时 `imagePixel` 被当"通用工具"**）。
+
+⇒ **这两笔是"能力轴"的即时收益**：只有先判定"谁是内容能力、谁是基础设施"，才看得出"基础设施依赖内容能力"是**方向反了**。
+
+**⇒ 已登记的处置**：两笔均记入**待裁定清单**（不预设解法，需按 §2.1 判据逐条判"它到底是通用还是内容专属"）。
+
+**待取证（第四批）**：`nodes/_template/TemplateNode`（零生产消费蓝本，D6）· `base/utils/assetUrl` 的真实职责边界 · `imagePixel` 归属裁决。
+
+#### 3.1.3.4 第四批取证 · 三处裁决 + 🔴 **发现一个已深模块化的范本**
+
+**① `TemplateNode` = 「非域物」开发蓝本（不是能力节点）**
+
+| 证据 | 内容 |
+| --- | --- |
+| 自述 | `nodes/_template/TemplateNode.tsx:36`「【节点模板】TemplateNode —— 新建节点的**唯一权威蓝本**」 |
+| 登记 | `contracts.ts:820`「原 `templateNode` 登记项已于 2026-09-11 删除（TD-04-5）——TemplateNode 是「新建节点参考蓝本」」 |
+| 消费方 | **仅 2 个测试**（`tests/unit/TemplateNode{,.upstream}.test.tsx`）⇒ **零生产消费** |
+
+⇒ 判定：它**不属于任何能力域**，是**开发参考蓝本**。**必须显式登记为"非域物"**，否则每次盘点都会被误归类
+（陷阱证据：`contracts.ts:809` 说它的示例命名空间就叫 `imageGenerateNode` ⇒ 极易被当成图片能力节点）。
+
+**② `assetUrl` 反向依赖的真因：它被塞了两个域的职责**（554 行）
+
+| 导出符号分组 | 语义 | 归属 |
+| --- | --- | --- |
+| `isLocalFileUrl` · `toRelativeFileUrl` · `resolveAssetUrl` · `normalizeAssetUrl` · `buildThumbnailUrl` · `resolveAssetDisplayUrl` · `buildContentUrlResolver` · `assertMutuallyExclusiveAssetForm` | **URL 归一/解析/缩略** | **横切层** ✅ |
+| `MAX_SEND_DIM` · `fileToDataUrl` · `normalizeAssetUrlForSend` · `normalizeAssetUrlsForSend` · `toImageContentBlocks` · `classifyImageType` · `summarizeAssetUrls` | **发送前图片处理**（压缩→编码→content blocks） | ⚠️ **图片/发送准备语义** |
+
+消费方实测 **18+ 文件跨 9 个目录**（agent · api · editors · media · panels · ui · utils · nodes …）⇒ **它确实是横切层**。
+⇒ **反向依赖 ① 的解法方向**：不是"横切依赖图片"，而是**把「发送前归一（压缩/编码/contentBlocks）」抽成独立件**，
+`assetUrl` 只留 URL 语义（**这是拆分，不是改名**）。
+
+**③ `imagePixel` 裁决：数据是图片语义，但被基础设施消费**
+
+- 自述：`base/utils/imagePixel.ts:1`「图片比例 × 清晰度档位 → 精确像素 的查表工具（**唯一真源**）」，
+  源自 `base/api/imageApi.ts` 迁出（L3 收口时拆出，"供 generate.ts 与测试复用"）
+- 导出：`RATIO_PIXEL_TABLE` · `resolveImagePixel(ratio,size)`；**唯一生产消费 = `base/api/generate.ts:22`**
+⇒ 判据冲突（按**数据语义**=图片能力；按**消费方**=中继）⇒ **列待裁定**：
+  - 方案 A（倾向）：**调用方算像素，中继只收 `size` 字符串** ⇒ 中继不依赖它 ⇒ 方向修正；
+  - 方案 B：承认中继要懂各内容类型参数 ⇒ 它成中继的适配器（会越来越胖）。
+- **无论哪种，它现在住 `base/utils/`（横切层）= 住错位置**（域物住横切层）。
+
+**④ 🔴 意外发现：`base/media/` 是**全仓唯一"已深模块化"的域** —— 它就是范本**
+
+```
+src/components/base/media/
+  index.ts                ← ✅ 门面（域的唯一出口）
+  mediaRefTypes.ts        ← 类型（契约）
+  mediaRefRegistry.ts     ← 注册表（机制）
+  libraryBrowse.ts        ← 能力
+  canvasNodesBridge.ts    ← 与画布域的桥（唯一越界点，显式命名）
+  providers/{index,canvasSource,generatedSource,librarySource}.ts  ← 分层（多来源 + 门面）
+```
+
+⇒ **这个域已经做到了我们要推广的形态**：门面唯一 · 分层清晰 · 跨域桥显式命名 · 来源可插拔。
+⇒ **本次重构的验收标准可以照抄它**，不用我发明（呼应"本仓已有正确形态"的判据）。
+
+**素材能力的零件清单（实测消费方）**：
+
+| 件 | 消费方（域维度） | 判定 |
+| --- | --- | --- |
+| `base/media/*`（9，有门面） | `nodes/AssetNode` · `panels/ResourceLibrary` · `hooks/*` | **素材能力域**（范本） |
+| `base/store/resourceStore.ts` | `media/providers/*` · `panels/ResourceLibrary` · `nodes/{AssetNode,ImageGenerate}` · `scriptbox/*` · `hooks/*` | **素材真源**（跨 5 域共享 = 基础设施性质，但数据属素材） |
+| `base/panels/ResourceLibrary.tsx` | 左栏页签「素材」 | 素材能力的 UI 面 |
+| `nodes/AssetNode.tsx` | 画布节点入口 | 素材能力的画布入口 |
+| `base/panels/ResourceStrip.tsx` | `FullscreenEditor` · `nodes/{Image,Text,Video}Generate` · `TemplateNode` · `scriptbox/StepShots` | ⚠️ **跨能力共用 UI**（不是素材私有）⇒ 留通用面板层 |
+
+**待取证（第五批）**：视频能力零件（`depthVideo`+`captureFrame`+`timebase`+`videoEditor` 边界）·
+文本能力零件（`TextGenerate` 的实现依赖是否过薄）· `useNodeData`/`useConnectedInputs` 等 hooks 的域归属。
+
+#### 3.1.3.5 第五批取证 · 视频能力散 7 处 / 文本能力"薄"的实证 / hooks 归属
+
+**① 视频能力零件**：**散在 7 处**（登记里一笔未提 ⇒ 印证"视频域漏了"）
+
+| # | 位置 | 件 |
+| --- | --- | --- |
+| 1 | `base/depthVideo/`（5：`DepthVideoModal`·`depthUrls`·`engine`·`loader`·`spawn`） | 深度视频子能力（**无 `index.ts` 门面**） |
+| 2 | `base/utils/captureFrame.ts` | 抽帧（`VideoExtractNode:19` 实测消费） |
+| 3 | `base/utils/videoEngine.ts` | ⚠️ 新发现 |
+| 4 | `base/utils/timeline/{sourceTime,timeScale}.ts` | ⚠️ 新发现（时间轴换算） |
+| 5 | `base/ui/VideoThumbnail.tsx` | 视频缩略图 |
+| 6 | `hooks/useVideoPoster.ts` | 视频封面 |
+| 7 | `base/core/videoEditorKeys.ts` | 快捷键（域物住横切层） |
+
++ 画布侧入口 `nodes/{VideoGenerate,VideoExtractNode,VideoProcessNode}`。
+> 注意区分：`director3d/depth.tsx` · `director3d/panels/Timeline.tsx` 是 **3D 导演台自己**的时间轴，**不是**视频能力的件（防误并）。
+
+**② 文本能力「薄」的实证 ⇒ 佐证新判据「域≠大模块」**
+
+`TextGenerate.tsx` 的**全部 import（35 行）实测**：**100% 是共享原语**
+（`NodeShell` `HoverToolbar` `ExpandablePanel` `GenerateButton` `ModelSelect` `PromptInput` `ResourceStrip` `FullscreenEditor` `GeneratingOverlay` `CreativeLibraryButton` `creativePresets` `uiHooks` + 7 个通用节点 hooks + `buildEffectivePrompt` `promptChips` `deriveNodes` `CanvasEdgesContext` `nodePrefs` `resolveProviderModel` `logger` `reportDegrade`）
+＋ **唯一的专属出口调用**：`chatCompletions`（`:30`）· `saveTextToTasks`（`:29`）。
+
+⇒ 判定：**文本能力仍应是独立域**（产品有一级入口「文本工具」、有独立数据形态 text），
+但它的**域大小 = 1 节点 + 2 出口**。⇒ **实例化 §2.4 P3 判据：域是归属单位，深度是实现质量，二者独立**
+（"域小"不是"不该是域"；做法是**先把归属定对、再谈深度**）。
+
+**③ hooks 归属：25 个里 22 个是域专用** ⇒ R1 冲突取证成立
+
+| 组 | hooks | 归属 |
+| --- | --- | --- |
+| 画布/节点域专用（15） | `useCanvasHistory` `useCanvasShortcuts` `useCanvasSync` `useConnectedInputs` `useCopyNode` `useDisconnectSource` `useEdgeData` `useFitNodeRatio` `useGenerateNode` `useNodeData` `useNodeExpanded` `useNodeField` `useNodeGeneration` `useNodeRename` `useSyncNodeData` | 画布域 / 节点机制 |
+| 素材·画布交互（4） | `useAssetDegrade` `useAssetDragToCanvas` `useAssetDropPaste` `useResourceMoveToFolder` | 素材/画布交互 |
+| 各应用域（3） | `useScriptBoxEngine`（剧本）· `useVideoPoster`（视频）· `useArrangeCanvas`（画布） | 各自域 |
+| 可能通用（3） | `useStoreSelector` · `useLocalToolStatus` · `useContextMenu` | 横切（待复核） |
+
+⇒ **与 V2 §4.1「跨域 hooks 放 `src/hooks/`」判据冲突**（22/25 其实是域专用）⇒ 需**修订 §4.1 或迁移 hooks**（R1）。
+
+**④ 🔴 命名撞名家族再扩：「文本/prompt」一词覆盖 5 个不同域**
+
+| 叫法 | 实际属域 | 位置 |
+| --- | --- | --- |
+| 提示词（输入/社区库） | **提示词域**（跨内容能力共用） | `base/prompt/*` |
+| 预设/创作库 | **创作库域** | `base/creative/*` |
+| 表格提示词 | **AI 助手 ⊃ 表格** | `agent/assistantTable/assistantTablePrompt` |
+| 剧本提示词 | **剧本盒子** | `scriptbox/scriptBoxPrompt*` ×3 |
+| 相机参数提示词 | **图片能力 ⊃ 3D/相机** | `base/editors/cameraParams/cameraPrompt` |
+
+⇒ 这 5 处**必须分别命名**（`promptInput` / `creativePreset` / `assistantTablePrompt` / `scriptBoxPrompt` / `cameraPrompt`），
+否则就是「生成」二义之后**第 2 个同名词二义家族**。
+
+**待取证（第六批）**：`base/canvas`(18) 与 `base/core`(18) 的逐文件归属（画布机制 vs 横切）· `scriptbox`/`director3d` 的内部结构是否已是深模块 · `src/types` 与 `base/ui` 的边界。
+
+#### 3.1.3.6 第六批取证 · 🔴 **推翻我的一个粗判：`base/core` 大体是干净的横切层**
+
+判据：逐文件统计**消费方所属域集合**（≥2 域 = 横切；=1 域 = 该域专用）。实测（`base/core` 18 文件）：
+
+| 判定 | 文件（消费方数） |
+| --- | --- |
+| ✅ **横切**（14） | `logger`(87) · `utils`(55) · `toastStore`(51) · `idGen`(45) · `contracts`(34) · `config`(33) · `uiHooks`(33) · `degrade`(31) · `contentStore`(26) · `eventBus`(14) · `confirmStore`(9) · `modalLayer`(6) · `backendLogStream`(1·启动期) · `logger` 家族 |
+| ⚠️ **域专用**（4） | `agentKeys`(6·全在 agent 侧) · **`canvasHotkeys`(1·nodes)** · **`canvasSyncBus`(3·画布侧)** · **`videoEditorKeys`(1·videoEditor)** |
+| ❓ **单消费者待判**（1） | `editorSession`(1·App.tsx) |
+
+⇒ **更正我的粗判**：我此前说"`base/core` 是垃圾桶、5 个域物" —— 实测是 **14/18 是干净的横切**，只有 **4 个域物**混入。
+⇒ **对结论的影响**：`base/core` **不需要重排**，只需**迁出 4 个域物**（成本远小于我原先的估计）。
+
+**`base/canvas` 逐文件判定（18 文件）：整体是画布域实体**，不是横切
+
+| 消费方数 | 文件 |
+| --- | --- |
+| 11 | `CanvasEdgesContext` · `deriveNodes` |
+| 10 | `nodeDefaults` |
+| 7 | `nodePrefs` |
+| 3 | `lod` |
+| 2 | `groupNodes` · `nodeMedia` |
+| 1 | `ArrangeConfirm`(App) · `NodePalette`(App) · `canvasContextMenu`(App) · `canvasSnapshotSchema`(base) · `historyStack`(hooks) · `lazyNode`(App) · `nodeDataSchema`(App) · `structuralSnapshot`(hooks) · **`toolRegistry`(agent)** · `upstreamLink`(App) · `useCanvasEventSubscriptions`(App) |
+
+⇒ 消费方**全在画布侧**（App · nodes · hooks · base · edges · agent）⇒ **`base/canvas/` 整体归画布域** ✅（含画布域内部件，单消费者是"被 App 装配"，正常）。
+⇒ 唯一跨域点：`toolRegistry` 被 **agent** 消费 1 处 ⇒ 那是 **AI 操作画布的桥**（显式命名即可，不必拆）。
+⇒ 修正后的画布域构成：**`base/canvas/`(18 机制) + `nodes/`(18 挂载点) + `edges/`(3) + `App.tsx` 装配**，
+再加 `base/core/{canvasHotkeys,canvasSyncBus}` 归位进来；`agent/canvas/` 归 agent 域（D15）。
+
+**⇒ 第六批净收益**：**把"横切层要重排"降级为"迁出 4 个域物"**（成本估计从"大"降到"小"）。
+
+#### 3.1.3.7 第七批取证 · 深模块范本普查（**3 个，不是 1 个**）
+
+| 域 | 门面 | 结构 | 判定 |
+| --- | --- | --- | --- |
+| `agent/` | ✅ `index.ts` | 已分层（runtime/conversation/assistantTable/canvas…） | **范本 ①** |
+| `videoEditor/` | ✅ `index.ts` | 257 文件、内部分层（engine/…） | **范本 ②**（但内部命名违规多） |
+| `base/media/` | ✅ `index.ts` | 门面 + providers 分层 + registry + types | **范本 ③**（形态最干净） |
+| `scriptbox/` | ❌ | **17 文件平铺**，但**命名全带 `scriptBox` 前缀** ✅ | "命名已合规、未收口" |
+| `director3d/` | ❌ | 22 项，**通用名重灾区**（见下） | "未收口 + 命名违规最多" |
+| `base/depthVideo/` | ❌ | 5 文件平铺 | 未收口 |
+| `nodes/` · `edges/` | ❌ | 见 §3.1.3.2（混合目录） | 待拆 |
+
+⇒ 修正：**有门面的顶层域是 2 个（`agent`/`videoEditor`）+ 子域 1 个（`base/media`）= 3 个范本**，
+不是我先前说的 1 个。**这 3 个就是"深模块"的现成样板**（形态照抄，无需发明）。
+
+**🔴 `director3d/` 是命名违规重灾区（新发现）**：`App.tsx` · `useToast.ts` · `log.ts` · `storage.ts` ·
+`ConfirmDialog.tsx` · `history.ts` · `project.ts` · `panels/` · `models.tsx` · `tracks.ts` —— **全部是通用名、零 `d3d`/`director` 前缀**。
+⇒ 其中 `useToast` · `log` · `storage` · `ConfirmDialog` 属**撞名家族**（与 `base/core/toastStore` · `logger` · `base/storage` · `base/ui` 同义），
+⇒ **需回补撞名清单**（我此前的扫描只覆盖 `export const/function/type/interface/class`，可能漏掉 `director3d` 这批）。
+
+> ⚠️ **审计 A3 就地标注（例外优先）**：`director3d` 属**已登记例外**（本文件 §6「已裁定例外（禁重审）」＋ V2 日志 §七「`director3d` 域多处自成一套（`ErrorBoundary` / `log.ts`），属**已登记例外，未纳入收口**」）
+> ⇒ **本清单只作记录，本计划不施工**；若要给 `director3d` 加前缀，须**另开裁定撤销该例外**（不在 S1/S2 批次内）。
+
+**`src/types/`（5 文件）**：`asset.ts` · `errors.ts` · `index.ts` · `provider.ts` · `gifenc.d.ts` — 小而清晰，**保持横切**。
+**`base/ui/`（24 文件）**：UI 原语横切层（与 `videoEditor/ui/ui/` 28 个的关系见 §3.1.3.1 ④ 家族，待裁定）。
+
+**待验证（第八批）**：① **"有门面"是否真被走** —— 域外是否绕过 `videoEditor/index.ts`、`agent/index.ts` 直连内部文件（若无视同无门面）；
+② `director3d` 通用名导出的完整撞名清单；③ `nodes/` 拆分后的挂载点保留方案。
+
+#### 3.1.3.8 第八批取证 · **好消息（门面真被走）** + **结构病（上帝文件）**
+
+**① 好消息：门面机制在本仓"是有效的"，不是摆设**
+
+| 域 | 域外直连内部文件 | 判定 |
+| --- | --- | --- |
+| `agent/` | **0 处** | ✅ 门面 **100% 被遵守** |
+| `videoEditor/` | **1 处**（`App.tsx → videoEditor/panels/dock/VideoEditorDock.tsx`） | ✅ 基本被遵守（仅漏装配点） |
+
+⇒ **结论**：推广门面**风险低**（本仓已有 3 个成功实例 + 域外几乎不绕行）⇒ **"补门面"可以放心做**。
+⇒ 也说明 `videoEditor/index.ts` 那次收口是**真收口**（不是只建文件）。
+
+**② 结构病：`director3d/project.ts` 是「上帝文件」（~80 个导出）**
+
+实测该文件导出（节选）：类型 12 个（`ProjectShot` `EntityType` `ProjectCamera` `ProjectLighting`…）+ 常量 20+（`CAMERA_ID` `FPS_OPTIONS` `ASPECT_RATIOS` `DEFAULT_*` `initialObjects`…）+ 数学工具（`radToDeg` `degToRad` `lerp` `lerpAngle` `uid`）+ 归一化函数（`normalizeProjectData` `normalizeCameraKeyframes`…）+ 路径采样（`pathPositionAtFrame` `pathTangentAtFraction` `bakePathKeyframes`…）+ 导出尺寸（`exportDimensionsForAspect`）
+
+⇒ **这是"深模块"的反面：浅而宽**（一个文件横跨 6 个关注点）⇒ 即便给它加门面，门面也是 80 个导出的"宽接口"。
+⇒ 同类：`rig.ts`（关节/预设/插值混装）· `tracks.ts`（16 个轨道函数）· `history.ts`（undo/redo + 常量）
+⇒ 通用名：`uid` ｜ `log` ｜ `useToast` ｜ `storage{readJson,writeJson}` ｜ `history` ｜ `project` ｜ `ConfirmDialog` ｜ `App` ｜ `panels`
+
+**③ 🔴 由此识别出一个新问题类别：域内结构病（浅宽接口 / 上帝文件）**
+
+| 类别 | 症状 | 属哪个阶段 | 实例 |
+| --- | --- | --- | --- |
+| 命名病 | 通用名 / 域写错 | Stage 1 | `director3d/*` 通用名 · `canvasHost` |
+| 位置病 | 域物住横切 / 混住 | Stage 1 | `base/utils` 9 图片物 · `nodes/` 混四种 |
+| **结构病** | **浅宽接口 / 上帝文件 / 无门面** | **Stage 2** | `director3d/project.ts`(~80) · `nodes/` · `scriptbox/`(17 平铺) |
+
+⇒ **重要顺序修正**：`director3d` 这类域**不能"先加门面再拆内部"**（否则门面也会是宽接口）⇒
+**必须先拆内部关注点，再加门面**（对这类域，Stage 1 只做**改名**，门面留到 Stage 2）。
+
+**⇒ 第八批净收益**：给出**"哪些域可以现在补门面、哪些必须先拆内"**的判据（有结构病的域 = 先拆内）。
+
+
+### 3.1.4 🔴🔴 **DATAFLOW 对照：域清单的真源在 `spec/DATAFLOW.md`，我这份是第四份**（2026-09-19 · 用户提示「Data flow 你看了没有」引出）
+
+**用户提示是对的，而且它揭示的比"轴错了"更深一层。** `spec/DATAFLOW.md`（691 行 · 17 节）**本身就是按"链路"分节的**，
+而它的 §十七 原文写着：
+
+> - 想改某个**域**的行为（生成 / 存储 / 资产 / 画布 / 提示词 / 编辑 / 3D / 视频） → 按本索引该链路的文件清单逐个看**文件头注释**再动
+
+⇒ **DATAFLOW 的「链路」＝ 本仓的「域」，且它是带 `refs` 实证、有 §维护规矩 的现状真源。**
+
+**本仓"域清单"的实际持有者（实测 5 处）**：
+
+| # | 文档 | 它持有什么 | 状态 |
+| --- | --- | --- | --- |
+| 1 | **`spec/DATAFLOW.md`** | **17 条链路 = 现状域清单**（带 refs 实证 + §维护规矩 + 禁写清单） | ✅ **权威 · 活的** |
+| 2 | `spec/CONTEXT.md` | 规则适用性地图（路由表 + 例外）· §一·五 顶层架构 · §五·五 director3d 边界 | ✅ 活的（ADR-0025 定位） |
+| 3 | **`docs/ARCHITECTURE.md`** | **旧 4 层架构**（① App.jsx ② base/ ③ components/*.jsx ④ scriptbox/）+ 命名规范 §六 | 🔴 **已 stale**（见下） |
+| 4 | `docs/BASE-CAPABILITIES.md` | base 能力说明 | 待核 |
+| 5 | **`docs/DOMAIN-MODULES.md`**（本文件） | **我又写了一份"能力轴域清单"** | ⚠️ **第四份** |
+
+**⇒ 三条叠加才是"划分有大问题"的全部**：
+
+| 层 | 问题 | 状态 |
+| --- | --- | --- |
+| (a) 轴 | 我用**目录轴**，该用**能力轴** | 已修（§3.1.3） |
+| (b) 源 | 我继承了 **`docs/ARCHITECTURE.md` 的旧 4 层**（`.jsx` 时代：App / base / 节点 / scriptbox） | **新发现** |
+| (c) 落点 | **`spec/DATAFLOW.md` 已有现状域清单（17 链路），我又造第 4 份** ⇒ 违反 ADR-0025「按内容类别归位」+ CLAUDE §5.4·9「同一规则只写一份」 | **新发现 · 必须改** |
+
+#### (b) `docs/ARCHITECTURE.md` 已 stale —— 实测证据
+
+| 它写的 | 现状 |
+| --- | --- |
+| `App.jsx` · `PromptNode.jsx` · `TextNode.jsx` · `DiscountVideoNode.jsx` · `NodePalette.jsx` · `CustomHandle.jsx` · `base/hooks.js` | 全为 `.tsx`/`.ts`，且**前三个已改名**（DATAFLOW §十六：`PromptNode→ImageGenerate` · `TextNode→TextGenerate` · `DiscountVideoNode→VideoGenerate`） |
+| §二 架构分层＝**4 层**（① App ② base ③ 节点 ④ scriptbox） | 现状是 **19+ 域**（DATAFLOW 17 条链路） |
+
+⇒ **它就是"目录轴"的历史来源** —— 旧 4 层里 `base` 是"通用基座"、节点在根目录，正是被我照抄成"目录轴"的那套。
+⇒ 处置（**新登记**）：`docs/ARCHITECTURE.md` 要么**改为指向 DATAFLOW**（保留设计原则 §一，删/迁 §二 分层与 §七.1 过期范本表），要么显式标注 **stale**。**不修的后果 = 下一个 AI 还会照它分域。**
+
+#### (c) 落点裁定：本文件从此**只留 DATAFLOW 没有的东西**
+
+| 内容类别 | 唯一归属（ADR-0025 / ADR README §一） | 本文件怎么做 |
+| --- | --- | --- |
+| **现状域清单 / 链路 / fan-in** | **`spec/DATAFLOW.md`** | **引用，不复制**。§3.1.3 的能力轴清单**降级为"对 DATAFLOW 的差异清单"**（下表） |
+| **判据**（P1–P5 / F1–F6 / N1–N8） | `docs/adr/` | 逐条判"跨面 ⇒ 落 ADR"（**ADR-0038 已示范**：F5 已落 ADR） |
+| **计划 / 阶段 / 进度 / 施工顺序 / 验证** | 本文件（计划侧） | 保留（这是本文件的正当职责） |
+| **已改名旧→新** | **`spec/DATAFLOW.md §十六`**（自述「全文唯一一份」） | **每批改名后登记到那里**，不在本文件另记 |
+| **轮次结论与证据** | `daily/架构日志/<NN>-*.md` | 本文件只留指针 |
+
+#### DATAFLOW 与我的清单：**冲突 4 条（应采纳 DATAFLOW）+ 一致 3 条（互为佐证）**
+
+| # | DATAFLOW 的裁定（带实证） | 我的清单 | 处置 |
+| --- | --- | --- | --- |
+| **C-1** | §三′ `base/media/` = **横切地基**；红线「**禁 import 任何非 base 目录**」；两入口共用（画布导入 + 剪辑器导入） | 我 §3.1.3.4 判它是"素材能力域的范本" | **采纳 DATAFLOW**：`base/media/` = **横切媒体引用协议层**；素材域另由 §五（`filesApi` + `resourceStore`）承接 |
+| **C-2** | §十三 hooks = **横切编排层**（"节点/画布/store 写回归口"；`useNodeData` ← 24 · `useConnectedInputs` ← 33 · `useStoreSelector` 全 store 基座） | 我 §3.1.3.5 判"22/25 是域专用" | **采纳 DATAFLOW**：hooks 保持横切；`useNodeData` 是**写回唯一真源**（`check:arch` 规则 5 在守）⇒ P3 修正应写"hooks 是横切编排层" |
+| **C-3** | §七 提示词链路 = **一条**（`prompt/*` + `creative/*` 5 分区同链） | 我拆"提示词域 + 创作库域" | 采纳 DATAFLOW 的**同一链路**；是否拆域留待 §4 裁定（不影响施工批次） |
+| **C-4** | §八 编辑/查看 = **独立链路**；且 §八 明确 `cameraParams` 与 3D 摄影棚 `cameraStudio` 是**两套独立功能** | 我先判"画布子层"、后判"图片能力专属" | 采纳 DATAFLOW：**编辑/查看是独立关注点**（`editors/*` + `imageCompress/imageUpscale/faceMosaic/previewUrl` + 查看器） |
+| **C-5** | §15.1 把 `imagePixel.ts` 列在**横切纯函数**（"无独立数据流"≠"≥2 域消费"） | 我判"图片能力件" | **两者不矛盾**：DATAFLOW 的"横切登记"= **无自己的数据流**；我的是**数据语义归属**。裁定见 §4（D 系列） |
+| ✅ 一致 1 | §十 视频链路清单含 `videoEngine` `captureFrame` `encoderProbe` `timeline/sourceTime` `useVideoPoster` `VideoThumbnail` `depthVideo/*` | 我 §3.1.3.5 判"视频零件散 7 处" | **互为佐证**（DATAFLOW 早知它们同链） |
+| ✅ 一致 2 | §一 `generate.ts` 消费方 = 4 生成节点 + `scriptBoxEngine` + `agentRuntime` + `contextCompression` | 我 §3.1.3.1 的 4 路出口取证 | **互为佐证** |
+| ✅ 一致 3 | §三 `kvStore.ts` = **re-export 壳**（不参与读写链路） | 我 （TD-18-36）判"浅壳" | **互为佐证**（DATAFLOW 已写死这条） |
+
+#### 新发现的文档债（本文件登记，**不另开口**）
+
+| # | 债 | 证据 | 处置 |
+| --- | --- | --- | --- |
+| 文-1 | **`docs/ARCHITECTURE.md` stale**（`.jsx` 时代 4 层 + 已改名范本表） | §二 / §七.1 实测引用 `App.jsx`·`PromptNode.jsx`·`DiscountVideoNode.jsx` | 改指向 DATAFLOW 或标 stale（**否则下一个 AI 照它分域**） |
+| 文-2 | **域清单四份并存**（DATAFLOW/CONTEXT/ARCHITECTURE/DOMAIN-MODULES） | 五处持有者表 | 本文件已降级为"差异清单"；ARCHITECTURE 见 文-1 |
+| 文-3 | `docs/BASE-CAPABILITIES.md` 与 DATAFLOW §十五 15.1~15.3 可能重叠 | 待核 | 下批核 |
 
 ### 3.2 画布域四组：**可合并**（J1 查实）
 
@@ -366,7 +819,7 @@ V2 §4.1 原文「**跨域** hooks 放 `src/hooks/`」被实测误用成"所有 
 | **D9** | `videoEditor/ui/cutia-ui-icons/` | **空目录 ⇒ 删** | `ls -a` 只有 `.` `..` |
 | **D10** | 后端 `routes/requestModes.ts` | **未挂载死文件 ⇒ 删**（`router.ts` 无引用） | `router.ts:143-166` 路由表无此项 |
 | **D11** | `App.tsx` 是否算消费域 | **不算**（装配层） | §2.5 |
-| **D12** | `src/hooks/` 21 个域专用 hook | **迁回域内**（画布/节点系回画布域；videoEditor 系回 videoEditor）；⚠️ `useConnectedInputs` **不得进 `base/`**（它 import `scriptbox` ⇒ 触发 `check-arch` 规则 2 反向依赖红线），只能落域层 | §2.4 P3 · §3.7 |
+| **D12** 🔴 | `src/hooks/` 25 个 hook 的归属 | **改判（审计 A1）**：原判「21 个域专用 ⇒ 全部迁回域内」**统计口径错** —— 实测 `useNodeData` fan-in **23**（跨 canvas/nodes/agent/scriptbox）· `useConnectedInputs` **33**，且 `spec/DATAFLOW.md §十三` 定位 hooks = **横切编排层（写回归口）**、`useNodeData.patchData` 是 `node.data` **写回唯一真源**（`check:arch` 规则 5 守）。⇒ **逐个二分**：**编排机制类留横切**（`useNodeData`/`useStoreSelector`/`useCanvasSync`/`useConnectedInputs`/`useGenerateNode`/`useNodeGeneration`/`useEdgeData`/`useDisconnectSource`/`useNodeRename`）；**真域私有迁回**（`useScriptBoxEngine`→scriptbox · `useVideoPoster`→视频 · `useArrangeCanvas`→画布壳 · `useAssetDropPaste`/`useResourceMoveToFolder`→素材·画布交互）。⚠️ `useConnectedInputs` **不得进 `base/`**（import `scriptbox` ⇒ 触发 `check-arch` 规则 2） | §9 A1 · DATAFLOW §十三 |
 | **D13** | `check-arch.mjs` 解析器缺「目录→index」回退 ⇒ **barrel 环抓不到**（闸盲区） | **工具债，当场修**（A10）：补回退 + 跑负例探针证明它**真会红**；修完预计暴露 3 条 barrel 环 ⇒ **同批拆环**（`managers/timeline-manager.ts:39` 等由 barrel 改直引） | `check-arch.mjs:153-166` vs `ts-exts.cjs:91-94` |
 | **D14** | `videoEditor/ui/ui`(31) 是否合并进 `base/ui` | **不合并**（**推翻** §3.4 #8）：`base/ui` 是**宿主 kit**（App/nodes/agent/scriptbox 共用），`ui/ui` 是编辑器自研无 radix 原语 + `--ve-*` token 绑定；真重复仅 3 对（`select` / `context-menu` / `switch↔Toggle`）⇒ **改名消歧，不搬家** | §3.7 |
 | **D15** | `nodes/`(18) 是否画布域子域 | **是「画布域的节点宿主子域」**：实测它是**各能力域的 UI 挂载点表**（`ScriptBoxNode`→scriptbox · `Director3DNode`→director3d · `FaceMosaicNode`→图像编辑 …），画布自身节点只有 `GroupNode`/`GhostTargetNode`。⇒ 留画布域作宿主层，但**节点的能力实现必须在各能力域内**（禁在 `nodes/` 写业务） | §3.7 |
@@ -584,21 +1037,68 @@ grep -rn "from '.*<拟迁出的文件名>" src/components/base --include='*.ts' 
 
 ---
 
-## 6 · 命名规范（N1–N8）
+## 6 · 命名规范（N1–N9）
 
-| # | 规则 |
-| --- | --- |
-| N1 | 域专用导出必须带域前缀（camelCase，**域名原词不缩写**）。判据 = **撞名**：全仓同名导出 ≥2 处且分属不同域 ⇒ 违规 |
-| N2 | 文件名 = 主导出名；纯类型文件用 `<域>Types.ts` |
-| N3 | `*Store.ts` 仅状态真源 |
-| N4 | `Contract` 一词专属 `core/contracts.ts` |
-| N5 | 域目录必须有 `index.ts` 门面；跨域只准 import 门面 |
-| N6 | 横切层不得放域专用物；通用物不得装进域 |
-| N7 | 前缀用域名原词（`videoEditor` ✅ / `ve` ❌） |
-| N8 | 改名两套身份一起改：符号 + 字符串标识 |
-| **N9** | **前缀只取「域」级**（子域靠目录承载）；**同域内子域撞名**时，其余者加子域段 `<域><子域><名>`（§2.6） |
+> **🔴 判据本体已归位 `ADR-0039`（生效 2026-09-19 · 审计 A6）** —— N1 域前缀（**判据=撞名**）· N2 文件名=主导出名 · N3 `*Store` 仅真源 · N4 `Contract` 专属 `contracts.ts` · N5 域目录须有门面、跨域只走门面 · N6 横切不放域物 / 通用物不装域 · N7 前缀用**域名原词** · N8 只改符号 + 路径（→ `ADR-0038`）· N9 前缀只取「域」级。
+> **本节只留「现状表」**（§6.1 前缀表 · §6.2 撞名→新名）；**判据冲突时以 `ADR-0039` 为准**（本节不再复制 N 条正文，防 A7 漂移）。
 
-**前缀表**：`agent` · `agentCanvas` · `videoEditor` · `canvas` · `node` · `edge` · `editor`（图像编辑域）· `mosaic`（域内子目录）· `scriptBox` · `media` · `prompt` · `creative` · `relay` · `task` · `settings` · `cloud` · `provider` · `playbook`。横切层**不加前缀**。
+### 6.1 前缀表（**按能力轴重出** · 审计 A5 处置 · 2026-09-19）
+
+**取证（实测 `export` 符号按前缀计数）**：`video` 7 · `relay` 7 · `videoEditor` 5 · `agent` 4 · `canvas` 3 · `media` 3 · `camera` 3 · `prompt` 2 · `text` 1 · `task` 1 · `provider` 1 ·
+**`node` 0 · `edge` 0 · `editor` 0 · `image` 0 · `scriptBox` 0 · `creative` 0 · `setting` 0 · `cloud` 0 · `playbook` 0 · `mosaic` 0**
+
+⇒ **结论：导出符号级的前缀在本仓基本不存在**（10 个域实测 0）——**这不是"补几个前缀"，而是"每个域先定原词"**。19 处撞名正是这个缺口的症状。
+
+| 域（用 `DATAFLOW` 链路名 · 原词） | 规范前缀 | 现状（已带前缀导出数） | 处置 |
+| --- | --- | --- | --- |
+| AI 助手 | `agent` | 4 ✅ | 保持 |
+| AI 助手 ⊃ 表格 | `assistantTable` | 0 | 新增（目录名已是 `assistantTable`） |
+| 画布（机制 + 宿主） | `canvas` | 3 ✅ | 保持 |
+| 画布 ⊃ 节点机制 | `node` | **0** | **新增**（`nodeDataSchema`/`nodeDefaults`/`nodePrefs`/`nodeMedia` 文件名已有、导出无） |
+| 画布 ⊃ 边 | `edge` | **0** | 新增 |
+| **图片能力** | `image` | **0** | **新增**（`imageCompress`/`imageUpscale`/`imagePixel` 文件名已有、导出无） |
+| **视频能力** | `video` | 7 ✅ | 保持 |
+| **文本能力** | `text` | 1 | 保持（薄域） |
+| 剪辑器 | `videoEditor` | 5 ✅ | 保持（**禁缩写 `ve`**，N7） |
+| 编辑 / 查看（§八） | `editor` | **0** | 新增（`editors/*`；与 `videoEditor` 撞名的部分靠 `image` 段区分） |
+| 图片 ⊃ 打码 | `mosaic` | **0** | 新增（域内子目录级，N9） |
+| 3D 导演台 | `director3d` | — | **例外（禁重审）**，见 §9 A3 |
+| 视频 ⊃ 深度 | `depthVideo` | 0 | 新增（**子域级**，N9） |
+| 素材 / 资产 | `resource`（数据）· `media`（引用协议）· `file`（落盘） | `media` 3 ✅ | ⚠️ **三分**（DATAFLOW §三′/§五 是三条不同层：协议/数据/落盘） |
+| 提示词 | `prompt` | 2 ✅ | 保持 |
+| 创作库 | `creative` | **0** | 新增 |
+| 剧本盒子 | `scriptBox` | **0** | 新增（文件名已有前缀、导出无） |
+| 生成链路 / 中继 | `relay` | 7 ✅ | 保持 |
+| 任务 | `task` | 1 | 保持 |
+| 设置 | `setting` | **0** | 新增（**单数**，对齐 `settingRegistry`） |
+| 账号 / 多开 | `account` | **0** | 新增（对齐 `accountsStore`） |
+| 云同步 | `cloud` | **0** | 新增（对齐 `cloudSync`） |
+| 供应商 | `provider` | 1 | 保持 |
+| 后端（`localTool`，独立世界） | `relay` 等 | — | 后端**本期不改**（D21） |
+
+**横切层不加前缀**（`logger`/`contentStore`/`contracts`/`eventBus`/`idGen`/`toastStore`/`uiHooks`/`utils`/`config`/`degrade`/`confirmStore`/`modalLayer`）。
+
+### 6.2 撞名 → 新名 映射（**S1-1 的执行依据** · 逐条取证）
+
+| 撞名 | 分属域 | 新名 | 前提复核 |
+| --- | --- | --- | --- |
+| `logger` | 横切 · `videoEditor/lib` | `videoEditorLogger` | ✅ TD-18-42 前提成立（横切 `logger` 87 处） |
+| `toast` | 仅 `videoEditor/lib`（实测 **1 处**） | `videoEditorToast` | ⚠️ **TD-18-43 的"撞名"前提不成立**（全仓无第二 `toast`）⇒ 按 N1 判据**不违规**；仅"名太通用" ⇒ **降级为 N7 改名（低成本可选）** |
+| `uid` | `agent/conversation` · `director3d` | `agentUid`（d3d 属例外） | 实测 2 处 |
+| `log` | `base/core` · `director3d` | 横切 `logger` 已存在 ⇒ d3d 侧属例外 | 实测 2 处 |
+| `ChatMessage` | `agent/runtime` · `base/api` · `base/utils` | 按各自域前缀 | 三域撞名 |
+| `MediaType` | `base/canvas` · `videoEditor/types` | `canvasMediaType` / `videoEditorMediaType` | 跨域 |
+| `Timeline` | `director3d/panels` · `videoEditor/ui/...` | d3d 例外；`videoEditorTimeline` | 跨域 |
+| `Conversation` / `ConversationMemory` | `agent/conversation` · `base/utils` | `agentConversation*` | 跨域 |
+| `subscribe` | `agent/assistantTable` · `agent/conversation` · `base/core` | 横切保留；agent 侧加前缀 | 三处 |
+| `removeResource` / `flushPersist` / `detectAssetType` | `base/store` · `scriptbox` · `agent/conversation` · `base/utils` | 按消费域前缀 | 跨域 |
+| `FlowPosition` / `PanelState` / `TimelineTrack` | `base/core` · `hooks` · `base/store` · `videoEditor/ui` · `nodes` | 按域前缀 | 5 处 |
+| `ExportFormat` / `ExportQuality` / `TimelineElement` | videoEditor 域内两处 | `videoEditor*` | 域内（另有别名问题） |
+| `CameraLens` / `describeCameraLens` | `base/editors` · `base/editors/cameraParams` | 域内子域级（N9） | 域内撞名 |
+
+> **诚实边界**：本表只覆盖 `export {function,const,type,interface,class}` 形态。**`export default` 与 `export { a, b }` 尚未扫**（且 `director3d` 那批通用名——`useToast`/`storage`/`history`/`project`/`tracks`——因属**已登记例外**未计入）⇒ S1-1 执行时补扫，**清单可能再增**。
+
+**已裁定例外（禁重审）**：可编辑元素判据（ADR-0031 · TD-18-10~13）· 提示词域三件（TD-18-39）· `filesApi` 落盘域（TD-02-66）· `director3d`（V2 日志 §七）。
 
 **已裁定例外（禁重审）**：可编辑元素判据（ADR-0031 · TD-18-10~13）· 提示词域三件（TD-18-39）· `filesApi` 落盘域（TD-02-66）· `director3d`。
 
@@ -631,6 +1131,69 @@ grep -rn "from '.*<拟迁出的文件名>" src/components/base --include='*.ts' 
 | 2026-09-19 | 「媒体引用域」是素材库域 | 名不副实 ⇒ 收窄为**媒体引用协议层**；素材库/生成各自成域 | §3.1.2 |
 | 2026-09-19 | 素材库 = 一个域 | 同一"东西"散在 **3 处**（`resourceStore` + 素材 UI + `librarySource`）⇒ 补立 **「素材域」** | §3.1.2 |
 | 2026-09-19 | 「生成」无独立域 | 补立 **「生成域」**；与素材域**不同数据源**（用户 2026-09-17 已裁定） | §3.1.2 |
+| 2026-09-19 | 🔴 **用「代码目录」这条轴分域** | **改用「业务能力」轴**（产品在代码里已写死：`NodePalette.ts:106-109` 文本/图片/视频/其他工具）⇒ 目录轴清单降为中间产物 | §3.1.3 |
+| 2026-09-19 | 「文本能力 ⊃ 提示词输入 · 创作库预设」 | **错**：`base/prompt` 与 `base/creative` **被图片/视频/文本三个节点共用** ⇒ 是**跨内容类型的共享域**，不是文本能力的零件 | §3.1.3.1 |
+| 2026-09-19 | 「生成」一词唯一 | **二义**：左栏页签「生成」= 生成**结果**（属素材域）vs `generate.ts` = 生成**链路**（属中继域）⇒ 必须分别命名 | §3.1.3.1 |
+| 2026-09-19 | `nodes/` 是画布域的子域 | **一个目录混四种东西**：内容能力节点 11 + 画布机制节点 3 + 能力辅助 hook 1 + 独立应用入口 2 | §3.1.3.2 |
+| 2026-09-19 | 「本仓没有域清单」 | **错**：`spec/DATAFLOW.md` 的 **17 条链路就是现状域清单**（§十七 原文把"链路"当"域"用）⇒ 本文件的能力轴清单**降级为"对 DATAFLOW 的差异清单"** | §3.1.4 |
+| 2026-09-19 | `base/media/` 是"素材能力域的范本" | **采纳 DATAFLOW §三′**：它是**横切地基**（两入口共用 + 红线禁 import 非 base）；素材域由 §五 承接 | §3.1.4 C-1 |
+| 2026-09-19 | hooks「22/25 是域专用」 | **采纳 DATAFLOW §十三**：hooks 是**横切编排层**（写回归口；`useNodeData` ← 24） | §3.1.4 C-2 |
+| 2026-09-19 | 提示词域 + 创作库域拆两个 | DATAFLOW §七 二者**同一条链路** ⇒ 是否拆域留待裁定 | §3.1.4 C-3 |
+| 2026-09-19 | 编辑/查看 = 画布子层 | **采纳 DATAFLOW §八**：是**独立关注点/链路** | §3.1.4 C-4 |
+| 2026-09-19 | —（新发现） | **`docs/ARCHITECTURE.md` 已 stale**（`.jsx` 时代 4 层 + 已改名范本表）⇒ 它是"目录轴"的历史来源 | 文-1 |
+| 2026-09-19 | D12「hooks 21 个域专用 ⇒ 迁回域内」 | **改判**：统计口径错（`useNodeData` 23 · `useConnectedInputs` 33 跨域）⇒ **编排机制留横切 / 真域私有迁回**（DATAFLOW §十三） | §9 A1 |
+| 2026-09-19 | §6 N8「符号 + 字符串标识一起改」 | **回改原文**（与 D19/ADR-0038 矛盾）⇒ 只保证「符号 + 文件路径」一致，运行时字符串默认不改 | §9 A2 |
+| 2026-09-19 | §3.1.3.7 列 `director3d` 命名违规 | **就地标注**：`director3d` 属**已登记例外** ⇒ 只记录不施工（例外优先） | §9 A3 |
+| 2026-09-19 | —（审计） | 新增 §9 最终审计（5 通过 / 7 问题 / 1 附带；3 项必须修已当场修） | §9 |
+| 2026-09-19 | §6 前缀表（**目录轴时代**，无 `image`/`video`/`text`） | **按能力轴重出**（§6.1）；实测**导出符号级前缀基本不存在**（`node`/`edge`/`editor`/`image`/`scriptBox`/`creative`/`setting`/`cloud` 全为 **0**）⇒ 19 处撞名的根因 | §9 A5 |
+| 2026-09-19 | TD-18-43「`toast` 撞名」 | **前提复核不成立**：全仓 `toast` 导出**仅 1 处**（`videoEditor/lib`，实测）⇒ 按 N1 判据**不违规**，降级为 N7「名太通用」可选改名 | §6.2 |
+| 2026-09-19 | 素材域前缀（旧表只写 `media`） | **按 DATAFLOW 三分**：`media`（引用协议·横切地基 §三′）· `resource`（数据 SSOT §五）· `file`（落盘 `filesApi` §五） | §6.1 |
+| 2026-09-19 | §6 持有 N1–N9 **判据正文** | **判据本体归位 `ADR-0039`**（生效）；§6 只留现状表（§6.1/§6.2）+ 指针 | §9 A6 |
+
+---
+
+## 9 · 最终审计（2026-09-19 · 自审 · 标准 = **可复现，不引用自己的结论**）
+
+**审计方法**：① 每条论断回原始命令复跑；② 与既有真源（`spec/DATAFLOW.md` · `docs/adr/` · V2 日志）对撞；③ 查**计划内部自相矛盾**。
+
+### 9.1 通过项（5）
+
+| # | 审计项 | 复现结果 |
+| --- | --- | --- |
+| ✅1 | fan-in 数可复现 | `useConnectedInputs` 33 ✅ 完全一致；其余差异为**口径**（见 A4） |
+| ✅2 | **进度表真实性** | `Step A 首批（videoEditor 门面）` 与 `Step A 第二批（depthVideo 门面）已撤销回退` **均有日志**（`daily/架构日志/21-跨区-…`）⇒ 不是自述 |
+| ✅3 | §4 裁决完整性 | D1–D21 共 21 条，**逐条带依据**（P 判据 / ADR / 用户裁定） |
+| ✅4 | §3.4 游离物与 D14/D18 一致 | #8 已就地标注「**推翻**（D14）」⇒ 无两处矛盾 |
+| ✅5 | ADR-0038 锚点有效 | 本文件 §5.1 **F5** + §4 **D19** 均存在且一致 |
+
+### 9.2 问题项（7 · 按严重度）
+
+| # | 严重度 | 问题 | 证据（可复现） | 处置 |
+| --- | --- | --- | --- | --- |
+| **A1** | 🔴 **自相矛盾** | **D12「`src/hooks/` 21 个域专用 hook 迁回域内」的统计口径错** | 实测 `useNodeData` fan-in **23**（跨 canvas/nodes/agent/scriptbox）· `useConnectedInputs` **33**；`spec/DATAFLOW.md §十三` 明确把 hooks 定位为「**横切编排层 · 节点/画布/store 写回归口**」，且 `useNodeData.patchData` 是 `node.data` **写回唯一真源**（由 `check:arch` 规则 5 守）⇒ 它们**不是域专用** | **D12 改为逐条二分**：编排机制类（`useNodeData`/`useStoreSelector`/`useCanvasSync`/`useConnectedInputs`/`useGenerateNode`）**留横切**；真域私有（`useScriptBoxEngine`→scriptbox · `useVideoPoster`→视频 · `useArrangeCanvas`→画布壳）**迁回**。⇒ **S2-6 批次按新口径重排** |
+| **A2** | 🔴 **A7 违反** | **§6 的 N8 原文未回改** —— 仍写「改名两套身份**一起改**：符号 + 字符串标识」 | 与 §4 **D19** + **ADR-0038**（生效）+ §7 修订记录**三处矛盾**（正是 A7「回改原文」要防的漂移） | **§6 N8 就地改**为「只保证**符号名 + 文件路径**两套身份一致；**运行时字符串默认不改**（ADR-0038）」 |
+| **A3** | 🔴 **裁决冲突** | §3.1.3.7 列的 **`director3d` 命名违规清单** vs §6「已裁定例外：`director3d`」+ V2 日志「`director3d` 属**已登记例外，未纳入收口**」 | V2 日志（`daily/架构日志/18-跨区-…`）§七 遗留 3 原文 | **例外优先**：`director3d` 的通用名**记录但不施工**（§3.1.3.7 就地标注"例外范围内"）；若要撤例外须**另开裁定** |
+| **A4** | 🟡 不可复现 | **fan-in 数字未标口径** —— §3.1.3 表内多有裸数字 | 同一条数：`logger` 计划写 87 / 我 grep 实测 **113**（含 tests）；`contentStore` 45 / **53**；`contracts` 34 / **38**；`useNodeData` 24 / **23** | 全表补口径：统一标 **`refs` 工具输出**（DATAFLOW §维护规矩要求"带 refs 实证"），不用自定义 grep |
+| **A5** | 🟡 过期 | **§6 前缀表是"目录轴时代"产物** | 表内为 `canvas`/`node`/`edge`/`editor`/`mosaic`/`media`/`prompt`…，**无 `image`/`video`/`text`** ⇒ 与 §3.1.3 能力轴不一致 | 按**能力轴重出前缀表**（S1-1 开工前必须定，否则前缀会取错） |
+| **A6** | 🟡 落点 | **N1–N9 属"确立新约定"** ⇒ 按 `docs/adr/README` §二.2 应写 ADR | `adr search 命名` 仅命中 ADR-0038（改名**边界**）· ADR-0033（配置常量）⇒ **无"命名规范"ADR** | 落一条新 ADR（域前缀 + 门面 + `*Store`），本文件 §6 只留指针 |
+| **A7** | 🟢 文档债 | **文-3 核实成立且更重叠**：`docs/BASE-CAPABILITIES.md`(241 行) §八「**新增能力该放哪**」＝**落点判据**；§三（toast）↔ DATAFLOW §15.2、§五（图片编辑）↔ DATAFLOW §八 | 其 §八 / §三 / §五 实测 | §八 判据应进 ADR；§三/§五 与 DATAFLOW 重叠处改指针 |
+
+### 9.3 附带发现（1）
+
+| # | 发现 |
+| --- | --- |
+| B1 | **`D6`（`TemplateNode` 迁出 `src/`）与 DATAFLOW §十六 已登记的「`nodes/TemplateNode.tsx` → `nodes/_template/`（参考蓝本，非活节点）」是两个不同动作** —— 后者**已完成**。⇒ D6 需明确"是否仍要迁出 `src/`"，否则会被当成未做的动作重做一遍 |
+
+### 9.4 放行判据（**能不能开工**）
+
+```
+必须修（自相矛盾级）：A1 · A2 · A3        ← 都是"同一件事两处说法不同"，不修则施工必乱
+开工前必须定：      A5（前缀表，S1-1 依赖它）
+随批修：            A4（口径）
+单独落：            A6（命名规范 ADR）· A7（文档债）· B1（D6 明确化）
+```
+
+**结论：计划主体（§1–§5）成立、可施工；但 §6 与 §3.1.3 的 A1/A2/A3 必须先对齐，否则第一批改名就会取错前缀 / 迁错 hook。**
 
 ---
 
@@ -659,7 +1222,7 @@ grep -rn "from '.*<拟迁出的文件名>" src/components/base --include='*.ts' 
 | S2-3 | AI 中继域成型（`api/relay/` + 门面，对齐后端 `ai-relay/`） |
 | S2-4 | `base/store` 按 8 域拆出非真源 |
 | S2-5 | videoEditor：`engine/lib` 拆关注点、工具层三合一、UI 两套收口 |
-| S2-6 | `src/hooks` 域专用 hook 回域（D12） |
+| S2-6 | `src/hooks` **逐条二分**：编排机制留横切 / 真域私有迁回（**D12 已改判 · 见 §9 A1**） |
 | S2-7 | 后端：`routes/utils` 域物归位 + `ai-relay` 门面收口 |
 
 ### Stage 3 · 契约与验收
@@ -677,5 +1240,10 @@ grep -rn "from '.*<拟迁出的文件名>" src/components/base --include='*.ts' 
 | **P3 F5 落 ADR** | **已完成** | **ADR-0038**（生效，架构师 2026-09-19） |
 | **Step A 首批：videoEditor 门面** | **已完成** | `daily/架构日志/21-跨区-域模块化StepA建门面批次-2026-09-19.md` §一–四（域外消费点 1→0；tsc 0 错；无 TDZ 环新增） |
 | **Step A 第二批：depthVideo 门面** | **已撤销**（弯路） | 同文件 §五：粒度错（子域当域）+ 门面错层级；已完整回退（tsc 0 错 / 586 文件 / 环未增） |
-| **按 P5 重出 §3.1 域清单** | **待做**（下一步） | 已确认 3 处修订见 §3.1.1 |
+| **按 P5 重出 §3.1 域清单** | **已完成** | §3.1.3（能力轴：产品 `NodePalette` 文本/图片/视频/其他 = 决定性证据）+ §3.1.4（**DATAFLOW 对照**：冲突 4 条采纳 DATAFLOW / 一致 3 条互证） |
+| **§3.1.3.1~.8 八批取证** | **已完成** | 生成链路共享性 · 节点能力归属表（16 节点）· 两笔反向依赖 · `TemplateNode` 蓝本 · `base/media` 范本 · hooks 归属 · 门面实测（`agent` 0 处绕行）· 上帝文件 `director3d/project.ts` |
+| **§9 最终审计** | **已完成** | 5 通过 / 7 问题 / 1 附带；**A1（D12 改判）· A2（N8 回改）· A3（d3d 例外）已修** |
+| **A5 前缀表按能力轴重出** | **已完成** | §6.1（导出符号级前缀实测 **10 域为 0**）· §6.2（撞名→新名 19 条） |
+| **A6 命名规范落 ADR** | **已完成** | **ADR-0039**（生效 · `adr audit` **0 问题** / 65 行一页）；§6 改为指针 |
+| **A4 fan-in 口径 · A7 文档债 · B1** | 待做 | 随批修 / 单独落（§9.2 / §9.3） |
 | S1-1 … S2-7 | 待做 | — |
