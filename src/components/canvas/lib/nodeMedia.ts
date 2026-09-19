@@ -1,5 +1,5 @@
 import type { Node } from '@xyflow/react';
-import { classifyAssetUrlKind } from './assetType.ts';
+import { classifyAssetUrlKind } from '@/components/base/utils/media/assetType';
 
 /* ════════════════════════════════════════════════════════════════
  * 节点媒体提取 / 选中派生（**横切层** · 纯函数，零 React / 零 store 依赖）

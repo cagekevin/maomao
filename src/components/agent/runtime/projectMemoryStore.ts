@@ -22,7 +22,7 @@ import { generateId } from '../../base/core/idGen.ts';
 import { logger } from '@/components/base/core/log/logger';
 import { KV_TIMEOUT } from '../../base/core/config.ts';
 // 键构造真源 = base/core/agentKeys.ts（TD-13-5：本模块不再裸拼模板）
-import { agentProjectMemoryKey } from '../../base/core/agentKeys.ts';
+import { agentProjectMemoryKey } from './agentKeys.ts';
 
 /** 单条记忆正文长度上限 */
 export const PROJECT_MEMORY_CONTENT_LIMIT = 500;

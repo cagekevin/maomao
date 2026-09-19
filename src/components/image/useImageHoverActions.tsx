@@ -4,7 +4,7 @@ import { ImageEditor, InlineImageCropper } from './editors';
 
 import { compressImage } from '@/components/base/utils/imageCompress';
 import { upscaleImage } from '@/components/image/lib/imageUpscale';
-import { useCopyNode } from '@/components/image/useCopyNode';
+import { useCopyNode } from '@/components/image/hooks/useCopyNode';
 import { showThenPersistInline } from '@/components/base/api/filesApi';
 import { showToast, toastError } from '@/components/base/core/event/toastStore';
 import { formatBytes } from '@/components/base/core/utils';

@@ -53,7 +53,7 @@ vi.mock('../../src/components/base/api/localToolApi.ts', async (importOriginal) 
   kvKeys: vi.fn(async () => [...kvStore.keys()].filter((k) => !k.endsWith('_version'))),
 }));
 
-const { exportAll, importAll, backupToBlob } = await import('@/components/canvas/backupStore');
+const { exportAll, importAll, backupToBlob } = await import('@/components/base/store/backupStore');
 const { getCurrentProject } = await import('@/components/base/store/projectStore.ts');
 
 beforeEach(() => {

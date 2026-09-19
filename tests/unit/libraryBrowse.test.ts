@@ -6,7 +6,7 @@ import {
   libraryBrowseArgs,
   libraryUpFolder,
   isEmptyLibraryRoot,
-} from '../../src/components/base/media/libraryBrowse.ts';
+} from '../../src/components/resource/libraryBrowse.ts';
 
 // 素材库「目录浏览」规则层 —— 唯一实现（零 React / 零 store 依赖）。
 describe('libraryBrowse：浏览规则', () => {

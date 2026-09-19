@@ -56,7 +56,7 @@ import { generateId } from '@/components/base/core/idGen';
 import { buildSpawnNodes, spawnAndCommit } from '@/components/canvas/structure/deriveNodes';
 import { useCanvasEdges } from '@/components/canvas/structure/CanvasEdgesContext';
 import { httpRequest, uploadFileToLocal } from '@/components/base/api/index';
-import { updateNodeRuntime, useNodeRuntime } from '@/components/base/store/nodeRuntimeStore';
+import { updateNodeRuntime, useNodeRuntime } from '@/components/task/nodeRuntimeStore';
 import previewUrls from '@/components/base/utils/media/previewUrl';
 import { UPLOAD_DIRS } from '@/components/base/utils/uploadDirs';
 import { DOWNLOAD_TIMEOUT, VIDEO_DOWNLOAD_TIMEOUT } from '@/components/base/core/config';

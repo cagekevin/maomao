@@ -80,7 +80,7 @@ vi.mock('../../src/components/canvas/parts/GeneratingOverlay.tsx', () => ({ defa
 vi.mock('../../src/components/creative/CreativeLibraryButton.tsx', () => ({
   default: () => null,
 }));
-vi.mock('../../src/components/canvas/parts/JianyingIcon.tsx', () => ({ default: () => null }));
+vi.mock('../../src/components/base/ui/JianyingIcon.tsx', () => ({ default: () => null }));
 vi.mock('../../src/components/base/ui/display/ImageZoomDialog.tsx', () => ({
   default: () => null,
 }));

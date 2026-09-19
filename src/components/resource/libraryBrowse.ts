@@ -21,8 +21,8 @@
  *  `base/panels/ImportMediaModal.tsx`
  * ════════════════════════════════════════════════════════════════
  */
-import { UPLOAD_DIRS } from '../utils/uploadDirs.ts';
-import type { MediaRefQuery } from './mediaRefTypes.ts';
+import { UPLOAD_DIRS } from '../base/utils/uploadDirs.ts';
+import type { MediaRefQuery } from '../base/media/mediaRefTypes.ts';
 
 /** 素材库根目录（uploads 目录中央表为真源；本层与消费方一律不写 'migrated' 字面量）。 */
 export const LIBRARY_ROOT = UPLOAD_DIRS.migrated;

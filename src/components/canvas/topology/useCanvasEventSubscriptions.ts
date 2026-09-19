@@ -17,7 +17,7 @@ import { subscribe } from '@/components/base/core/event/eventBus';
 
 import { showToast } from '@/components/base/core/event/toastStore';
 import { logger } from '@/components/base/core/log/logger';
-import { importAll, exportAll, backupToBlob } from '@/components/canvas/backupStore';
+import { importAll, exportAll, backupToBlob } from '@/components/base/store/backupStore';
 import { downloadBlob } from '@/components/base/utils/net/clipboard';
 
 /** 完整工作流备份导入导出（对齐官方 yimao 工作流备份）：承接 project:import / project:export 事件 */

@@ -11,8 +11,20 @@
  *      自己的包装层"的起点（高度链在第二层壳处断掉，`grow` 分区再也撑不开）。
  *   ② **滚动只有一个**：面板视图不得自建滚动容器（`ScrollArea` / `overflow-auto` /
  *      `overflow-y-auto`）。第二层滚动的后果：外层永远滚不动、内层高度链对不上。
- *   ③ **占位必须撑满**：每个 `<PanelState />` 都要住在一个 `<PropertyGroup grow>` 里。
- *      数量对不上 = 有人把占位直接塞进普通分区（`h-full` 在滚动容器里无参照 → 塌）。
+ *   ③ **占位必须撑满**：每个 `PanelState` 都要住在一个 `<PropertyGroup grow>` 里。
+ *      判据 = `占位件数 > grow 分区数`（**鸽笼原理**：占位比容器多 ⇒ 必有占位裸塞进普通分区，
+ *      `h-full` 在滚动容器里无参照 → 塌）。
+ *
+ *      【2026-09-19 修正两处 · 都是判据本身比契约窄/宽，不是代码违规】
+ *        · **件名过期**：组件已按 **TD-18-41（域前缀强制：域专用物必须带该域前缀）**
+ *          由 `PanelState` 改名为 `VideoEditorPanelState`；原正则 `/<PanelState\b/` 匹配不到新名
+ *          ⇒ 5 个面板文件被误判为"0 占位"（**假红**）。实证：`assets/index.tsx:40` ·
+ *          `assets/views/{media:457,sounds:79/88/134,stickers:395/401}.tsx` ·
+ *          `properties/empty-view.tsx:20` 全部在用新名。
+ *        · **口径过窄**：原判据要求 `占位数 !== grow 分区数` 即违规（**相等**为必要条件），
+ *          但 `grow` 分区可装**内容**、并非占位独享 —— 实证 `sounds.tsx` 有 6 个 grow 分区
+ *          而只有 3 个装占位（另外 3 个装真实内容）⇒ 相等口径把合规件判红。
+ *          契约原文只要求"占位住进 grow 里"，**未**要求"grow 里必是占位" ⇒ 改判"多则不合法"。
  * ════════════════════════════════════════════════════════════════
  */
 import { readdirSync, readFileSync } from 'node:fs';
@@ -130,11 +142,13 @@ describe('面板纵向分区契约（TD-22-50）', () => {
         const source = code(file);
         return {
           file: relative(file),
-          states: count(source, /<PanelState\b/g),
+          // TD-18-41 起域前缀强制 ⇒ 现行名 = `VideoEditorPanelState`；保留裸名以兼容旧名残留
+          states: count(source, /<(?:VideoEditor)?PanelState\b/g),
           growGroups: count(source, /<PropertyGroup\s+grow\b/g),
         };
       })
-      .filter((row) => row.states !== row.growGroups)
+      // 鸽笼原理：占位比 grow 分区多 ⇒ 至少一个占位没住进 grow（相等不是必要条件，见文件头 ③）
+      .filter((row) => row.states > row.growGroups)
       .map((row) => `${row.file} (PanelState ${row.states} / grow 分区 ${row.growGroups})`);
     expect(offenders).toEqual([]);
   });

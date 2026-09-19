@@ -22,9 +22,9 @@ import type {
   ConversationMemory,
   ConversationStoreState,
   WorkflowState,
-} from './conversationTypes.ts';
+} from '../contract/conversationTypes.ts';
 import { CREDIT_GATE_FIELD } from '../../base/core/contracts.ts';
-import type { Violation } from '../agentTypes.ts';
+import type { Violation } from '../contract/agentTypes.ts';
 
 /** 单会话消息上限（镜像 conversationState.AGENT_MSG_MAX=60，反向 import 会成环；测试断言二者随变） */
 export const CONV_MSG_MAX = 60;

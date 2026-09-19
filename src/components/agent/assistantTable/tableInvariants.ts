@@ -16,11 +16,11 @@
  */
 import type { AssistantTableTabs } from './assistantTable.ts';
 import { normalizeLabel } from './assistantTable.ts';
-import type { TableWorkspaceState } from './tableWorkspaceTypes.ts';
-import type { Violation } from '../agentTypes.ts';
+import type { TableWorkspaceState } from '../contract/tableWorkspaceTypes.ts';
+import type { Violation } from '../contract/agentTypes.ts';
 
 /** 转发共享类型，避免调用方为 `Violation` 反向依赖 assistantTable 域（成环）。 */
-export type { Violation } from '../agentTypes.ts';
+export type { Violation } from '../contract/agentTypes.ts';
 
 function err(code: string, message: string): Violation {
   return { level: 'error', code, message };

@@ -5,7 +5,12 @@
  * 避免 tableInvariants / tableWorkspaceState 之间为复用单个类型而互相反向依赖成环。
  * 各方都从这里 import；tableWorkspaceState.ts 负责 re-export 维持对外兼容。
  */
-import type { AssistantTableJson, CellRange, TableColumn, TableRow } from './assistantTable.ts';
+import type {
+  AssistantTableJson,
+  CellRange,
+  TableColumn,
+  TableRow,
+} from '../assistantTable/assistantTable.ts';
 
 /**
  * 待确认预览（预览=确认，C5）：acceptTablePreview 时已把「操作后最终表格」算好存入，

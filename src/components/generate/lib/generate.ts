@@ -17,12 +17,15 @@
  *
  * 【结果信封】复用 src/types/provider.ts 的 GenerationResult 唯一真源，禁止二次定义（修正 8）。
  */
-import { GEN_TIMEOUT, VIDEO_TIMEOUT, CHAT_TIMEOUT } from '../core/config.ts';
-import { normalizeAssetUrlsForSend, toImageContentBlocks } from '../utils/media/assetUrl.ts';
-import { resolveImagePixel } from '../utils/imagePixel.ts';
-import { relayGenerate, relayChat, relayChatStream } from './relayProxy.ts';
-import { logger } from '../core/log/logger.ts';
-import type { RelayCapability, RelayIntent } from './relayProxy.ts';
+import { GEN_TIMEOUT, VIDEO_TIMEOUT, CHAT_TIMEOUT } from '@/components/base/core/config';
+import {
+  normalizeAssetUrlsForSend,
+  toImageContentBlocks,
+} from '@/components/base/utils/media/assetUrl';
+import { resolveImagePixel } from '@/components/generate/lib/imagePixel';
+import { relayGenerate, relayChat, relayChatStream } from '@/components/generate/lib/relayProxy';
+import { logger } from '@/components/base/core/log/logger';
+import type { RelayCapability, RelayIntent } from '@/components/generate/lib/relayProxy';
 import type { GenerationProvider, GenerationResult } from '@/types';
 
 /** 真·单一真相：禁止重新列举字面量（修正 8） */

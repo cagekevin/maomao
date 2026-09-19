@@ -11,8 +11,8 @@
  *   （打包版 127.0.0.1:18080 ↔ 开发口 localhost:5180 = 恒不连通）。
  *   这些场景由 `useCanvasSync` 的 3s 服务端版本轮询兜底（docs/118 §五 C4）。
  */
-import { generateId } from './idGen.ts';
-import { logger } from './log/logger.ts';
+import { generateId } from '@/components/base/core/idGen';
+import { logger } from '@/components/base/core/log/logger';
 
 /** BroadcastChannel 频道名（广播侧与监听侧唯一来源，禁止再写裸字面量） */
 export const CANVAS_SYNC_CHANNEL = 'yimao_canvas_sync';

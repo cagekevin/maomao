@@ -12,7 +12,7 @@ import type { Node } from '@xyflow/react';
 // ── canvasNodesBridge：模块级会话态，需按用例重置（vi.resetModules）──
 const loadBridge = async () => {
   vi.resetModules();
-  return import('../../src/components/base/media/canvasNodesBridge');
+  return import('../../src/components/canvas/lib/canvasNodesBridge');
 };
 
 const mkNode = (id: string, data: Record<string, unknown> = {}): Node => ({
@@ -144,8 +144,10 @@ describe('canvasNodesBridge：只读快照', () => {
 
   it('★源码级：本模块**不 import 任何存储**（不持久化的硬锁）', async () => {
     const fs = await import('node:fs');
+    // 2026-09-19 裁判裁定（TASK-031 §四-A-5）：`canvasNodesBridge` 已迁 `canvas/lib/`
+    // ⇒ 断言必须**随搬迁同步**（写死旧路径 = ENOENT 恒红）。
     const src = fs.readFileSync(
-      new URL('../../src/components/base/media/canvasNodesBridge.ts', import.meta.url),
+      new URL('../../src/components/canvas/lib/canvasNodesBridge.ts', import.meta.url),
       'utf8',
     );
     const importLines = src

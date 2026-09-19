@@ -27,7 +27,7 @@ import { isEditableTarget } from '@/components/base/core/interaction/uiHooks';
 import { copyImageToClipboard } from '@/components/base/utils/net/clipboard';
 import { loadImageWithTimeout, attemptQuietly } from '@/components/base/utils/net/asyncGuard';
 import { logger } from '@/components/base/core/log/logger';
-import { useCopyNode } from '@/components/image/useCopyNode';
+import { useCopyNode } from '@/components/image/hooks/useCopyNode';
 import { generateId } from '@/components/base/core/idGen';
 import { canvasToImageDataUrl } from '@/components/base/core/utils';
 import { downloadUrl as clipboardDownload } from '@/components/base/utils/net/clipboard';

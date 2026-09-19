@@ -25,13 +25,13 @@ import {
   resolveNegatives,
   resolveAssetTemplates,
 } from './scriptBoxPromptResolver.ts';
-import { chatCompletions } from '../base/api/index.ts';
-import { generateImage } from '../base/api/index.ts';
+import { chatCompletions } from '@/components/generate/lib/generate';
+import { generateImage } from '@/components/generate/lib/generate';
 import { resolveProviderModel, buildAllModels } from '../base/utils/providerModels.ts';
 import { localizeAndStoreToResourceLibrary, resourceFolderOf } from '../resource/resourceStore.ts';
 import { CODE_GENERATED_USER_SUB_DIRS } from '../base/utils/uploadDirs.ts';
 import { uploadFileToLocal } from '../base/api/index.ts';
-import { runGenerationOrchestration } from '../base/store/generationOrchestration.ts';
+import { runGenerationOrchestration } from '../generate/lib/generationOrchestration.ts';
 import { toAbsoluteFileUrl } from '../base/utils/media/assetUrl.ts';
 import { detectFileType } from '../base/utils/media/assetType.ts';
 import { fileNameFromUrl, canvasToImageDataUrl, clamp } from '../base/core/utils.ts';

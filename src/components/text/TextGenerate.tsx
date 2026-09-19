@@ -32,7 +32,7 @@ import {
 } from '@/components/canvas/structure/deriveNodes';
 import { useCanvasEdges } from '@/components/canvas/structure/CanvasEdgesContext';
 import { saveTextToTasks } from '@/components/base/api/index';
-import { chatCompletions } from '@/components/base/api/index';
+import { chatCompletions } from '@/components/generate/lib/generate';
 import { useNodePrefs, PREFS_DEFAULTS } from '@/components/canvas/contract/nodePrefs';
 import { resolveProviderModel } from '@/components/base/utils/providerModels';
 import { resolvePromptChips, mergeReferenceImageUrls } from '@/components/canvas/shell/promptChips';

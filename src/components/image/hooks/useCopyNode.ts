@@ -1,7 +1,7 @@
 import { useCallback } from 'react';
 import { useReactFlow } from '@xyflow/react';
-import { copyNodesToClipboard } from '../base/utils/net/clipboard.ts';
-import { showToast } from '../base/core/event/toastStore.ts';
+import { copyNodesToClipboard } from '@/components/base/utils/net/clipboard';
+import { showToast } from '@/components/base/core/event/toastStore';
 
 /**
  * 「复制节点」共享 hook —— 把当前节点序列化到系统剪贴板，用户自行 Ctrl+V 粘贴到画布。

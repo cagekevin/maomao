@@ -17,7 +17,7 @@ vi.mock('../../src/components/image/editors/ImageEditor.tsx', () => ({
   default: mocks.ImageEditor,
 }));
 vi.mock('../../src/hooks/useAssetDegrade.ts', () => ({ useAssetDegrade: mocks.useAssetDegrade }));
-vi.mock('../../src/components/image/useFitNodeRatio.ts', () => ({
+vi.mock('../../src/components/image/hooks/useFitNodeRatio.ts', () => ({
   useFitNodeRatio: mocks.useFitNodeRatio,
 }));
 vi.mock('../../src/hooks/useVideoPoster.ts', () => ({ useVideoPoster: mocks.useVideoPoster }));

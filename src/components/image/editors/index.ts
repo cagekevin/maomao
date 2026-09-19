@@ -26,7 +26,7 @@ export { default as CameraStudioPanel } from './CameraStudioPanel.tsx';
 export { default as CameraSettingsSelector } from './cameraParams/CameraSettingsSelector.tsx';
 export { applyCameraSettingsToPrompt } from './cameraParams/cameraPrompt.ts';
 export type { CameraGenerationSettings } from './cameraParams/types.ts';
-export type { CameraStudioResult } from './cameraStudio.ts';
+export type { CameraStudioResult } from './cameraParams/cameraStudio.ts';
 
 /* 打码 */
 export { default as FaceMosaicEditor } from './FaceMosaicEditor.tsx';

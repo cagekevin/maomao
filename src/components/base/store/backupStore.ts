@@ -37,23 +37,18 @@ import {
   getKvKeyPatterns,
   CANVAS_STATE_PREFIX,
   KEY_YIMAO_ACCOUNTS,
-} from '../base/core/contracts.ts';
-import { compilePatternRegex } from '../base/core/utils.ts';
-import { kvKeys } from '../base/api/localToolApi.ts';
-import {
-  contentGet,
-  contentSet,
-  contentGetAsync,
-  contentSetAsync,
-} from '../base/core/contentStore.ts';
-import { isWriteBackOk } from '../base/core/log/degrade.ts';
+} from '../core/contracts.ts';
+import { compilePatternRegex } from '../core/utils.ts';
+import { kvKeys } from '../api/localToolApi.ts';
+import { contentGet, contentSet, contentGetAsync, contentSetAsync } from '../core/contentStore.ts';
+import { isWriteBackOk } from '../core/log/degrade.ts';
 import {
   getCurrentProject,
   getAllProjects,
   loadCanvasState,
   saveCanvasState,
-} from '../base/store/projectStore.ts';
-import { logger } from '../base/core/log/logger.ts';
+} from './projectStore.ts';
+import { logger } from '../core/log/logger.ts';
 
 /** localStorage 备份清单 —— 由 contracts.ts STORAGE_KEYS 权威登记生成（getLocalKeys()）。
  *  新增存储键先在 contracts.ts 登记即自动进备份，禁止再手写清单（防漂移漏备份）。 */

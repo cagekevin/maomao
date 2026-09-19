@@ -7,12 +7,12 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 // 隔离 chatCompletions，便于断言压缩请求与注入
-vi.mock('../../src/components/base/api/generate.ts', async (importOriginal) => ({
+vi.mock('../../src/components/generate/lib/generate.ts', async (importOriginal) => ({
   ...((await importOriginal()) as Record<string, unknown>),
   chatCompletions: vi.fn(),
 }));
 
-const chatApi = await import('@/components/base/api/generate.ts');
+const chatApi = await import('@/components/generate/lib/generate');
 const { serializeMessagesForSummary, compressToSummary, SUMMARY_REQUIRED_SECTIONS } =
   await import('../../src/components/agent/runtime/contextCompression.ts');
 

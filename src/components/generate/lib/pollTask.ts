@@ -25,10 +25,10 @@ import {
   stopPolling,
   completeTask,
   failTask,
-} from '../store/taskStore.ts';
-import { relayAttachUntilDone } from './relayProxy.ts';
-import { showToast } from '../core/event/toastStore.ts';
-import { logger } from '../core/log/logger.ts';
+} from '@/components/base/store/taskStore';
+import { relayAttachUntilDone } from '@/components/generate/lib/relayProxy';
+import { showToast } from '@/components/base/core/event/toastStore';
+import { logger } from '@/components/base/core/log/logger';
 
 // 恢复轮询总超时兜底：单任务最多 attach 多久，到点 relayAttachUntilDone 强停防挂起
 const POLL_TIMEOUT_MS: number = 600_000;

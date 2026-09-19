@@ -25,7 +25,7 @@ import {
   relayGenerate,
   relayChat,
   relayChatStream,
-} from '../../src/components/base/api/relayProxy.ts';
+} from '../../src/components/generate/lib/relayProxy.ts';
 import { CHAT_TIMEOUT, CHAT_TOTAL_TIMEOUT } from '../../src/components/base/core/config.ts';
 
 function envResp(data: any) {

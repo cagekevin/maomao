@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import type { ConversationMessage } from '../../src/components/agent/conversation/conversationTypes.ts';
+import type { ConversationMessage } from '../../src/components/agent/contract/conversationTypes.ts';
 import { contentClearCache } from '../../src/components/base/core/contentStore.ts';
 import {
   resetConversationCache,

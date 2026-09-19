@@ -14,7 +14,7 @@ import {
   selectedAssetSig,
   selectedNodeIdSig,
   selectedNodeIdsOfSig,
-} from '../../src/components/base/utils/media/nodeMedia.ts';
+} from '../../src/components/canvas/lib/nodeMedia.ts';
 
 const mkNode = (data: Record<string, unknown> = {}, over: Partial<Node> = {}): Node => ({
   id: 'n',

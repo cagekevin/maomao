@@ -88,7 +88,7 @@ import previewUrls from '@/components/base/utils/media/previewUrl';
 import { subscribe } from '@/components/base/core/event/eventBus';
 import { CREDIT_GATE_EVENT } from '@/components/base/core/contracts';
 // 【TD-15-1】agentKey 前缀单源（默认 agentKey = 前缀，禁本地拼字面量）
-import { AGENT_KEY_PREFIX } from '@/components/base/core/agentKeys';
+import { AGENT_KEY_PREFIX } from '@/components/agent/runtime/agentKeys';
 // AI 助手表格工作区：共享运行态（开合/宽度/选中行/待确认预览/探测游标）+ 纯函数模型/上下文拼装。
 // 表格本体已拆到画布左侧 TableWorkspacePanel，本面板只读共享态做「注入/探测/协作指示」。
 import {
@@ -113,7 +113,7 @@ import { useActiveAssistantTable } from '../assistantTable/useActiveAssistantTab
 import { buildRefineRowsUser } from '../assistantTable/assistantTablePrompt.ts';
 // 【TD-17】草稿初值经只读入口读会话快照（不再自持 agent_draft 存储键；写一律走 useAgentChat 的 saveDraft）
 import { getCurrentSnapshot, type SnapshotPatch } from '../conversation/conversationSnapshot.ts';
-import type { Conversation } from '../conversation/conversationTypes.ts';
+import type { Conversation } from '../contract/conversationTypes.ts';
 import AttachmentCover from '@/components/agent/panels/attachmentCover';
 import LazyImage from '@/components/base/ui/display/LazyImage';
 

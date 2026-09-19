@@ -28,18 +28,23 @@ describe('config.ts §API_BASE 日志与配置', () => {
     // （imageApi/videoApi/chatApi 已并入 generate.ts（2026-09-04 L3 收口），generate 消费 config.ts 的超时时长，
     //   故以 generate.ts 为 config 消费端硬证据）
     // kvStore.js 的 KV 转发已收口到 localToolApi.js，不再直接依赖 config.ts，故不在硬证据清单
+    // 【2026-09-19 裁判裁定 TASK-031 §四-A-11】生成链路 / AI 中继整片迁 `generate/lib/`
+    // ⇒ 本清单必须**随搬迁同步**（写死旧路径 = readFileSync ENOENT 恒红）。
     const apiFiles = [
-      'api/generate.ts', // L3 收口后 config 消费端（GEN_TIMEOUT/VIDEO_TIMEOUT/CHAT_TIMEOUT）
-      'api/localToolApi.ts',
-      'api/filesApi.ts',
-      'core/log/logger.ts', // logger 已归 core/log/（2026-09-19 A7），本清单读源码断言引用 config.ts，路径随搬迁同步
+      'src/components/generate/lib/generate.ts', // L3 收口后 config 消费端（GEN_TIMEOUT/VIDEO_TIMEOUT/CHAT_TIMEOUT）
+      'src/components/base/api/localToolApi.ts',
+      'src/components/base/api/filesApi.ts',
+      'src/components/base/core/log/logger.ts', // logger 已归 core/log/（2026-09-19 A7）
     ];
     for (const f of apiFiles) {
-      const src = readFileSync(`src/components/base/${f}`, 'utf8');
-      expect(src).toMatch(/config\.(js|ts)/);
+      const src = readFileSync(f, 'utf8');
+      // 2026-09-19：引用同步工具产出的是仓库**主导写法**（无后缀 `@/…/config`，
+      // 实测仓内无后缀 1291 处 vs 带后缀 56 处）⇒ 断言须同时接受两种写法。
+      // 原 `/config\.(js|ts)/` 会把无后缀路径判成"未消费 config"，属判据比实际窄。
+      expect(src).toMatch(/config(\.(js|ts))?['"]/);
     }
     // 软证据：衍生 API 层能成功 import（依赖解析未断）
-    const generate = await import('@/components/base/api/generate.ts');
+    const generate = await import('@/components/generate/lib/generate');
     const localToolApi = await import('@/components/base/api/localToolApi.ts');
     const filesApi = await import('@/components/base/api/filesApi.ts');
     expect(generate).toBeTruthy();

@@ -122,7 +122,7 @@ vi.mock('../../src/components/base/core/event/toastStore.ts', async (importOrigi
   toastWarning: mocks.toastWarning,
   toastError: mocks.toastError,
 }));
-vi.mock('../../src/components/base/api/generate.ts', async (importOriginal) => ({
+vi.mock('../../src/components/generate/lib/generate.ts', async (importOriginal) => ({
   ...((await importOriginal()) as Record<string, unknown>),
   generateImage: mocks.generateImage,
 }));

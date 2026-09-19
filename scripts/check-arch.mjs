@@ -1473,7 +1473,7 @@ console.log('\n☁️ 云同步范围白名单：getLocalKeys() 只允许 2 个�
 const GETLOCALKEYS_LEGIT = new Set([
   'src/components/base/core/contracts.ts', // 定义处本身（唯一真源）
   'src/components/base/store/cloudSync.ts', // 云同步范围（∩ getSyncKeys()）
-  'src/components/canvas/backupStore.ts', // 备份范围（全量；备份 ≠ 同步）· 2026-09-19 域归位迁入 canvas（旧路径 base/store/backupStore.ts 已失效 ⇒ 未同步即假红 TD-25-21）
+  'src/components/base/store/backupStore.ts', // 备份范围（全量；备份 ≠ 同步）· 2026-09-19 裁判裁定**回迁 base/store**（TASK-030 §二：备份范围是全量 localStorage ⇒ 不认识任何单域 ⇒ 不属 canvas；TD-25-21 原处置按「直接 fan-in」判定，违反 ADR-0042 判据 5）
 ]);
 let getLocalKeysViol = 0;
 let getLocalKeysScanned = 0;

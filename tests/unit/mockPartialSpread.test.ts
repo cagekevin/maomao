@@ -56,8 +56,11 @@ const SELF = 'mockPartialSpread.test.ts';
  * assetUrl / degrade）。**不含** `react`、UI 组件、`logger` 这类稳定边界 —— 它们不会长大，
  * 为它们建锁是"为不会发生的事付永久成本"（违反闸的成本守恒律，ADR-0016）。
  */
+// 【2026-09-19 修正】扩展名改**可选**：域归位搬迁后，引用同步工具产出的是仓库主导写法
+// （`@/…/generate` 无后缀，实测仓内 1291 处无后缀 vs 56 处带后缀）⇒ 原 `\.tsx?$` 会把这些
+// mock 路径判成"不在覆盖面"，让本锁的**扫描基数自检**假性掉到 <195（假绿）。
 const WATCHED =
-  /(?:Store|store|Api|api|Engine|engine|generate|useConnectedInputs|useNodeGeneration|useSyncNodeData|httpClient|kvStore|storageAdapter|assetUrl|config|contentStore|degrade)\.tsx?$/;
+  /(?:Store|store|Api|api|Engine|engine|generate|useConnectedInputs|useNodeGeneration|useSyncNodeData|httpClient|kvStore|storageAdapter|assetUrl|config|contentStore|degrade)(?:\.tsx?)?$/;
 
 /**
  * 抽出文件里**每个** `vi.mock('<path>', <工厂>)`，判该桩有没有从真模块派生。
@@ -85,7 +88,13 @@ function scanMockHeads(text: string): Array<{ path: string; derived: boolean; he
     out.push({
       path: m[2],
       derived,
-      head: `vi.mock('${m[2]}', ${text.slice(m.index + m[0].length).trim().slice(0, 40).split('\n')[0]}…`,
+      head: `vi.mock('${m[2]}', ${
+        text
+          .slice(m.index + m[0].length)
+          .trim()
+          .slice(0, 40)
+          .split('\n')[0]
+      }…`,
     });
   }
   return out;
@@ -112,7 +121,10 @@ function bracketSlice(text: string, start: number): string {
       return balanced(text, k);
     }
     // 箭头体非括号（如 `=> mocks.x`）—— 无反引数可量，返回该行
-    return text.slice(arrow, text.indexOf('\n', arrow) < 0 ? text.length : text.indexOf('\n', arrow));
+    return text.slice(
+      arrow,
+      text.indexOf('\n', arrow) < 0 ? text.length : text.indexOf('\n', arrow),
+    );
   }
   // 无 `=>`（非工厂形态）：返回空 → 不派生
   return '';

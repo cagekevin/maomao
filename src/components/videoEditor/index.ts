@@ -17,4 +17,6 @@
  *      —— CSS 副作用导入：CSS 不在 TS 模块图内，无环风险，也无需经门面。
  */
 export { EditorShell } from './EditorShell.tsx';
-export type { EditorShellProps } from './EditorShell.tsx';
+// 2026-09-19：`EditorShellProps` 的 re-export **零消费**（knip 判为「基线外新增死代码」；
+// 该 interface 本身仍被 `EditorShell.tsx` 内部用作函数签名，故不删定义、只删这条 re-export）。
+// 依死代码闸自述裁决路径「判死 → 删」处置；将来外部要用该 Props，从 `./EditorShell.tsx` 直接 import type。

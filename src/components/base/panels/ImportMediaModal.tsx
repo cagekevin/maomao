@@ -79,7 +79,7 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { UploadCloud, X, Search, FolderOpen, ChevronLeft } from 'lucide-react';
-import './creative-library.css';
+import '@/components/creative/creative-library.css';
 // 经唯一出口（`../media`）消费：它保证内置 provider 已自注册（漏走它会静默少来源）。
 import { listMediaRefSources, queryMediaRefs } from '../media/index.ts';
 import type {
@@ -92,7 +92,7 @@ import type {
 import { logger } from '../core/log/logger.ts';
 import { toastError, toastSuccess } from '../core/event/toastStore.ts';
 // 目录浏览规则（根/子目录 → 查询参数 · 上钻）：**与侧边栏素材库同一份实现**（见 libraryBrowse.ts）。
-import { libraryBrowseArgs, libraryUpFolder } from '../media/libraryBrowse.ts';
+import { libraryBrowseArgs, libraryUpFolder } from '@/components/resource/libraryBrowse';
 // 本地引擎连接态：拖入归类需要它（hook 的 `connected` 是必填；漏传 = drop 恒失败的假交互）。
 import { useLocalToolStatus } from '../../../hooks/useLocalToolStatus.ts';
 import LazyImage from '../ui/display/LazyImage.tsx';

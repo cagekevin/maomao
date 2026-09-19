@@ -9,7 +9,7 @@ import {
   agentKeyForProject,
   agentConversationsKey,
   agentActiveConversationKey,
-} from '@/components/base/core/agentKeys.ts';
+} from '@/components/agent/runtime/agentKeys';
 
 describe('agentKeys 唯一真源（TD-15-1）', () => {
   it('前缀固定为 canvas-assistant（契约登记 @see contracts.ts STORAGE_KEYS）', () => {

@@ -5,7 +5,7 @@ import { logger } from '@/components/base/core/log/logger';
 import { InputStateMachine } from './inputStateMachine.ts';
 import { generateId } from '../../base/core/idGen.ts';
 // 【TD-15-1】agentKey 前缀单源（禁本地拼字面量）
-import { AGENT_KEY_PREFIX } from '../../base/core/agentKeys.ts';
+import { AGENT_KEY_PREFIX } from './agentKeys.ts';
 
 /**
  * 【过渡方案·2026-08-18 决策注释】回传给 LLM 的「历史纯文字」轮数（由 AI 助手设置控制，不硬编码）。

@@ -21,7 +21,7 @@ import { useAssetDegrade } from '@/hooks/useAssetDegrade';
 import { useGenerateNode } from '@/hooks/useGenerateNode';
 import { useNodePrefs } from '@/components/canvas/contract/nodePrefs';
 import { showToast } from '@/components/base/core/event/toastStore';
-import { generateImage } from '@/components/base/api/index';
+import { generateImage } from '@/components/generate/lib/generate';
 import { toAbsoluteFileUrl } from '@/components/base/api/index';
 import { useRenderAssetResolver } from '@/components/base/utils/media/assetUrl';
 import { mergeRefImages, buildEffectivePrompt } from '@/components/base/core/utils';

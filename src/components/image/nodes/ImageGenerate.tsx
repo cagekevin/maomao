@@ -26,7 +26,7 @@ import { toDictEntry } from '@/components/creative';
 import type { CreativePreset, CreativePresetsDict } from '@/components/creative';
 
 import { downloadUrl, resolveDownloadFilename } from '@/components/base/utils/net/clipboard';
-import JianyingIcon from '@/components/canvas/parts/JianyingIcon';
+import JianyingIcon from '@/components/base/ui/JianyingIcon';
 import { showToast, toastWarning } from '@/components/base/core/event/toastStore';
 import { sendToResourceLibrary } from '@/components/resource/resourceStore';
 import { openResourceLibrary } from '@/components/base/store/taskStore';
@@ -34,10 +34,10 @@ import { useNodeResize, useOutsideClick } from '@/components/base/core/interacti
 import { useConnectedInputs } from '@/hooks/useConnectedInputs';
 import { useAssetDegrade } from '@/hooks/useAssetDegrade';
 import { useGenerateNode } from '@/hooks/useGenerateNode';
-import { useFitNodeRatio } from '@/components/image/useFitNodeRatio';
+import { useFitNodeRatio } from '@/components/image/hooks/useFitNodeRatio';
 import '@/components/base/api/index';
 import { logger } from '@/components/base/core/log/logger';
-import { generateImage } from '@/components/base/api/index';
+import { generateImage } from '@/components/generate/lib/generate';
 import { fetchTaskPage } from '@/components/base/api/pagedList';
 import {
   useNodePrefs,

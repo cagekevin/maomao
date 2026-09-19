@@ -12,7 +12,7 @@ import {
   getNodeRuntime,
   updateNodeRuntime,
   clearNodeRuntime,
-} from '../../src/components/base/store/nodeRuntimeStore.ts';
+} from '../../src/components/task/nodeRuntimeStore.ts';
 
 // 真实模块级 Map 在测试进程共享，beforeEach 清理防用例间串扰
 beforeEach(() => {

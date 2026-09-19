@@ -12,11 +12,22 @@
  * genIntent.ts 零引用孤儿一并退役。外部统一 `import { xxx } from 'base/api/index.ts'`；
  * base/ 内其他文件作为 api 内部消费者，走 `./api/xxx` 相对路径。
  *
+ * ⚠️ 【2026-09-19 域籍判定裁定 · TASK-031 §四-A-11】上段「7 件」里的 **generate / pollTask**
+ * 已**整片迁 `generate/lib/`**（连同 relayProxy · imagePixel，共 4 件约 960 行 = 「前端 AI 中继」成片）。
+ * 本桶**不再 re-export 生成门面** —— 否则横切层 `base/api` 反向依赖业务域 `generate`，
+ * 触发架构闸规则 2（实测报红 2 处）。原「经桶消费」的调用方一律改指
+ * `@/components/generate/lib/<件>`（实测 8 个文件已随搬迁同步）。
+ * ⇒ **本桶现收 4 件**：`httpClient` · `localToolApi` · `filesApi` · `pagedList`。
+ *
  * 【契约注意】check-api-contract.cjs 按模块名找导出（不依赖路径），本入口 re-export 保持同名导出。
  */
 export * from './httpClient.ts';
-export * from './pollTask.ts';
-export * from './generate.ts';
+// 2026-09-19 裁判裁定（TASK-031 §四-A-11）：生成链路 / AI 中继成片 4 件
+// （generate · pollTask · relayProxy · imagePixel，约 960 行）已整片迁 `generate/lib/`。
+// 本桶**不得再 re-export 它们** —— 否则横切层（base/api）反向依赖业务域（generate），
+// 触发架构闸规则 2（实测报红 2 处）。原「经桶消费」的调用方一律改指
+// `@/components/generate/lib/<件>`。
+// 契约影响：check-api-contract.cjs 按**模块名**查导出、不依赖路径 ⇒ 迁后仍能对上。
 export * from './localToolApi.ts';
 export * from './filesApi.ts';
 // 分页列表读取的唯一实现（page 切片 + 取全量）；消费方也可按模块名直引 `api/pagedList.ts`

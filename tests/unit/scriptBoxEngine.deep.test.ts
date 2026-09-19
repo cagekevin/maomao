@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-vi.mock('../../src/components/base/api/generate.ts', async (importOriginal) => ({
+vi.mock('../../src/components/generate/lib/generate.ts', async (importOriginal) => ({
   ...((await importOriginal()) as Record<string, unknown>),
   chatCompletions: vi.fn(),
   generateImage: vi.fn(),
@@ -35,7 +35,7 @@ vi.mock('../../src/components/base/store/taskStore.ts', async (importOriginal) =
   })),
 }));
 
-import { chatCompletions, generateImage } from '@/components/base/api/generate.ts';
+import { chatCompletions, generateImage } from '@/components/generate/lib/generate';
 import { showToast } from '../../src/components/base/core/event/toastStore.ts';
 import { logger } from '../../src/components/base/core/log/logger.ts';
 import { localizeAndStoreToResourceLibrary } from '../../src/components/resource/resourceStore.ts';

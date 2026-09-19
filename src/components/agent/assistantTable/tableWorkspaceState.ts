@@ -64,10 +64,10 @@ const WIDTH_MIN = 360;
 const WIDTH_MAX = 1080;
 const WIDTH_DEFAULT = 600;
 
-import type { TableClipboard, TableWorkspaceState } from './tableWorkspaceTypes.ts';
+import type { TableClipboard, TableWorkspaceState } from '../contract/tableWorkspaceTypes.ts';
 
 /** 工作区运行态类型（定义见 ./tableWorkspaceTypes.ts，此处 re-export 维持对外兼容） */
-export type { TableClipboard, TableWorkspaceState } from './tableWorkspaceTypes.ts';
+export type { TableClipboard, TableWorkspaceState } from '../contract/tableWorkspaceTypes.ts';
 
 /** 读宽度记忆（clamp 到合法范围；异常回退默认值，不阻断） */
 function loadWidth(): number {

@@ -187,7 +187,7 @@ vi.mock('../../src/components/base/utils/net/clipboard.ts', async (importOrigina
   const actual = (await importOriginal()) as Record<string, unknown>;
   return { ...actual, downloadUrl: h.downloadUrl };
 });
-vi.mock('../../src/components/base/api/generate.ts', async (importOriginal) => ({
+vi.mock('../../src/components/generate/lib/generate.ts', async (importOriginal) => ({
   ...((await importOriginal()) as Record<string, unknown>),
   generateVideo: vi.fn(async () => ({ url: 'http://gen.local/v.mp4' })),
 }));

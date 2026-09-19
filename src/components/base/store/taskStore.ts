@@ -23,7 +23,7 @@ import { createDebouncedPersist } from '../core/contentStore.ts';
 import { saveTask, deleteTask, batchDeleteTasks, clearAllTasksApi } from '../api/localToolApi.ts';
 // 取全量任务（分页读取的唯一实现）：见 initTasks 注释（原「请求 500」实际只拿到 100）。
 import { fetchAllTaskPages } from '../api/pagedList.ts';
-import { publishTaskCompleted } from './taskCompletionBus.ts';
+import { publishTaskCompleted } from '@/components/task/taskCompletionBus';
 import { generateId } from '../core/idGen.ts';
 import { GEN_MAX_CONCURRENT } from '../core/config.ts';
 

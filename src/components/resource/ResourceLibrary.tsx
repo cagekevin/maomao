@@ -39,7 +39,7 @@ import {
   libraryBrowseArgs,
   libraryUpFolder,
   isEmptyLibraryRoot,
-} from '../base/media/libraryBrowse.ts';
+} from './libraryBrowse.ts';
 // 目录条目 → 自身目录路径的唯一实现（与「点目录进入」「拖入归类」共用）。
 import { folderPathOf } from '@/hooks/useResourceMoveToFolder';
 import { useCurrentProjectId } from '../base/store/projectStore.ts';

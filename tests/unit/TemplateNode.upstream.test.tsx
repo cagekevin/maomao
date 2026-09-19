@@ -133,7 +133,7 @@ vi.mock('../../src/components/base/api/localToolApi.ts', async (importOriginal) 
 const mockGenerateImage = vi.fn(async (..._args: unknown[]) => ({
   url: 'http://gen.local/img.png',
 }));
-vi.mock('../../src/components/base/api/generate.ts', async (importOriginal) => ({
+vi.mock('../../src/components/generate/lib/generate.ts', async (importOriginal) => ({
   ...((await importOriginal()) as Record<string, unknown>),
   generateImage: (...a: unknown[]) => mockGenerateImage(...a),
 }));

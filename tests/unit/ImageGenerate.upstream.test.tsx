@@ -74,7 +74,7 @@ vi.mock('../../src/components/canvas/parts/GeneratingOverlay.tsx', () => ({ defa
 vi.mock('../../src/components/creative/CreativeLibraryButton.tsx', () => ({
   default: () => null,
 }));
-vi.mock('../../src/components/canvas/parts/JianyingIcon.tsx', () => ({ default: () => null }));
+vi.mock('../../src/components/base/ui/JianyingIcon.tsx', () => ({ default: () => null }));
 vi.mock('../../src/components/base/core/interaction/uiHooks.ts', () => ({
   useNodeResize: () => ({ onInputResize: vi.fn() }),
   useOutsideClick: () => {},
@@ -120,7 +120,7 @@ vi.mock('../../src/components/base/api/localToolApi.ts', async (importOriginal) 
 const mockGenerateImage = vi.fn(async (..._args: unknown[]) => ({
   url: 'http://gen.local/img.png',
 }));
-vi.mock('../../src/components/base/api/generate.ts', async (importOriginal) => ({
+vi.mock('../../src/components/generate/lib/generate.ts', async (importOriginal) => ({
   ...((await importOriginal()) as Record<string, unknown>),
   generateImage: (...a: any[]) => mockGenerateImage(...a),
 }));

@@ -25,9 +25,9 @@
 
 // 【出口收口 L3b】出站统一走前端生成门面 chatStream（不再裸拼 provider URL / 直连 /api/agent）。
 // 旧 /api/proxy 已退役；providerUrlAdapters 的 URL 拼装链与 requestModes（responses 形态）随知识退场删除。
-import { chatStream } from '@/components/base/api/index.ts';
+import { chatStream } from '@/components/generate/lib/generate';
 import type { GenerationProvider } from '@/types';
-import type { relayChatMessage as ApiChatMessage } from '@/components/base/api/generate.ts';
+import type { relayChatMessage as ApiChatMessage } from '@/components/generate/lib/generate';
 import { withTimeout, releaseQuietly } from '@/components/base/utils/net/asyncGuard';
 import { CHAT_TOTAL_TIMEOUT } from '../../base/core/config.ts';
 // 复用 agentCore 的权威消息/工具调用类型（同 runtime 目录，避免重定义漂移）

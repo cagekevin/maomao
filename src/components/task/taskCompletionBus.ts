@@ -8,7 +8,7 @@
  * 消费方不变（useNodeGeneration 精准回填过滤 nodeId===本节点）。
  */
 
-import { publish } from '../core/event/eventBus.ts';
+import { publish } from '../base/core/event/eventBus.ts';
 
 /** 任务完成事件入参（与 agent:task-completed 载荷一致） */
 export interface TaskCompletedArg {

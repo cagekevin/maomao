@@ -21,7 +21,7 @@ import {
   type CameraStudioMode,
   type CameraStudioResult,
   type LightTemperature,
-} from '@/components/image/editors/cameraStudio';
+} from '@/components/image/editors/cameraParams/cameraStudio';
 import FullscreenShell from '@/components/base/panels/FullscreenShell';
 
 // 模块级持久化：跨面板开关保留上一次参数

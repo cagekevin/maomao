@@ -26,7 +26,7 @@ import { CreativeLibraryButton } from '@/components/creative';
 import { toDictEntry } from '@/components/creative';
 import type { CreativePreset, CreativePresetsDict } from '@/components/creative';
 
-import JianyingIcon from '@/components/canvas/parts/JianyingIcon';
+import JianyingIcon from '@/components/base/ui/JianyingIcon';
 import ResourceStrip from '@/components/canvas/shell/ResourceStrip';
 import PromptInput from '@/components/canvas/shell/PromptInput';
 import { resolvePromptChips, mergeReferenceImageUrls } from '@/components/canvas/shell/promptChips';
@@ -39,7 +39,7 @@ import '@/components/base/ui/display/LazyImage';
 import VideoThumbnail from '@/components/base/ui/display/VideoThumbnail';
 import ImageZoomDialog from '@/components/base/ui/display/ImageZoomDialog';
 import { useGenerateNode } from '@/hooks/useGenerateNode';
-import { generateVideo } from '@/components/base/api/index';
+import { generateVideo } from '@/components/generate/lib/generate';
 import { useNodePrefs, PREFS_DEFAULTS } from '@/components/canvas/contract/nodePrefs';
 import { logger } from '@/components/base/core/log/logger';
 import { resolveProviderModel } from '@/components/base/utils/providerModels';

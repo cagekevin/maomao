@@ -12,7 +12,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // 隔离外部依赖（网络 / 模型 / toast），仅保留 scriptBoxPrompts（纯提示词拼接）
-vi.mock('../../src/components/base/api/generate.ts', async (importOriginal) => ({
+vi.mock('../../src/components/generate/lib/generate.ts', async (importOriginal) => ({
   ...((await importOriginal()) as Record<string, unknown>),
   chatCompletions: vi.fn(),
   generateImage: vi.fn(),
@@ -56,7 +56,7 @@ import {
 const { parseJsonText, useJsonObject, dialogueLines, assembleShotUser, createScriptBoxEngine } =
   await import('@/components/scriptbox/scriptBoxEngine.ts');
 
-const { chatCompletions } = await import('@/components/base/api/generate.ts');
+const { chatCompletions } = await import('@/components/generate/lib/generate');
 
 describe('scriptBoxEngine · 纯导出函数', () => {
   describe('parseJsonText', () => {
@@ -303,7 +303,7 @@ describe('scriptBoxEngine · 引擎编排', () => {
   beforeEach(() => vi.clearAllMocks());
 
   it('onGenerateScript 校验：无剧情时仅 toast 不调用 chat', async () => {
-    const { chatCompletions } = await import('@/components/base/api/generate.ts');
+    const { chatCompletions } = await import('@/components/generate/lib/generate');
     // toastStore 由本文件顶部 vi.mock 工厂提供（src 无该具名导出），用本地类型收窄
     const { toastStore } =
       (await import('../../src/components/base/core/event/toastStore.ts')) as unknown as {
@@ -320,7 +320,7 @@ describe('scriptBoxEngine · 引擎编排', () => {
   });
 
   it('onGenerateScript 调用 chatCompletions 并归一化写回 shots/assets', async () => {
-    const { chatCompletions } = await import('@/components/base/api/generate.ts');
+    const { chatCompletions } = await import('@/components/generate/lib/generate');
     vi.mocked(chatCompletions).mockResolvedValueOnce({
       ok: true,
       content:
@@ -342,7 +342,7 @@ describe('scriptBoxEngine · 引擎编排', () => {
   });
 
   it('onGenerateScript 把上游接入图片传给 chatCompletions（编剧 AI 看产品外观）', async () => {
-    const { chatCompletions } = await import('@/components/base/api/generate.ts');
+    const { chatCompletions } = await import('@/components/generate/lib/generate');
     vi.mocked(chatCompletions).mockResolvedValueOnce({
       ok: true,
       content: '```json\n{"shots":[{"description":"展示产品"}]}\n```',
@@ -370,7 +370,7 @@ describe('scriptBoxEngine · 引擎编排', () => {
   });
 
   it('onGenerateScript 无上游图片时 images 为空数组', async () => {
-    const { chatCompletions } = await import('@/components/base/api/generate.ts');
+    const { chatCompletions } = await import('@/components/generate/lib/generate');
     vi.mocked(chatCompletions).mockResolvedValueOnce({
       ok: true,
       content: '```json\n{"shots":[{"description":"x"}]}\n```',
@@ -382,7 +382,7 @@ describe('scriptBoxEngine · 引擎编排', () => {
   });
 
   it('onGenerateScript 模型返回非 JSON 时回退 genMask=false 并 toast', async () => {
-    const { chatCompletions } = await import('@/components/base/api/generate.ts');
+    const { chatCompletions } = await import('@/components/generate/lib/generate');
     // toastStore 由本文件顶部 vi.mock 工厂提供（src 无该具名导出），用本地类型收窄
     const { toastStore } =
       (await import('../../src/components/base/core/event/toastStore.ts')) as unknown as {
@@ -396,7 +396,7 @@ describe('scriptBoxEngine · 引擎编排', () => {
   });
 
   it('onStopScriptItem 全停：中止所有 AbortController', async () => {
-    const { chatCompletions } = await import('@/components/base/api/generate.ts');
+    const { chatCompletions } = await import('@/components/generate/lib/generate');
     vi.mocked(chatCompletions).mockImplementationOnce(() => new Promise(() => {})); // 永不 resolve，保持运行
     const { engine, store: _store } = makeEngine({ story: '长跑剧情' });
     const p = engine.onGenerateScript(); // 触发一次生成并挂起
@@ -409,7 +409,7 @@ describe('scriptBoxEngine · 引擎编排', () => {
   });
 
   it('onStopScriptItem 单项：合并视频按稳定实体键注册，可被 `merge-video-${nodeId}` 中止（TD-18-18）', async () => {
-    const { chatCompletions } = await import('@/components/base/api/generate.ts');
+    const { chatCompletions } = await import('@/components/generate/lib/generate');
     let seenSignal: AbortSignal | undefined;
     vi.mocked(chatCompletions).mockImplementationOnce((args) => {
       seenSignal = args?.signal;

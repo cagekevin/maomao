@@ -33,7 +33,7 @@ import {
   AGENT_KEY_PREFIX,
   agentConversationsKey,
   agentActiveConversationKey,
-} from '../../base/core/agentKeys.ts';
+} from '../runtime/agentKeys.ts';
 import { logger } from '@/components/base/core/log/logger';
 import { reportDegrade } from '@/components/base/core/log/degrade';
 import { KV_TIMEOUT } from '../../base/core/config.ts';
@@ -69,8 +69,8 @@ import type {
   RawPending,
   RawWorkflow,
   WorkflowState,
-} from './conversationTypes.ts';
-export * from './conversationTypes.ts';
+} from '../contract/conversationTypes.ts';
+export * from '../contract/conversationTypes.ts';
 
 /** 旧全局会话键（迁移用）：改造前无 agentKey 后缀（contracts.ts 登记为 migration 键） */
 const LEGACY_CONV_KEY = 'agent_conversations';

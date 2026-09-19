@@ -6,9 +6,9 @@ import {
   claimNodeRun,
   releaseNodeRun,
 } from '../components/base/store/taskStore.ts';
-import { updateNodeRuntime, useNodeRuntime } from '../components/base/store/nodeRuntimeStore.ts';
+import { updateNodeRuntime, useNodeRuntime } from '../components/task/nodeRuntimeStore.ts';
 import type { TaskController, NodeRunClaim } from '../components/base/store/taskStore.ts';
-import { runGenerationOrchestration } from '../components/base/store/generationOrchestration.ts';
+import { runGenerationOrchestration } from '../components/generate/lib/generationOrchestration.ts';
 import { logger } from '../components/base/core/log/logger.ts';
 import { subscribe } from '../components/base/core/event/eventBus.ts';
 import { useNodeData } from './useNodeData.ts';

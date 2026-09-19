@@ -21,7 +21,7 @@
 import { useCallback, useMemo, useState } from 'react';
 import { X, Search } from 'lucide-react';
 import '../base/panels/panel-kit.css';
-import '../base/panels/creative-library.css';
+import './creative-library.css';
 import { catalogByKind, MJ_PRESETS } from './creativeCatalog.ts';
 import type { MjPreset } from './creativeCatalog.ts';
 import type { CreativePreset } from './creativePresets.ts';

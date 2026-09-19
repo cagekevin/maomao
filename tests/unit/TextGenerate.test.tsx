@@ -80,7 +80,7 @@ vi.mock('../../src/components/base/utils/providerModels.ts', () => ({
   buildAllModels: mocks.buildAllModels,
   resolveProviderModel: mocks.resolveProviderModel,
 }));
-vi.mock('../../src/components/base/api/generate.ts', async (importOriginal) => ({
+vi.mock('../../src/components/generate/lib/generate.ts', async (importOriginal) => ({
   ...((await importOriginal()) as Record<string, unknown>),
   chatCompletions: mocks.chatCompletions,
 }));

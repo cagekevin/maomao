@@ -40,10 +40,10 @@ import {
   selectedAssetSig,
   selectedNodeIdSig,
   type SelectedAsset,
-} from './components/base/utils/media/nodeMedia.ts';
+} from './components/canvas/lib/nodeMedia.ts';
 // 画布节点只读快照桥（docs/136 地基）：剪辑器在 ReactFlowProvider 之外、拿不到 useReactFlow，
 // 故把 nodes 投影到 base 层供「可引用媒体源」读取。单向：只有本文件写，其他模块只读。
-import { setCanvasNodesSnapshot } from './components/base/media/canvasNodesBridge.ts';
+import { setCanvasNodesSnapshot } from './components/canvas/lib/canvasNodesBridge.ts';
 // 可复用「导入媒体」弹窗（docs/136 地基的第一个消费方）：
 // 与剪辑器「导入」共用同一组件，4 来源（本地/生成/素材库/画布）；画布入口的落地动作 = 建 assetNode。
 import ImportMediaModalHost from './components/videoEditor/ImportMediaModalHost.tsx';
@@ -64,9 +64,9 @@ import {
   useCurrentProjectId,
   type Project,
 } from './components/base/store/projectStore.ts';
-import { broadcastCanvasSaved } from './components/base/core/canvasSyncBus.ts';
+import { broadcastCanvasSaved } from './components/canvas/lib/canvasSyncBus.ts';
 // 【TD-15-1】agentKey 构造收口到 base/core 单一真源（与 conversationState / backupStore 共用）
-import { agentKeyForProject } from './components/base/core/agentKeys.ts';
+import { agentKeyForProject } from './components/agent/runtime/agentKeys.ts';
 import previewUrls from './components/base/utils/media/previewUrl.ts';
 import { logger } from './components/base/core/log/logger.ts';
 import { useProjectBackupIO } from './components/canvas/topology/useCanvasEventSubscriptions.ts';
@@ -114,7 +114,7 @@ import { useUpstreamAutoTrigger } from './components/canvas/topology/upstreamLin
 import LocalToolConnectModal from './components/base/panels/LocalToolConnectModal.tsx';
 import EmptyCanvasGuide from './components/canvas/shell/EmptyCanvasGuide.tsx';
 import { initTasks } from './components/base/store/taskStore.ts';
-import { initTaskRecovery } from './components/base/api/index.ts';
+import { initTaskRecovery } from '@/components/generate/lib/pollTask';
 import {
   createGroupFromNodes,
   ungroupNodes,

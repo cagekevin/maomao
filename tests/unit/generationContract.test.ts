@@ -36,7 +36,7 @@ vi.mock('../../src/components/base/core/log/logger.ts', () => ({
 }));
 
 const { runGenerationOrchestration } =
-  await import('../../src/components/base/store/generationOrchestration.ts');
+  await import('../../src/components/generate/lib/generationOrchestration.ts');
 
 const sig = new AbortController().signal;
 /** 记录关键步骤的顺序（验证 R3 的 persist 顺序固化） */

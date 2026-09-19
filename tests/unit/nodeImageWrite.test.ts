@@ -179,10 +179,11 @@ describe('源码护栏 — 图片写回只有一个门', () => {
     ).toBe(true);
     // 【2026-09-13 修正】getNodeAssetUrl 已下沉 base/utils/media/nodeMedia.ts（TD-04-25）；
     // 旧断言仍指向 agent/canvas/useCanvasAgentTools.ts（该文件已不再实现、仅转发注释）→ 恒红。
-    // 护栏应指向**实现真源**（agent/index.ts barrel 转发到 nodeMedia）。
+    // 护栏应指向**实现真源**。
+    // 【2026-09-19 再修正】nodeMedia 已迁 `canvas/lib/`（TASK-031 §四-A-6）⇒ 路径随搬迁同步。
     expect(
-      /\['assetUrl',\s*'url'\]/.test(readSrc('src/components/base/utils/media/nodeMedia.ts')),
-      'getNodeAssetUrl 必须保留 assetUrl → url 的字段兼容顺序（实现真源 = base/utils/nodeMedia.ts）',
+      /\['assetUrl',\s*'url'\]/.test(readSrc('src/components/canvas/lib/nodeMedia.ts')),
+      'getNodeAssetUrl 必须保留 assetUrl → url 的字段兼容顺序（实现真源 = canvas/lib/nodeMedia.ts）',
     ).toBe(true);
   });
 
