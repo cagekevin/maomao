@@ -126,7 +126,7 @@ export function collectPresetIds(prompt: string): string[] {
  * 纯函数：输入 prompt 文本 + 旧字典 → 输出裁剪后字典（不修改入参）。
  *
  * 【接线位置】**唯一调用点 = `normalizeChipFieldWrite`（下方）**，它被写 data 的两条路径
- * （`useNodeData.patchData` 与 `canvasHost.updateNodeData`）共用。
+ * （`useNodeData.patchData` 与 `agentCanvasHost.updateNodeData`）共用。
  * **禁在节点 `onChange` 里调用**：那是每次击键的高频路径，GC 要跑正则扫描 + 重建对象，
  * 放那儿等于把重活塞进输入热路径（本债登记的正是"原语建了、生产没接线"）。
  * @param prompt   当前 prompt 的序列化字符串（含 `@{cp_...:...}`）
@@ -160,11 +160,11 @@ const CHIP_BEARING_FIELDS = ['prompt', 'text'] as const;
  * 则把字典重算为「仍被胶囊引用」的子集；否则**原样返回**（无 dict 的节点零开销、不引入空字段）。
  *
  * 【为什么下沉为本层导出】原实现在 `useNodeData` 私有，但写 data 有**两条**路径
- * （界面写回 `useNodeData.patchData` / Agent 写回 `canvasHost.updateNodeData`），
+ * （界面写回 `useNodeData.patchData` / Agent 写回 `agentCanvasHost.updateNodeData`），
  * 各写一半就会漏 —— 这属「探测/归一化重复」而非「判据重复」，故收口为唯一纯函数两处共用
  * （TD-05-13 症状原文即点名「含 Agent `update_node_any_field`」）。
  *
- * 【为什么是 no-op 安全的】通用画布原语（canvasHost / patchNodeDataById）不持有 creative 语义，
+ * 【为什么是 no-op 安全的】通用画布原语（agentCanvasHost / patchNodeDataById）不持有 creative 语义，
  * 本函数对「无 creativePresets 字段」的 data 直接返回原引用 → 通用路径零成本、零副作用。
  * @param data  合并后的完整 data
  * @param patch 本次 patch（只有触及 chip 字段才重算）

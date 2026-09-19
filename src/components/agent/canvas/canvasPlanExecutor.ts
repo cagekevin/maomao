@@ -17,7 +17,7 @@ import { runNodeGeneration, isNodeRegistered } from '../../base/store/taskStore.
 import { generateId } from '../../base/core/idGen.ts';
 import { logger } from '../../base/core/logger.ts';
 import { toAbsoluteFileUrl } from '../../base/utils/assetUrl.ts';
-import { createCanvasHost, type CanvasHostCtx } from './canvasHost.ts';
+import { createAgentCanvasHost, type AgentCanvasHostCtx } from './agentCanvasHost.ts';
 
 /** 计划单步（generations 数组元素）：字段均可选，因 LLM 计划数据可能不完整。 */
 export interface GenerationStep {
@@ -48,7 +48,7 @@ interface PlanDefaults {
 }
 /** executePlan 完整入参（仅标注运行期需要的字段形状，业务行为不变）。 */
 interface PlanOptions {
-  ctx: CanvasHostCtx;
+  ctx: AgentCanvasHostCtx;
   generations?: GenerationStep[];
   autoRun?: boolean;
   model?: string;
@@ -331,7 +331,7 @@ function normalizeQuality(q: unknown) {
 
 /** 放置新节点的锚点：就近放到已有节点右侧（简单实现；复杂可对齐大雄 getViewportAnchor） */
 function nextAnchor(
-  _ctx: CanvasHostCtx,
+  _ctx: AgentCanvasHostCtx,
   base: { x: number; y: number },
   index: number,
   perRow = 3,
@@ -447,7 +447,7 @@ export async function executePlan({
     { module: 'agent' },
   );
   try {
-    const host = createCanvasHost(ctx);
+    const host = createAgentCanvasHost(ctx);
     const entries: PlanEntry[] = [];
     const byId = new Map<string, PlanEntry>(); // step.id -> { nodeId, resultUrl, status }
 

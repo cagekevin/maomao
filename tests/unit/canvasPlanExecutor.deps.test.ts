@@ -8,7 +8,7 @@ vi.mock('../../src/components/base/store/taskStore.ts', async (importOriginal) =
 }));
 
 import { executePlan } from '../../src/components/agent/canvas/canvasPlanExecutor.ts';
-import type { CanvasHostCtx } from '../../src/components/agent/canvas/canvasHost.ts';
+import type { AgentCanvasHostCtx } from '../../src/components/agent/canvas/agentCanvasHost.ts';
 import type { Node, Edge } from '@xyflow/react';
 import '../../src/components/base/store/taskStore.ts';
 
@@ -30,7 +30,7 @@ type GenStep = {
   input_artifact_ids?: string[];
 };
 
-type MockCtx = CanvasHostCtx & { nodes: () => Node[]; edges: () => Edge[] };
+type MockCtx = AgentCanvasHostCtx & { nodes: () => Node[]; edges: () => Edge[] };
 function makeCtx(): MockCtx {
   let nodes: any = [];
   let edges: any = [];

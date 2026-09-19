@@ -1249,6 +1249,8 @@ grep -rn "from '.*<拟迁出的文件名>" src/components/base --include='*.ts' 
 | **A5 前缀表按能力轴重出** | **已完成** | §6.1（导出符号级前缀实测 **10 域为 0**）· §6.2（撞名→新名 19 条） |
 | **A6 命名规范落 ADR** | **已完成** | **ADR-0039**（生效 · `adr audit` **0 问题** / 65 行一页）；§6 改为指针 |
 | **S1-1 收口完成（最终复扫）** | **✅ 已完成** | 剩余同名导出 **6 组全部合法**：`log`（director3d **已登记例外**）· `TimelineElement` / `ExportFormat` / `ExportQuality`（**域内** videoEditor）· `StreamDelta`（**域内** agent/runtime）· `ImageGenTemplate`（**域内** scriptbox）⇒ **跨域撞名 = 0** |
+| **S1-2 第 ① 组：域写错（`canvasHost` → `agentCanvasHost`）** | **已完成** | 符号 `CanvasHostCtx`→`AgentCanvasHostCtx`(12/5) · `CanvasHost`→`AgentCanvasHost`(2/1) · `createCanvasHost`→`createAgentCanvasHost`(18/4)；文件 `canvasHost.ts`→`agentCanvasHost.ts` + 测试同名迁移；**域文件地图 `agent/index.ts` 指针已回改**；旧名残留 = **0** |
+| **S1-2 第 ② 组：`cn` 提级** | **🚫 改判不做（推翻 §3.4 #7）** | 实测 `clsx`/`tailwind-merge` **全仓仅 `videoEditor/utils/ui.ts` 一处**引用，`base/ui` **完全不用**类名合并 ⇒ `cn` 是**编辑器自研 UI kit 的配套原语**（D14 已裁两套 UI 不合并），**不是"通用物混进域"**；提级 = 制造只有 1 个域用的**假横切** ⇒ 不做 |
 | **A4 fan-in 口径 · A7 文档债 · B1** | 待做 | 随批修 / 单独落（§9.2 / §9.3） |
 | **S1-1 范围实测（23 组 · 非 19）** | **已完成** | 具名导出撞名全扫（含 `subscribe`(4) / `StreamDelta` / `__resetForTest` / `ImageGenTemplate` 等 §6.2 未列者）；**并按 N1 判据过滤出"域内重复"不违规者** |
 | **S1-1a 首片：`logger` → `videoEditorLogger`** | **已完成** | 符号 94 处 / 28 文件（`rename-symbol --file` 限定源文件，全域内闭环）· 文件 `lib/logger.ts` → `lib/videoEditorLogger.ts`；验证：**tsc 0 错 · `check:arch` ✅ · 外部引用无新增 · 受影响单测 13 文件 / 97 例全绿**；`vi.mock` 风险 = 0 |

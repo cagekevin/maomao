@@ -29,7 +29,7 @@ import { deleteNodesWithCascade } from '@/components/base/canvas/groupNodes';
 import { normalizeChipFieldWrite } from '@/components/base/creative/creativePresets.ts';
 
 /** 不传 ctx 时的安全空实现（保持「注入 ctx 即可测」语义，避免空 ctx 调用即崩）。 */
-const DEFAULT_CTX: CanvasHostCtx = {
+const DEFAULT_CTX: AgentCanvasHostCtx = {
   getNodes: () => [],
   setNodes: () => {},
   getEdges: () => [],
@@ -37,7 +37,7 @@ const DEFAULT_CTX: CanvasHostCtx = {
 };
 
 /** 画布操作句柄所需的画布能力（useReactFlow() 或测试 mock 注入）。 */
-export interface CanvasHostCtx {
+export interface AgentCanvasHostCtx {
   getNodes: () => Node[];
   setNodes: (updater: Node[] | ((nodes: Node[]) => Node[])) => void;
   getEdges: () => Edge[];
@@ -45,7 +45,7 @@ export interface CanvasHostCtx {
 }
 
 /** createCanvasHost 返回的操作句柄。 */
-export interface CanvasHost {
+export interface AgentCanvasHost {
   getNode: (id: string) => Node | null;
   getNodes: () => Node[];
   getEdges: () => Edge[];
@@ -67,7 +67,7 @@ export interface CanvasHost {
  * @param ctx 画布能力（useReactFlow() 或测试 mock）：
  *   { getNodes, setNodes, getEdges, setEdges, ... }
  */
-export function createCanvasHost(ctx: CanvasHostCtx = DEFAULT_CTX): CanvasHost {
+export function createAgentCanvasHost(ctx: AgentCanvasHostCtx = DEFAULT_CTX): AgentCanvasHost {
   // ── 读 ──
   const getNode = (id: string): Node | null => ctx.getNodes().find((n) => n.id === id) || null;
   const getNodes = (): Node[] => ctx.getNodes();

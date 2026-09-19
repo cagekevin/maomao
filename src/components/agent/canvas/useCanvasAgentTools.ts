@@ -10,7 +10,7 @@ import { defaultNodeData } from '@/components/base/canvas/nodeDataSchema';
 import { applyNodeTypeDefaults } from '@/components/base/canvas/nodeDefaults.ts';
 import { runNodeGeneration } from '../../base/store/taskStore.ts';
 import '@/components/base/canvas/groupNodes';
-import { createCanvasHost, type CanvasHostCtx } from './canvasHost.ts';
+import { createAgentCanvasHost, type AgentCanvasHostCtx } from './agentCanvasHost.ts';
 import { executePlan, type GenerationStep } from './canvasPlanExecutor.ts';
 import {
   patchCurrentWorkflow,
@@ -498,7 +498,7 @@ const createNodeTool = {
     required: ['type'],
   },
   execute(args: Record<string, unknown>, ctx: CanvasAgentCtx) {
-    const host = createCanvasHost(ctx);
+    const host = createAgentCanvasHost(ctx);
     const built = buildCreateNode(args, ctx, ctx.getNodes());
     if ('error' in built) return { ok: false, error: built.error };
     host.appendNode(built.newNode);
@@ -558,7 +558,7 @@ const batchCreateNodesTool = {
   execute(args: Record<string, unknown>, ctx: CanvasAgentCtx) {
     if (!Array.isArray(args.nodes) || args.nodes.length === 0)
       return { ok: false, error: 'nodes 数组为空' };
-    const host = createCanvasHost(ctx);
+    const host = createAgentCanvasHost(ctx);
     // P11：批量建——先基于「虚拟节点数组」逐条构建（保持横向自动布局，与逐条 create_node 位置一致），
     // 收集全部新建节点后，用 host.appendMany 单次 setNodes/setEdges 写回，
     // 避免 N 个节点触发 N 次全量 setNodes（ReactFlow 重渲染风暴）。
@@ -607,7 +607,7 @@ const deleteNodeTool = {
     required: ['nodeId'],
   },
   execute(args: Record<string, unknown>, ctx: CanvasAgentCtx) {
-    const host = createCanvasHost(ctx);
+    const host = createAgentCanvasHost(ctx);
     const id = str(args.nodeId);
     const exists = host.getNodes().some((n) => n.id === id);
     if (!exists) return { ok: false, error: `节点不存在：${id}` };
@@ -636,7 +636,7 @@ const batchDeleteNodesTool = {
   execute(args: Record<string, unknown>, ctx: CanvasAgentCtx) {
     const ids = Array.isArray(args.nodeIds) ? args.nodeIds.map(String) : [];
     if (!ids.length) return { ok: false, error: 'nodeIds 数组为空' };
-    const host = createCanvasHost(ctx);
+    const host = createAgentCanvasHost(ctx);
     // R3：批量删除也级联删选中 group 的子孙节点
     const deleted = host.deleteNodes(ids);
     return { ok: true, data: { deleted, deletedCount: deleted.length } };
@@ -673,7 +673,7 @@ const updateNodeTool = {
     required: ['nodeId'],
   },
   execute(args: Record<string, unknown>, ctx: CanvasAgentCtx) {
-    const host = createCanvasHost(ctx);
+    const host = createAgentCanvasHost(ctx);
     const id = str(args.nodeId);
     const node = host.getNode(id);
     if (!node) return { ok: false, error: `节点不存在：${id}` };
@@ -716,7 +716,7 @@ const updateNodeRawTool = {
     required: ['nodeId', 'patch'],
   },
   execute(args: Record<string, unknown>, ctx: CanvasAgentCtx) {
-    const host = createCanvasHost(ctx);
+    const host = createAgentCanvasHost(ctx);
     const id = str(args.nodeId);
     const node = host.getNode(id);
     if (!node) return { ok: false, error: `节点不存在：${id}` };
@@ -774,9 +774,9 @@ const connectNodesTool = {
     required: ['source', 'target'],
   },
   execute(args: Record<string, unknown>, ctx: CanvasAgentCtx) {
-    // 【TD-11-8 收口 2026-09-11】原裸调 ctx.setEdges 绕过唯一入口 → 改走 canvasHost.appendEdges
-    // （写操作唯一入口红线，见 agent/index.ts:52；canvasHost 已提供 appendEdges/removeEdges，无需裸调）。
-    const host = createCanvasHost(ctx);
+    // 【TD-11-8 收口 2026-09-11】原裸调 ctx.setEdges 绕过唯一入口 → 改走 agentCanvasHost.appendEdges
+    // （写操作唯一入口红线，见 agent/index.ts:52；agentCanvasHost 已提供 appendEdges/removeEdges，无需裸调）。
+    const host = createAgentCanvasHost(ctx);
     const source = str(args.source);
     const target = str(args.target);
     const built = buildConnect(args, ctx, host.getEdges());
@@ -812,8 +812,8 @@ const batchConnectNodesTool = {
   execute(args: Record<string, unknown>, ctx: CanvasAgentCtx) {
     const list = Array.isArray(args.connections) ? args.connections : [];
     if (!list.length) return { ok: false, error: 'connections 为空' };
-    // 【TD-11-8 收口】裸调 ctx.setEdges → canvasHost.appendEdges（保留 P11 单次写回防渲染风暴）
-    const host = createCanvasHost(ctx);
+    // 【TD-11-8 收口】裸调 ctx.setEdges → agentCanvasHost.appendEdges（保留 P11 单次写回防渲染风暴）
+    const host = createAgentCanvasHost(ctx);
     // P11：批量连——先累计新边，单次写回，避免 N 条连线触发 N 次全量 setEdges（ReactFlow 重渲染风暴）。
     let virtualEdges = host.getEdges();
     const newEdges = [];
@@ -848,8 +848,8 @@ const deleteEdgeTool = {
     required: [] as string[],
   },
   execute(args: Record<string, unknown>, ctx: CanvasAgentCtx) {
-    // 【TD-11-8 收口】裸调 ctx.setEdges → canvasHost.removeEdges（写操作唯一入口）
-    const host = createCanvasHost(ctx);
+    // 【TD-11-8 收口】裸调 ctx.setEdges → agentCanvasHost.removeEdges（写操作唯一入口）
+    const host = createAgentCanvasHost(ctx);
     const edges = host.getEdges();
     if (args.edgeId) {
       if (!edges.some((e) => e.id === args.edgeId))
@@ -1533,7 +1533,7 @@ const executePlanTool = {
  * 禁止任何路径手写 setNodes/逐节点触发——一律汇入这里（红线 §6.8/6.9 补跑=点生成）。
  * @param {object} ctx  useReactFlow() 能力（与首次 execute_plan 同源）
  */
-export async function runExistingPlanTool(ctx: CanvasHostCtx) {
+export async function runExistingPlanTool(ctx: AgentCanvasHostCtx) {
   const gate = getCreditGate();
   if (!gate || gate.pending !== true || !gate.map || typeof gate.map !== 'object') {
     return { ok: false, error: '无待点生成的计划（积分确认未置位或已清空），已拒绝补跑' };
@@ -1632,7 +1632,7 @@ const undoAiTool = {
     const snap = popActiveAiUndo(); // 当前对话的 AI 撤销栈（Step D，多对话不串）
     if (!snap) return { ok: false, error: '没有可撤回的 AI 操作' };
     // 整体恢复快照（undo_ai 是整数组替换，走 host.restoreNodesAndEdges，收口裸 ctx.setNodes/setEdges，见 M1 C1-1）
-    createCanvasHost(ctx).restoreNodesAndEdges(snap);
+    createAgentCanvasHost(ctx).restoreNodesAndEdges(snap);
     return {
       ok: true,
       data: { reverted: snap.action || '上一步操作', remaining: getActiveAiUndoStack().length },
