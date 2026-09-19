@@ -26,7 +26,7 @@
  */
 import type { Node, Edge } from '@xyflow/react';
 import { deleteNodesWithCascade } from '@/components/canvas';
-import { normalizeChipFieldWrite } from '@/components/base/creative/creativePresets.ts';
+import { normalizeChipFieldWrite } from '@/components/creative';
 
 /** 不传 ctx 时的安全空实现（保持「注入 ctx 即可测」语义，避免空 ctx 调用即崩）。 */
 const DEFAULT_CTX: AgentCanvasHostCtx = {

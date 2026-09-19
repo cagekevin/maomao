@@ -21,12 +21,10 @@ import { useDisconnectSource } from '@/hooks/useDisconnectSource';
 import { useNodeRename } from '@/hooks/useNodeRename';
 import { useNodeExpanded } from '@/hooks/useNodeExpanded';
 import { useNodeField } from '@/hooks/useNodeField';
-import CreativeLibraryButton from '@/components/base/creative/CreativeLibraryButton';
-import type {
-  CreativePreset,
-  CreativePresetsDict,
-} from '@/components/base/creative/creativePresets';
-import { toDictEntry } from '@/components/base/creative/creativePresets';
+import { CreativeLibraryButton } from '@/components/creative';
+import { toDictEntry } from '@/components/creative';
+import type { CreativePreset, CreativePresetsDict } from '@/components/creative';
+
 import { downloadUrl, resolveDownloadFilename } from '@/components/base/utils/clipboard';
 import JianyingIcon from '@/components/base/ui/JianyingIcon';
 import { showToast, toastWarning } from '@/components/base/core/toastStore';

@@ -15,8 +15,8 @@
 
 import { useMemo, useState } from 'react';
 import { ArrowLeft, Copy } from 'lucide-react';
-import LazyImage from '../../ui/LazyImage.tsx';
-import type { MjPreset } from '../creativeCatalog.ts';
+import LazyImage from '@/components/base/ui/LazyImage';
+import type { MjPreset } from '../creativeCatalog';
 
 export interface MjStyleBrowserProps {
   mjPresets: MjPreset[];

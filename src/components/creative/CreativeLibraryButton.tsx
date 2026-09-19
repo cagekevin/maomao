@@ -17,7 +17,7 @@
 
 import { useState } from 'react';
 import { LayoutGrid } from 'lucide-react';
-import FullscreenModal from '../panels/FullscreenModal.tsx';
+import FullscreenModal from '../base/panels/FullscreenModal.tsx';
 import CreativeLibrary, { type CreativeLibraryProps } from './CreativeLibrary.tsx';
 import type { CreativePreset } from './creativePresets.ts';
 

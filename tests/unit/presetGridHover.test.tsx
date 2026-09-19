@@ -17,7 +17,7 @@ import { renderToString } from 'react-dom/server';
 import { createElement } from 'react';
 
 const { default: PresetGridView } =
-  await import('../../src/components/base/creative/views/PresetGridView.tsx');
+  await import('../../src/components/creative/views/PresetGridView.tsx');
 
 const noop = () => {};
 

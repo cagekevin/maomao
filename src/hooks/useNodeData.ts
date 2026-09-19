@@ -3,8 +3,8 @@ import { useReactFlow } from '@xyflow/react';
 import type { Node } from '@xyflow/react';
 import { debounce } from '../components/base/core/utils.ts';
 import { NODE_PATCH_DEBOUNCE_MS } from '../components/base/core/config.ts';
-import { normalizeChipFieldWrite } from '../components/base/creative/creativePresets.ts';
-import type { CreativePresetEntry } from '../components/base/creative/creativePresets.ts';
+import { normalizeChipFieldWrite } from '../components/creative';
+import type { CreativePresetEntry } from '../components/creative';
 
 /**
  * 节点级字段不可变写回纯函数（通用：覆盖 node.data 与 node 本体字段 width/height/style/selected/...）。

@@ -21,11 +21,11 @@ import {
   searchCards,
   mapToLibraryCards,
   TYPE_LABEL,
-} from '../promptManager.ts';
-import type { Preset } from '../promptManager.ts';
-import { isPresetId } from '../creativePresets.ts';
-import { subscribe } from '../../core/eventBus.ts';
-import { useOutsideClick } from '../../core/uiHooks.ts';
+} from '../promptManager';
+import type { Preset } from '../promptManager';
+import { isPresetId } from '../creativePresets';
+import { subscribe } from '@/components/base/core/eventBus';
+import { useOutsideClick } from '@/components/base/core/uiHooks';
 
 /** 「我的提示词」胶囊 id 命名空间：`cp_prompt-<id>`（§一.2.1） */
 export const PROMPT_PRESET_PREFIX = 'cp_prompt-';

@@ -11,12 +11,10 @@ import ResourceStrip from '@/components/base/panels/ResourceStrip';
 import ResizeFullscreenHandle from '@/components/base/ui/ResizeFullscreenHandle';
 import FullscreenEditor from '@/components/base/panels/FullscreenEditor';
 import GeneratingOverlay from '@/components/base/ui/GeneratingOverlay';
-import CreativeLibraryButton from '@/components/base/creative/CreativeLibraryButton';
-import type {
-  CreativePreset,
-  CreativePresetsDict,
-} from '@/components/base/creative/creativePresets';
-import { toDictEntry } from '@/components/base/creative/creativePresets';
+import { CreativeLibraryButton } from '@/components/creative';
+import { toDictEntry } from '@/components/creative';
+import type { CreativePreset, CreativePresetsDict } from '@/components/creative';
+
 import { useNodeResize } from '@/components/base/core/uiHooks';
 import { useConnectedInputs } from '@/hooks/useConnectedInputs';
 import { useGenerateNode } from '@/hooks/useGenerateNode';

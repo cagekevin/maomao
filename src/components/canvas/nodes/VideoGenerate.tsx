@@ -22,12 +22,10 @@ import { useCanvasEdges } from '@/components/canvas/CanvasEdgesContext';
 import { DepthVideoModal } from '@/components/base/depthVideo/DepthVideoModal';
 import { spawnDepthVideoNode } from '@/components/base/depthVideo/spawn';
 import { downloadUrl, resolveDownloadFilename } from '@/components/base/utils/clipboard';
-import CreativeLibraryButton from '@/components/base/creative/CreativeLibraryButton';
-import type {
-  CreativePreset,
-  CreativePresetsDict,
-} from '@/components/base/creative/creativePresets';
-import { toDictEntry } from '@/components/base/creative/creativePresets';
+import { CreativeLibraryButton } from '@/components/creative';
+import { toDictEntry } from '@/components/creative';
+import type { CreativePreset, CreativePresetsDict } from '@/components/creative';
+
 import JianyingIcon from '@/components/base/ui/JianyingIcon';
 import ResourceStrip from '@/components/base/panels/ResourceStrip';
 import PromptInput from '@/components/base/prompt/PromptInput';

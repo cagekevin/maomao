@@ -9,7 +9,7 @@ import {
   contentGet,
   contentSet,
 } from '../../src/components/base/core/contentStore.ts';
-import * as pm from '../../src/components/base/creative/promptManager.ts';
+import * as pm from '../../src/components/creative/promptManager.ts';
 
 const STORAGE_KEY = 'yimao_preset_prompts'; // 对齐 promptManager.js 内部 STORAGE_KEY
 // 对齐 promptManager.js 内部 RECENT_KEY

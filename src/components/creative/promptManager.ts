@@ -10,11 +10,11 @@
  *   saveAndNotify(list)  —— 保存后广播 'yimao:presetsChanged'，方便跨节点同步
  *   recordRecent(id) / getRecent()
  */
-import { contentGet, contentSet } from '../core/contentStore.ts';
-import { KEY_YIMAO_PRESET_PROMPTS, KEY_YIMAO_PRESET_RECENT } from '../core/contracts.ts';
-import { confirmPersist } from '../core/degrade.ts';
-import { publish } from '../core/eventBus.ts';
-import { generateId } from '../core/idGen.ts';
+import { contentGet, contentSet } from '../base/core/contentStore.ts';
+import { KEY_YIMAO_PRESET_PROMPTS, KEY_YIMAO_PRESET_RECENT } from '../base/core/contracts.ts';
+import { confirmPersist } from '../base/core/degrade.ts';
+import { publish } from '../base/core/eventBus.ts';
+import { generateId } from '../base/core/idGen.ts';
 
 /** 提示词预设（本地存储形状，id 可能缺失由 ensureIds 补齐） */
 export interface Preset {

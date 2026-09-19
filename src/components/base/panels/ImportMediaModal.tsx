@@ -79,7 +79,7 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { UploadCloud, X, Search, FolderOpen, ChevronLeft } from 'lucide-react';
-import '../creative/creative-library.css';
+import './creative-library.css';
 // 经唯一出口（`../media`）消费：它保证内置 provider 已自注册（漏走它会静默少来源）。
 import { listMediaRefSources, queryMediaRefs } from '../media/index.ts';
 import type {

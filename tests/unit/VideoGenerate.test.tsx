@@ -132,7 +132,7 @@ vi.mock('../../src/components/base/prompt/PromptInput.tsx', async (importOrigina
     ),
   };
 });
-vi.mock('../../src/components/base/creative/CreativeLibraryButton.tsx', () => ({
+vi.mock('../../src/components/creative/CreativeLibraryButton.tsx', () => ({
   default: () => null,
 }));
 vi.mock('../../src/components/base/ui/GeneratingOverlay.tsx', () => ({ default: () => null }));

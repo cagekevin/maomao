@@ -80,7 +80,7 @@ vi.mock('../../src/components/base/prompt/PromptInput.tsx', () => ({ default: ()
 vi.mock('../../src/components/base/ui/ResizeFullscreenHandle.tsx', () => ({ default: () => null }));
 vi.mock('../../src/components/base/panels/FullscreenModal.tsx', () => ({ default: () => null }));
 vi.mock('../../src/components/base/ui/GeneratingOverlay.tsx', () => ({ default: () => null }));
-vi.mock('../../src/components/base/creative/CreativeLibraryButton.tsx', () => ({
+vi.mock('../../src/components/creative/CreativeLibraryButton.tsx', () => ({
   default: () => null,
 }));
 vi.mock('../../src/components/base/core/uiHooks.ts', async (importOriginal) => ({

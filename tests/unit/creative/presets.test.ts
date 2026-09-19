@@ -11,15 +11,15 @@ import {
   CATALOG_KINDS,
   PRESET_KINDS,
   normalizeChipFieldWrite,
-} from '../../../src/components/base/creative/creativePresets.ts';
-import type { CreativePresetsDict } from '../../../src/components/base/creative/creativePresets.ts';
+} from '../../../src/components/creative/creativePresets.ts';
+import type { CreativePresetsDict } from '../../../src/components/creative/creativePresets.ts';
 import {
   STYLE_PRESETS,
   FILTER_PRESETS,
   MOTION_PRESETS,
   MJ_PRESETS,
   catalogByKind,
-} from '../../../src/components/base/creative/creativeCatalog.ts';
+} from '../../../src/components/creative/creativeCatalog.ts';
 
 describe('creativePresets —— 命名空间', () => {
   it('style/filter/motion 补齐 cp_ 前缀', () => {
