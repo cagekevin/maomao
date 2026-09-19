@@ -14,7 +14,7 @@
  * 注：#5/#6/#9（chatStream 相关）随 L3b 并入本文件。
  */
 import { describe, it, expect, beforeEach, vi, expectTypeOf } from 'vitest';
-import type { GenerationResult } from '@/types';
+import type { GenerationResult } from '@/types/provider.ts';
 import type { RelayGenerationResult } from '@/components/generate/lib/relayProxy';
 import type { NodeGenerationResult } from '@/hooks/useNodeGeneration.ts';
 

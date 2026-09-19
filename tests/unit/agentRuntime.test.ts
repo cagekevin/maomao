@@ -7,7 +7,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 //   - 流式模型默认带 tools（无论开关）
 import { roundTrip } from '../../src/components/agent/runtime/agentRuntime.ts';
 import type { RoundTripCtx, StreamDelta } from '../../src/components/agent/runtime/agentRuntime.ts';
-import type { GenerationProvider } from '@/types';
+import type { GenerationProvider } from '@/types/provider.ts';
 
 // 【TD-11-12③】roundTrip 现要求显式 RoundTripCtx 契约，mock 必须构造合法上下文。
 type TestCtx = RoundTripCtx & { onStream: (delta: StreamDelta) => void };

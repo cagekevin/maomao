@@ -87,7 +87,7 @@
 
 * **历史栈入参**：`useCanvasHistory` 的 `record` 必须**显式传最新快照**（nodesRef/edgesRef），禁异步 setState 取旧值。
 
-* **性能降级**：通过 `base/lod.tsx`（LodProvider + useLod）处理，包含视口移动、节点数、连线特效限制。
+* **性能降级**：通过 `canvas/shell/lod.tsx`（LodProvider + useLod）处理，包含视口移动、节点数、连线特效限制。
 
 ### B. 连线与节点体系红线
 
@@ -95,11 +95,11 @@
 
 * **拖到空白建节点**：走 `onConnectEnd`，内联调用 `addNode`，不走 deriveNodes。
 
-* **程序化建节点+连线**：**唯一**走 `base/deriveNodes.ts` 链路，原子进 undo。
+* **程序化建节点+连线**：**唯一**走 `canvas/structure/deriveNodes.ts` 链路，原子进 undo。
 
-* **单源节点目录**：`base/NodePalette.ts` 是唯一目录（**纯 UI 目录**：type/label/icon/cat/component/badge）。
+* **单源节点目录**：`canvas/shell/NodePalette.ts` 是唯一目录（**纯 UI 目录**：type/label/icon/cat/component/badge）。
 
-* **⚠️ 新增节点必做 4 处同步**：1. `NodePalette.paletteNodes` 登记（UI 目录）；2. **`canvas/nodeDataSchema.ts` 的 `NODE_DATA_DEFAULTS` 登记 data 初值**（2026-09-12 / TD-02-7：数据默认值从 palette 迁出，「新建默认值」与「UI 目录」分家）；3. **`useConnectedInputs.ts` 登记产出声明**（单 URL → `SINGLE_OUTPUT_FIELDS`；复合 → `NODE_OUTPUTS`；确无自有产出 → `NO_OUTPUT_NODE_TYPES`；漏写会导致下游拿不到数据，且由 `uncoveredOutputNodeTypes()` 单测拦下）；4. 文档登记。例外：`director3dNode` 与 `ghostTarget` 由 App.tsx 派生后补充。结构默认（width/height/style/initial\*）另表 `canvas/nodeDefaults.ts`，新建与快照还原**都**补；**data 默认值只在新建时注入**，严禁用于快照还原。
+* **⚠️ 新增节点必做 4 处同步**：1. `NodePalette.paletteNodes` 登记（UI 目录）；2. **`canvas/contract/nodeDataSchema.ts` 的 `NODE_DATA_DEFAULTS` 登记 data 初值**（2026-09-12 / TD-02-7：数据默认值从 palette 迁出，「新建默认值」与「UI 目录」分家）；3. **`useConnectedInputs.ts` 登记产出声明**（单 URL → `SINGLE_OUTPUT_FIELDS`；复合 → `NODE_OUTPUTS`；确无自有产出 → `NO_OUTPUT_NODE_TYPES`；漏写会导致下游拿不到数据，且由 `uncoveredOutputNodeTypes()` 单测拦下）；4. 文档登记。例外：`director3dNode` 与 `ghostTarget` 由 App.tsx 派生后补充。结构默认（width/height/style/initial\*）另表 `canvas/contract/nodeDefaults.ts`，新建与快照还原**都**补；**data 默认值只在新建时注入**，严禁用于快照还原。
 
 * **节点类型/参数记忆契约**：`useNodePrefs` 首参（节点命名空间）必须先登记 `contracts.ts` 的 `NODE_TYPES`（编译期由 `npm run check:node-types` 拦截），禁止散落裸字符串当命名空间；拼错会让该节点「上次参数」跨窗口静默失效。
 
@@ -130,7 +130,7 @@
 | **唯一实体** | `CreativePreset { id, kind, category, name, prompt, preview? }`（kind ∈ style/filter/motion/mj/prompt）。5 个不落盘字段（description/medium/codes/parameters/vibe）只在面板内用，**禁进快照**（I4，经 `trimPreset` 裁剪） | `creative/creativePresets.ts` |
 | **id 命名空间** | 统一 `cp_<kind>-<n>`（`cp_style-643`/`cp_mj-char1`），**下划线前缀不冒号**——复用既有 `promptChipRe` 的 `@{id:label}` 正则 group1（`[^:]+` 禁冒号），三处（serializeDOM/renderPromptToNodes/resolvePromptChips）零改动。catalog 原始 id 无前缀（`style-643`/`char1`），归一化时补全 | `creative/creativePresets.ts` `presetIdFor` · `creative/creativeCatalog.ts` |
 | **数据真值** | 4 类 catalog = `creative/creativeCatalog.json`（217 style / 17 filter / 51 motion）+ `mjStyleCatalog.json`（493）静态 import、只读；「我的提示词」= `creative/promptManager`（localStorage 可写） | `creative/data/*.json` · `creative/creativeCatalog.ts` |
-| **唯一入口（胶囊序列化）** | 沿用 `prompt/promptChips.ts`，不另起。`resolvePromptChips` 加第 4 参 `presets`（`Record<id,{prompt}>`）；id 以 `cp_` 开头 → 命中替换该条 `prompt`（原文照搬，不 trim/剥标签头），未命中 → 置空但留 `⚠缺失预设「名」` + 红日志（I1/I2，禁静默吞） | `prompt/promptChips.ts` |
+| **唯一入口（胶囊序列化）** | 沿用 `canvas/shell/promptChips.ts`，不另起。`resolvePromptChips` 加第 4 参 `presets`（`Record<id,{prompt}>`）；id 以 `cp_` 开头 → 命中替换该条 `prompt`（原文照搬，不 trim/剥标签头），未命中 → 置空但留 `⚠缺失预设「名」` + 红日志（I1/I2，禁静默吞） | `canvas/shell/promptChips.ts` |
 | **选中态真源** | 唯一真源 = 富文本胶囊（`data.prompt` 正文里的 `@{cp_id:name}`），**不设** AIFISHER 那套 slot 结构 | 无 slot；节点 `handleCreativeApply` 经 PromptInput 插胶囊 |
 | **字典** | `node.data.creativePresets: Record<id,{kind,name,prompt}>`，删胶囊由 `syncCreativePresets` GC 清孤儿 | 节点 + `creative/creativePresets.ts` |
 | **入口收敛** | 节点底栏只保留一个「预设」按钮（`CreativeLibraryButton`）开创作库，分区切换收进面板内 tab；取代旧 `PromptLibraryButton` | `creative/CreativeLibraryButton.tsx` |
@@ -140,7 +140,7 @@
 
 **⚠️ 待办（G5 未落地）**：
 - 素材真值（catalog 静态 import 已落，107MB 样图/全量）尚未分发进 `public/creative-presets` / `public/mj-styles`——若目录下文件缺席，网格/胶囊的 preview 图会破图（catalog 引用路径 `/creative-presets/x.webp`）。落地后再验「图片显示」。
-- 旧 `prompt/promptManager.ts` 已迁至 `creative/promptManager.ts`；旧 `PromptLibrary/PromptLibraryButton` 生产已 0 import，因单测仍 `vi.mock` 旧路径而**暂留**，迁移 mock 后删。
+- 旧 `creative/promptManager.ts` 已迁至 `creative/promptManager.ts`；旧 `PromptLibrary/PromptLibraryButton` 生产已 0 import，因单测仍 `vi.mock` 旧路径而**暂留**，迁移 mock 后删。
 
 ***
 
@@ -203,7 +203,7 @@
 
 > **本节性质：现行契约与红线**（不是可推翻的判据）。判据本体见 ADR 索引：**ADR-0012**（写盘成功判据）· **ADR-0013**（纯查询禁副作用）· **ADR-0009**（结果写回唯一路径）· **ADR-0014**（跨上下文重置命令栈）· **ADR-0015**（批量入栈粒度）· **ADR-0020**（唯一键纪律）。物理契约值另见 `CLAUDE.md §5.4.4 / §5.7`。
 
-* **唯一 ID**：nodeId/edgeId/taskId 必须走 `base/idGen.ts`。
+* **唯一 ID**：nodeId/edgeId/taskId 必须走 `base/core/idGen.ts`。
 
 * **字段映射**：前端 camelCase ↔ 后端 snake\_case 转换以 CONTRACTS 为准。
 
@@ -215,7 +215,7 @@
 
   > ⚠️ **已失效（生成入口收口 2026-09-03 + lovart-old/9004 退役 2026-09-05）：** `proxyMode=local-tool`、`/api/proxy`、`x-proxy-url` 三项已退役、禁止恢复；`127.0.0.1:9004` 随 `lovart-old` 一并删除、禁止恢复。前端不再有 `/api/proxy` 出站通道：chat / image / video 一律打统一生成入口 `POST /api/generate`，本地入口由 `config.ts` 的 `apiBase` 决定（指向 localTool `:18080`）；出站由 localTool 侧 `routes/generate.ts` + `passthrough.ts` + `relay-poll.ts` 承担，Lovart 走 `lgw.lovart.ai` 直连（`localTool/.env` 持 HMAC 凭证）。仍有效的只有：`127.0.0.1:18080`、`t.data[0].url`、`{code,data}` 信封、SSE 事件格式。现行红线以 `CLAUDE.md` §5.4.4 / §5.7 为准。代码里散落的「旧 `/api/proxy` 已退役」「旧 9004/lovart-old 已退役」注释是**决策留痕**，不是待恢复项（勿照此行反推回去"保护"死契约）。
 
-* **SSE 流式三件套豁免 httpClient（红线）**：`chatApi.ts`/`imageApi.ts`/`videoApi.ts` 走独立 `proxyGenerate.ts` 深模块（SSE 逐块/轮询 + envelope 语义），**禁止迁移到** **`httpClient.ts`**——httpClient 的「非 2xx 抛 HttpError + 网络/超时自动重试」会破坏流式增量、多轮工具循环与轮询节奏。三个文件头部均带「为何不走 httpClient」注释。新网络请求仍一律走 httpClient，本豁免仅限此三件套。
+* **SSE 流式豁免 httpClient（红线）**：chat / image / video 流式生成统一走 `generate/lib/generate.ts` 单门面（SSE 逐块/轮询 + envelope 语义；原 `chatApi.ts`/`imageApi.ts`/`videoApi.ts`/`proxyGenerate.ts` 已并入该门面），**禁止迁移到** **`httpClient.ts`**——httpClient 的「非 2xx 抛 HttpError + 网络/超时自动重试」会破坏流式增量、多轮工具循环与轮询节奏。该门面头部带「为何不走 httpClient」注释。新网络请求仍一律走 httpClient，本豁免仅限生成流式。
 
 * **本地后端地址单一来源（P0-4 红线）**：localTool 端口统一读 `config.ts` 的 `LOCAL_TOOL_PORT`，全库禁止裸写 `18080`/`localhost:18080`/`127.0.0.1:18080`。前端 `API_BASE` 经 `VITE_API_BASE` env 覆盖；`public/background.js` 为独立 service worker 无法 import，单独声明但统一为 `127.0.0.1:18080` 并注释对齐原因。改地址只动 config.ts（+ 必要时 background.js 顶部常量）。
 
@@ -225,7 +225,7 @@
 
 * **画布快照 schema 版本化（P0-4 红线）**：`saveCanvasState` 落盘 `schemaVersion`（读 `contracts.ts.CANVAS_SCHEMA_VERSION`）；`loadCanvasState` 兼容缺版本旧快照（视为 v1）。变更快照结构须提升版本 + 补迁移，禁止原地改旧结构影响可恢复性。
 
-* **降级透明度（P1-3 红线）**：关键降级（画布 KV→localStorage 等）统一走 `base/degrade.ts` 的 `reportDegrade`（集中日志 + 可选 toast 节流），禁止各处散写 `logger.warn` 后静默，也禁止手写高频 toast 刷屏。
+* **降级透明度（P1-3 红线）**：关键降级（画布 KV→localStorage 等）统一走 `base/core/log/degrade.ts` 的 `reportDegrade`（集中日志 + 可选 toast 节流），禁止各处散写 `logger.warn` 后静默，也禁止手写高频 toast 刷屏。
 
 * **生成链路真相源契约（红线，所有生成节点必守）**：任务中心为结果权威源，node.data 为渲染缓存副本。① `onSuccess` 必须把结果写回 node.data（`data.imageUrl`/`data.videoUrl`），否则刷新丢结果；② 异步可恢复节点必须传 `onRecover`，收到 `agent:task-completed` 广播回填 `resultUrl`；③ **文本类节点例外**——结果本体在 `data.text`、任务中心 `resultUrl` 为空，不套用 onRecover，由 data.text 随画布快照落盘恢复；④ 方向单向：写只走 `useNodeGeneration`，刷新后任务中心→节点回填，节点不回写任务中心。样板：PromptNode / DiscountVideoNode；机制见 `src/hooks/useNodeGeneration.ts` 文件头。
 
@@ -239,7 +239,7 @@
 
 * **数据一致性风险红线（刷新/离线/多端边界）**：① 离线态结果只存 `node.data`，重连不补登任务中心（未连时任务记录内存态，刷新即清）；② 文本结果纯靠 600ms autoSave 窗口，窗口内刷新即丢；③ sync 生图无 `pollTaskId`、无 `agent:task-completed` 广播，恢复全靠 `data.imageUrl` 副本，外链/临时地址即丢图；④ `blob:`/`data:` 地址永不落盘，两端皆丢；⑤ 多端仅 `_version` 冲突拒绝覆盖、不合并，`BroadcastChannel` 只广播事件不传数据；⑥ 画布 KV 降级 localStorage 后重连不回灌 KV，双源分裂。方向：任务中心回填为权威，画布旧副本只占位不回写。
 
-* **会话图片真值契约（E 方案 · docs/72，2026-08-29）**：`/files/` 是 AI 会话内唯一真值，可落盘、可累积、KB 级；base64 只是「出站编码」，只在【LLM 看图】【生图参考图】两条出站边由 localTool 现场生成，**永不落盘、永不进 conversation**（根治「前端算体积误判超预算 → 误裁剪历史上下文/memory.summary」）。① 前端发送归一 `normalizeImageUrlForSend`（URL 模式）对 `/files/` 保持相对路径（blob/data 仍压缩转 base64；preferBase64 后端除外）→ `conv.messages`/`conv.referenceImages` 只存 `/files/`；② 出站统一由 `localTool/src/utils/resolveLocalImages.ts` 回读 uploads/ → 压缩≤1920 → base64（agentChat.ts 聊天消息 + system.ts /api/proxy 请求体；覆盖相对 + 绝对自指 + URL 编码文件名；`data:` 幂等透传；读失败保留原 URL 显性失败）；③ 不依赖网关 `resolve_attachments` 的回环支持（网关只是众多上游之一）。
+* **会话图片真值契约（E 方案 · docs/72，2026-08-29）**：`/files/` 是 AI 会话内唯一真值，可落盘、可累积、KB 级；base64 只是「出站编码」，只在【LLM 看图】【生图参考图】两条出站边由 localTool 现场生成，**永不落盘、永不进 conversation**（根治「前端算体积误判超预算 → 误裁剪历史上下文/memory.summary」）。① 前端发送归一 `normalizeImageUrlForSend`（URL 模式）对 `/files/` 保持相对路径（blob/data 仍压缩转 base64；preferBase64 后端除外）→ `conv.messages`/`conv.referenceImages` 只存 `/files/`；② 出站统一由 `localTool/src/utils/resolveLocalImages.ts` 回读 uploads/ → 压缩≤1920 → base64（generateEngine.ts 聊天消息（旧 `agentChat.ts` 随 relay 收口退役）+ `system.ts` 请求体（旧 `/api/proxy` 已退役，见 §五）；覆盖相对 + 绝对自指 + URL 编码文件名；`data:` 幂等透传；读失败保留原 URL 显性失败）；③ 不依赖网关 `resolve_attachments` 的回环支持（网关只是众多上游之一）。
 
 ***
 
@@ -253,7 +253,7 @@
 
 * **领域类型真相源**：`src/components/director3d/project.ts`（`ProjectCamera`/`ProjectObject`/`ProjectReference`/`ProjectSettings`/`ProjectLighting`/`PropertyRegistry`/`ChannelTracks`/`ChannelKey`/`EntityChannelMap`），App/Viewport/panels 复用，**禁止各自重定义后漂移**。新增 director3d 共享类型一律下沉此处。
 
-* **工程持久化收口（docs/45，2026-08-25）**：director3d 工程已从「纯 localStorage」收口到「localTool KV + uploads/director3d 落盘 + localStorage 降级」双通道。核心可测协议收在 **`src/components/base/d3dPersistence.ts`**（我方代码，唯一入口：`writeProject`/`hydrateProject`，纯函数 `projectKvKey`/`isProjectImageUrl`/`isProjectPersistenceKey`/`externalizeProjectImages`/`pickProjectSource`，走 `contracts.ts apiRegistry` 已登记的 `/api/kv/get|set` 与 18080 绝对地址）。director3d 内只做最小适应（`storage.writeJson` 工程键委托异步 fire-and-forget、`project.js` normalize 复用 `isProjectImageUrl` 放行 `/files/` 地址、`App.tsx` 挂载 hydrate 覆盖）。**姿势库键** **`director3d-custom-poses`** **不进 KV（仍只写 localStorage）**。多开同 key 并发：非全锁，通过 `BroadcastChannel('yimao_director3d_kv')` 广播 D3D\_SAVED + 落前冲突提示，把"静默覆盖"变可见（不阻塞编辑）。改持久化契约先改 `d3dPersistence.ts`，勿在 director3d 内部散写第二套。
+* **工程持久化收口（docs/45，2026-08-25）**：director3d 工程已从「纯 localStorage」收口到「localTool KV + uploads/director3d 落盘 + localStorage 降级」双通道。核心可测协议收在 **`src/components/director3d/d3dPersistence.ts`**（我方代码，唯一入口：`writeProject`/`hydrateProject`，纯函数 `projectKvKey`/`isProjectImageUrl`/`isProjectPersistenceKey`/`externalizeProjectImages`/`pickProjectSource`，走 `contracts.ts apiRegistry` 已登记的 `/api/kv/get|set` 与 18080 绝对地址）。director3d 内只做最小适应（`storage.writeJson` 工程键委托异步 fire-and-forget、`project.js` normalize 复用 `isProjectImageUrl` 放行 `/files/` 地址、`App.tsx` 挂载 hydrate 覆盖）。**姿势库键** **`director3d-custom-poses`** **不进 KV（仍只写 localStorage）**。多开同 key 并发：非全锁，通过 `BroadcastChannel('yimao_director3d_kv')` 广播 D3D\_SAVED + 落前冲突提示，把"静默覆盖"变可见（不阻塞编辑）。改持久化契约先改 `d3dPersistence.ts`，勿在 director3d 内部散写第二套。
 
 * **uploads 子目录后端白名单（docs/45 §2.3，2026-08-25）**：后端 `localTool/src/utils/fileStore.ts` 的 `normalizeSubfolder` 是唯一校验入口——**顶层根白名单**（`tasks`/`web`/`canvas`/`migrated`/`director3d`）+ 目录逃逸拦截（拒绝 `..`/绝对路径/盘符/未知根，非法回退 `canvas`）。⚠️ 刻意**不做"精确值全禁止"**：素材库有动态分类目录（`migrated/人物`、`migrated/脚本/尾帧变体` 等）与嵌套（`canvas/drop`、`canvas/video-process`），故白名单只卡顶层根、放行合法嵌套，防拼错/越根而非拦分类。
 
@@ -286,24 +286,24 @@
 | 能力 | 唯一入口（别再写第二份） |
 | --- | --- |
 | 通用工具（深拷贝/防抖/格式化） | `base/utils.ts` · `base/utils/` |
-| 节点目录 / nodeTypes | `base/NodePalette.ts` |
-| 程序化建节点+连线 | `base/deriveNodes.ts`（原子进 undo） |
-| ID 生成 | `base/idGen.ts` |
-| 本地预览 URL | `base/previewUrl.ts` |
-| 图片失败回退 + 显示出口 | `base/utils/useImageFallbackSrc.ts` |
-| 素材节点渲染 url 解析 | `base/utils/assetUrl.ts` |
-| 图片类节点 hover 操作 | `nodes/useImageHoverActions.tsx` |
+| 节点目录 / nodeTypes | `canvas/shell/NodePalette.ts` |
+| 程序化建节点+连线 | `canvas/structure/deriveNodes.ts`（原子进 undo） |
+| ID 生成 | `base/core/idGen.ts` |
+| 本地预览 URL | `base/utils/media/previewUrl.ts` |
+| 图片失败回退 + 显示出口 | `base/utils/media/useImageFallbackSrc.ts` |
+| 素材节点渲染 url 解析 | `base/utils/media/assetUrl.ts` |
+| 图片类节点 hover 操作 | `image/useImageHoverActions.tsx` |
 | node.data 写回 | `useNodeData.ts` |
 | 节点生成 | `hooks/useGenerateNode.ts` → `useNodeGeneration.ts` |
-| 瞬态（loading/error/progress） | `base/store/nodeRuntimeStore.ts` |
-| 素材库 SSOT | `base/store/resourceStore.ts` |
+| 瞬态（loading/error/progress） | `task/nodeRuntimeStore.ts` |
+| 素材库 SSOT | `resource/resourceStore.ts` |
 | 横切存储 | `base/core/contentStore.ts` |
 | API 契约真源 | `base/core/contracts.ts` 的 `apiRegistry` |
 | 文件域落盘 / 去重 | `api/filesApi.ts`（后端 `writeUploadDedup` + `contentId`） |
-| 模型源 | `base/providerModels.ts` |
-| 事件总线 / toast / logger | `base/core/eventBus.ts` · `toastStore.ts` · `logger.ts` |
+| 模型源 | `base/utils/providerModels.ts` |
+| 事件总线 / toast / logger | `base/core/event/eventBus.ts` · `toastStore.ts` · `logger.ts` |
 | 下载 | `clipboard.downloadUrl` |
-| 提示词胶囊 / @素材链接 | `prompt/promptChips.ts` |
+| 提示词胶囊 / @素材链接 | `canvas/shell/promptChips.ts` |
 | 移动/改名/查引用 | `node scripts/mv-sync-refs.mjs`（**禁手写 mv / 手改 import**） |
 | 依赖同代纪律 | `@types/react(-dom)` 与 `react(-dom)` 同大版本；`zustand` 经 `overrides` 锁单版本 |
 
@@ -350,5 +350,30 @@
 * **三条禁止**：放宽 `knip.json` 的 `ignore`（致盲更多真导出）· 用 `ignoreDependencies` 掩盖未声明依赖（**去 `package.json` 补声明**，2026-09-16 实例：`zustand` 被 7 处 import 却未声明，靠 drei 传递依赖 hoist 存活）· `--update-baseline` 把回归洗成存量。
 * **删 re-export 前必须顺链查到底**：本仓有多层 re-export 链（`config` → `agentConfig` → `agentCore` → `useAgentChat` → 测试），只删链尾会把死代码**上移一层**（knip 转而报中游）= 打地鼠，下次跑闸反而更红。正确动作：链尾 `re-export` 与中游多余 `export` 关键字一并降为文件内私有。
 * **基线目标 = 0 条**：基线是「**待清偿债务**」清单，**不装永久豁免**（永久豁免走 `@public`）。否则该条永不消失、账本必然失真（历史实证 TD-22-10：曾 139 条里 103 条是口径误报）。
+
+### G. 三同构登记表闸的多行判据必须同步（2026-09-19，全库级）
+
+> **背景**：用户「把闸全放开，看会报什么错」→ 放开拦截面后**全绿**，遂逐闸做负例探针（`scripts/probe.mjs`），
+> 揭出**两道闸长期瞎着**：`check-storage-keys.mjs`（STORAGE_KEYS）与 `check-node-types.mjs`（NODE_TYPES）。
+
+* **病灶（同一个母体，三处实现漂移）**：三闸都扫「`fn(` 后紧跟字符串字面量」。`check-events.mjs` 在 2026-09-06 就修成了
+  **「单行匹配 + 括号未闭合则向后合并到配对再匹配」**；但它的两个兄弟**仍停在逐行 `RE.exec(line)`**。
+* **后果（实测）**：真实代码大量写作多行展开——
+  ```ts
+  const { prefs } = useNodePrefs(
+    'imageGenerateNode',
+    PREFS_DEFAULTS.imageGenerateNode,
+  );
+  ```
+  逐行扫时 `useNodePrefs(` 行后无字符串、字符串行前无 `useNodePrefs(` ⇒ **永不命中**。
+  负例探针实测：改 5 处未登记命名空间 + 注入跨行裸存储键，两闸仍打印「通过 ✔（已扫描 583 个文件）」——
+  **P0 登记表在最常见写法下等于不设防**。真代码现存 `useNodePrefs(` 换行写法 4 处，全部失守。
+* **处置（2026-09-19）**：两闸补上与 `check-events.mjs` 同款的跨行括号合并；每闸配负例探针「先红后绿」：
+  多行违规 → 精确报红；真代码 → 全绿且扫描基数（583）不变。
+* **红线（新增，除非另行论证）**：**改动三个同构闸（keys / events / node-types）中任一个的匹配判据时，
+  必须同步核对另外两个**。它们守的是同一类东西（登记表 vs 裸字面量），实现分叉 = 必漂移。
+* **方法论（比这两处修复更重要）**：**「闸全绿」不等于「闸在干活」**——扫 0 却绿灯（TD-02-9/TD-22-53）的变体是
+  **「扫了 N 个文件却匹配不上任何东西」**。判据变更后必须用 `scripts/probe.mjs` 注入正例验证**精确红**，
+  没有负例探针的闸 = 未验收（该文案已在 `check-upload-dirs.mjs` §Q3 写明，本仓应推广到所有在册闸）。
 
 <br />

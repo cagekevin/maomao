@@ -52,6 +52,7 @@ import { logger } from '../core/log/logger.ts';
 
 /** localStorage 备份清单 —— 由 contracts.ts STORAGE_KEYS 权威登记生成（getLocalKeys()）。
  *  新增存储键先在 contracts.ts 登记即自动进备份，禁止再手写清单（防漂移漏备份）。 */
+// cloud-scope-ok: 备份范围 = **全量** localStorage（备份 ≠ 云同步；云同步走 cloudSync 的 getSyncKeys() ∩ SYNC_ALLOW）
 const LS_KEYS = getLocalKeys();
 
 /** KV 段键模板 → 正则（模块级一次编译；与 contentStore 的登记校验同一编译原语）。 */

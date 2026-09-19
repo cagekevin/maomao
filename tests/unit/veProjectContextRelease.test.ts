@@ -23,7 +23,7 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { EditorCore } from '../../src/components/videoEditor/engine/core';
-import { Command } from '../../src/components/videoEditor/engine/commands';
+import { Command } from '../../src/components/videoEditor/engine/commands/base-command.ts';
 import type { TProject } from '../../src/components/videoEditor/types/project';
 import type { TimelineTrack, TScene } from '../../src/components/videoEditor/types/timeline';
 import type { MediaAsset } from '../../src/components/videoEditor/types/assets';

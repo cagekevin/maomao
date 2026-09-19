@@ -37,6 +37,7 @@
 import { readFileSync, readdirSync, statSync, existsSync } from 'node:fs';
 import { resolve, join, dirname, extname } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { createRequire } from 'node:module';
 
 let parse;
 try {
@@ -77,6 +78,37 @@ const assertScanned = (label, count) => {
     return false;
   }
   return true;
+};
+
+// ─────────────────────────────────────────────────────────────────
+// 豁免的**定义关系**解析（2026-09-19「放开闸」）—— 本文件四处豁免原先按**文件路径**写死
+// （`agentCanvasHost.ts` / `contracts.ts` / `base/storage/`），改名或搬迁后两种失败都会发生：
+//   ① 豁免失效 ⇒ 唯一实现本体被判违规（TD-17-24 实证：假红 14 处）；
+//   ② 实现本体搬走而名单还指旧路径 ⇒ 规则**静默放宽**（假绿）。
+// 清单必漏是母体（`gates.manifest` `_design.gateCost` ②）⇒ 统一改按【定义关系】推，
+// 定义处（声明语句，`export { X } from './x'` 转发不算）必须**恰好 1 个**，否则 fail-loud。
+// ─────────────────────────────────────────────────────────────────
+const { buildDefIndex } = createRequire(import.meta.url)('./symbol-defs.cjs');
+const _defIndex = buildDefIndex(root, ['AgentCanvasHost', 'getLocalKeys', 'contentGet', 'sGet']);
+/** 唯一【定义处】相对路径（正斜杠）；0 或 >1 处 → null */
+const defOf = (sym) => {
+  const m = _defIndex.get(sym) || [];
+  return m.length === 1 ? m[0] : null;
+};
+/** 唯一【定义处】所在目录（相对路径，无尾斜杠）；无 → null */
+const defDirOf = (rel) => (rel && rel.includes('/') ? rel.slice(0, rel.lastIndexOf('/')) : null);
+/** 取定义处；不唯一就**红灯**并返回 null（调用方不得静默放宽本规则） */
+const requireDef = (sym) => {
+  const m = _defIndex.get(sym) || [];
+  if (m.length !== 1) {
+    fail(
+      `豁免推导失败：符号 ${sym} 在 src 下应**恰好 1 处定义**（re-export 转发不算），实际 ${m.length} 处${
+        m.length ? ' → ' + m.join(' · ') : ''
+      } ⇒ 是否被改名/搬迁？请核对 scripts/symbol-defs.cjs 的调用点或补定义，**勿放宽本规则**`,
+    );
+    return null;
+  }
+  return m[0];
 };
 
 // ── 收集源码文件 ──
@@ -675,15 +707,15 @@ if (!envelopeViol) console.log('  ✅ 无另立结果信封 interface');
 //
 // 【判定】在 agent/canvas 工具层文件里，检测「从 ctx 解构出 setNodes/setEdges/addNodes/addEdges」
 // 或直接 `ctx.setNodes(...)` 调用。`agentCanvasHost.ts` 本体豁免（它就是唯一实现）。
-// ⚠️ 改名铁律（TD-17-24 实证）：本规则的豁免清单是**按文件路径**匹配的 —— S1-2 把 canvasHost.ts
-//    改名为 agentCanvasHost.ts 时漏改下面一行 ⇒ 豁免失效 ⇒ 唯一实现本体被判 14 处违规（假红）。
-//    ⇒ 凡改名/移位碰到本文件涉及的路径，**必须同批复扫 scripts/**（SOP §5.2）。
+// ✅ 2026-09-19「放开闸」：豁免改为**按定义关系推** —— 定义 `AgentCanvasHost` 接口的那个文件（= 唯一实现本体）。
+//    原写法按路径列 `agentCanvasHost.ts`：S1-2 改名后漏改 ⇒ 唯一实现本体被判 14 处假红（TD-17-24）；
+//    反过来，若本体搬走而名单未改，则本规则静默放宽（假绿）。现改后：文件随便改名/搬目录都跟得住；
+//    定义数 ≠ 1（0 处=被改名删除 / >1 处=冒出第二份实现）⇒ 直接红灯，不静默放宽。
 // ─────────────────────────────────────────────────────────────────
 const CANVAS_WRITE_BAN = new Set(['setNodes', 'setEdges', 'addNodes', 'addEdges']);
 const CANVAS_WRITE_SCOPE = 'src/components/agent/canvas/';
-const CANVAS_WRITE_EXEMPT = new Set([
-  'src/components/agent/canvas/agentCanvasHost.ts', // 唯一实现本体（原 canvasHost.ts，S1-2 已改名）
-]);
+const CANVAS_HOST_DEF = requireDef('AgentCanvasHost');
+const CANVAS_WRITE_EXEMPT = new Set(CANVAS_HOST_DEF ? [CANVAS_HOST_DEF] : []);
 let canvasWriteViol = 0;
 for (const f of files) {
   const rel = f.slice(root.length + 1).replace(/\\/g, '/');
@@ -990,9 +1022,13 @@ if (!storageBypassViol)
  *   ⇒ 规则 7 本就不会命中它，**无需**在此豁免（少了它 ≠ 漂移，是判据差异）。
  *   理由与规则 6 同源：唯一入口本体 / 底层实现互引。（原「第三方域 §五·五」一并于 2026-09-16 只收窄删除。）
  */
+// ✅ 2026-09-19「放开闸」：豁免原按**路径**写死（contentStore.ts / base/storage/）⇒ 该层改名或搬迁即失效。
+//   改为**定义关系**推导：入口本体 = 定义 `contentGet` 的文件；底层实现层 = 定义本地适配原语 `sGet` 的文件所在目录。
+const KV_SYNC_READ_ENTRY = requireDef('contentGet');
+const KV_STORAGE_DIR = defDirOf(requireDef('sGet'));
 const KV_SYNC_READ_SCOPE_EXEMPT = (rel) =>
-  rel === 'src/components/base/core/contentStore.ts' ||
-  rel.startsWith('src/components/base/storage/');
+  (KV_SYNC_READ_ENTRY && rel === KV_SYNC_READ_ENTRY) ||
+  (KV_STORAGE_DIR && rel.startsWith(KV_STORAGE_DIR + '/'));
 
 const kvKeyPrefixes = new Set();
 const kvKeyExact = new Set();
@@ -1466,21 +1502,24 @@ if (assertScanned('跨源裁决唯一单点（src 全域）', crossOriginScanned
 //     · `cloudSync.ts`  —— 云同步范围（∩ SYNC_ALLOW，仅设置类）；
 //     · `backupStore.ts` —— 备份范围（全量，备份 ≠ 同步，故意全收）。
 //   若第三处再 `getLocalKeys()` 起一套清单，就是「同步范围第二份」——新增键到底进不进云将取决于改哪一份，
-//   正是本仓 M7 母体（SSOT 第二份）。本规则把它挡在源头（反向判据：只列 2 个合法消费者，其余一律违规）。
-//   ⚠️ 将来若确需第三个合法消费者（如"清理"），改本清单时**必须同时说明它为何不构成第二份同步范围**。
+//   正是本仓 M7 母体（SSOT 第二份）。本规则把它挡在源头（反向判据：只允许**定义处 + 具名标注者**消费）。
+//   ✅ 2026-09-19「放开闸」：原写法是**按路径列 3 个合法消费者**，两条实证都踩了：
+//      · 域归位把 `backupStore` 迁回 `base/store/` 后就**假红一次**（路径清单跟不上搬迁）；
+//      · 清单里的 `cloudSync.ts` 其实**已不再调用** `getLocalKeys()` ⇒ 清单自身在腐烂（多一条死项）。
+//      现改为「**定义关系 + 可自证标注**」：
+//        · 定义处（谁 `export function getLocalKeys`）→ 自动推导，改名/搬目录都跟得住；
+//        · 确需的语义例外 → 调用点**同行或上一行**标 `// cloud-scope-ok: <理由>`，本规则**打印全部标记点**
+//          （标记量可观测 ⇒ 防"贴个标记就绕过"；同规则 11 的 `// storage-raw-ok:` 形态）。
 // ─────────────────────────────────────────────────────────────────
-console.log('\n☁️ 云同步范围白名单：getLocalKeys() 只允许 2 个合法消费者（反向判据）');
-const GETLOCALKEYS_LEGIT = new Set([
-  'src/components/base/core/contracts.ts', // 定义处本身（唯一真源）
-  'src/components/base/store/cloudSync.ts', // 云同步范围（∩ getSyncKeys()）
-  'src/components/base/store/backupStore.ts', // 备份范围（全量；备份 ≠ 同步）· 2026-09-19 裁判裁定**回迁 base/store**（TASK-030 §二：备份范围是全量 localStorage ⇒ 不认识任何单域 ⇒ 不属 canvas；TD-25-21 原处置按「直接 fan-in」判定，违反 ADR-0042 判据 5）
-]);
+console.log('\n☁️ 云同步范围：getLocalKeys() 只允许定义处 + 具名标注者消费（反向判据）');
+const GETLOCALKEYS_DEF = requireDef('getLocalKeys');
 let getLocalKeysViol = 0;
 let getLocalKeysScanned = 0;
+const cloudScopeMarkers = [];
 for (const f of files) {
   const rel = f.slice(root.length + 1).replace(/\\/g, '/');
   getLocalKeysScanned++;
-  if (GETLOCALKEYS_LEGIT.has(rel)) continue;
+  if (rel === GETLOCALKEYS_DEF) continue;
   let code;
   try {
     code = readFileSync(f, 'utf8');
@@ -1488,19 +1527,28 @@ for (const f of files) {
     continue;
   }
   // 只认「真调用」：`getLocalKeys(` （排除注释/字符串里的提及——用逐行粗筛 + 去行首注释）
-  for (const [i, line] of code.split('\n').entries()) {
+  const lines = code.split('\n');
+  for (const [i, line] of lines.entries()) {
     const trimmed = line.trim();
     if (trimmed.startsWith('//') || trimmed.startsWith('*') || trimmed.startsWith('/*')) continue;
-    if (/\bgetLocalKeys\s*\(/.test(line)) {
-      getLocalKeysViol++;
-      fail(
-        `云同步范围第二份: ${rel}:${i + 1} → 调用了 getLocalKeys()（唯一合法消费者 = cloudSync.ts(∩getSyncKeys()) / backupStore.ts(全量)）`,
-      );
+    if (!/\bgetLocalKeys\s*\(/.test(line)) continue;
+    const prev = i > 0 ? lines[i - 1] : '';
+    if (/cloud-scope-ok:/.test(line) || /cloud-scope-ok:/.test(prev)) {
+      cloudScopeMarkers.push(`${rel}:${i + 1}`);
+      continue;
     }
+    getLocalKeysViol++;
+    fail(
+      `云同步范围第二份: ${rel}:${i + 1} → 调用了 getLocalKeys()（合法消费者 = 定义处（自动推）或调用点标 // cloud-scope-ok: <理由> 者）`,
+    );
   }
 }
-if (assertScanned('云同步范围白名单（src 全域）', getLocalKeysScanned) && !getLocalKeysViol) {
-  console.log(`  ✅ getLocalKeys() 仅 2 个合法消费者（扫 ${getLocalKeysScanned} 文件）`);
+if (assertScanned('云同步范围（src 全域）', getLocalKeysScanned) && !getLocalKeysViol) {
+  console.log(
+    `  ✅ getLocalKeys() 仅定义处 + 例外可消费（扫 ${getLocalKeysScanned} 文件；cloud-scope-ok 标记 ${cloudScopeMarkers.length} 处${
+      cloudScopeMarkers.length ? ' → ' + cloudScopeMarkers.join(' · ') : ''
+    }）`,
+  );
 }
 
 // 规则 12-b（2026-09-16 · TD-13-9 收口）：**cloudSync 内禁出现具体存储键名** —— 同步范围只许派生。
@@ -1584,7 +1632,11 @@ if (!cloudKeyViol) {
 //   本规则会**打印全部标记使用点**（可观测，防"标记一贴就绕过" —— `catch-ok` 的教训：标记量 ≠ 豁免量）。
 // ─────────────────────────────────────────────────────────────────
 console.log('\n🧱 本地存储变更唯一入口：禁裸写 localStorage（反向判据）');
-const RAW_LS_SCOPE_EXEMPT = (rel) => rel.startsWith('src/components/base/storage/');
+// ✅ 2026-09-19「放开闸」：原按目录名写死 `base/storage/` ⇒ 该层改名/搬迁即失效。
+//   失效有两个方向：豁免失灵 ⇒ 真收敛层被判违规（假红）；或收敛层搬走后本规则悄悄放宽（假绿）。
+//   改为**定义关系**：底层收敛层 = 定义本地适配原语 `sGet` 的文件所在目录（与规则 7 同源推导，全仓唯一）。
+const RAW_LS_STORAGE_DIR = KV_STORAGE_DIR;
+const RAW_LS_SCOPE_EXEMPT = (rel) => !!RAW_LS_STORAGE_DIR && rel.startsWith(RAW_LS_STORAGE_DIR + '/');
 const RAW_LS_MUTATE_RE = /localStorage\s*\.\s*(setItem|removeItem|clear)\s*\(/;
 let rawLsViol = 0;
 let rawLsScanned = 0;
