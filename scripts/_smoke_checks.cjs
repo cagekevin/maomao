@@ -197,10 +197,10 @@ function checkReactFlowApis(ROOT) {
  *  组件 2026-08-18 已归类 nodes/ 子目录，优先查 src/components/canvas/nodes/，平铺路径兜底。
  *  路径全部【扩展名无关】解析：节点组件转 .tsx 后写死 .jsx 会让整项检查变红。 */
 function resolveCompFile(ROOT, comp) {
-  const sub = resolveSourceFile(path.join(ROOT, 'src/components/nodes', comp));
+  const sub = resolveSourceFile(path.join(ROOT, 'src/components/canvas/nodes', comp));
   if (sub) return sub;
   const flat = resolveSourceFile(path.join(ROOT, 'src/components', comp));
-  return flat || path.join(ROOT, 'src/components/nodes', comp + '.jsx');
+  return flat || path.join(ROOT, 'src/components/canvas/nodes', comp + '.jsx');
 }
 function checkNodeTypes(ROOT) {
   const palette = read(
@@ -211,13 +211,16 @@ function checkNodeTypes(ROOT) {
   // （存量 bug：lazyNode.jsx 无 default 导出导致冒烟误红），用 (?!\s*\() 负向前瞻跳过调用形态。
   const comps = [...palette.matchAll(/component:\s*(\w+Node)(?!\s*\()/g)].map((x) => x[1]);
   // 重依赖懒加载节点：lazyNode 只是动态 import 包装，底层仍是必存在的节点组件（防漏校验）。
-  // 从 lazyNode.jsx 的 HEAVY_NODE_LOADERS 动态 import 路径抽取真实文件名，随常规组件一并校验。
+  // 从 lazyNode.tsx 的 HEAVY_NODE_LOADERS 动态 import 路径抽取真实文件名，随常规组件一并校验。
   const lazySrc = read(
     resolveSourceFile(path.join(ROOT, 'src/components/base/canvas/lazyNode')) || '',
   );
-  // 扩展名无关：动态 import 的后缀可能是 .jsx 也可能是 .tsx
+  // ⚠️ 路径形态随 S2-1a 变更：原 `../nodes/X.jsx` ⇒ 现 `@/components/canvas/nodes/X`（**别名 + 无扩展名**）。
+  //    正则两种形态都收：`@/components/canvas/nodes/` 与相对 `.../canvas/nodes/`，扩展名可选。
   const lazyComps = [
-    ...lazySrc.matchAll(/import\(['"]\.\.?\.?\/nodes\/(\w+Node)\.(?:jsx|tsx|js|ts)['"]\)/g),
+    ...lazySrc.matchAll(
+      /import\(\s*['"](?:@\/components\/canvas\/nodes\/|(?:\.\.?\/)+canvas\/nodes\/)(\w+Node)(?:\.(?:jsx|tsx|js|ts))?['"]\s*\)/g,
+    ),
   ].map((x) => x[1]);
   const compsAll = [...new Set([...comps, ...lazyComps])];
   let pass = true;
@@ -236,7 +239,7 @@ function checkNodeTypes(ROOT) {
     const compFile = resolveCompFile(ROOT, comp);
     if (!fs.existsSync(compFile)) {
       pass = false;
-      details.push(`  ✖ palette component '${comp}' -> 组件文件不存在（nodes/${comp}.{jsx|tsx}）`);
+      details.push(`  ✖ palette component '${comp}' -> 组件文件不存在（canvas/nodes/${comp}.{jsx|tsx}）`);
     } else {
       details.push(`  ✔ palette ${path.basename(compFile)}`);
     }
