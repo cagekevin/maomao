@@ -144,7 +144,7 @@ V2 §4.1 原文「**跨域** hooks 放 `src/hooks/`」被实测误用成"所有 
 | **agent**(56) | `assistantTable`(22) · `runtime`(12) · `conversation`(8) · `canvas`(3) |
 | **画布域**(38) | `canvas/`（机制 17）· `canvas/nodes/`（节点 18）· `canvas/edges/`（边 3） —— **域根 = `components/canvas/`** |
 | **图像编辑域** | `editors/*`（查看/裁剪/全景/相机） · `cameraParams`（相机参数） · 打码 |
-| **`base/`** —— **目标形态：只留横切层**（2026-09-19 裁定，见 §7） | 横切：`core`·`utils`·`ui`·`api`·`storage`（+ `media`，经 §3.1.4 C-1 裁定 = **横切媒体引用协议层**，非域）；**宿主 / 挂载层**：`panels`（app-shell + 面板 kit · **可依赖域**，见 §7 · 其内的**域 UI 待拆** ⇒ §8 S2-9）；**已迁出**：`canvas` ⇒ `components/canvas/` · `creative` ⇒ `components/creative/` · `depthVideo` ⇒ `components/video/depthVideo/` · `editors` ⇒ `components/editors/`；**待迁出**：`prompt`·`store`（+ 散件 `nodeImage.ts`） |
+| **`base/`** —— **目标形态：只留横切层**（2026-09-19 裁定，见 §7） | 横切：`core`·`utils`·`ui`·`api`·`storage`（+ `media`，经 §3.1.4 C-1 裁定 = **横切媒体引用协议层**，非域）；**宿主 / 挂载层**：`panels`（app-shell + 面板 kit · **可依赖域**，见 §7 · 其内的**域 UI 待拆** ⇒ §8 S2-9）；**已迁出**：`canvas` ⇒ `components/canvas/` · `creative` ⇒ `components/creative/` · `depthVideo` ⇒ `components/video/depthVideo/` · `editors` ⇒ `components/editors/`；**待迁出**：`store`（+ 散件 `nodeImage.ts`）；**待拆**：`prompt`（**不是一个域** ⇒ 画布域控件组 4 件 + 提示词域 2 件 · 见 §3.1.3.5 ⑥ 与 S2-10） |
 | **`base/store`**(15) | **直接住着 8 个域**（§3.6） |
 
 **子域真实存在的硬证据 —— 域内子域撞名 8 组**（若子域只是目录，不该有独立命名冲突）：
@@ -559,6 +559,38 @@ src/components/base/media/
 ⇒ **判据（复用 §2.1）**：名字里的域前缀必须等于「它管的**数据/概念**属于哪个域」，而不是「它**被谁调用**」。
 `promptChips` 管的是素材引用 ⇒ 前缀不该是 `prompt`；`promptLayout` 管的是跨域对齐 ⇒ 同理。
 **命名方案与执行留 S2-10**（逐条取证后落 §6.2；先定性、后定名，不预设）。
+
+**⑥ 🔴🔴 决定性修正（2026-09-19 · 用户指出「`PromptInput.tsx` 根本就是画布上面的东西」）——
+`base/prompt/` **不是一个域**，它混着两块**归属不同**的东西**（逐文件实测消费者）：
+
+| 文件 | 消费点 | 消费者（实测） | **归属** |
+| --- | --- | --- | --- |
+| **`PromptInput.tsx`** | 5 | **`canvas/nodes/{Image,Text,Video}Generate` + `_template/TemplateNode`** + `FullscreenEditor`（`§3.3 C4` 已判**画布域**） | **画布域**（节点输入控件） |
+| **`promptChips.ts`** | 5 | **`canvas/nodes` ×4** + `creative/creativePresets` | **画布域**（输入控件配套：`@{id:label}` 素材引用芯片） |
+| **`promptLayout.ts`** | 5 | **`canvas/nodes` ×4** + `FullscreenEditor`（画布域） | **画布域**（输入控件 + 素材条 + 底栏的对齐基准） |
+| **`promptMention.ts`** | 0（仅被 `PromptInput` 用） | — | **画布域**（输入控件的 `@提及` 逻辑） |
+| `PromptHub.tsx` | 1 | `LeftPanel`（左栏「提示词」页签 `LeftPanel.tsx:21-24`） | **提示词域** |
+| `promptHubStore.ts` | 0（仅域内自用） | — | **提示词域** |
+
+**判据链（三条独立证据同向）**：
+1. **§2.3.2 P5（用户可感知性）**：「提示词」**不在**用户的「一个东西」清单里
+   （视频 / 图片 / 文本 / AI 助手 / 表格 / 多开 / 设置 / 其他）⇒ 它是**能力 / 子域**，
+   归到「**它能被用户感知的那个母域**」。而 `PromptInput` 长在**画布节点**上 ⇒ **母域 = 画布**。
+   真正对应用户可感知「提示词」的是**左栏那个页签** = `PromptHub`。
+2. **§2.3.1 P4（宿主判据）**：`PromptInput` 的消费者**全在画布域**（4 节点 + `FullscreenEditor`）
+   ⇒ 不存在「≥2 宿主」情形 ⇒ 它是**画布域的私有 UI 件**，不是独立能力。
+3. **实测**：`PromptHub`/`promptHubStore` 的消费者只有 `LeftPanel` 一处
+   ⇒ 它们才是「左栏页签」这一**用户可感知单元**。
+
+**⇒ 连带修正**：`§3.1.3.1 ②`「`base/prompt/*` 是跨内容类型共享原语」**只对了一半** ——
+被三内容能力共用的是**画布节点上的同一个输入控件**（因为它们同属画布域），
+**不等于**「它是独立于画布的域」。**`base/prompt` 必须拆**：
+· 画布域控件组（4 件）⇒ 随画布域归位
+· 提示词域（2 件：`PromptHub` + `promptHubStore`）⇒ `components/prompt/`
+
+**附带收益**：本批的 3 处「横切消费点」**全部自然消解** —— `FullscreenEditor`（画布域）→
+`PromptInput`/`promptLayout`（同归画布域）= **域内引用**；`LeftPanel`（宿主层，§7 已改判）→
+`PromptHub` = **宿主→域** ✓ 合法。**不需要任何白名单。**
 
 **待取证（第六批）**：`base/canvas`(18) 与 `base/core`(18) 的逐文件归属（画布机制 vs 横切）· `scriptbox`/`director3d` 的内部结构是否已是深模块 · `src/types` 与 `base/ui` 的边界。
 
@@ -1255,10 +1287,10 @@ grep -rn "from '.*<拟迁出的文件名>" src/components/base --include='*.ts' 
 | S2-5 | videoEditor：`engine/lib` 拆关注点、工具层三合一、UI 两套收口 |
 | S2-6 | `src/hooks` **逐条二分**：编排机制留横切 / 真域私有迁回（**D12 已改判 · 见 §9 A1**） |
 | S2-7 | 后端：`routes/utils` 域物归位 + `ai-relay` 门面收口 |
-| **S2-8** | **其余域迁出 `base/`** ⇒ `components/<域>/`（`creative` ✅ · `depthVideo` ✅ · `editors` ✅ · `prompt` · `store`；`media` 经 §3.1.4 C-1 裁定为**横切协议层**，**不迁**）。**它是「base/ 只留横切层」这个目标形态的收尾**（§2.6 / §7 裁定）；S2-2 与 S2-4 落地时**顺带做**，不另开批。**手法已跑通三轮**：搬移 → 手动后置工序 → 门面 → 收口 → 计划回改 |
+| **S2-8** | **其余域迁出 `base/`** ⇒ `components/<域>/`（`creative` ✅ · `depthVideo` ✅ · `editors` ✅ · `store`；`media` 经 §3.1.4 C-1 裁定为**横切协议层**，**不迁**）。⚠️ **`prompt` 已改判 ⇒ 移出本批**：它**不是一个域**（§3.1.3.5 ⑥ 实测），须先拆成「画布域控件组（4 件）」+「提示词域（2 件）」⇒ 见 **S2-10**。**它是「base/ 只留横切层」这个目标形态的收尾**（§2.6 / §7 裁定）；S2-4 落地时**顺带做**，不另开批。**手法已跑通三轮**：搬移 → 手动后置工序 → 门面 → 收口 → 计划回改 |
 | **S2-1c** | 画布域门面 `canvas/index.ts` + 域外消费点收口（建面判据见 §2.7：域外直连的是**实现件** ⇒ 必建） |
 | **S2-9** | **`base/panels` 按归属拆域 UI** —— `panels` 已改判为「宿主 / 挂载层」（§7），但它内部**混装三种东西**（同 §3.1.3.2 当年 `nodes/` 的病情）。**判据表（实测）**：<br>· **app-shell / 宿主** ⇒ 留：`LeftPanel` · `PanelBar` · `TopNav` · `SettingsFrame` · `ProjectSelector` · `EmptyCanvasGuide` · `sections/*`<br>· **横切 UI kit** ⇒ 留：`FullscreenShell`(9 消费点·跨 agent/canvas/director3d) · `FullscreenModal` · `ImportMediaModal`+`Host` · `LocalToolConnectModal` · `panel-kit.css` · `creative-library.css`<br>· **域 UI ⇒ 拆出归域**：`FullscreenEditor`(4·canvas) · `HoverToolbar`(7·canvas) → **画布域**；`ResourceStrip`(6·canvas) → **素材域**；`GeneratedView` → **生成域**；`ResourceLibrary` · `ResourcePreview` → **素材域**；`TaskCenter` → **任务域**（后 4 者实测**零域外消费**，只被 `LeftPanel` 渲染）<br>⚠️ 拆完后 `LeftPanel` 会 import 4 个域的 UI ⇒ 正是「宿主层可依赖域」这条判据的用例 |
-| **S2-10** | **`prompt` 命名审计与收口**（用户 2026-09-19 指出「很多名字叫 prompt，但实际命的不对」）。**两层问题**：<br>① **一词覆盖 5 个域**（§3.1.3.5 ④）：`base/prompt/*` 提示词域 · `base/creative/*` 创作库域 · `agent/assistantTable/assistantTablePrompt` · `scriptbox/scriptBoxPrompt*` ×3 · `base/editors/cameraParams/cameraPrompt` ⇒ 必须分别命名<br>② **`base/prompt` 域内 3 个文件名不副实**（逐文件实测）：`promptChips.ts`（实为 **`@{id:label}` 素材引用芯片 ↔ DOM**，属**素材域概念**）· `promptLayout.ts`（实为**素材条 + 正文 + 底栏三者的公共对齐基准**，跨素材域）· `promptMention.ts`（`@提及` 是**通用输入能力**，引用素材/节点，非 prompt 专属）<br>⇒ 命名方案待逐条取证后落 §6.2 |
+| **S2-10** | **`prompt` 命名审计与收口**（用户 2026-09-19 指出「很多名字叫 prompt，但实际命的不对」→ 取证后**升级为「拆域」**，见 §3.1.3.5 ⑤⑥）。**三层问题**：<br>① **一词覆盖 5 个域**（§3.1.3.5 ④）：`base/prompt/*` · `base/creative/*` · `agent/assistantTable/assistantTablePrompt` · `scriptbox/scriptBoxPrompt*` ×3 · `base/editors/cameraParams/cameraPrompt` ⇒ 必须分别命名<br>② **`base/prompt` 域内 3 文件名不副实**（逐文件读头注）：`promptChips.ts`（实为 **`@{id:label}` 素材引用芯片 ↔ DOM**）· `promptLayout.ts`（实为**素材条 + 正文 + 底栏的公共对齐基准**）· `promptMention.ts`（`@提及` 是**输入控件**的通用逻辑）<br>③ **🔴 `base/prompt` 不是一个域，必须拆**（用户指出「`PromptInput` 根本就是画布上面的东西」，实测坐实）：<br>　· **画布域控件组**（4 件）⇒ `PromptInput` · `promptChips` · `promptLayout` · `promptMention`（消费者全在画布域：4 节点 + `FullscreenEditor`）<br>　· **提示词域**（2 件）⇒ `PromptHub` + `promptHubStore`（消费者只有 `LeftPanel` 的左栏「提示词」页签）<br>⇒ **附带收益**：本批 3 处「横切消费点」**全部自然消解**（`FullscreenEditor`→`PromptInput`/`promptLayout` 变域内引用；`LeftPanel`→`PromptHub` 是宿主→域）⇒ **不需要任何白名单** |
 
 ### Stage 3 · 契约与验收
 
@@ -1276,7 +1308,7 @@ grep -rn "from '.*<拟迁出的文件名>" src/components/base --include='*.ts' 
 | **S2-8 第 3 个：`editors` 迁出 `base/`** | **已完成** | 域根 = `components/editors/`（10 源文件 + `cameraParams/` 子目录），门面 13 符号；收口 6 个域外消费点（12 处 import）。**前置剥离（D18 裁定）**：`ImageZoomDialog` 有 10 个消费方横跨 canvas/agent/scriptbox/base-panels ⇒ 是**横切件**，移出域 ⇒ `base/ui/`（否则 `base/panels` 横切反向依赖域 = 违规） |
 | **`panels` 判据改判（横切 → 宿主 / 挂载层）** | **已完成（判据）** | 从 `BASE_CROSS_CUTTING` 移出 ⇒ `BASE_HOST_LAYER`；依据 §3.3 C4 + 实测 `LeftPanel` 装配 4 个域 UI + import `taskStore`；移出时出向依赖 0 处（不损失防护）。**⚠️ 只完成判据，域 UI 未拆** ⇒ S2-9 |
 | **S2-9 `panels` 按归属拆域 UI** | **待做** | 7 文件：`FullscreenEditor`/`HoverToolbar`→画布域 · `ResourceStrip`/`ResourceLibrary`/`ResourcePreview`→素材域 · `GeneratedView`→生成域 · `TaskCenter`→任务域 |
-| **S2-10 `prompt` 命名审计** | **待做** | ① 一词覆盖 5 个域（§3.1.3.5 ④）② `base/prompt` 域内 3 文件名不副实（`promptChips` 实为素材引用芯片 · `promptLayout` 实为跨域对齐基准 · `promptMention` 实为通用输入能力） |
+| **S2-10 `prompt` 命名审计** | **待做** | 三层：① 一词覆盖 5 个域 ② `base/prompt` 内 3 文件名不副实 ③ **`base/prompt` 不是一个域，必须拆**（画布域控件组 4 件 + 提示词域社区库 2 件）—— 用户指出「`PromptInput` 根本就是画布上面的东西」，逐文件实测坐实（§3.1.3.5 ⑤⑥） |
 | 第一步（分清有哪些鱼） | **已完成** | §2–§4，含 7 处更正；5 个子 Agent 取证 |
 | 安全移名/移位 SOP | **已完成** | §5 |
 | **P1 修闸盲区（硬前置）** | **已完成** | `daily/架构日志/17-跨区-闸判据对准TDZ红线与结构环登记-2026-09-19.md`；工具债 **TD-17-21 已解决** · 结构环债 **TD-22-68 待还** |
