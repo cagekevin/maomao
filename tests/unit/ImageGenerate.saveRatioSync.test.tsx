@@ -71,7 +71,7 @@ vi.mock('../../src/components/canvas/parts/ExpandablePanel.tsx', () => ({
 vi.mock('../../src/components/canvas/shell/ResourceStrip.tsx', () => ({ default: () => null }));
 vi.mock('../../src/components/canvas/shell/PromptInput.tsx', () => ({ default: () => null }));
 vi.mock('../../src/components/canvas/parts/GenerateButton.tsx', () => ({ default: () => null }));
-vi.mock('../../src/components/base/ui/ModelSelect.tsx', () => ({ default: () => null }));
+vi.mock('../../src/components/base/ui/form/ModelSelect.tsx', () => ({ default: () => null }));
 vi.mock('../../src/components/canvas/parts/ResizeFullscreenHandle.tsx', () => ({
   default: () => null,
 }));
@@ -81,13 +81,15 @@ vi.mock('../../src/components/creative/CreativeLibraryButton.tsx', () => ({
   default: () => null,
 }));
 vi.mock('../../src/components/canvas/parts/JianyingIcon.tsx', () => ({ default: () => null }));
-vi.mock('../../src/components/base/ui/ImageZoomDialog.tsx', () => ({ default: () => null }));
+vi.mock('../../src/components/base/ui/display/ImageZoomDialog.tsx', () => ({
+  default: () => null,
+}));
 vi.mock('../../src/components/canvas/parts/CustomHandle.tsx', () => ({ default: () => null }));
 vi.mock('../../src/components/canvas/parts/NodeTitle.tsx', () => ({ default: () => null }));
-vi.mock('../../src/components/base/ui/ErrorBoundary.tsx', () => ({
+vi.mock('../../src/components/base/ui/feedback/ErrorBoundary.tsx', () => ({
   default: ({ children }: any) => children,
 }));
-vi.mock('../../src/components/base/core/toastStore.ts', async (importOriginal) => ({
+vi.mock('../../src/components/base/core/event/toastStore.ts', async (importOriginal) => ({
   ...((await importOriginal()) as Record<string, unknown>),
   showToast: vi.fn(),
   toastError: vi.fn(),
@@ -100,7 +102,7 @@ vi.mock('../../src/components/base/store/taskStore.ts', async (importOriginal) =
   ...((await importOriginal()) as Record<string, unknown>),
   openResourceLibrary: vi.fn(),
 }));
-vi.mock('../../src/components/base/utils/clipboard.ts', () => ({
+vi.mock('../../src/components/base/utils/net/clipboard.ts', () => ({
   downloadUrl: vi.fn(),
   resolveDownloadFilename: vi.fn(),
 }));
@@ -119,7 +121,7 @@ vi.mock('../../src/hooks/useAssetDegrade.ts', () => ({
 }));
 // 从真模块派生：本套件只覆盖 hook，但 filesApi 等真实链路要读 assetUrl 的其它导出
 // （如 `toAbsoluteFileUrl`）。手写白名单式桩缺它们 ⇒ 展开真模块后整套件崩（TD-17-15 形态）。
-vi.mock('../../src/components/base/utils/assetUrl.ts', async (importOriginal) => ({
+vi.mock('../../src/components/base/utils/media/assetUrl.ts', async (importOriginal) => ({
   ...((await importOriginal()) as Record<string, unknown>),
   useRenderAssetResolver: () => (x: string) => x,
 }));

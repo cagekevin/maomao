@@ -14,7 +14,9 @@ vi.mock('../../src/components/canvas/parts/ExpandablePanel.tsx', () => ({
 vi.mock('../../src/components/canvas/parts/GenerateButton.tsx', () => ({
   default: mocks.GenerateButton,
 }));
-vi.mock('../../src/components/base/ui/ModelSelect.tsx', () => ({ default: mocks.ModelSelect }));
+vi.mock('../../src/components/base/ui/form/ModelSelect.tsx', () => ({
+  default: mocks.ModelSelect,
+}));
 vi.mock('../../src/components/canvas/shell/PromptInput.tsx', () => ({
   default: mocks.PromptInput,
 }));
@@ -33,7 +35,7 @@ vi.mock('../../src/components/canvas/parts/GeneratingOverlay.tsx', () => ({
 vi.mock('../../src/components/creative/CreativeLibraryButton.tsx', () => ({
   default: mocks.PromptLibraryButton,
 }));
-vi.mock('../../src/components/base/core/uiHooks.ts', () => ({
+vi.mock('../../src/components/base/core/interaction/uiHooks.ts', () => ({
   useNodeResize: mocks.useNodeResize,
   useOutsideClick: mocks.useOutsideClick,
 }));
@@ -55,7 +57,7 @@ vi.mock('../../src/hooks/useSyncNodeData.ts', async (importOriginal) => ({
   ...((await importOriginal()) as Record<string, unknown>),
   useSyncNodeData: mocks.useSyncNodeData,
 }));
-vi.mock('../../src/components/base/core/toastStore.ts', async (importOriginal) => ({
+vi.mock('../../src/components/base/core/event/toastStore.ts', async (importOriginal) => ({
   ...((await importOriginal()) as Record<string, unknown>),
   showToast: mocks.showToast,
   toastWarning: mocks.toastWarning,

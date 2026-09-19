@@ -12,11 +12,11 @@
  */
 import { memo, useState } from 'react';
 import type { ReactNode } from 'react';
-import { useImageFallbackSrc } from '@/components/base/utils/useImageFallbackSrc';
+import { useImageFallbackSrc } from '@/components/base/utils/media/useImageFallbackSrc';
 import { extractImageSpans, type ImageSpan } from './markdownImages';
-import { logger } from '@/components/base/core/logger';
-import { toastError } from '@/components/base/core/toastStore';
-import { copyText } from '@/components/base/utils/clipboard';
+import { logger } from '@/components/base/core/log/logger';
+import { toastError } from '@/components/base/core/event/toastStore';
+import { copyText } from '@/components/base/utils/net/clipboard';
 
 /** 行内匹配模式（含 markdown 图片，由外层切图先处理） */
 const INLINE_PATTERN =

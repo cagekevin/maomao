@@ -17,7 +17,9 @@ vi.mock('../../src/components/image/editors/ImageEditor.tsx', () => ({
   default: mocks.ImageEditor,
 }));
 vi.mock('../../src/hooks/useAssetDegrade.ts', () => ({ useAssetDegrade: mocks.useAssetDegrade }));
-vi.mock('../../src/hooks/useFitNodeRatio.ts', () => ({ useFitNodeRatio: mocks.useFitNodeRatio }));
+vi.mock('../../src/components/image/useFitNodeRatio.ts', () => ({
+  useFitNodeRatio: mocks.useFitNodeRatio,
+}));
 vi.mock('../../src/hooks/useVideoPoster.ts', () => ({ useVideoPoster: mocks.useVideoPoster }));
 vi.mock('../../src/components/base/api/filesApi.ts', async (importOriginal) => ({
   ...((await importOriginal()) as Record<string, unknown>),
@@ -25,7 +27,7 @@ vi.mock('../../src/components/base/api/filesApi.ts', async (importOriginal) => (
   saveInlineToLocal: mocks.saveInlineToLocal,
   resolveNodeAssetUrl: mocks.resolveNodeAssetUrl,
 }));
-vi.mock('../../src/components/base/core/toastStore.ts', async (importOriginal) => ({
+vi.mock('../../src/components/base/core/event/toastStore.ts', async (importOriginal) => ({
   ...((await importOriginal()) as Record<string, unknown>),
   showToast: mocks.showToast,
   toastError: mocks.toastError,

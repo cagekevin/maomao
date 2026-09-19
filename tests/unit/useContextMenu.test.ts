@@ -12,7 +12,7 @@ import { renderHook, act } from '@testing-library/react';
 import type { MouseEvent as ReactMouseEvent } from 'react';
 import type { Node } from '@xyflow/react';
 
-const { useContextMenu } = await import('../../src/hooks/useContextMenu.ts');
+const { useContextMenu } = await import('../../src/components/canvas/shell/useContextMenu.ts');
 
 /**
  * 构造右键事件替身。

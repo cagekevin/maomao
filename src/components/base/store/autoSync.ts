@@ -22,9 +22,9 @@ import {
   isCloudSyncReady,
   type AutoConflictHandler,
 } from './cloudSync.ts';
-import { askChoice, askConfirm } from '../core/confirmStore.ts';
-import { showToast } from '../core/toastStore.ts';
-import { logger } from '../core/logger.ts';
+import { askChoice, askConfirm } from '../core/event/confirmStore.ts';
+import { showToast } from '../core/event/toastStore.ts';
+import { logger } from '../core/log/logger.ts';
 
 /** 两轮自动同步之间隔（固定 45 分钟；间隔可调留二期，见 docs 方案 §8） */
 const INTERVAL_MS = 45 * 60_000;

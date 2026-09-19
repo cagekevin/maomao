@@ -11,11 +11,11 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 
 const h = vi.hoisted(() => ({ warn: vi.fn() }));
-vi.mock('../../src/components/base/core/logger.ts', () => ({
+vi.mock('../../src/components/base/core/log/logger.ts', () => ({
   logger: { warn: h.warn, info: vi.fn(), error: vi.fn() },
 }));
 
-import VideoThumbnail from '../../src/components/base/ui/VideoThumbnail.tsx';
+import VideoThumbnail from '../../src/components/base/ui/display/VideoThumbnail.tsx';
 
 beforeEach(() => h.warn.mockClear());
 

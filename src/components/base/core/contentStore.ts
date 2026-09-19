@@ -65,13 +65,13 @@ import { sGet, sSet, sRemove, isStorageReady } from '../storage/index.ts';
 // 落盘结果判别联合（生产者给全：失败/降级/未确认都是事实，不接受"发个事件就算交代了"）
 import type { PersistWriteOutcome } from '../storage/storageAdapter.ts';
 import { kvGet, kvSet, kvDelete, kvGetVersion } from '../api/localToolApi.ts';
-import { reportDegrade } from './degrade.ts';
+import { reportDegrade } from './log/degrade.ts';
 import { STORAGE_KEYS } from './contracts.ts';
 import type { StorageKeyMeta } from './contracts.ts';
-import { logger } from './logger.ts';
+import { logger } from './log/logger.ts';
 import { compilePatternRegex } from './utils.ts';
-import { tryParse as tryParseSafe } from '../utils/asyncGuard.ts';
-import { withTimeout } from '../utils/asyncGuard.ts';
+import { tryParse as tryParseSafe } from '../utils/net/asyncGuard.ts';
+import { withTimeout } from '../utils/net/asyncGuard.ts';
 
 /** 存储后端：local(localStorage) / kv(云端 KV) / native(原生桥) */
 export type StorageBackend = 'local' | 'kv' | 'native';

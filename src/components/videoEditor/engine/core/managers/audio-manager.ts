@@ -1,6 +1,6 @@
 import { videoEditorLogger } from '@/components/videoEditor/lib/videoEditorLogger';
-import { subscribe } from '../../../../base/core/eventBus.ts';
-import { releaseQuietly } from '../../../../base/utils/asyncGuard.ts';
+import { subscribe } from '@/components/base/core/event/eventBus';
+import { releaseQuietly } from '@/components/base/utils/net/asyncGuard';
 import type { EditorCore } from '@/components/videoEditor/engine/core';
 import type { AudioClipSource } from '@/components/videoEditor/engine/lib/media/audio';
 import {

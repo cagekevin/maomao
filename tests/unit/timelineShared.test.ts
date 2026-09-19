@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
   pxDeltaToTime,
@@ -6,7 +6,7 @@ import {
   timeDeltaToPx,
   timeToX,
   xToTime,
-} from '../../src/components/base/utils/timeline/timeScale.ts';
+} from '../../src/components/video/lib/timeScale.ts';
 
 describe('timeScale · 时间↔像素', () => {
   it('timeToX / xToTime 互为反函数（含滚动位移）', () => {
@@ -45,7 +45,19 @@ describe('timeScale · 吸附（容差以像素给）', () => {
 });
 
 describe('宿主绑定：VideoProcessNode 必须用共用原语，不许再内联换算', () => {
-  const src = readFileSync('src/components/canvas/nodes/VideoProcessNode.tsx', 'utf8');
+  // 【手册 §5 / §7#5】禁止写死单一目录 —— 该宿主已因域归位搬迁过一次（canvas/nodes → video/nodes），
+  // 写死路径会让本测试在**收集期** ENOENT 假红/假死。改**多候选探测**；一个都找不到 ⇒ 抛错（禁静默跳过）。
+  const HOST_CANDIDATES = [
+    'src/components/video/nodes/VideoProcessNode.tsx',
+    'src/components/canvas/nodes/VideoProcessNode.tsx',
+  ];
+  const hostPath = HOST_CANDIDATES.find((p) => existsSync(p));
+  if (!hostPath) {
+    throw new Error(
+      `找不到 VideoProcessNode 宿主（已试：${HOST_CANDIDATES.join(' · ')}）—— 搬迁后须同步本清单（手册 §5）`,
+    );
+  }
+  const src = readFileSync(hostPath, 'utf8');
 
   it('时间↔像素换算全部经共用原语', () => {
     expect(src).toContain('timeToX(');

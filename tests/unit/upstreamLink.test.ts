@@ -13,7 +13,7 @@ const loggerState = vi.hoisted(() => ({ info: vi.fn(), warn: vi.fn() }));
 const runNodeGenerationMock = vi.hoisted(() => vi.fn());
 
 vi.mock('@xyflow/react', () => ({ useReactFlow: () => ({ getEdges: () => rfState.edges }) }));
-vi.mock('../../src/components/base/core/eventBus.ts', () => ({
+vi.mock('../../src/components/base/core/event/eventBus.ts', () => ({
   subscribe: (_evt: any, cb: any) => {
     busState.handler = cb;
     return () => {};
@@ -31,7 +31,7 @@ vi.mock('../../src/components/base/store/taskStore.ts', async (importOriginal) =
   ...((await importOriginal()) as Record<string, unknown>),
   runNodeGeneration: runNodeGenerationMock,
 }));
-vi.mock('../../src/components/base/core/logger.ts', () => ({ logger: loggerState }));
+vi.mock('../../src/components/base/core/log/logger.ts', () => ({ logger: loggerState }));
 
 import { useUpstreamAutoTrigger } from '../../src/components/canvas/topology/upstreamLink.ts';
 

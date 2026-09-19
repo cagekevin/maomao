@@ -47,8 +47,8 @@ vi.mock('../../src/hooks/useConnectedInputs.ts', async (importOriginal) => ({
   useConnectedInputs: mocks.useConnectedInputs,
 }));
 vi.mock('../../src/hooks/useAssetDegrade.ts', () => ({ useAssetDegrade: mocks.useAssetDegrade }));
-vi.mock('../../src/components/base/ui/LazyImage.tsx', () => ({ default: mocks.LazyImage }));
-vi.mock('../../src/components/base/core/toastStore.ts', async (importOriginal) => ({
+vi.mock('../../src/components/base/ui/display/LazyImage.tsx', () => ({ default: mocks.LazyImage }));
+vi.mock('../../src/components/base/core/event/toastStore.ts', async (importOriginal) => ({
   ...((await importOriginal()) as Record<string, unknown>),
   showToast: mocks.showToast,
   toastError: mocks.toastError,
@@ -97,7 +97,7 @@ vi.mock('../../src/components/base/api/filesApi.ts', async (importOriginal) => (
 // 判据：**替身要替的是边界（加载/超时），不是断言的手动触发**。这里把边界整体替换为
 // 「立即 reject」，与生产语义一致（加载失败 → `makeThumb` 返回 undefined，不挂起），
 // 且**与耗时无关**。手写的 `fakeImg.onerror?.()` 保留即可（它现在是无害的 no-op）。
-vi.mock('../../src/components/base/utils/asyncGuard.ts', () => ({
+vi.mock('../../src/components/base/utils/net/asyncGuard.ts', () => ({
   loadImageWithTimeout: () => Promise.reject(new Error('测试替身：缩略图加载立即失败')),
   attemptQuietly: async (f: () => unknown) => {
     try {
@@ -107,8 +107,10 @@ vi.mock('../../src/components/base/utils/asyncGuard.ts', () => ({
     }
   },
 }));
-vi.mock('../../src/components/base/utils/clipboard.ts', () => h.clipboardMock);
-vi.mock('../../src/components/base/ui/ImageZoomDialog.tsx', () => ({ default: () => null }));
+vi.mock('../../src/components/base/utils/net/clipboard.ts', () => h.clipboardMock);
+vi.mock('../../src/components/base/ui/display/ImageZoomDialog.tsx', () => ({
+  default: () => null,
+}));
 
 import ImageBoxNode from '../../src/components/image/nodes/ImageBoxNode.tsx';
 

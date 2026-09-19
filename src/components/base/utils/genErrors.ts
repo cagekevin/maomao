@@ -15,7 +15,7 @@
  * 【用法】调用方拿到 type 后统一决策（abort 原样上抛 / network·timeout 降级 / 其余按业务
  * 处理），禁止再自写 if(/网络错误/) 之类关键词判断。类型登记/文案在 contracts.ts GEN_ERRORS。
  */
-import { isTimeoutError } from './asyncGuard.ts';
+import { isTimeoutError } from './net/asyncGuard.ts';
 import { GEN_ERRORS } from '../core/contracts.ts';
 import type { ErrorKind } from '@/types';
 

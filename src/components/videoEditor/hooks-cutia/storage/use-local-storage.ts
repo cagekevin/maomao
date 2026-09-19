@@ -9,7 +9,7 @@ import {
   readLegacyRawKey,
   removeLegacyRawKey,
 } from '@/components/base/storage/index.ts';
-import { reportDegrade } from '@/components/base/core/degrade.ts';
+import { reportDegrade } from '@/components/base/core/log/degrade';
 
 /**
  * 本地持久化偏好 hook（cutia 搬迁带入，2026-09-16 收口 M7 裸写 · TD-02-33/37）。

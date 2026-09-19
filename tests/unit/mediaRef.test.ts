@@ -197,7 +197,7 @@ describe('providers：映射（复用既有真源）', () => {
     rs.addResources([
       { url: '/files/sha1abc.png', contentId: 'sha1:abc', type: 'image', name: 'x.png' },
     ]);
-    const { logger } = await import('../../src/components/base/core/logger.ts');
+    const { logger } = await import('../../src/components/base/core/log/logger.ts');
     const warnSpy = vi.spyOn(logger, 'warn');
 
     bridge.setCanvasNodesSnapshot([

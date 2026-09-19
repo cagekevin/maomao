@@ -28,7 +28,7 @@ import {
 // ── 2026-09-16 M7 收口（TD-02-34/40）：收藏音效由「仅 IndexedDB」改走 contentStore（键已登记 backend:'local'）。
 import { KEY_VIDEO_EDITOR_SAVED_SOUNDS } from '../../../../base/core/contracts.ts';
 import { HttpError } from '../../../../base/api/httpClient.ts';
-import { logger } from '../../../../base/core/logger.ts';
+import { logger } from '@/components/base/core/log/logger';
 // ── T4（docs/134）：素材二进制改走 localTool /files/（docs/133 §3.2 D-3）。
 // 更新(2026-09-16 · TD-02-35)：素材**元数据**载体同时收口 —— 原浏览器 IndexedDB → KV（见 readMediaMetaMap）。
 import { uploadFileToLocal, type UploadOutcome } from '../../../../base/api/filesApi.ts';

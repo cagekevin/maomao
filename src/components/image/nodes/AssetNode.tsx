@@ -1,5 +1,5 @@
 import React, { useState, useRef, useCallback } from 'react';
-import { logger } from '@/components/base/core/logger';
+import { logger } from '@/components/base/core/log/logger';
 import {
   Image as ImageIcon,
   ImageOff,
@@ -15,10 +15,10 @@ import {
 import { useReactFlow } from '@xyflow/react';
 import NodeShell from '@/components/canvas/parts/NodeShell';
 import HoverToolbar from '@/components/canvas/shell/HoverToolbar';
-import ImageZoomDialog from '@/components/base/ui/ImageZoomDialog';
-import VideoThumbnail from '@/components/base/ui/VideoThumbnail';
-import { replaceNodeImage } from '@/components/canvas/nodeImage';
-import { detectAssetType, detectFileType } from '@/components/base/utils/assetType';
+import ImageZoomDialog from '@/components/base/ui/display/ImageZoomDialog';
+import VideoThumbnail from '@/components/base/ui/display/VideoThumbnail';
+import { replaceNodeImage } from '@/components/image/lib/nodeImage';
+import { detectAssetType, detectFileType } from '@/components/base/utils/media/assetType';
 import { fileNameFromUrl } from '@/components/base/core/utils';
 import { assetTypeLabel, type AssetType } from '@/types';
 import { useAssetDegrade } from '@/hooks/useAssetDegrade';
@@ -28,11 +28,14 @@ import { useNodeRename } from '@/hooks/useNodeRename';
 import { patchNodeDataById } from '@/hooks/useNodeData';
 import { toAbsoluteFileUrl, resolveNodeAssetUrl } from '@/components/base/api/index';
 import { UPLOAD_DIRS } from '@/components/base/utils/uploadDirs';
-import { resolveAssetDisplayUrl, buildContentUrlResolver } from '@/components/base/utils/assetUrl';
-import { useImageFallbackSrc } from '@/components/base/utils/useImageFallbackSrc';
+import {
+  resolveAssetDisplayUrl,
+  buildContentUrlResolver,
+} from '@/components/base/utils/media/assetUrl';
+import { useImageFallbackSrc } from '@/components/base/utils/media/useImageFallbackSrc';
 import { useImageHoverActions } from '@/components/image/useImageHoverActions';
-import { downloadUrl } from '@/components/base/utils/clipboard';
-import { showToast, toastError } from '@/components/base/core/toastStore';
+import { downloadUrl } from '@/components/base/utils/net/clipboard';
+import { showToast, toastError } from '@/components/base/core/event/toastStore';
 import { sendToResourceLibrary, getResources } from '@/components/resource/resourceStore';
 import { openResourceLibrary } from '@/components/base/store/taskStore';
 import { CameraStudioPanel } from '../editors';

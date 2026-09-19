@@ -35,19 +35,19 @@ vi.mock('../../src/hooks/useConnectedInputs.ts', async (importOriginal) => ({
   useConnectedInputs: mocks.useConnectedInputs,
 }));
 vi.mock('../../src/hooks/useAssetDegrade.ts', () => ({ useAssetDegrade: mocks.useAssetDegrade }));
-vi.mock('../../src/components/base/core/uiHooks.ts', () => ({
+vi.mock('../../src/components/base/core/interaction/uiHooks.ts', () => ({
   useNodeResize: mocks.useNodeResize,
   useContentHeightSync: mocks.useContentHeightSync,
   useOutsideClick: mocks.useOutsideClick,
 }));
-vi.mock('../../src/components/base/core/toastStore.ts', async (importOriginal) => ({
+vi.mock('../../src/components/base/core/event/toastStore.ts', async (importOriginal) => ({
   ...((await importOriginal()) as Record<string, unknown>),
   showToast: mocks.showToast,
   toastError: mocks.toastError,
   toastWarning: mocks.toastWarning,
 }));
 // 补全 subscribe/subscribeOnce（taskStore 等模块顶层会 subscribe，缺则崩）；返回 no-op unsubscribe
-vi.mock('../../src/components/base/core/eventBus.ts', () => ({
+vi.mock('../../src/components/base/core/event/eventBus.ts', () => ({
   publish: mocks.publish,
   subscribe: (mocks as any).subscribe ?? (() => () => {}),
   subscribeOnce: (mocks as any).subscribeOnce ?? (() => () => {}),
@@ -57,16 +57,16 @@ vi.mock('../../src/components/base/core/eventBus.ts', () => ({
 // `withTimeout/isTimeoutError`，缺 `tryParse` 会在**组件渲染路径**上抛
 // "No tryParse export is defined on the mock"（表现为一堆与落盘无关的用例一起红）。
 // 用 `importOriginal` 取真实实现：`tryParse` 是纯函数，mock 它没有意义。
-vi.mock('../../src/components/base/utils/asyncGuard.ts', async (importOriginal) => {
+vi.mock('../../src/components/base/utils/net/asyncGuard.ts', async (importOriginal) => {
   const actual =
-    await importOriginal<typeof import('../../src/components/base/utils/asyncGuard.ts')>();
+    await importOriginal<typeof import('../../src/components/base/utils/net/asyncGuard.ts')>();
   return {
     ...actual,
     withTimeout: mocks.withTimeout,
     isTimeoutError: mocks.isTimeoutError,
   };
 });
-vi.mock('../../src/components/base/utils/videoEngine.ts', async (importOriginal) => ({
+vi.mock('../../src/components/video/lib/videoEngine.ts', async (importOriginal) => ({
   ...((await importOriginal()) as Record<string, unknown>),
   readVideoMetadata: mocks.readVideoMetadata,
   processVideo: mocks.processVideo,

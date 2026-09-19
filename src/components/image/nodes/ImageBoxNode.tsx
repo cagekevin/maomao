@@ -19,23 +19,23 @@ import { useConnectedInputs } from '@/hooks/useConnectedInputs';
 import { useNodeData } from '@/hooks/useNodeData';
 import { useNodeRename } from '@/hooks/useNodeRename';
 import { useAssetDegrade } from '@/hooks/useAssetDegrade';
-import LazyImage from '@/components/base/ui/LazyImage';
-import ImageZoomDialog from '@/components/base/ui/ImageZoomDialog';
-import { toastWarning, toastError } from '@/components/base/core/toastStore';
+import LazyImage from '@/components/base/ui/display/LazyImage';
+import ImageZoomDialog from '@/components/base/ui/display/ImageZoomDialog';
+import { toastWarning, toastError } from '@/components/base/core/event/toastStore';
 // 编辑器内的交互归编辑器（ADR-0029）：判据走共用原语，禁自写（自写必漏）。
-import { isEditableTarget } from '@/components/base/core/uiHooks';
-import { copyImageToClipboard } from '@/components/base/utils/clipboard';
-import { loadImageWithTimeout, attemptQuietly } from '@/components/base/utils/asyncGuard';
-import { logger } from '@/components/base/core/logger';
-import { useCopyNode } from '@/hooks/useCopyNode';
+import { isEditableTarget } from '@/components/base/core/interaction/uiHooks';
+import { copyImageToClipboard } from '@/components/base/utils/net/clipboard';
+import { loadImageWithTimeout, attemptQuietly } from '@/components/base/utils/net/asyncGuard';
+import { logger } from '@/components/base/core/log/logger';
+import { useCopyNode } from '@/components/image/useCopyNode';
 import { generateId } from '@/components/base/core/idGen';
 import { canvasToImageDataUrl } from '@/components/base/core/utils';
-import { downloadUrl as clipboardDownload } from '@/components/base/utils/clipboard';
+import { downloadUrl as clipboardDownload } from '@/components/base/utils/net/clipboard';
 
-import { useRenderAssetResolver } from '@/components/base/utils/assetUrl';
+import { useRenderAssetResolver } from '@/components/base/utils/media/assetUrl';
 // 判型唯一入口（TD-16-17/18 收口）：本文件曾 5 处手写 `startsWith('http')||startsWith('data:image')`
 // 与 `f.type.startsWith('image/')`，绕过 assetType 真值源 —— 现统一走 isAssetUrl / detectFileType。
-import { isAssetUrl, detectFileType } from '@/components/base/utils/assetType';
+import { isAssetUrl, detectFileType } from '@/components/base/utils/media/assetType';
 // §5.4.9 图像入节点落盘策略唯一实现：File 源走 resolveNodeAssetUrl（multipart 直传 → /files/ 持久 URL）
 import { resolveNodeAssetUrl, persistUrlToUploads } from '@/components/base/api/filesApi';
 import { UPLOAD_DIRS } from '@/components/base/utils/uploadDirs';

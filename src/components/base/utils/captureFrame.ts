@@ -32,10 +32,10 @@
  *    是「canvas → 缩略图」的图像缩放，**不涉及视频 seek / decode**。并入会削掉其无视频源的能力。
  *  - `base/ui/VideoThumbnail.tsx:49`：**显示侧组件**（`<video preload="metadata">` + 悬浮播放按钮），
  *    **根本不抽帧**，靠浏览器渲染首帧。它没有可提取的帧数据。
- *  - `base/utils/videoEngine.ts:568`：GIF 逐帧编码循环内的 `ctx.drawImage(video, …)`
+ *  - `video/lib/videoEngine.ts:568`：GIF 逐帧编码循环内的 `ctx.drawImage(video, …)`
  *    （`videoToGif` 的一部分），逐帧 `getImageData → quantize → writeFrame`，**不是"取一帧"API**，
  *    帧数据直接进编码器、不产出单帧图。抽出来会打断编码循环。
- *  - `nodes/VideoExtractNode.tsx` 的 `smartCapture`（16×16 像素差）：只取 16×16 像素做画面变化检测，
+ *  - `video/nodes/VideoExtractNode.tsx` 的 `smartCapture`（16×16 像素差）：只取 16×16 像素做画面变化检测，
  *    **不产出帧图**（`getImageData` 而非 `toDataURL`），与"抽一帧"不同类。
  *  - `base/utils/clipboard.ts:103 drawVideoFrameToCanvas`（**2026-09-13 步 2 改判：从"待迁"改为异类**）：
  *    它**不是"从视频取某一时刻的帧"，而是"把预览框当前已显示的画拿走"**（截屏 → 剪贴板）。两类能力共用一个名字是历史巧合。
@@ -87,8 +87,8 @@
  * 唯一实现下沉到 `asyncGuard.ts`（更底层，且 `captureFrame → asyncGuard` 已有单向依赖），
  * 本文件 re-export 保持 6 处既有视频链路消费方**零改动**。
  */
-import { releaseQuietly, setCrossOriginForReadable } from './asyncGuard.ts';
-import { logger } from '../core/logger.ts';
+import { releaseQuietly, setCrossOriginForReadable } from './net/asyncGuard.ts';
+import { logger } from '../core/log/logger.ts';
 // 【TD-06-14】canvas 异步产出走唯一出口（产出即校验，失败根部抛出）—— 本文件原自写 Promise + `reject(toBlob null)`。
 import { canvasToBlob } from '../core/utils.ts';
 

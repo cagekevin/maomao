@@ -1,6 +1,6 @@
 import { useAppSettings, setSetting } from '@/components/base/store/appSettings';
 import { UI_SETTING_ROWS, type UISettingDef } from '@/components/settings/settingRegistry';
-import { Toggle } from '@/components/base/ui/Toggle';
+import { Toggle } from '@/components/base/ui/form/Toggle';
 
 /** 单项设置行：标题 + 说明 + 右侧开关 */
 interface SettingRowProps {

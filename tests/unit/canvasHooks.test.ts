@@ -18,12 +18,12 @@
 import { describe, it, expect, vi } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import type { Node } from '@xyflow/react';
-import type { CanvasSnapshot } from '../../src/hooks/useCanvasHistory.ts';
+import type { CanvasSnapshot } from '../../src/components/canvas/structure/useCanvasHistory.ts';
 
 // ───────────────────────────────────────────────────────────
 // 1. useCanvasHistory
 // ───────────────────────────────────────────────────────────
-import { useCanvasHistory } from '../../src/hooks/useCanvasHistory.ts';
+import { useCanvasHistory } from '../../src/components/canvas/structure/useCanvasHistory.ts';
 
 describe('useCanvasHistory 撤销/重做 hook 桥接', () => {
   it('record(snapshot) 调 stack.push 并触发重渲染（canUndo 变 true）', () => {

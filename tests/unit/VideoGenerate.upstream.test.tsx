@@ -58,7 +58,7 @@ vi.mock('../../src/components/canvas/shell/ResourceStrip.tsx', () => ({
 }));
 vi.mock('../../src/components/canvas/shell/HoverToolbar.tsx', () => ({ default: () => null }));
 vi.mock('../../src/components/canvas/shell/PromptInput.tsx', () => ({ default: () => null }));
-vi.mock('../../src/components/base/core/uiHooks.ts', async (importOriginal) => ({
+vi.mock('../../src/components/base/core/interaction/uiHooks.ts', async (importOriginal) => ({
   ...(await importOriginal()),
   useNodeResize: () => ({ onInputResize: vi.fn() }),
   useOutsideClick: () => {},

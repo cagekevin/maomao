@@ -10,20 +10,20 @@ import { useNodeRename } from '@/hooks/useNodeRename';
 import { uploadFileToLocal, toAbsoluteFileUrl } from '@/components/base/api/index';
 // 落盘目录取中央表（TD-03-18：此前本文件裸写 'canvas/face_mosaic'，表外目录 = 孤儿目录的来源）
 import { UPLOAD_DIRS } from '@/components/base/utils/uploadDirs';
-import { useRenderAssetResolver } from '@/components/base/utils/assetUrl';
-import { toastError, toastWarning } from '@/components/base/core/toastStore';
-import { logger } from '@/components/base/core/logger';
+import { useRenderAssetResolver } from '@/components/base/utils/media/assetUrl';
+import { toastError, toastWarning } from '@/components/base/core/event/toastStore';
+import { logger } from '@/components/base/core/log/logger';
 import { classifyError } from '@/components/base/utils/genErrors';
 import {
   applyMosaic,
   MOSAIC_MODES,
   MOSAIC_PALETTE,
   type MosaicMode,
-} from '@/components/base/utils/faceMosaic';
+} from '@/components/image/lib/faceMosaic';
 import { FaceMosaicEditor } from '../editors';
-import ImageZoomDialog from '@/components/base/ui/ImageZoomDialog';
+import ImageZoomDialog from '@/components/base/ui/display/ImageZoomDialog';
 import { generateId } from '@/components/base/core/idGen';
-import previewUrls from '@/components/base/utils/previewUrl';
+import previewUrls from '@/components/base/utils/media/previewUrl';
 import { dataUrlToBlob } from '@/components/base/core/utils';
 
 /**

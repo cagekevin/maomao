@@ -8,6 +8,21 @@ import { fileURLToPath } from 'node:url';
 // 改用标准 ESM 写法，不依赖任何打包器注入，tsc 也能真校验（此前 .js + checkJs:false = 零检查）。
 const rootDir = path.dirname(fileURLToPath(import.meta.url));
 
+/**
+ * 取 id 中「最内层 node_modules/ 之后的包名」（支持 @scope/name）。
+ * 必须取最内层：同一个包可能有多个副本（实测 zustand 三份 —— 顶层 ·
+ * `tunnel-rat/node_modules`（drei 依赖）· `@xyflow/react/node_modules`）。
+ * 只有归到同一个包名，才可能把同一包的所有子模块判进同一 chunk。
+ */
+function packageName(id: string): string | null {
+  const marker = 'node_modules/';
+  const i = id.lastIndexOf(marker);
+  if (i === -1) return null;
+  const rest = id.slice(i + marker.length);
+  const seg = rest.split('/');
+  return rest.startsWith('@') ? `${seg[0]}/${seg[1]}` : seg[0];
+}
+
 export default defineConfig({
   plugins: [react()],
   resolve: {
@@ -51,6 +66,19 @@ export default defineConfig({
           // 顺序很重要：three/@react-three 必须在 react 判断之前匹配，否则含 'react' 的
           // @react-three/fiber 会被误吸进 vendor-react，且 three 体积巨大应独立成 vendor-3d。
           if (id.includes('node_modules')) {
+            // ── 规则 0（必须最先判）：同一个包的所有子模块必须落进同一个 chunk ──
+            // 反例成因（2026-09-19 实测）：下面各条判据都是「路径子串」，但同一个包的子模块路径
+            // 有的含 'react'、有的不含 —— `zustand/esm/react.mjs` 含 → vendor-react；而
+            // `zustand/esm/vanilla.mjs`、`use-sync-external-store/**` 不含 → 无归属 → 被折进
+            // 别的 chunk。同一个包被劈成两半 ⇒ 两 chunk 互相 import ⇒ Rollup 报
+            //   「Circular chunk: vendor-3d -> vendor-react -> vendor-3d」
+            // ⇒ 运行期 `Cannot access 'HE' before initialization`（vendor-3d 读 vendor-react
+            //    尚未初始化的导出，TDZ），且 1.06MB 的 vendor-3d 被入口 chunk 静态 import
+            //    （首屏必载，lazy 优化整体失效）。
+            // 处置：按**包名**整包归组，归入低层 vendor-react —— 3D 侧依赖它是**单向**边，不成环
+            //       （与 2026-08-20 修 @xyflow 的手法同源：不让循环的一方独立成 chunk）。
+            const pkg = packageName(id);
+            if (pkg === 'zustand' || pkg === 'use-sync-external-store') return 'vendor-react';
             if (id.includes('@react-three') || id.includes('/three/') || id.includes('three/build'))
               return 'vendor-3d';
             // @xyflow 不再独立成 chunk：它强依赖 react（peerDeps react>=17，模块顶部大量

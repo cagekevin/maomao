@@ -18,10 +18,10 @@
  * 【结果信封】复用 src/types/provider.ts 的 GenerationResult 唯一真源，禁止二次定义（修正 8）。
  */
 import { GEN_TIMEOUT, VIDEO_TIMEOUT, CHAT_TIMEOUT } from '../core/config.ts';
-import { normalizeAssetUrlsForSend, toImageContentBlocks } from '../utils/assetUrl.ts';
+import { normalizeAssetUrlsForSend, toImageContentBlocks } from '../utils/media/assetUrl.ts';
 import { resolveImagePixel } from '../utils/imagePixel.ts';
 import { relayGenerate, relayChat, relayChatStream } from './relayProxy.ts';
-import { logger } from '../core/logger.ts';
+import { logger } from '../core/log/logger.ts';
 import type { RelayCapability, RelayIntent } from './relayProxy.ts';
 import type { GenerationProvider, GenerationResult } from '@/types';
 

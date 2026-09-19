@@ -38,7 +38,7 @@ import {
 import { useProviders, useEnsureProvidersLoaded } from '@/components/settings/providerStore';
 import AgentMessage, { type AgentMessageData } from './AgentMessage';
 import AgentConfirmCard from './AgentConfirmCard';
-import ModelSelect from '@/components/base/ui/ModelSelect';
+import ModelSelect from '@/components/base/ui/form/ModelSelect';
 import {
   ArrowDown,
   ArrowUp,
@@ -56,7 +56,7 @@ import {
   Zap,
 } from 'lucide-react';
 import { buildAllModels } from '@/components/base/utils/providerModels';
-import { useOutsideClick } from '@/components/base/core/uiHooks';
+import { useOutsideClick } from '@/components/base/core/interaction/uiHooks';
 import {
   loadAgentChatModel,
   AGENT_CHAT_MODEL_KEY,
@@ -75,17 +75,17 @@ import {
 // 面板宽度键真源（TD-13-7：本面板不再自持第二份键字面量）
 import { KEY_AGENT_PANEL_WIDTH } from '@/components/base/core/contracts';
 import { contentGet, contentSet, contentSubscribe } from '@/components/base/core/contentStore';
-import { confirmPersist } from '@/components/base/core/degrade';
+import { confirmPersist } from '@/components/base/core/log/degrade';
 import { toAbsoluteFileUrl } from '@/components/base/api/index';
-import { fileToDataUrl } from '@/components/base/utils/assetUrl';
+import { fileToDataUrl } from '@/components/base/utils/media/assetUrl';
 // 判型唯一入口（TD-16-18 收口）：附件筛选曾手写 `f.type.startsWith('image/')`，现走 detectFileType。
-import { detectFileType } from '@/components/base/utils/assetType';
+import { detectFileType } from '@/components/base/utils/media/assetType';
 import { runNodeGeneration } from '@/components/base/store/taskStore';
-import { showToast } from '@/components/base/core/toastStore';
-import { askConfirm } from '@/components/base/core/confirmStore';
-import { logger } from '@/components/base/core/logger';
-import previewUrls from '@/components/base/utils/previewUrl';
-import { subscribe } from '@/components/base/core/eventBus';
+import { showToast } from '@/components/base/core/event/toastStore';
+import { askConfirm } from '@/components/base/core/event/confirmStore';
+import { logger } from '@/components/base/core/log/logger';
+import previewUrls from '@/components/base/utils/media/previewUrl';
+import { subscribe } from '@/components/base/core/event/eventBus';
 import { CREDIT_GATE_EVENT } from '@/components/base/core/contracts';
 // 【TD-15-1】agentKey 前缀单源（默认 agentKey = 前缀，禁本地拼字面量）
 import { AGENT_KEY_PREFIX } from '@/components/base/core/agentKeys';
@@ -115,7 +115,7 @@ import { buildRefineRowsUser } from '../assistantTable/assistantTablePrompt.ts';
 import { getCurrentSnapshot, type SnapshotPatch } from '../conversation/conversationSnapshot.ts';
 import type { Conversation } from '../conversation/conversationTypes.ts';
 import AttachmentCover from '@/components/agent/panels/attachmentCover';
-import LazyImage from '@/components/base/ui/LazyImage';
+import LazyImage from '@/components/base/ui/display/LazyImage';
 
 /**
  * 待发送/待引用区的媒体占位 chip：图片/视频/音频统一 44×44 缩略占位，仅示意、不可在 chip 内播放。

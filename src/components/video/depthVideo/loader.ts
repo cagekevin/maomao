@@ -13,7 +13,7 @@
 
 import { clampInt } from './engine';
 import type { RuntimeModelPaths } from './depthUrls';
-import { logger } from '@/components/base/core/logger';
+import { logger } from '@/components/base/core/log/logger';
 
 /**
  * WebGPU 入口的最小可用契约。

@@ -3,7 +3,7 @@ import { flushAsync } from './_testUtils.mjs';
 
 // 产生层留痕（logger.warn）——chrome 异步回调失败**只能**经它观测（本调用已返回 pending），故断言它。
 const { warnMock } = vi.hoisted(() => ({ warnMock: vi.fn() }));
-vi.mock('../../src/components/base/core/logger.ts', () => ({
+vi.mock('../../src/components/base/core/log/logger.ts', () => ({
   logger: { warn: warnMock, info: vi.fn(), error: vi.fn(), log: vi.fn(), debug: vi.fn() },
 }));
 

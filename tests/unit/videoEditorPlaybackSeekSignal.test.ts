@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import type { EditorCore } from '../../src/components/videoEditor/engine/core';
 import { PlaybackManager } from '../../src/components/videoEditor/engine/core/managers/playback-manager.ts';
-import { subscribe, clearEvent } from '../../src/components/base/core/eventBus.ts';
+import { subscribe, clearEvent } from '../../src/components/base/core/event/eventBus.ts';
 
 /**
  * TD-22-23：播放头跳转的信号通道。

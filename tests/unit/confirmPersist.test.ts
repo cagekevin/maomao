@@ -8,7 +8,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const { showToastMock } = vi.hoisted(() => ({ showToastMock: vi.fn() }));
-vi.mock('../../src/components/base/core/toastStore.ts', async (importOriginal) => ({
+vi.mock('../../src/components/base/core/event/toastStore.ts', async (importOriginal) => ({
   ...((await importOriginal()) as Record<string, unknown>),
   showToast: showToastMock,
   toastSuccess: vi.fn(),
@@ -16,12 +16,12 @@ vi.mock('../../src/components/base/core/toastStore.ts', async (importOriginal) =
   toastWarning: vi.fn(),
   toastInfo: vi.fn(),
 }));
-vi.mock('../../src/components/base/core/logger.ts', () => ({
+vi.mock('../../src/components/base/core/log/logger.ts', () => ({
   logger: { warn: vi.fn(), info: vi.fn(), error: vi.fn(), debug: vi.fn() },
 }));
 
-import { confirmPersist, tryParseOr } from '../../src/components/base/core/degrade.ts';
-import { logger } from '../../src/components/base/core/logger.ts';
+import { confirmPersist, tryParseOr } from '../../src/components/base/core/log/degrade.ts';
+import { logger } from '../../src/components/base/core/log/logger.ts';
 
 const layer = '测试层';
 

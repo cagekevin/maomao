@@ -17,13 +17,13 @@
  */
 
 import { saveInlineToLocal, type UploadOutcome } from '../base/api/filesApi.ts';
-import { attemptQuietly } from '../base/utils/asyncGuard.ts';
+import { attemptQuietly } from '../base/utils/net/asyncGuard.ts';
 // 【TD-18-9】深拷贝收口到唯一入口（叶模块 `core/utils`，**不可**从 `./project.ts` 取 ——
 // `project.ts:17 → d3dPersistence.ts` 已存在，反向 import 会成环）。此处原为裸 `structuredClone` = 第二份实现。
 import { deepClone } from '../base/core/utils.ts';
 import { UPLOAD_DIRS } from '../base/utils/uploadDirs.ts';
-import { logger } from '../base/core/logger.ts';
-import { showToast } from '../base/core/toastStore.ts';
+import { logger } from '../base/core/log/logger.ts';
+import { showToast } from '../base/core/event/toastStore.ts';
 // TD-7 方案A：导演台工程双通道（KV 主通道 + localStorage 降级副本 + 独立 KV_TIMEOUT）
 // 收编进 contentStore 单一实现；per-key fallback/timeout 由 STORAGE_KEYS（director3d-project*）决定。
 // 不再裸调 kvGet/kvSet/sGet/sSet，消除「收口缺口」（与 kvStore.storageGet 双副本互不可见问题一并消除）。

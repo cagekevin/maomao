@@ -19,7 +19,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 // 用真实 contentStore/storageAdapter；只替换最小外部依赖（fetch 可控、logger 静默）。
-vi.mock('../../src/components/base/core/logger.ts', () => ({
+vi.mock('../../src/components/base/core/log/logger.ts', () => ({
   logger: { warn: vi.fn(), info: vi.fn(), error: vi.fn(), log: vi.fn(), debug: vi.fn() },
 }));
 

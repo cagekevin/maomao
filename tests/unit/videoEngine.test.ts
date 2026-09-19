@@ -15,7 +15,7 @@ import {
   ProgressController,
   ConversionCanceled,
   uploadResult,
-} from '../../src/components/base/utils/videoEngine.ts';
+} from '../../src/components/video/lib/videoEngine.ts';
 import { uploadFileToLocal } from '../../src/components/base/api/filesApi.ts';
 
 const mockUpload = vi.mocked(uploadFileToLocal);

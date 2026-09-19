@@ -2,12 +2,12 @@ import { useState, useEffect, useCallback } from 'react';
 import { Loader2, Image as ImageIcon } from 'lucide-react';
 import { rescanResources } from '../base/api/index.ts';
 import { fetchAllResourcePages } from '../base/api/pagedList.ts';
-import { toAbsoluteFileUrl } from '../base/utils/assetUrl.ts';
+import { toAbsoluteFileUrl } from '../base/utils/media/assetUrl.ts';
 import type { ResourceItem } from '../base/api/localToolApi.ts';
 import { mergeResourcesFromBackend } from '../resource/resourceStore.ts';
 import { useCurrentProjectId } from '../base/store/projectStore.ts';
 import { useLocalToolStatus } from '../../hooks/useLocalToolStatus.ts';
-import { logger } from '../base/core/logger.ts';
+import { logger } from '../base/core/log/logger.ts';
 import ScriptBoxModal from './ScriptBoxModal.tsx';
 
 /**

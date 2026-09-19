@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef } from 'react';
-import { copyText } from '@/components/base/utils/clipboard';
+import { copyText } from '@/components/base/utils/net/clipboard';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/videoEditor/ui/ui/popover';
 import { Button } from '@/components/videoEditor/ui/ui/button';
 import { Label } from '@/components/videoEditor/ui/ui/label';

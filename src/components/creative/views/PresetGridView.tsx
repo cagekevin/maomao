@@ -12,9 +12,9 @@
 
 import { useRef } from 'react';
 import { Play } from 'lucide-react';
-import LazyImage from '@/components/base/ui/LazyImage';
+import LazyImage from '@/components/base/ui/display/LazyImage';
 import type { CreativePreset } from '../creativePresets';
-import { logger } from '@/components/base/core/logger';
+import { logger } from '@/components/base/core/log/logger';
 
 export interface PresetGridViewProps {
   presets: CreativePreset[];

@@ -10,7 +10,7 @@ import { generateUUID } from '@/components/base/core/idGen.ts';
 import { videoCache } from '@/components/videoEditor/engine/services/video-cache/service';
 import { collectElementsByMediaId } from '@/components/videoEditor/engine/timeline/element-utils';
 import { toast } from '@/components/videoEditor/lib/toast';
-import { reportDegrade } from '@/components/base/core/degrade.ts';
+import { reportDegrade } from '@/components/base/core/log/degrade';
 
 /**
  * 释放素材的运行期 URL（`blob:` objectURL）。

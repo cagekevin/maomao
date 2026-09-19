@@ -15,7 +15,7 @@ const {
   downloadBlob,
   buildNodesFromClipboard,
   resolveDownloadFilename,
-} = await import('../../src/components/base/utils/clipboard.ts');
+} = await import('../../src/components/base/utils/net/clipboard.ts');
 
 beforeEach(() => {
   vi.restoreAllMocks();

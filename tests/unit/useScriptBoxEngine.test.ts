@@ -12,7 +12,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook } from '@testing-library/react';
 import type { ScriptBoxEngineDeps } from '../../src/components/scriptbox/scriptBoxEngine.ts';
-import { publish } from '../../src/components/base/core/eventBus.ts';
+import { publish } from '../../src/components/base/core/event/eventBus.ts';
 
 const setNodes = vi.fn();
 const getNodes = vi.fn((): Array<{ id: string; data: Record<string, unknown> }> => [
@@ -87,7 +87,7 @@ vi.mock('../../src/components/settings/providerStore.ts', async (importOriginal)
   useEnsureProvidersLoaded: () => {},
 }));
 
-const { useScriptBoxEngine } = await import('../../src/hooks/useScriptBoxEngine.ts');
+const { useScriptBoxEngine } = await import('../../src/components/scriptbox/useScriptBoxEngine.ts');
 
 beforeEach(() => {
   setNodes.mockClear();

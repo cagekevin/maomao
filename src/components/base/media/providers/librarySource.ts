@@ -30,7 +30,7 @@
  */
 import { fetchAllResourcePages } from '../../api/pagedList.ts';
 import type { ResourceItem } from '../../api/localToolApi.ts';
-import { detectAssetType } from '../../utils/assetType.ts';
+import { detectAssetType } from '@/components/base/utils/media/assetType';
 import { toAbsoluteFileUrl, fileNameFromUrl } from '../../core/utils.ts';
 // 目录浏览规则（根/子目录 → 查询参数）：**唯一实现**，本 provider 只调它，不自带规则。
 import { LIBRARY_ROOT, libraryBrowseArgs } from '../libraryBrowse.ts';

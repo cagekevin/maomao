@@ -8,7 +8,7 @@
  */
 import { useSyncExternalStore } from 'react';
 import { contentGet, contentSet } from '../core/contentStore.ts';
-import { confirmPersist } from '../core/degrade.ts';
+import { confirmPersist } from '../core/log/degrade.ts';
 import { onStorageReady } from '../storage/index.ts';
 import {
   buildDefaults,

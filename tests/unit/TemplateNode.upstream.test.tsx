@@ -52,7 +52,7 @@ vi.mock('../../src/hooks/useNodeGeneration.ts', async (importOriginal) => ({
   },
 }));
 
-vi.mock('../../src/components/base/ui/ModelSelect.tsx', () => ({
+vi.mock('../../src/components/base/ui/form/ModelSelect.tsx', () => ({
   default: ({ value, onChange }: { value?: string; onChange: (v: string) => void }) => (
     <button type="button" data-testid="model-select" onClick={() => onChange('model-x')}>
       {value || '选择模型'}
@@ -85,7 +85,7 @@ vi.mock('../../src/components/canvas/parts/GeneratingOverlay.tsx', () => ({ defa
 vi.mock('../../src/components/creative/CreativeLibraryButton.tsx', () => ({
   default: () => null,
 }));
-vi.mock('../../src/components/base/core/uiHooks.ts', async (importOriginal) => ({
+vi.mock('../../src/components/base/core/interaction/uiHooks.ts', async (importOriginal) => ({
   ...(await importOriginal()),
   useNodeResize: () => ({ onInputResize: vi.fn() }),
   useOutsideClick: () => {},

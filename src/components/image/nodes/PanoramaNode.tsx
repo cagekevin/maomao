@@ -27,17 +27,17 @@ import { PanoViewer } from '../editors';
 import type { PanoViewerHandle } from '../editors';
 import { generateId } from '@/components/base/core/idGen';
 // 编辑器内的交互归编辑器（ADR-0029）：判据走共用原语，禁自写（自写必漏）。
-import { isEditableTarget } from '@/components/base/core/uiHooks';
+import { isEditableTarget } from '@/components/base/core/interaction/uiHooks';
 import { buildSpawnNodes, spawnAndCommit } from '@/components/canvas/structure/deriveNodes';
 import { useCanvasEdges } from '@/components/canvas/structure/CanvasEdgesContext';
-import { useRenderAssetResolver } from '@/components/base/utils/assetUrl';
-import { logger } from '@/components/base/core/logger';
+import { useRenderAssetResolver } from '@/components/base/utils/media/assetUrl';
+import { logger } from '@/components/base/core/log/logger';
 import {
   toastInfo,
   toastSuccess,
   toastError,
   toastWarning,
-} from '@/components/base/core/toastStore';
+} from '@/components/base/core/event/toastStore';
 import FullscreenShell from '@/components/base/panels/FullscreenShell';
 
 /**

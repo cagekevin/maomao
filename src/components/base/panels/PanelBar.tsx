@@ -1,6 +1,6 @@
 import React, { useRef, useState, type ReactNode } from 'react';
 import { MoreVertical, type LucideIcon } from 'lucide-react';
-import { useOutsideClick } from '../core/uiHooks.ts';
+import { useOutsideClick } from '../core/interaction/uiHooks.ts';
 import './panel-kit.css';
 
 /**

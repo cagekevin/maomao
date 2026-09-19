@@ -51,7 +51,7 @@ vi.mock('../../src/components/base/api/filesApi.ts', async (importOriginal) => (
   ...((await importOriginal()) as Record<string, unknown>),
   toAbsoluteFileUrl: (u: string | null | undefined) => u ?? '',
 }));
-vi.mock('../../src/components/base/ui/ImageZoomDialog.tsx', () => ({
+vi.mock('../../src/components/base/ui/display/ImageZoomDialog.tsx', () => ({
   default: (p: { kind?: string; url?: string }) =>
     React.createElement('div', {
       'data-testid': 'zoom-dialog',
@@ -61,7 +61,7 @@ vi.mock('../../src/components/base/ui/ImageZoomDialog.tsx', () => ({
 }));
 
 import { ResourcePreviewOverlay } from '../../src/components/resource/ResourcePreview.tsx';
-import { isVideoResource } from '../../src/components/base/utils/assetType.ts';
+import { isVideoResource } from '../../src/components/base/utils/media/assetType.ts';
 
 /** 拖到画布的 dragProps 工厂桩（真实实现由各面板的 useResourceCardDragProps 注入）。 */
 const dragProps = (): ResourceDragSourceProps => ({ draggable: true, onDragStart: () => {} });

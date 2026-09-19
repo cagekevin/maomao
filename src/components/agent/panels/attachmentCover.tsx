@@ -1,8 +1,8 @@
 import { memo } from 'react';
 import { Video, Music } from 'lucide-react';
 import { useVideoPoster } from '@/hooks/useVideoPoster';
-import { toAbsoluteFileUrl } from '@/components/base/utils/assetUrl';
-import LazyImage from '@/components/base/ui/LazyImage';
+import { toAbsoluteFileUrl } from '@/components/base/utils/media/assetUrl';
+import LazyImage from '@/components/base/ui/display/LazyImage';
 
 /**
  * 附件媒体封面（按类型渲染，纯展示、不含点击/移除交互）。

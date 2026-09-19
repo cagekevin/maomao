@@ -24,8 +24,8 @@ import {
 } from '../promptManager';
 import type { Preset } from '../promptManager';
 import { isPresetId } from '../creativePresets';
-import { subscribe } from '@/components/base/core/eventBus';
-import { useOutsideClick } from '@/components/base/core/uiHooks';
+import { subscribe } from '@/components/base/core/event/eventBus';
+import { useOutsideClick } from '@/components/base/core/interaction/uiHooks';
 
 /** 「我的提示词」胶囊 id 命名空间：`cp_prompt-<id>`（§一.2.1） */
 export const PROMPT_PRESET_PREFIX = 'cp_prompt-';

@@ -1,5 +1,5 @@
 import type { TimelineDragData } from '@/components/videoEditor/types/drag';
-import { tryParse } from '@/components/base/utils/asyncGuard.ts';
+import { tryParse } from '@/components/base/utils/net/asyncGuard';
 import { videoEditorLogger } from '@/components/videoEditor/lib/videoEditorLogger';
 
 /**

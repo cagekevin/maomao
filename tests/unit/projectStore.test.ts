@@ -47,7 +47,7 @@ const { degradeSpy, confirmPersistSpy } = vi.hoisted(() => ({
   degradeSpy: vi.fn(),
   confirmPersistSpy: vi.fn(() => true),
 }));
-vi.mock('../../src/components/base/core/degrade.ts', async (importOriginal) => ({
+vi.mock('../../src/components/base/core/log/degrade.ts', async (importOriginal) => ({
   ...((await importOriginal()) as Record<string, unknown>),
   reportDegrade: degradeSpy,
   confirmPersist: confirmPersistSpy,

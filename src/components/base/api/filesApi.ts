@@ -47,16 +47,16 @@
  */
 import { API_BASE } from '../core/config.ts';
 import { httpRequest } from './httpClient.ts';
-import { logger } from '../core/logger.ts';
-import { reportDegrade } from '../core/degrade.ts';
+import { logger } from '../core/log/logger.ts';
+import { reportDegrade } from '../core/log/degrade.ts';
 import { UPLOAD_TIMEOUT } from '../core/config.ts';
 import { formatTime, safeFileName, relativePathFromFileUrl } from '../core/utils.ts';
 import { UPLOAD_DIRS, isKnownUploadDir } from '../utils/uploadDirs.ts';
 import type { ApiEnvelope } from './localToolApi.ts';
-export { toAbsoluteFileUrl } from '../utils/assetUrl.ts';
+export { toAbsoluteFileUrl } from '../utils/media/assetUrl.ts';
 export { EXT_BY_TYPE };
-import { isLocalFileUrl, fileToDataUrl } from '../utils/assetUrl.ts';
-import { detectAssetType, detectFileType } from '../utils/assetType.ts';
+import { isLocalFileUrl, fileToDataUrl } from '../utils/media/assetUrl.ts';
+import { detectAssetType, detectFileType } from '../utils/media/assetType.ts';
 import type { AssetType } from '@/types';
 
 // ─────────────────────────── files 域（候选 C 收口：全站文件域单点可查）───────────────────────────

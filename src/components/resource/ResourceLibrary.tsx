@@ -18,7 +18,7 @@ import { rescanResources, deleteResource, renameResource } from '../base/api/loc
 // 分页读取的唯一实现：此前本文件 `reset` 用 `items.length < total`、`loadMore` 用 `page < totalPages`
 // **两套 hasMore 判据**（M3），现统一走 `hasMoreOf`。
 import { fetchResourcePage, hasMoreOf } from '../base/api/pagedList.ts';
-import { showToast } from '../base/core/toastStore.ts';
+import { showToast } from '../base/core/event/toastStore.ts';
 import { textCache, useResourceCardDragProps, useTextAsset } from '@/hooks/useAssetDragToCanvas';
 import {
   uploadFileToLocal,
@@ -43,10 +43,10 @@ import {
 // 目录条目 → 自身目录路径的唯一实现（与「点目录进入」「拖入归类」共用）。
 import { folderPathOf } from '@/hooks/useResourceMoveToFolder';
 import { useCurrentProjectId } from '../base/store/projectStore.ts';
-import { logger } from '../base/core/logger.ts';
-import { isAudio, isVideoResource } from '../base/utils/assetType.ts';
-import LazyImage from '../base/ui/LazyImage.tsx';
-import InlineNameInput from '../base/ui/InlineNameInput.tsx';
+import { logger } from '../base/core/log/logger.ts';
+import { isAudio, isVideoResource } from '../base/utils/media/assetType.ts';
+import LazyImage from '../base/ui/display/LazyImage.tsx';
+import InlineNameInput from '../base/ui/form/InlineNameInput.tsx';
 import type { ResourceItem } from '../base/api/localToolApi.ts';
 // 预览 overlay（文字/音频/图片 + 视频委托 ImageZoomDialog）的唯一实现，与生成面板共用
 import { ResourcePreviewOverlay } from './ResourcePreview.tsx';

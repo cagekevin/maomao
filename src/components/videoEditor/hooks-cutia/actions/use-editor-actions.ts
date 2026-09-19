@@ -31,7 +31,7 @@ import {
   InsertElementCommand,
 } from '@/components/videoEditor/engine/commands';
 import { storageService } from '@/components/videoEditor/engine/services/storage/service';
-import { releaseQuietlyAsync } from '@/components/base/utils/asyncGuard.ts';
+import { releaseQuietlyAsync } from '@/components/base/utils/net/asyncGuard';
 
 export function useEditorActions() {
   const editor = useEditor();

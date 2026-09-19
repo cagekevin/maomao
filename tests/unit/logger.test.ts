@@ -8,7 +8,7 @@ import { API_BASE } from '../../src/components/base/core/config.ts';
 let log: any, logger: any;
 beforeEach(async () => {
   vi.resetModules();
-  const mod = await import('../../src/components/base/core/logger.ts');
+  const mod = await import('../../src/components/base/core/log/logger.ts');
   log = mod.log;
   logger = mod.logger;
 });
@@ -32,7 +32,7 @@ describe('config.ts §API_BASE 日志与配置', () => {
       'api/generate.ts', // L3 收口后 config 消费端（GEN_TIMEOUT/VIDEO_TIMEOUT/CHAT_TIMEOUT）
       'api/localToolApi.ts',
       'api/filesApi.ts',
-      'core/logger.ts', // logger 已归 core/，本清单读源码断言引用 config.ts，路径后缀随改名同步
+      'core/log/logger.ts', // logger 已归 core/log/（2026-09-19 A7），本清单读源码断言引用 config.ts，路径随搬迁同步
     ];
     for (const f of apiFiles) {
       const src = readFileSync(`src/components/base/${f}`, 'utf8');

@@ -17,8 +17,8 @@ import {
   Plus,
   Trash2,
 } from 'lucide-react';
-import { showToast } from '@/components/base/core/toastStore';
-import { PROVIDER_PROTOCOL_LABELS } from '@/components/base/utils/providerUrlAdapters';
+import { showToast } from '@/components/base/core/event/toastStore';
+import { PROVIDER_PROTOCOL_LABELS } from '@/components/settings/providerUrlAdapters';
 import {
   useProviders,
   load,

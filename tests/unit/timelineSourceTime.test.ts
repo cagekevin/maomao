@@ -1,8 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import {
-  sourceTimeAt,
-  timelineTimeAt,
-} from '../../src/components/base/utils/timeline/sourceTime.ts';
+import { sourceTimeAt, timelineTimeAt } from '../../src/components/video/lib/sourceTime.ts';
 
 // 卡 8（docs/126）：源媒体时间 ↔ 时间轴时间 的共用原语。
 // 原实现在 nodes/VideoProcessNode.tsx 内联 3 遍（:1356/:1370 正算、:1552 反算），

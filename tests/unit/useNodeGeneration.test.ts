@@ -57,18 +57,20 @@ vi.mock('../../src/components/base/api/filesApi.ts', async (importOriginal) => (
   ...((await importOriginal()) as Record<string, unknown>),
   saveResultToTasks: saveResultToTasksMock,
 }));
-vi.mock('../../src/components/base/core/degrade.ts', async (importOriginal) => ({
-  ...((await importOriginal()) as Record<string, unknown>), reportDegrade: reportDegradeMock
+vi.mock('../../src/components/base/core/log/degrade.ts', async (importOriginal) => ({
+  ...((await importOriginal()) as Record<string, unknown>),
+  reportDegrade: reportDegradeMock,
 }));
-vi.mock('../../src/components/base/core/eventBus.ts', () => ({
+vi.mock('../../src/components/base/core/event/eventBus.ts', () => ({
   subscribe: (_evt: any, cb: any) => {
     busState.handler = cb;
     return () => {};
   },
 }));
-vi.mock('../../src/components/base/core/logger.ts', () => ({ logger: busState.logger }));
-vi.mock('../../src/components/base/core/toastStore.ts', async (importOriginal) => ({
-  ...((await importOriginal()) as Record<string, unknown>), showToast: showToastMock
+vi.mock('../../src/components/base/core/log/logger.ts', () => ({ logger: busState.logger }));
+vi.mock('../../src/components/base/core/event/toastStore.ts', async (importOriginal) => ({
+  ...((await importOriginal()) as Record<string, unknown>),
+  showToast: showToastMock,
 }));
 
 import { useNodeGeneration } from '../../src/hooks/useNodeGeneration.ts';

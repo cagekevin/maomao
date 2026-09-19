@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useCanvasAgentTools, setCurrentReferenceImages } from '../canvas/useCanvasAgentTools.ts';
 import { loadAgentChatModel, loadAgentHistoryTurns } from './agentModelStore.ts';
-import { logger } from '../../base/core/logger.ts';
+import { logger } from '@/components/base/core/log/logger';
 import { InputStateMachine } from './inputStateMachine.ts';
 import { generateId } from '../../base/core/idGen.ts';
 // 【TD-15-1】agentKey 前缀单源（禁本地拼字面量）

@@ -8,7 +8,7 @@
  */
 import { describe, it, expect, vi } from 'vitest';
 
-vi.mock('../../src/components/base/utils/assetUrl.ts', async (importOriginal) => ({
+vi.mock('../../src/components/base/utils/media/assetUrl.ts', async (importOriginal) => ({
   ...((await importOriginal()) as Record<string, unknown>),
   normalizeAssetUrlForSend: vi.fn(
     async (url, opts) => `norm:${url}${opts?.preferBase64 ? ':b64' : ''}`,
@@ -20,15 +20,15 @@ vi.mock('../../src/components/base/utils/assetUrl.ts', async (importOriginal) =>
     return { count: list.length, urls: list.length - base64s, base64s };
   }),
 }));
-vi.mock('../../src/components/base/core/logger.ts', () => ({
+vi.mock('../../src/components/base/core/log/logger.ts', () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
 
 const { normalizeAttachmentsForSend, buildRefCatalog } =
   await import('../../src/components/agent/runtime/agentAttachments.ts');
 const { normalizeAssetUrlForSend, summarizeAssetUrls: _summarizeAssetUrls } =
-  await import('../../src/components/base/utils/assetUrl.ts');
-const { logger } = await import('../../src/components/base/core/logger.ts');
+  await import('../../src/components/base/utils/media/assetUrl.ts');
+const { logger } = await import('../../src/components/base/core/log/logger.ts');
 // vi.mock 工厂不改变静态导入类型，用 vi.mocked 标注以拿到 .mockClear/.toHaveBeenCalledWith
 const loggerInfo = vi.mocked(logger.info);
 

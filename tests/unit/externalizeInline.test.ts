@@ -3,7 +3,7 @@
  * 策略：注入 mock save，验证遍历/替换/计数/失败保留，不依赖真实落盘。
  */
 import { describe, it, expect, vi } from 'vitest';
-import { externalizeInlineData } from '../../src/components/base/utils/externalizeInline.ts';
+import { externalizeInlineData } from '../../src/components/base/utils/net/externalizeInline.ts';
 
 // 本地对齐 externalizeInline.ExternalizeDeps（未导出）。
 // 【2026-09-17】save 契约已改为**判别联合**（含生产者 message），本测试同步为结构等价的最小形状。
@@ -22,7 +22,9 @@ describe('externalizeInlineData — 内联资源外置', () => {
   });
 
   it('转换成功：data: 字段被 URL 替换，converted=1 failed=0', async () => {
-    const save = vi.fn().mockResolvedValue({ ok: true, url: 'http://localhost/files/canvas/abc.png' });
+    const save = vi
+      .fn()
+      .mockResolvedValue({ ok: true, url: 'http://localhost/files/canvas/abc.png' });
     const r = await externalizeInlineData({ assetUrl: 'data:image/png;base64,xxx' }, { save });
     expect(save).toHaveBeenCalledWith('data:image/png;base64,xxx');
     expect(r.data.assetUrl).toBe('http://localhost/files/canvas/abc.png');

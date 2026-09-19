@@ -13,7 +13,7 @@ import {
   presetRoot,
 } from './rig.ts';
 import { readJson, writeJson } from './storage.ts';
-import { detectFileType } from '../base/utils/assetType.ts';
+import { detectFileType } from '../base/utils/media/assetType.ts';
 import { isProjectAssetUrl } from './d3dPersistence.ts';
 import { KEY_DIRECTOR3D_CUSTOM_POSES, KEY_DIRECTOR3D_PROJECT } from '../base/core/contracts.ts';
 // 数值钳制唯一入口（TD-18-5 收口）：本域曾私有复制同签名 clamp，现统一走 core SSOT；

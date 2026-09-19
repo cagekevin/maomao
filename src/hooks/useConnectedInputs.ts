@@ -14,11 +14,11 @@ import {
   type ScriptAsset,
 } from '../components/scriptbox/scriptBoxPrompts.ts';
 import { toAbsoluteFileUrl } from '../components/base/api/index.ts';
-import { resolveAssetType } from '../components/base/utils/assetType.ts';
+import { resolveAssetType } from '../components/base/utils/media/assetType.ts';
 import {
   resolveAssetDisplayUrl,
   buildContentUrlResolver,
-} from '../components/base/utils/assetUrl.ts';
+} from '../components/base/utils/media/assetUrl.ts';
 import { getResources } from '../components/resource/resourceStore.ts';
 import { NODE_TYPES, parseShotHandle } from '../components/base/core/contracts.ts';
 

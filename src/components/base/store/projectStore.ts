@@ -17,7 +17,7 @@ import { generateId } from '../core/idGen.ts';
 import { fetchProjects, saveProjects, ApiEnvelope, ProjectsData } from '../api/localToolApi.ts';
 // HttpError：CAS 冲突判定（409）；httpRequest 对 4xx 不重试，是现状行为。
 import { HttpError } from '../api/httpClient.ts';
-import { broadcastCanvasSaved } from '@/components/canvas/canvasSyncBus';
+import { broadcastCanvasSaved } from '@/components/base/core/canvasSyncBus';
 import {
   contentGet,
   contentSet,
@@ -26,9 +26,9 @@ import {
   contentKvSetCas,
   createDebouncedPersist,
 } from '../core/contentStore.ts';
-import { logger } from '../core/logger.ts';
+import { logger } from '../core/log/logger.ts';
 // 落盘失败的**自确认**原语（本处自己报，不寄生于任何全局总线）—— 见下方 saveCanvasState 失败分支。
-import { confirmPersist, reportDegrade } from '../core/degrade.ts';
+import { confirmPersist, reportDegrade } from '../core/log/degrade.ts';
 import {
   normalizeNodeParents,
   sanitizeSnapshotNodes,

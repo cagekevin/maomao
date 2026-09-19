@@ -6,8 +6,8 @@
 import React from 'react';
 import { Bot, Check } from 'lucide-react';
 import { useProviders, load } from '@/components/settings/providerStore';
-import { logger } from '@/components/base/core/logger';
-import { showToast } from '@/components/base/core/toastStore';
+import { logger } from '@/components/base/core/log/logger';
+import { showToast } from '@/components/base/core/event/toastStore';
 import {
   loadAgentChatModel,
   saveAgentChatModel,

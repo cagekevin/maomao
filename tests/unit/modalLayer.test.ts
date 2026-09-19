@@ -20,11 +20,11 @@ import {
   describeKey,
   debugModalLayers,
   useFullscreenEditorKeys,
-} from '../../src/components/base/core/modalLayer.ts';
+} from '../../src/components/base/core/interaction/modalLayer.ts';
 import {
   isEditorSessionOpen,
   setEditorSessionOpen,
-} from '../../src/components/base/core/editorSession.ts';
+} from '../../src/components/base/core/interaction/editorSession.ts';
 import { useCanvasKeydown } from '../../src/components/canvas/topology/canvasHotkeys.ts';
 import FullscreenShell from '../../src/components/base/panels/FullscreenShell.tsx';
 

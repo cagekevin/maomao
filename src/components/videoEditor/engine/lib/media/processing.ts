@@ -2,7 +2,7 @@ import { videoEditorLogger } from '@/components/videoEditor/lib/videoEditorLogge
 import { toast } from '@/components/videoEditor/lib/toast';
 import type { MediaAsset } from '@/components/videoEditor/types/assets';
 import { getMediaTypeFromFile } from '@/components/videoEditor/engine/lib/media/media-utils';
-import { detectFileType } from '@/components/base/utils/assetType';
+import { detectFileType } from '@/components/base/utils/media/assetType';
 import { canvasToBlob, canvasToImageDataUrl } from '@/components/base/core/utils';
 import { getVideoInfo } from './mediabunny';
 import { Input, ALL_FORMATS, BlobSource, VideoSampleSink } from 'mediabunny';

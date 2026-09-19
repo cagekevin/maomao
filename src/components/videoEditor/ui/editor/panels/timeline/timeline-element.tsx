@@ -67,8 +67,8 @@ import {
   mediaDisplayUrl,
   type RenderAssetResolver,
 } from '@/components/videoEditor/lib/mediaDisplayUrl';
-import { useRenderAssetResolver } from '@/components/base/utils/assetUrl.ts';
-import { useMediaLoadFailed } from '@/components/base/utils/useMediaLoadFailed.ts';
+import { useRenderAssetResolver } from '@/components/base/utils/media/assetUrl';
+import { useMediaLoadFailed } from '@/components/base/utils/media/useMediaLoadFailed';
 
 function getDisplayShortcut(action: TAction) {
   const { defaultShortcuts } = getActionDefinition(action);

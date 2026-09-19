@@ -1,4 +1,4 @@
-import { reportDegrade } from '@/components/base/core/degrade.ts';
+import { reportDegrade } from '@/components/base/core/log/degrade';
 import { Command } from '@/components/videoEditor/engine/commands/base-command';
 import type { TimelineTrack } from '@/components/videoEditor/types/timeline';
 import { EditorCore } from '@/components/videoEditor/engine/core';

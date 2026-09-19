@@ -27,7 +27,7 @@ import {
 } from '@/components/videoEditor/stores/media-preview-store';
 import type { MediaAsset } from '@/components/videoEditor/types/assets';
 import { cn } from '@/components/videoEditor/utils/ui';
-import { useMediaLoadFailed } from '@/components/base/utils/useMediaLoadFailed.ts';
+import { useMediaLoadFailed } from '@/components/base/utils/media/useMediaLoadFailed';
 // 【TD-06-14】canvas 异步产出走唯一出口；失败必须**可见**（原 `if (!blob) return;` = 点了导出什么都没发生）。
 import { canvasToBlob } from '@/components/base/core/utils';
 import { toast } from '@/components/videoEditor/lib/toast';

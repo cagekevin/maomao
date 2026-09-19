@@ -7,6 +7,8 @@ const path = require('path');
 // 扩展名无关：TS 化期间同一模块会在 .jsx→.tsx 间漂移。写死后继扩展名的检查会在改名那刻变红，
 // 或更糟——只扫 .jsx/.js 会让 TS 化后的文件整体逃出校验（静默漏扫）。
 const { SOURCE_EXTS, resolveSourceFile } = require('./ts-exts.cjs');
+// 节点组件落点唯一真源（与 check-node-handles / check-node-data 共用一份，防搬迁后各写一份再漂移）
+const { allComponentDirs } = require('./node-file-resolver.cjs');
 
 // esbuild 通过 JS API 调用（比 shell 调二进制更稳，兼容 Windows）
 let esbuild = null;
@@ -199,15 +201,10 @@ function checkReactFlowApis(ROOT) {
 function resolveCompFile(ROOT, comp) {
   // 2026-09-19 域归位：节点组件已迁出 canvas/nodes，分散到各能力域的 nodes/ 子目录
   // （canvas/video/image/text）。resolveCompFile 不再只查 canvas/nodes，改为按候选域顺序查找。
-  const nodeDirs = [
-    path.join(ROOT, 'src/components/canvas/nodes'),
-    path.join(ROOT, 'src/components/video/nodes'),
-    path.join(ROOT, 'src/components/image/nodes'),
-    path.join(ROOT, 'src/components/text/nodes'),
-    // 剧本盒子：节点**直挂应用域根**，没有 nodes/ 子目录（2026-09-19 A2 迁入）
-    path.join(ROOT, 'src/components/scriptbox'),
-  ];
-  for (const dir of nodeDirs) {
+  // 落点清单来自 node-file-resolver.cjs（唯一真源），本文件不再维护第二份。
+  // 用 allComponentDirs（含直挂域根）—— 本处是「按名字找组件」，需覆盖 scriptbox/ 这类域根。
+  const dirs = allComponentDirs(ROOT);
+  for (const dir of dirs) {
     const sub = resolveSourceFile(path.join(dir, comp));
     if (sub) return sub;
   }

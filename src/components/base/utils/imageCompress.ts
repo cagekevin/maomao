@@ -15,8 +15,8 @@
  *  - keepOriginalFormat 是否保持原格式（true=沿用原图格式，仅缩尺寸不改格式，不丢透明；默认 false=转 format 指定格式）
  * @returns {Promise<{ dataUrl, blob, width, height, size, originalSize }>}
  */
-import { loadImageWithTimeout } from './asyncGuard.ts';
-import { attemptQuietly } from './asyncGuard.ts';
+import { loadImageWithTimeout } from './net/asyncGuard.ts';
+import { attemptQuietly } from './net/asyncGuard.ts';
 import { httpRequest } from '../api/httpClient.ts';
 import { IMAGE_LOAD_TIMEOUT } from '../core/config.ts';
 import {
@@ -25,7 +25,7 @@ import {
   fileNameFromUrl,
   canvasToImageDataUrl,
 } from '../core/utils.ts';
-import { classifyAssetUrlKind } from './assetType.ts';
+import { classifyAssetUrlKind } from './media/assetType.ts';
 
 /**
  * 图片 MIME → `canvas.toDataURL()` 可接受格式（**域专用能力表**，非 ext→mime 真值源复制）。

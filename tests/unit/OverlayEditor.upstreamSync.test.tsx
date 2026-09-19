@@ -20,9 +20,9 @@ const pending: Array<(img: unknown) => void> = [];
 // 【2026-09-17】用 `importOriginal` 保留其余**真实导出**（`tryParse` / `withTimeout` / …），
 // 只替换 `loadImageOrNull`。否则该组件将来用到 `tryParse` 时会抛
 // "No tryParse export is defined on the mock"（`VideoProcessNode.test` 已踩过同一个坑）。
-vi.mock('../../src/components/base/utils/asyncGuard.ts', async (importOriginal) => {
+vi.mock('../../src/components/base/utils/net/asyncGuard.ts', async (importOriginal) => {
   const actual =
-    await importOriginal<typeof import('../../src/components/base/utils/asyncGuard.ts')>();
+    await importOriginal<typeof import('../../src/components/base/utils/net/asyncGuard.ts')>();
   return {
     ...actual,
     loadImageOrNull: vi.fn(
@@ -35,7 +35,7 @@ vi.mock('../../src/components/base/utils/asyncGuard.ts', async (importOriginal) 
 });
 
 /** 全屏快捷键 hook 与本次无关，置空避免副作用 */
-vi.mock('../../src/components/base/core/modalLayer.ts', () => ({
+vi.mock('../../src/components/base/core/interaction/modalLayer.ts', () => ({
   useFullscreenEditorKeys: () => {},
 }));
 

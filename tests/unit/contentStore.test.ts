@@ -62,7 +62,7 @@ vi.mock('../../src/components/base/api/localToolApi.ts', async (importOriginal) 
   kvDelete: mockLocalToolApi.kvDelete,
   kvGetVersion: mockLocalToolApi.kvGetVersion,
 }));
-vi.mock('../../src/components/base/core/logger.ts', () => mockLogger);
+vi.mock('../../src/components/base/core/log/logger.ts', () => mockLogger);
 
 // 防 logger 被 NODE_ENV 条件影响
 vi.stubEnv('NODE_ENV', 'test');

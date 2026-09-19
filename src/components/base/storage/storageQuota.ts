@@ -49,8 +49,8 @@
 import { isChromeExtension, KEY_PREFIX } from './storageAdapter.ts';
 import { STORAGE_KEYS } from '../core/contracts.ts';
 import { compilePatternRegex } from '../core/utils.ts';
-import { tryParseOr } from '../core/degrade.ts';
-import { logger } from '../core/logger.ts';
+import { tryParseOr } from '../core/log/degrade.ts';
+import { logger } from '../core/log/logger.ts';
 
 /**
  * chrome 扩展全局的类型声明（与 storageAdapter.ts 同步的模块级最小声明）。

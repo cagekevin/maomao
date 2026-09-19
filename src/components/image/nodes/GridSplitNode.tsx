@@ -18,12 +18,12 @@ import NodeShell from '@/components/canvas/parts/NodeShell';
 import { ASSET_NODE_SIZE } from '@/components/canvas/contract/nodeDefaults';
 import { useConnectedInputs } from '@/hooks/useConnectedInputs';
 import { useAssetDegrade } from '@/hooks/useAssetDegrade';
-import { useContentHeightSync } from '@/components/base/core/uiHooks';
-import { showToast, toastWarning } from '@/components/base/core/toastStore'; // 保留阻断校验提示
+import { useContentHeightSync } from '@/components/base/core/interaction/uiHooks';
+import { showToast, toastWarning } from '@/components/base/core/event/toastStore'; // 保留阻断校验提示
 import { toAbsoluteFileUrl, persistInlineOrKeep } from '@/components/base/api/index';
-import { useRenderAssetResolver } from '@/components/base/utils/assetUrl';
-import { loadImageWithTimeout } from '@/components/base/utils/asyncGuard';
-import { logger } from '@/components/base/core/logger';
+import { useRenderAssetResolver } from '@/components/base/utils/media/assetUrl';
+import { loadImageWithTimeout } from '@/components/base/utils/net/asyncGuard';
+import { logger } from '@/components/base/core/log/logger';
 import { generateId } from '@/components/base/core/idGen';
 import { buildSpawnNodes, spawnAndCommit } from '@/components/canvas/structure/deriveNodes';
 import { useCanvasEdges } from '@/components/canvas/structure/CanvasEdgesContext';

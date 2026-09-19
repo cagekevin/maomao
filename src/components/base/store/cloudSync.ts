@@ -39,9 +39,9 @@ import {
 } from '../core/contracts.ts';
 import { providerApi } from '../api/localToolApi.ts';
 import { contentGet, contentSet, contentGetAsync, contentSetAsync } from '../core/contentStore.ts';
-import { confirmPersist, isWriteBackOk } from '../core/degrade.ts';
-import { logger } from '../core/logger.ts';
-import { reportDegrade } from '../core/degrade.ts';
+import { confirmPersist, isWriteBackOk } from '../core/log/degrade.ts';
+import { logger } from '../core/log/logger.ts';
+import { reportDegrade } from '../core/log/degrade.ts';
 import { CLOUD_SYNC_GAS_URL } from '../core/config.ts';
 import { stableStringify, contentFingerprint, formatTime } from '../core/utils.ts';
 // [TD-13] 下载云端后重水合 store 内存态（rehydrateStoresAfterCloudPull，原独立模块 cloudRehydrate.ts 已于 2026-09-11 并入本文件）。

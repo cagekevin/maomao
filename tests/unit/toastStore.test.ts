@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const { showToast, dismissToast, clearToasts, subscribeToasts, getToasts, TOAST_COALESCED } =
-  await import('../../src/components/base/core/toastStore.ts');
+  await import('../../src/components/base/core/event/toastStore.ts');
 
 beforeEach(() => {
   clearToasts();

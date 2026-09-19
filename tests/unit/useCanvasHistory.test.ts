@@ -9,9 +9,10 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import '@xyflow/react';
-import type { CanvasSnapshot } from '../../src/hooks/useCanvasHistory.ts';
+import type { CanvasSnapshot } from '../../src/components/canvas/structure/useCanvasHistory.ts';
 
-const { useCanvasHistory } = await import('../../src/hooks/useCanvasHistory.ts');
+const { useCanvasHistory } =
+  await import('../../src/components/canvas/structure/useCanvasHistory.ts');
 
 // CanvasSnapshot.nodes 是 xyflow 完整 Node[]（需 id/position/data），edges 是 Edge[]。
 // 测试只关心 id 差异，故用最小合规形状构造，去掉原先的 `as any`。

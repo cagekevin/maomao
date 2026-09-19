@@ -37,10 +37,10 @@ import {
 import type { PersistOutcome } from '../base/api/filesApi.ts';
 import { UPLOAD_DIRS } from '../base/utils/uploadDirs.ts';
 import { fileNameFromUrl } from '../base/core/utils.ts';
-import { detectFileType } from '../base/utils/assetType.ts';
-import { logger } from '../base/core/logger.ts';
-import { confirmPersist } from '../base/core/degrade.ts';
-import { publish, subscribe } from '../base/core/eventBus.ts';
+import { detectFileType } from '../base/utils/media/assetType.ts';
+import { logger } from '../base/core/log/logger.ts';
+import { confirmPersist } from '../base/core/log/degrade.ts';
+import { publish, subscribe } from '../base/core/event/eventBus.ts';
 import { getCurrentProject } from '../base/store/projectStore.ts';
 import type { AssetType } from '@/types';
 

@@ -1,10 +1,10 @@
 'use client';
 import { videoEditorLogger } from '@/components/videoEditor/lib/videoEditorLogger';
-import { copyText } from '@/components/base/utils/clipboard';
+import { copyText } from '@/components/base/utils/net/clipboard';
 import { mediaDisplayUrl } from '@/components/videoEditor/lib/mediaDisplayUrl';
-import { useRenderAssetResolver } from '@/components/base/utils/assetUrl.ts';
+import { useRenderAssetResolver } from '@/components/base/utils/media/assetUrl';
 // 【2026-09-17 TD-16-29②】图片失败态的唯一实现（两段回退 + 显式占位），替代裸 <img>
-import LazyImage from '@/components/base/ui/LazyImage.tsx';
+import LazyImage from '@/components/base/ui/display/LazyImage';
 // 【2026-09-19】视频封面运行时抽帧 —— **唯一原语**（与画布 AssetNode 同源）：
 // 内部走 `captureFrame.ts` 的 `drawVideoFrame`（seek + drawImage 的唯一实现），不新造第二份抽帧判据。
 import { useVideoPoster } from '@/hooks/useVideoPoster.ts';
@@ -56,8 +56,8 @@ import { useAssetsPanelStore } from '@/components/videoEditor/stores/assets-pane
 import { useMediaPreviewStore } from '@/components/videoEditor/stores/media-preview-store';
 // 可复用「导入媒体」弹窗（docs/136 地基 · 入口 B）—— 与画布右键菜单共用**同一个组件**。
 // 落地动作走本文件的 `linkMediaRefsToProject`（登记引用，不上传）。
-import ImportMediaModalHost from '@/components/base/panels/ImportMediaModalHost.tsx';
-import type { ImportPickOutcome } from '@/components/base/panels/ImportMediaModalHost.tsx';
+import ImportMediaModalHost from '@/components/videoEditor/ImportMediaModalHost';
+import type { ImportPickOutcome } from '@/components/videoEditor/ImportMediaModalHost';
 import { linkMediaRefsToProject } from '@/components/videoEditor/ui/editor/panels/assets/link-media-refs';
 import type { MediaRef } from '@/components/base/media/mediaRefTypes.ts';
 import type { MediaAsset } from '@/components/videoEditor/types/assets';

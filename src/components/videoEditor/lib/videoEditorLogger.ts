@@ -10,7 +10,7 @@
  * 末位若是 Error 对象，转成 message（防 JSON.stringify(Error) = '{}' 丢信息）。
  * category 固定 'videoEditor'，便于后端按域 grep；detail 为合并后的原文。
  */
-import { logger as baseLogger } from '../../base/core/logger.ts';
+import { logger as baseLogger } from '@/components/base/core/log/logger';
 
 function detail(args: unknown[]): unknown {
   if (args.length === 0) return undefined;

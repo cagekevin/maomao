@@ -84,7 +84,7 @@ vi.mock('../../src/components/canvas/parts/GenerateButton.tsx', () => ({
     </button>
   ),
 }));
-vi.mock('../../src/components/base/ui/ModelSelect.tsx', () => ({ default: () => null }));
+vi.mock('../../src/components/base/ui/form/ModelSelect.tsx', () => ({ default: () => null }));
 // PromptInput：桩为 textarea，透传 value/onChange/placeholder；onReady 上抛一个
 // 「追加 @label 文本」的插入函数（复刻旧 textarea 行为），避免测试耦合富文本内部实现。
 // 富文本芯片本身的序列化/交互由 promptChips.test.js 与 PromptInput 自己的测试覆盖。
@@ -143,7 +143,7 @@ vi.mock('../../src/components/base/panels/FullscreenModal.tsx', () => ({
   default: ({ open, children }: any) =>
     open ? <div data-testid="fullscreen">{children}</div> : null,
 }));
-vi.mock('../../src/components/base/ui/VideoThumbnail.tsx', () => ({
+vi.mock('../../src/components/base/ui/display/VideoThumbnail.tsx', () => ({
   default: () => <div data-testid="video-thumb" />,
 }));
 
@@ -154,7 +154,7 @@ vi.mock('../../src/hooks/useConnectedInputs.ts', async (importOriginal) => ({
 vi.mock('../../src/hooks/useAssetDegrade.ts', () => ({
   useAssetDegrade: () => ({ isHidden: () => false }),
 }));
-vi.mock('../../src/components/base/core/uiHooks.ts', () => ({
+vi.mock('../../src/components/base/core/interaction/uiHooks.ts', () => ({
   useNodeResize: () => ({ onInputResize: vi.fn() }),
   useOutsideClick: () => {},
 }));
@@ -179,10 +179,10 @@ vi.mock('../../src/components/base/utils/providerModels.ts', () => ({
   buildAllModels: () => [],
   resolveProviderModel: () => ({ provider: {}, modelId: 'm' }),
 }));
-vi.mock('../../src/components/base/core/logger.ts', () => ({
+vi.mock('../../src/components/base/core/log/logger.ts', () => ({
   logger: { info: (...a: any[]) => h.loggerInfo(...a), warn: () => {} },
 }));
-vi.mock('../../src/components/base/utils/clipboard.ts', async (importOriginal) => {
+vi.mock('../../src/components/base/utils/net/clipboard.ts', async (importOriginal) => {
   // importOriginal 返回 unknown，直接 spread 报 TS2698
   const actual = (await importOriginal()) as Record<string, unknown>;
   return { ...actual, downloadUrl: h.downloadUrl };

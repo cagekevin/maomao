@@ -17,7 +17,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { Node } from '@xyflow/react';
-import { replaceNodeImage } from '../../src/components/canvas/nodeImage.ts';
+import { replaceNodeImage } from '../../src/components/image/lib/nodeImage.ts';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const readSrc = (rel: string) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
@@ -137,7 +137,7 @@ describe('源码护栏 — 图片写回只有一个门', () => {
     for (const rel of [
       'src/components/image/nodes/AssetNode.tsx',
       'src/components/canvas/nodes/Director3DNode.tsx',
-      'src/components/canvas/nodeImage.ts',
+      'src/components/image/lib/nodeImage.ts',
     ]) {
       const src = readSrc(rel);
       expect(
@@ -148,7 +148,7 @@ describe('源码护栏 — 图片写回只有一个门', () => {
     // 双写开关不得回归（加回来就等于又开了一条写 url 的路径）
     // 断言「没有这个字段声明」而非「源码不含该词」——注释里保留它的历史说明是有意为之
     expect(
-      /\blegacyUrlField\??\s*:/.test(readSrc('src/components/canvas/nodeImage.ts')),
+      /\blegacyUrlField\??\s*:/.test(readSrc('src/components/image/lib/nodeImage.ts')),
       'nodeImage 不得再提供 legacyUrlField 双写开关',
     ).toBe(false);
   });
@@ -163,7 +163,9 @@ describe('源码护栏 — 图片写回只有一个门', () => {
       'AssetNode 渲染必须经唯一入口 resolveAssetDisplayUrl（不得回退内联 assetUrl || url）',
     ).toBe(true);
     expect(
-      /typeof d\.assetUrl === 'string'/.test(readSrc('src/components/base/utils/assetUrl.ts')),
+      /typeof d\.assetUrl === 'string'/.test(
+        readSrc('src/components/base/utils/media/assetUrl.ts'),
+      ),
       'resolveAssetDisplayUrl 必须保留 assetUrl 存量兜底（无 resourceId/url 时退回 assetUrl）',
     ).toBe(true);
     // 【2026-09-13 更新】并行「严格类型化」线把 `||` 改为 `??` + `as string | undefined` 显式标注
@@ -175,11 +177,11 @@ describe('源码护栏 — 图片写回只有一个门', () => {
       ),
       'App.copyNodeImage 必须保留 assetUrl 兜底 url（?? / || 均可，容忍 as 标注）',
     ).toBe(true);
-    // 【2026-09-13 修正】getNodeAssetUrl 已下沉 base/utils/nodeMedia.ts（TD-04-25）；
+    // 【2026-09-13 修正】getNodeAssetUrl 已下沉 base/utils/media/nodeMedia.ts（TD-04-25）；
     // 旧断言仍指向 agent/canvas/useCanvasAgentTools.ts（该文件已不再实现、仅转发注释）→ 恒红。
     // 护栏应指向**实现真源**（agent/index.ts barrel 转发到 nodeMedia）。
     expect(
-      /\['assetUrl',\s*'url'\]/.test(readSrc('src/components/base/utils/nodeMedia.ts')),
+      /\['assetUrl',\s*'url'\]/.test(readSrc('src/components/base/utils/media/nodeMedia.ts')),
       'getNodeAssetUrl 必须保留 assetUrl → url 的字段兼容顺序（实现真源 = base/utils/nodeMedia.ts）',
     ).toBe(true);
   });

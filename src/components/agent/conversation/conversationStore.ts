@@ -32,7 +32,7 @@ import {
 import type { Conversation } from './conversationState.ts';
 import { getCurrentSnapshot } from './conversationSnapshot.ts';
 import type { ConversationSnapshot } from './conversationSnapshot.ts';
-import { logger } from '../../base/core/logger.ts';
+import { logger } from '@/components/base/core/log/logger';
 // 【SSOT-7 根治 / P1-B 2026-09-08】依赖方向单向无环：store(本文件) → aiState → state。
 // materializeAssistantTabs 在「会话激活」时即落成稳定基线（memory.assistantTables），
 // 保证任何组件在读取前真源已落盘、id 已固化 —— 不再靠「读时才造 id」的惰性真源。

@@ -28,7 +28,7 @@
 import { chatStream } from '@/components/base/api/index.ts';
 import type { GenerationProvider } from '@/types';
 import type { relayChatMessage as ApiChatMessage } from '@/components/base/api/generate.ts';
-import { withTimeout, releaseQuietly } from '../../base/utils/asyncGuard.ts';
+import { withTimeout, releaseQuietly } from '@/components/base/utils/net/asyncGuard';
 import { CHAT_TOTAL_TIMEOUT } from '../../base/core/config.ts';
 // 复用 agentCore 的权威消息/工具调用类型（同 runtime 目录，避免重定义漂移）
 import type { agentChatMessage, ToolCall, SSEAccumulator, SSEChunkOutcome } from './agentCore.ts';

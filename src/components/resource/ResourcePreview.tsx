@@ -14,8 +14,8 @@
  */
 import React, { useEffect, useRef } from 'react';
 import { FileText, Music } from 'lucide-react';
-import ImageZoomDialog from '../base/ui/ImageZoomDialog.tsx';
-import { isAudio, isVideoResource } from '../base/utils/assetType.ts';
+import ImageZoomDialog from '../base/ui/display/ImageZoomDialog.tsx';
+import { isAudio, isVideoResource } from '../base/utils/media/assetType.ts';
 import { toAbsoluteFileUrl } from '../base/api/filesApi.ts';
 import { toImgDragProps, useTextAsset } from '@/hooks/useAssetDragToCanvas';
 import type { ResourceDragSourceProps } from '@/hooks/useResourceMoveToFolder';

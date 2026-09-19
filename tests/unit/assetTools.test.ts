@@ -201,7 +201,7 @@ const mockImage = { naturalWidth: 0, naturalHeight: 0 };
 // `asyncGuard.ts` 随后新增了 `attemptQuietly` / `releaseQuietly` 等（02 区「静默豁免成本层」收口），
 // 本文件里 `nodePrefs` 的消费者随即拿到 `undefined` → 3 例莫名变红。
 // 改成「保留真实导出 + 只覆盖被测的那一个」，此后模块新增导出不会再打断本文件。
-vi.mock('../../src/components/base/utils/asyncGuard.ts', async (importOriginal) => {
+vi.mock('../../src/components/base/utils/net/asyncGuard.ts', async (importOriginal) => {
   const actual = await importOriginal<Record<string, unknown>>();
   return {
     ...actual,
@@ -226,7 +226,7 @@ describe('imageCompress —— 压缩（含浏览器依赖，部分 mock）', ()
 
   it('非 /files/ 输入原样经 toAbsoluteFileUrl 补全（http 不变）', async () => {
     // 通过 mock Image 尺寸 + document.createElement 验证 URL 被传入 loadImageWithTimeout
-    const asyncGuard = await import('../../src/components/base/utils/asyncGuard.ts');
+    const asyncGuard = await import('../../src/components/base/utils/net/asyncGuard.ts');
     mockImage.naturalWidth = 100;
     mockImage.naturalHeight = 100;
     // 验证：相对 /files/ 路径会被补全成 API_BASE 绝对地址

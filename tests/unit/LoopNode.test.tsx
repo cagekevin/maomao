@@ -19,7 +19,7 @@ vi.mock('../../src/hooks/useConnectedInputs.ts', async (importOriginal) => ({
   ...((await importOriginal()) as Record<string, unknown>),
   useConnectedInputs: mocks.useConnectedInputs,
 }));
-vi.mock('../../src/components/base/core/toastStore.ts', async (importOriginal) => ({
+vi.mock('../../src/components/base/core/event/toastStore.ts', async (importOriginal) => ({
   ...((await importOriginal()) as Record<string, unknown>),
   showToast: mocks.showToast,
   toastWarning: mocks.toastWarning,
@@ -28,7 +28,7 @@ vi.mock('../../src/hooks/useSyncNodeData.ts', async (importOriginal) => ({
   ...((await importOriginal()) as Record<string, unknown>),
   useSyncNodeData: mocks.useSyncNodeData,
 }));
-vi.mock('../../src/components/base/core/uiHooks.ts', () => ({
+vi.mock('../../src/components/base/core/interaction/uiHooks.ts', () => ({
   useOutsideClick: mocks.useOutsideClick,
 }));
 

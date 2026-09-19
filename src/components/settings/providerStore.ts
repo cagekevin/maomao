@@ -17,8 +17,8 @@ import type { RawModel } from '../base/utils/providerModels.ts';
 import { useStoreSelector } from '@/hooks/useStoreSelector';
 import { providerApi } from '../base/api/localToolApi.ts';
 import { contentSetAsync } from '../base/core/contentStore.ts';
-import { reportDegrade } from '../base/core/degrade.ts';
-import { logger } from '../base/core/logger.ts';
+import { reportDegrade } from '../base/core/log/degrade.ts';
+import { logger } from '../base/core/log/logger.ts';
 // 键名真源 = contracts.ts（TD-13-7 收口：本模块不再自持第二份键字面量）
 import { KEY_ACTIVE_API_ENDPOINT } from '../base/core/contracts.ts';
 

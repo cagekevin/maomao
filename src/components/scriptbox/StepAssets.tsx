@@ -15,9 +15,9 @@ import {
 import { ZgPrompt, scriptBoxRemoveResource, renameAssetRefs } from './scriptBoxPrompts.ts';
 import { resolveAssetTemplates } from './scriptBoxPromptResolver.ts';
 import { resourceFolderOf } from '../resource/resourceStore.ts';
-import { useOutsideClick } from '../base/core/uiHooks.ts';
-import { useRenderAssetResolver, toAbsoluteFileUrl } from '../base/utils/assetUrl.ts';
-import ImageZoomDialog from '../base/ui/ImageZoomDialog.tsx';
+import { useOutsideClick } from '../base/core/interaction/uiHooks.ts';
+import { useRenderAssetResolver, toAbsoluteFileUrl } from '../base/utils/media/assetUrl.ts';
+import ImageZoomDialog from '../base/ui/display/ImageZoomDialog.tsx';
 import ScriptBoxAssetPicker from './ScriptBoxAssetPicker.tsx';
 import type { ScriptBoxData, ScriptBoxUpdateData, ScriptBoxCallbacks } from './scriptBoxSchema.ts';
 

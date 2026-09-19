@@ -2,10 +2,10 @@ import React, { useMemo, type CSSProperties, type Ref, type ReactNode } from 're
 import { NodeResizer, useStore } from '@xyflow/react';
 import NodeTitle from '@/components/canvas/parts/NodeTitle';
 import CustomHandle from '@/components/canvas/parts/CustomHandle';
-import { useSizeSync } from '@/components/base/core/uiHooks';
+import { useSizeSync } from '@/components/base/core/interaction/uiHooks';
 import { NODE_AREA_FIXED_BASE_SIZE } from '@/components/base/core/config';
-import ErrorBoundary from '@/components/base/ui/ErrorBoundary';
-import { logger } from '@/components/base/core/logger';
+import ErrorBoundary from '@/components/base/ui/feedback/ErrorBoundary';
+import { logger } from '@/components/base/core/log/logger';
 
 type SizeMode = 'width-fixed' | 'area-fixed';
 type HandleVariant = 'large' | 'small';

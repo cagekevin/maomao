@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import * as contentStore from '../../src/components/base/core/contentStore.ts';
 const { contentClearCache, contentGet } = contentStore;
-import { logger } from '../../src/components/base/core/logger.ts';
+import { logger } from '../../src/components/base/core/log/logger.ts';
 import {
   resetConversationCache,
   ensureActiveConversation,

@@ -39,7 +39,9 @@ vi.mock('../../src/components/canvas/shell/ResourceStrip.tsx', () => ({
   ),
 }));
 vi.mock('../../src/components/scriptbox/ScriptBoxModal.tsx', () => ({ default: () => null }));
-vi.mock('../../src/components/base/core/uiHooks.ts', () => ({ useOutsideClick: () => {} }));
+vi.mock('../../src/components/base/core/interaction/uiHooks.ts', () => ({
+  useOutsideClick: () => {},
+}));
 
 import StepShots from '../../src/components/scriptbox/StepShots.tsx';
 import type { ScriptBoxData } from '../../src/components/scriptbox/scriptBoxSchema.ts';

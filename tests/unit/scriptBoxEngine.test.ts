@@ -18,7 +18,7 @@ vi.mock('../../src/components/base/api/generate.ts', async (importOriginal) => (
   generateImage: vi.fn(),
 }));
 // 统一出口：toAbsoluteFileUrl 把相对 /files/ 补全为绝对原图（与 assetUrl.js 真实行为一致，注入 data.images 前收口）
-vi.mock('../../src/components/base/utils/assetUrl.ts', async (importOriginal) => ({
+vi.mock('../../src/components/base/utils/media/assetUrl.ts', async (importOriginal) => ({
   ...((await importOriginal()) as Record<string, unknown>),
   toAbsoluteFileUrl: (u: any) =>
     u && u.startsWith('/files/') ? `http://127.0.0.1:18080${u}` : u || '',
@@ -28,7 +28,7 @@ vi.mock('../../src/components/base/utils/providerModels.ts', () => ({
   buildAllModels: vi.fn(() => [{ id: 'gpt-4o-mini' }]),
 }));
 // 从真模块派生（TD-17-15）：toastStore 属「会长大」类，手写白名单式桩会随它加导出而脱钩。
-vi.mock('../../src/components/base/core/toastStore.ts', async (importOriginal) => {
+vi.mock('../../src/components/base/core/event/toastStore.ts', async (importOriginal) => {
   const showToast = vi.fn();
   return {
     ...((await importOriginal()) as Record<string, unknown>),
@@ -306,7 +306,7 @@ describe('scriptBoxEngine · 引擎编排', () => {
     const { chatCompletions } = await import('@/components/base/api/generate.ts');
     // toastStore 由本文件顶部 vi.mock 工厂提供（src 无该具名导出），用本地类型收窄
     const { toastStore } =
-      (await import('../../src/components/base/core/toastStore.ts')) as unknown as {
+      (await import('../../src/components/base/core/event/toastStore.ts')) as unknown as {
         toastStore: { showToast: (msg: string, opts?: unknown) => void };
       };
     const { engine, store } = makeEngine({});
@@ -385,7 +385,7 @@ describe('scriptBoxEngine · 引擎编排', () => {
     const { chatCompletions } = await import('@/components/base/api/generate.ts');
     // toastStore 由本文件顶部 vi.mock 工厂提供（src 无该具名导出），用本地类型收窄
     const { toastStore } =
-      (await import('../../src/components/base/core/toastStore.ts')) as unknown as {
+      (await import('../../src/components/base/core/event/toastStore.ts')) as unknown as {
         toastStore: { showToast: (msg: string, opts?: unknown) => void };
       };
     vi.mocked(chatCompletions).mockResolvedValueOnce({ ok: true, content: '不是json' });

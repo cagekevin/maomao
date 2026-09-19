@@ -29,7 +29,7 @@
  * 【契约】这些常量是体积治理的单一事实源；M5 配额预警复用 SAFE_BUDGET_BYTES。
  */
 
-import { logger } from '@/components/base/core/logger';
+import { logger } from '@/components/base/core/log/logger';
 
 /** lastResults 单项（按 url 去重主键；缺 url 回落 name） */
 export interface LastResultItem {

@@ -41,7 +41,7 @@ import {
 // 见下方 MenuActionCtx；NodePalette 亦已传递依赖）。副作用 import 一个**懒加载**模块，
 // 与本文件头「无副作用」自述矛盾，且会**提前触发该模块加载**（违背 lazy 初衷）。
 import type { ContextMenuItem } from './ContextMenu.tsx';
-import type { ContextMenuState } from '@/hooks/useContextMenu';
+import type { ContextMenuState } from '@/components/canvas/shell/useContextMenu';
 
 /**
  * 菜单动作上下文：App 组装一次后整体传入，模块内只调用不持有。

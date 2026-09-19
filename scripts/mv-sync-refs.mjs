@@ -304,6 +304,13 @@ function extractImportNodes(code, filepath) {
         if (node.source) nodes.push(node.source);
       } else if (node.type === 'ExportNamedDeclaration' || node.type === 'ExportAllDeclaration') {
         if (node.source) nodes.push(node.source);
+      } else if (node.type === 'TSImportType') {
+        // 【2026-09-19 工具债当场修（A10）】`typeof import('…')`（**类型位置**的动态 import）在 AST 里是
+        // **TSImportType** 节点，不是 `CallExpression` ⇒ 原 walker 完全看不见它，改写时静默漏改。
+        // 实证：搬迁 `useScriptBoxEngine` 后 `tests/unit/ScriptBoxNode.test.tsx:94` 的
+        // `typeof import('…/hooks/useScriptBoxEngine.ts')` 未被改写 ⇒ `tsc` TS2307（搬迁批次假红）。
+        // 与 TD-17-23「不改写某形态 import」同族（工具对 import 形态的覆盖不全）。
+        if (node.argument) nodes.push(node.argument);
       } else if (node.type === 'CallExpression') {
         const isRequire = node.callee.type === 'Identifier' && node.callee.name === 'require';
         const isDynamicImport = node.callee.type === 'Import';
@@ -1079,6 +1086,52 @@ if (cmd === 'move') {
     console.log('✔ 已重写自身出向 import：');
     for (const d of selfDiffs) console.log(`      - ${d.old}\n      + ${d.new}`);
   }
+  printWarnings();
+  process.exit(0);
+}
+
+// ============================================================================
+// move-list：批量搬迁（一条命令搬多件）—— 供「域归位」批次使用
+//   命令：move-list <pairs.txt> [--dry]
+//   清单格式：每行 `<from> <to>`（空格分隔，路径不含空格）；`#` 开头为注释行。
+//   【为什么加在工具内而不另写脚本】本仓唯一搬迁工具就是本文件；另写一份包装脚本 = 造第二份真相
+//   （且会污染 worktree）。每条复用 `move` 的完整语义（事务型 + 入向/出向改写），故逐条 spawn 本文件。
+//   失败即停（前 N 条已完成、第 N+1 条未做），便于定位。
+// ============================================================================
+if (cmd === 'move-list') {
+  const listArg = positionals[1];
+  if (!listArg) {
+    console.error('用法：move-list <pairs.txt> [--dry]');
+    process.exit(1);
+  }
+  const listAbs = resolve(root, listArg);
+  if (!existsSync(listAbs)) {
+    console.error(`清单不存在：${listArg}`);
+    process.exit(1);
+  }
+  const lines = readFileSync(listAbs, 'utf8')
+    .split('\n')
+    .map((s) => s.trim())
+    .filter((s) => s && !s.startsWith('#'));
+  console.log(`\n计划搬迁 ${lines.length} 件（清单：${listArg}）`);
+  let done = 0;
+  for (const [i, line] of lines.entries()) {
+    const parts = line.split(/\s+/);
+    if (parts.length < 2) {
+      console.error(`✖ 第 ${i + 1} 行格式错（应为 "<from> <to>"）：${line}`);
+      process.exit(1);
+    }
+    console.log(`\n[${i + 1}/${lines.length}] ${parts[0]} → ${parts[1]}`);
+    const args = [fileURLToPath(import.meta.url), 'move', parts[0], parts[1]];
+    if (dry) args.push('--dry');
+    const r = spawnSync(process.execPath, args, { cwd: root, stdio: 'inherit' });
+    if (r.status !== 0) {
+      console.error(`\n✖ 第 ${i + 1} 条失败，已中止（前 ${done} 条已完成）：${parts[0]}`);
+      process.exit(1);
+    }
+    done++;
+  }
+  console.log(`\n✔ move-list 完成：${done}/${lines.length} 件`);
   printWarnings();
   process.exit(0);
 }

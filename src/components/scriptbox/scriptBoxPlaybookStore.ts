@@ -17,8 +17,8 @@
  */
 import { SCRIPT_BOX_WORKFLOWS, DEFAULT_WORKFLOW } from './scriptBoxWorkflows';
 import { contentGet, contentSet, contentClearCache } from '../base/core/contentStore.ts';
-import { confirmPersist } from '../base/core/degrade.ts';
-import { logger } from '../base/core/logger.ts';
+import { confirmPersist } from '../base/core/log/degrade.ts';
+import { logger } from '../base/core/log/logger.ts';
 import { generateId } from '../base/core/idGen.ts';
 // 键名真源 = contracts.ts（TD-13-7 收口：本模块不再自持第二份键字面量）
 import { KEY_SCRIPTBOX_PLAYBOOKS } from '../base/core/contracts.ts';

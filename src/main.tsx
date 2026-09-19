@@ -1,7 +1,7 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App.tsx';
-import ErrorBoundary from './components/base/ui/ErrorBoundary.tsx';
+import ErrorBoundary from './components/base/ui/feedback/ErrorBoundary.tsx';
 import '@xyflow/react/dist/style.css';
 import './index.css';
 // cutia 编辑器主题（作用域隔离，全部规则限定在 .ve-scope 内）。
@@ -9,8 +9,8 @@ import './index.css';
 // 见 docs/130-cutia搬迁计划书-2026-09-14.md。
 import './components/videoEditor/videoEditorTheme.css';
 import { initStorage } from './components/base/storage';
-import { logger } from './components/base/core/logger.ts';
-import { subscribeBackendLogStream } from './components/base/core/backendLogStream.ts';
+import { logger } from './components/base/core/log/logger.ts';
+import { subscribeBackendLogStream } from './components/base/core/log/backendLogStream.ts';
 
 // Chrome 插件环境：启动时从 chrome.storage.local 加载配置缓存；普通环境无副作用
 initStorage();

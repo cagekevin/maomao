@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef } from 'react';
 import type { DragEvent as ReactDragEvent, ClipboardEvent as ReactClipboardEvent } from 'react';
-import { detectFileType, isAssetUrl } from '../components/base/utils/assetType.ts';
-import { isEditableTarget } from '../components/base/core/uiHooks.ts';
-import { sanitizePastedText } from '../components/base/utils/clipboard.ts';
-import { showToast, toastError } from '../components/base/core/toastStore.ts';
+import { detectFileType, isAssetUrl } from '../components/base/utils/media/assetType.ts';
+import { isEditableTarget } from '../components/base/core/interaction/uiHooks.ts';
+import { sanitizePastedText } from '../components/base/utils/net/clipboard.ts';
+import { showToast, toastError } from '../components/base/core/event/toastStore.ts';
 import {
   resolveNodeAssetUrl,
   downloadRemoteToLocal,
@@ -12,10 +12,10 @@ import {
 import { fileNameFromUrl } from '../components/base/core/utils.ts';
 import { assetTypeLabel } from '@/types';
 import { UPLOAD_DIRS } from '../components/base/utils/uploadDirs.ts';
-import { logger } from '../components/base/core/logger.ts';
-import { tryParse } from '../components/base/utils/asyncGuard.ts';
-import { tryParseOr } from '../components/base/core/degrade.ts';
-import type { FlowPosition } from '../components/base/core/uiHooks.ts';
+import { logger } from '../components/base/core/log/logger.ts';
+import { tryParse } from '../components/base/utils/net/asyncGuard.ts';
+import { tryParseOr } from '../components/base/core/log/degrade.ts';
+import type { FlowPosition } from '../components/base/core/interaction/uiHooks.ts';
 
 /** 建节点：addNode(type, pos, data) → 返回节点 id */
 export type AddNodeFn = (

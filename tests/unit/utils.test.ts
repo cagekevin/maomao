@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   deepClone,
@@ -284,11 +284,16 @@ describe('formatDuration（时长显示唯一实现 · TD-22-64）', () => {
   });
 
   it('★源码级：两个消费方**不再自持第二份**（唯一实现在 base/core/utils）', () => {
+    // 【手册 §5】禁止写死单一目录：宿主随域归位搬迁过（canvas/nodes → video/nodes），
+    // 写死路径会让本断言 ENOENT 假红。路径失效 ⇒ 抛错（禁静默跳过）。
     const consumers = [
       'src/components/videoEditor/ui/editor/panels/assets/views/media.tsx',
-      'src/components/canvas/nodes/VideoProcessNode.tsx',
+      'src/components/video/nodes/VideoProcessNode.tsx',
     ];
     for (const rel of consumers) {
+      if (!existsSync(new URL('../../' + rel, import.meta.url))) {
+        throw new Error(`消费方路径失效（搬迁后须同步本清单，手册 §5）：${rel}`);
+      }
       const text = readFileSync(new URL('../../' + rel, import.meta.url), 'utf8');
       // ① 本地实现已删（否则 = 第二份真相源又回来了）
       expect(text).not.toMatch(/(?:const|function)\s+formatDuration\s*[=(]/);

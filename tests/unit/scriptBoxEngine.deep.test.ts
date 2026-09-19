@@ -5,7 +5,7 @@ vi.mock('../../src/components/base/api/generate.ts', async (importOriginal) => (
   chatCompletions: vi.fn(),
   generateImage: vi.fn(),
 }));
-vi.mock('../../src/components/base/core/toastStore.ts', async (importOriginal) => ({
+vi.mock('../../src/components/base/core/event/toastStore.ts', async (importOriginal) => ({
   ...((await importOriginal()) as Record<string, unknown>),
   showToast: vi.fn(),
 }));
@@ -19,7 +19,7 @@ vi.mock('../../src/components/resource/resourceStore.ts', async (importOriginal)
   FOLDERS: [],
 }));
 // 【L3c】logger mock：断言「已中止」判定只走 warn、业务/超时走 error，且 showToast 不被误调
-vi.mock('../../src/components/base/core/logger.ts', () => ({
+vi.mock('../../src/components/base/core/log/logger.ts', () => ({
   logger: { info: vi.fn(), debug: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
 // 【L3c 遗留噪音消除】隔离 taskStore：engine 仅用 reportGenerate(:407)，其返回 taskCtl（progress/done/fail）。
@@ -36,8 +36,8 @@ vi.mock('../../src/components/base/store/taskStore.ts', async (importOriginal) =
 }));
 
 import { chatCompletions, generateImage } from '@/components/base/api/generate.ts';
-import { showToast } from '../../src/components/base/core/toastStore.ts';
-import { logger } from '../../src/components/base/core/logger.ts';
+import { showToast } from '../../src/components/base/core/event/toastStore.ts';
+import { logger } from '../../src/components/base/core/log/logger.ts';
 import { localizeAndStoreToResourceLibrary } from '../../src/components/resource/resourceStore.ts';
 import { reportGenerate } from '../../src/components/base/store/taskStore.ts';
 import { createScriptBoxEngine } from '@/components/scriptbox/scriptBoxEngine.ts';
@@ -659,7 +659,7 @@ describe('剧本盒引擎深度业务 §2.7', () => {
   });
 
   it('T7 中止判定：抛 TimeoutError → 弹 toast，不判中止', async () => {
-    const { TimeoutError } = await import('@/components/base/utils/asyncGuard.ts');
+    const { TimeoutError } = await import('@/components/base/utils/net/asyncGuard');
     generateImageMock.mockRejectedValueOnce(new TimeoutError('尾帧变体生成失败（超时）'));
     data = {
       assets: [{ id: 'a1', category: 'character', name: '角色1', assetUrl: '' }],

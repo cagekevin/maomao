@@ -24,11 +24,11 @@ vi.mock('../../src/hooks/useConnectedInputs.ts', async (importOriginal) => ({
   useConnectedInputs: mocks.useConnectedInputs,
 }));
 vi.mock('../../src/hooks/useAssetDegrade.ts', () => ({ useAssetDegrade: mocks.useAssetDegrade }));
-vi.mock('../../src/components/base/core/uiHooks.ts', () => ({
+vi.mock('../../src/components/base/core/interaction/uiHooks.ts', () => ({
   useNodeResize: mocks.useNodeResize,
   useContentHeightSync: mocks.useContentHeightSync,
 }));
-vi.mock('../../src/components/base/core/toastStore.ts', async (importOriginal) => ({
+vi.mock('../../src/components/base/core/event/toastStore.ts', async (importOriginal) => ({
   ...((await importOriginal()) as Record<string, unknown>),
   showToast: mocks.showToast,
   toastWarning: mocks.toastWarning,

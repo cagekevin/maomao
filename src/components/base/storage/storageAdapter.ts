@@ -18,9 +18,9 @@
  * 用户裁定：「持久化失败肯定是各个地方自己确认，凭什么让一个总的去给他们兜底？」
  * （全局总线还有三处盲区：同 key 节流合并 / memFallback 不 publish / 绕开 adapter 的链路全漏。）
  */
-import { logger } from '../core/logger.ts';
+import { logger } from '../core/log/logger.ts';
 // 非阻塞副作用统一走原语（`NON_BLOCKING` 的收口实现），不再逐处手写 catch-ok 标记（2026-09-17）。
-import { attemptQuietly } from '../utils/asyncGuard.ts';
+import { attemptQuietly } from '../utils/net/asyncGuard.ts';
 
 /** Chrome 扩展全局（宿主注入，本层仅用到 runtime/storage.local 最小子集）。type-check 需显式声明。 */
 declare const chrome: {

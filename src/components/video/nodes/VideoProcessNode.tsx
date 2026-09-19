@@ -18,7 +18,7 @@ import NodeShell from '@/components/canvas/parts/NodeShell';
 import { useConnectedInputs } from '@/hooks/useConnectedInputs';
 import { useNodeRename } from '@/hooks/useNodeRename';
 import { patchNodeDataById } from '@/hooks/useNodeData';
-import { classifyAssetUrlKind } from '@/components/base/utils/assetType';
+import { classifyAssetUrlKind } from '@/components/base/utils/media/assetType';
 import { ASSET_NODE_SIZE } from '@/components/canvas/contract/nodeDefaults';
 import {
   pxDeltaToTime,
@@ -26,18 +26,22 @@ import {
   timeDeltaToPx,
   timeToX,
   xToTime,
-} from '@/components/base/utils/timeline/timeScale';
+} from '@/components/video/lib/timeScale';
 import { useAssetDegrade } from '@/hooks/useAssetDegrade';
-import { useNodeResize } from '@/components/base/core/uiHooks';
+import { useNodeResize } from '@/components/base/core/interaction/uiHooks';
 import { useCanvasKeydown } from '@/components/canvas/topology/canvasHotkeys';
-import { showToast } from '@/components/base/core/toastStore';
+import { showToast } from '@/components/base/core/event/toastStore';
 // 【TD-22-64 · 2026-09-18】时长显示唯一实现：此前本文件自持一份 `formatDuration`，
 // 与 videoEditor/ui/…/media.tsx 的同名实现重复，且多一个「非有限 → '0:00'」的发明值。
 import { formatDuration } from '@/components/base/core/utils';
-import { logger } from '@/components/base/core/logger';
+import { logger } from '@/components/base/core/log/logger';
 import { classifyError } from '@/components/base/utils/genErrors';
-import { withTimeout, isTimeoutError, releaseQuietly } from '@/components/base/utils/asyncGuard';
-import type { ProcessVideoOptions } from '@/components/base/utils/videoEngine';
+import {
+  withTimeout,
+  isTimeoutError,
+  releaseQuietly,
+} from '@/components/base/utils/net/asyncGuard';
+import type { ProcessVideoOptions } from '@/components/video/lib/videoEngine';
 import {
   readVideoMetadata,
   processVideo,
@@ -47,17 +51,17 @@ import {
   uploadResult,
   ProgressController,
   ConversionCanceled,
-} from '@/components/base/utils/videoEngine';
+} from '@/components/video/lib/videoEngine';
 import { generateId } from '@/components/base/core/idGen';
 import { buildSpawnNodes, spawnAndCommit } from '@/components/canvas/structure/deriveNodes';
 import { useCanvasEdges } from '@/components/canvas/structure/CanvasEdgesContext';
 import { httpRequest, uploadFileToLocal } from '@/components/base/api/index';
 import { updateNodeRuntime, useNodeRuntime } from '@/components/base/store/nodeRuntimeStore';
-import previewUrls from '@/components/base/utils/previewUrl';
+import previewUrls from '@/components/base/utils/media/previewUrl';
 import { UPLOAD_DIRS } from '@/components/base/utils/uploadDirs';
 import { DOWNLOAD_TIMEOUT, VIDEO_DOWNLOAD_TIMEOUT } from '@/components/base/core/config';
 import { createRafBatch, fileNameFromUrl } from '@/components/base/core/utils';
-import { sourceTimeAt, timelineTimeAt } from '@/components/base/utils/timeline/sourceTime';
+import { sourceTimeAt, timelineTimeAt } from '@/components/video/lib/sourceTime';
 import { captureFrame } from '@/components/base/utils/captureFrame';
 
 /* ════════════════════════════════════════════════════════════════

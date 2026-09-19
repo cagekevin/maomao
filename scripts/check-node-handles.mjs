@@ -40,10 +40,17 @@
 import { readFileSync } from 'node:fs';
 import { resolve, extname, relative, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { createRequire } from 'node:module';
 import { defaultTargets } from './check-targets.mjs';
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
 const root = resolve(__dirname, '..');
+
+// 节点组件【落点】唯一真源（CJS，供 .mjs/.cjs 共用 —— 同 check-targets.mjs 取 ts-exts.cjs 的约定）。
+// 本闸原先自己拼 `src/components/canvas/nodes/${Pascal}.tsx`：A2 把 11 件节点按域搬走后，
+// 豁免派生找不到文件 ⇒ 规则 1 误红（build 硬红）。禁止再拼路径。
+const require = createRequire(import.meta.url);
+const { nodeDirs, buildIndex, resolveNodeComponent } = require('./node-file-resolver.cjs');
 
 // ── 闸内「显式豁免」只保留**非 node type** 的实现定义文件 ──
 // 节点级的「非标端口」豁免（如 ScriptBoxNode 走 overlayHandles）由真源
@@ -72,22 +79,29 @@ const targets = args.length > 0 ? args.map((a) => resolve(root, a)) : defaultTar
 let contractTargets = new Set();
 let contractSources = new Set();
 let customHandleNodeFiles = new Set();
+const unresolvedCustomHandles = [];
+/** 契约各 type 解析出的组件文件（绝对路径）—— 规则 3 扫描集用（覆盖直挂域根的节点） */
+const resolvedNodeFiles = new Set();
 try {
   const contracts = await import(
     pathToFileURL(resolve(root, 'src/components/base/core/contracts.ts')).href
   );
+  // 节点组件落点索引（A2 后节点已分散到 image/nodes · video/nodes · text/ · scriptbox/）；
+  // 位置解析唯一真源 = node-file-resolver.cjs。
+  const nodeIndex = buildIndex(root);
   for (const [type, h] of Object.entries(contracts.NODE_HANDLE_CONTRACT || {})) {
     if (h.targetHandleId) contractTargets.add(h.targetHandleId);
     if (h.sourceHandleId) contractSources.add(h.sourceHandleId);
-    if (h.customHandles) {
-      const pascal = type.charAt(0).toUpperCase() + type.slice(1);
-      const rel = `src/components/canvas/nodes/${pascal}`;
-      try {
-        readFileSync(resolve(root, `${rel}.tsx`), 'utf8');
-        customHandleNodeFiles.add(rel);
-      } catch {
-        // 推导不到 / 文件缺失 → 不豁免，交由规则 1 红出后回真源补（fail-safe）
+    const abs = resolveNodeComponent(root, type, nodeIndex);
+    if (abs) {
+      resolvedNodeFiles.add(abs);
+      if (h.customHandles) {
+        customHandleNodeFiles.add(
+          relative(root, abs).split(sep).join('/').slice(0, -extname(abs).length),
+        );
       }
+    } else if (h.customHandles) {
+      unresolvedCustomHandles.push(type); // fail-loud，见下（不得静默跳过 ⇒ 闸变瞎却绿）
     }
   }
 } catch (e) {
@@ -96,6 +110,18 @@ try {
 }
 
 let violations = 0;
+
+// 契约声明 customHandles 却找不到组件文件 ⇒ 豁免无法生效，规则 1 必误红。
+// 显式点名而非静默跳过：静默跳过正是「扫 0 却绿灯」的成因（见 node-file-resolver.cjs 头部）。
+if (unresolvedCustomHandles.length > 0) {
+  violations++;
+  console.error(
+    `  ✖ NODE_HANDLE_CONTRACT 声明 customHandles 但找不到组件文件: ${unresolvedCustomHandles.join(' ')}`,
+  );
+  console.error(
+    `      → 节点组件落点由 scripts/node-file-resolver.cjs 单一维护；组件确已搬迁时把新目录补进 COMPONENT_SEARCH_DIRS。`,
+  );
+}
 
 for (const file of targets) {
   const rel = relative(root, file).split(sep).join('/');
@@ -142,13 +168,17 @@ for (const file of targets) {
 // 漏登记即红（防漂移回潮）。
 
 
-// 节点文件里的 NodeShell handle prop 字面量（只扫节点目录，排除注释行）
-const NODE_DIR = resolve(root, 'src/components/canvas/nodes');
+// 节点文件里的 NodeShell handle prop 字面量（只扫节点文件，排除注释行）
+// 扫描集 = 「*/nodes 目录下的文件」（按目录枚举）∪「契约各 type 解析出的组件文件」。
+// 后者覆盖**直挂域根**的节点（如 scriptbox/ScriptBoxNode.tsx）—— 必须用文件而非目录：
+// 域根里混有 UI/工具件，按目录扫会把它们当节点（本轮实测误报 10 件）。
+// 原先只扫 canvas/nodes：A2 把 11 件节点按域搬走后，覆盖从 15 件掉到 4 件 —— 静默变瞎。
+const NODE_DIRS = nodeDirs(root);
 const TARGET_PROP_RE = /\btargetHandleId\s*=\s*"([^"]+)"/;
 const SOURCE_PROP_RE = /\bsourceHandleId\s*=\s*"([^"]+)"/;
 const declaredHandleFiles = [];
 for (const file of defaultTargets(root)) {
-  if (!file.startsWith(NODE_DIR + sep)) continue;
+  if (!NODE_DIRS.some((d) => file.startsWith(d + sep)) && !resolvedNodeFiles.has(file)) continue;
   let src;
   try {
     src = readFileSync(file, 'utf8');

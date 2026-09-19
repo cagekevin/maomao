@@ -45,11 +45,17 @@
  *   node scripts/check-node-data.mjs --strict     # 有缺口时 exit 1（check:health 用的就是它）
  */
 import { readFileSync, existsSync, readdirSync } from 'node:fs';
-import { resolve, join } from 'node:path';
+import { resolve, join, relative } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { createRequire } from 'node:module';
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
 const root = resolve(__dirname, '..');
+
+// 节点组件【落点】唯一真源（CJS，供 .mjs/.cjs 共用）。A2 拆 canvas/nodes 后，任何
+// 「只认 canvas/nodes」的写法都会静默变瞎（见 node-file-resolver.cjs 头部）。
+const require = createRequire(import.meta.url);
+const { nodeDirs, COMPONENT_SEARCH_DIRS } = require('./node-file-resolver.cjs');
 
 /**
  * 节点类型 → 节点组件文件（相对仓库根）。
@@ -66,19 +72,30 @@ const NODE_TYPE_TO_FILE = {
   director3dNode: 'src/components/canvas/nodes/Director3DNode.tsx',
   faceMosaicNode: 'src/components/image/nodes/FaceMosaicNode.tsx',
   loopNode: 'src/components/image/nodes/LoopNode.tsx',
-  videoExtractNode: 'src/components/canvas/nodes/VideoExtractNode.tsx',
-  videoProcessNode: 'src/components/canvas/nodes/VideoProcessNode.tsx',
+  videoExtractNode: 'src/components/video/nodes/VideoExtractNode.tsx',
+  videoProcessNode: 'src/components/video/nodes/VideoProcessNode.tsx',
   group: 'src/components/canvas/nodes/GroupNode.tsx',
   scriptBoxNode: 'src/components/scriptbox/ScriptBoxNode.tsx',
   textGenerateNode: 'src/components/text/TextGenerate.tsx',
   imageGenerateNode: 'src/components/image/nodes/ImageGenerate.tsx',
-  videoGenerateNode: 'src/components/canvas/nodes/VideoGenerate.tsx',
+  videoGenerateNode: 'src/components/video/nodes/VideoGenerate.tsx',
   ghostTarget: 'src/components/canvas/nodes/GhostTargetNode.tsx',
 };
 
 /** nodes/ 下非节点组件文件（辅助 hook / 纯工具 / 素材），不参与 data 对账 */
 const NON_NODE_FILES = new Set(['nodeImage.ts', 'useImagePersistence.tsx', 'useImageHoverActions.tsx']);
-const NODES_DIR = 'src/components/canvas/nodes';
+/**
+ * 节点目录（绝对路径，唯一真源 node-file-resolver.cjs）—— 只含 /nodes 结尾者，
+ * 原先只认 canvas/nodes：A2 后既漏扫 image/video/nodes，又把域根里的 UI 文件误当节点。
+ */
+const NODE_DIRS = nodeDirs(root);
+/** 相对展示路径：剥掉节点目录前缀（原先只剥 canvas/nodes，其他域会打印整条路径） */
+const nodeRel = (rel) => {
+  for (const d of COMPONENT_SEARCH_DIRS) {
+    if (rel.startsWith(d + '/')) return rel.slice(d.length + 1);
+  }
+  return rel;
+};
 // 数据默认值真源（2026-09-12 / TD-02-7：原在 NodePalette.paletteNodes[].data，已迁此）
 const DATA_SCHEMA_FILE = 'src/components/canvas/contract/nodeDataSchema.ts';
 const OUTPUTS_FILE = 'src/hooks/useConnectedInputs.ts';
@@ -588,7 +605,7 @@ for (const r of rows) {
   const patchCnt = r.sites.filter((s) => s.kind === 'patchData').length;
   if (patchCnt === 0 && (written.length || def.length)) noPatch.push(r.type);
 
-  line(`── ${r.type}  (${r.rel.replace(NODES_DIR + '/', '')})`);
+  line(`── ${r.type}  (${nodeRel(r.rel)})`);
   line(`   interface(${iface.length}): ${iface.join(' ') || '(无)'}`);
   line(`   默认值    (${def.length}): ${def.join(' ') || '(无)'}`);
   const indirectCnt = r.sites.filter((s) => s.indirect).length;
@@ -706,20 +723,26 @@ for (const r of rows) {
 
 // 收尾：映射表过期检查
 line('');
+// 本表过期防守：遍历【全部】节点目录（原只读 canvas/nodes —— A2 后本防守已失效：
+// 既漏掉搬到 image/video/text/scriptbox 的文件，又因前缀剥不掉把已登记件误报为未登记）。
 const knownFiles = new Set(
-  Object.values(NODE_TYPE_TO_FILE).filter(Boolean).map((p) => p.replace(NODES_DIR + '/', '')),
+  Object.values(NODE_TYPE_TO_FILE)
+    .filter(Boolean)
+    .map((p) => p.split('/').pop()),
 );
 const unmapped = [];
-try {
-  for (const f of readdirSync(join(root, NODES_DIR))) {
-    if (!f.endsWith('.tsx') || NON_NODE_FILES.has(f) || knownFiles.has(f)) continue;
-    unmapped.push(f);
+for (const dir of NODE_DIRS) {
+  try {
+    for (const f of readdirSync(dir)) {
+      if (!f.endsWith('.tsx') || NON_NODE_FILES.has(f) || knownFiles.has(f)) continue;
+      unmapped.push(nodeRel(relative(root, join(dir, f))));
+    }
+  } catch {
+    /* 目录不可读则跳过 */
   }
-} catch {
-  /* 目录不可读则跳过 */
 }
 if (unmapped.length) {
-  line(`⚠ nodes/ 下有未登记到 NODE_TYPE_TO_FILE 的文件（本表可能过期）: ${unmapped.join(' ')}`);
+  line(`⚠ 节点目录下有未登记到 NODE_TYPE_TO_FILE 的文件（本表可能过期）: ${unmapped.join(' ')}`);
 }
 const noFile = Object.entries(NODE_TYPE_TO_FILE)
   .filter(([, v]) => !v)

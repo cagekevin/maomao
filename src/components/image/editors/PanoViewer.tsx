@@ -2,7 +2,7 @@ import React, { useImperativeHandle, useEffect, useRef, useCallback } from 'reac
 import { useThree, useFrame } from '@react-three/fiber';
 import { PerspectiveCamera, OrbitControls, useTexture } from '@react-three/drei';
 import * as THREE from 'three';
-import { toAbsoluteFileUrl } from '@/components/base/utils/assetUrl';
+import { toAbsoluteFileUrl } from '@/components/base/utils/media/assetUrl';
 import { canvasToImageDataUrl } from '@/components/base/core/utils';
 
 /**

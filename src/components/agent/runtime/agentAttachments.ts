@@ -22,8 +22,8 @@ import {
   normalizeAssetUrlForSend,
   toAbsoluteFileUrl,
   summarizeAssetUrls,
-} from '../../base/utils/assetUrl.ts';
-import { logger } from '../../base/core/logger.ts';
+} from '@/components/base/utils/media/assetUrl';
+import { logger } from '@/components/base/core/log/logger';
 
 /**
  * 视频/音频附件归一（原样发送）：

@@ -60,7 +60,7 @@ vi.mock('../../src/components/creative/CreativeLibraryButton.tsx', () => ({
   default: () => null,
 }));
 vi.mock('../../src/components/canvas/parts/JianyingIcon.tsx', () => ({ default: () => null }));
-vi.mock('../../src/components/base/core/uiHooks.ts', () => ({
+vi.mock('../../src/components/base/core/interaction/uiHooks.ts', () => ({
   useNodeResize: () => ({ onInputResize: vi.fn() }),
   useOutsideClick: () => {},
 }));
@@ -100,7 +100,7 @@ vi.mock('../../src/components/base/utils/providerModels.ts', () => ({
   buildAllModels: vi.fn(() => []),
   resolveProviderModel: vi.fn(() => ({ provider: {}, modelId: 'm' })),
 }));
-vi.mock('../../src/components/base/utils/clipboard.ts', async (importOriginal) => {
+vi.mock('../../src/components/base/utils/net/clipboard.ts', async (importOriginal) => {
   const actual = (await importOriginal()) as Record<string, unknown>;
   return { ...actual, downloadUrl: vi.fn() };
 });

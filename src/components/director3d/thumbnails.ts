@@ -3,7 +3,7 @@
 //   由调用方注入画布源（source）——monitor / 截图等使用方各自从 ref 取 current 后传入。
 // 本模块为纯同步逻辑，可直接单测（构造 ImageData / canvas mock 验证输出）。
 import { canvasToImageDataUrl } from '../base/core/utils.ts';
-import { logger } from '../base/core/logger.ts';
+import { logger } from '../base/core/log/logger.ts';
 
 /**
  * 从任意 Canvas / ImageSource 生成 240×135 JPEG 缩略图 dataURL。

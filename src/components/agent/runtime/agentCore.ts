@@ -40,8 +40,8 @@
  * ════════════════════════════════════════════════════════════════
  */
 import { contentGet } from '../../base/core/contentStore.ts';
-import { tryParse } from '../../base/utils/asyncGuard.ts';
-import { logger } from '../../base/core/logger.ts';
+import { tryParse } from '@/components/base/utils/net/asyncGuard';
+import { logger } from '@/components/base/core/log/logger';
 // 【TD-15-1】agentKey 前缀单源（禁本地拼字面量）
 import { AGENT_KEY_PREFIX } from '../../base/core/agentKeys.ts';
 import { AGENT_PROMPTS } from '../agentConfig.ts';

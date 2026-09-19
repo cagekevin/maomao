@@ -8,7 +8,7 @@
  * 与 agent_input_mode / agent_panel_width 等前端偏好一致，轻量即时，无需网络。
  */
 import { contentGet, contentSet } from '@/components/base/core/contentStore';
-import { confirmPersist } from '@/components/base/core/degrade';
+import { confirmPersist } from '@/components/base/core/log/degrade';
 // 键名真源 = contracts.ts（TD-13-7 收口：本模块不再自持第二份键字面量）
 import { KEY_AGENT_CHAT_MODEL, KEY_AGENT_HISTORY_TURNS } from '@/components/base/core/contracts';
 

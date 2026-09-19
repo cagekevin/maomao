@@ -21,7 +21,7 @@
 
 import type { CatalogKind, CreativePreset, PresetKind } from './creativePresets.ts';
 import { presetIdFor } from './creativePresets.ts';
-import { classifyAssetUrlKind } from '../base/utils/assetType.ts';
+import { classifyAssetUrlKind } from '../base/utils/media/assetType.ts';
 import creativeData from './data/creativeCatalog.json';
 import mjData from './data/mjStyleCatalog.json';
 

@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 // kvGet/kvSet/kvDelete 经 localToolApi → httpClient，其内部 logger.debug 会 fire-and-forget 调
 // fetch(/api/logs)，为不污染 fetch 断言，mock 掉 logger（接口须与真实 logger 对齐，含 debug，否则 httpClient 崩溃）。
-vi.mock('../../src/components/base/core/logger.ts', () => ({
+vi.mock('../../src/components/base/core/log/logger.ts', () => ({
   logger: {
     warn: vi.fn(),
     info: vi.fn(),

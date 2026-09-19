@@ -17,10 +17,10 @@ import {
   MOSAIC_MODES,
   MOSAIC_PALETTE,
   MosaicMode,
-} from '@/components/base/utils/faceMosaic';
+} from '@/components/image/lib/faceMosaic';
 import { createRafBatch, canvasToImageDataUrl } from '@/components/base/core/utils';
-import { toastError } from '@/components/base/core/toastStore';
-import { loadImageOrNull } from '@/components/base/utils/asyncGuard';
+import { toastError } from '@/components/base/core/event/toastStore';
+import { loadImageOrNull } from '@/components/base/utils/net/asyncGuard';
 import FullscreenShell from '@/components/base/panels/FullscreenShell';
 
 /**

@@ -13,12 +13,12 @@
  * 名称注释：from/to 登记见 contracts.ts 的 EVENTS 表，届时 subscribe 位置更新须同步 from 基线。
  */
 import { useEffect } from 'react';
-import { subscribe } from '@/components/base/core/eventBus';
+import { subscribe } from '@/components/base/core/event/eventBus';
 
-import { showToast } from '@/components/base/core/toastStore';
-import { logger } from '@/components/base/core/logger';
-import { importAll, exportAll, backupToBlob } from '@/components/base/store/backupStore';
-import { downloadBlob } from '@/components/base/utils/clipboard';
+import { showToast } from '@/components/base/core/event/toastStore';
+import { logger } from '@/components/base/core/log/logger';
+import { importAll, exportAll, backupToBlob } from '@/components/canvas/backupStore';
+import { downloadBlob } from '@/components/base/utils/net/clipboard';
 
 /** 完整工作流备份导入导出（对齐官方 yimao 工作流备份）：承接 project:import / project:export 事件 */
 export function useProjectBackupIO(): void {

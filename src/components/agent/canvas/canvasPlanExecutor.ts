@@ -15,8 +15,8 @@
  */
 import { runNodeGeneration, isNodeRegistered } from '../../base/store/taskStore.ts';
 import { generateId } from '../../base/core/idGen.ts';
-import { logger } from '../../base/core/logger.ts';
-import { toAbsoluteFileUrl } from '../../base/utils/assetUrl.ts';
+import { logger } from '@/components/base/core/log/logger';
+import { toAbsoluteFileUrl } from '@/components/base/utils/media/assetUrl';
 import { createAgentCanvasHost, type AgentCanvasHostCtx } from './agentCanvasHost.ts';
 
 /** 计划单步（generations 数组元素）：字段均可选，因 LLM 计划数据可能不完整。 */

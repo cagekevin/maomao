@@ -37,10 +37,14 @@ import {
 import { ensureModel, disposeModel, ensureRuntimeImportMap } from './loader';
 import { uploadFileToLocal } from '@/components/base/api/filesApi';
 import { UPLOAD_DIRS } from '@/components/base/utils/uploadDirs';
-import { withTimeout, isTimeoutError, releaseQuietly } from '@/components/base/utils/asyncGuard';
+import {
+  withTimeout,
+  isTimeoutError,
+  releaseQuietly,
+} from '@/components/base/utils/net/asyncGuard';
 import { classifyError } from '@/components/base/utils/genErrors';
-import { showToast } from '@/components/base/core/toastStore';
-import { logger } from '@/components/base/core/logger';
+import { showToast } from '@/components/base/core/event/toastStore';
+import { logger } from '@/components/base/core/log/logger';
 import { setCrossOriginForReadable } from '@/components/base/utils/captureFrame';
 import { fileNameFromUrl, clamp } from '@/components/base/core/utils';
 

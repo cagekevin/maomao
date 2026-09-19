@@ -27,7 +27,7 @@ import * as d3dPersistence from './d3dPersistence.ts';
 import type { D3dProject } from './d3dPersistence.ts';
 // 【2026-09-16 收口】非工程键改走横切存储唯一入口（contentStore），不再裸写 localStorage。
 import { contentGet, contentGetLocalMirror, contentSet } from '../base/core/contentStore.ts';
-import { confirmPersist } from '../base/core/degrade.ts';
+import { confirmPersist } from '../base/core/log/degrade.ts';
 import { readLegacyRawKey, removeLegacyRawKey } from '../base/storage/index.ts';
 import { KEY_DIRECTOR3D_CUSTOM_POSES } from '../base/core/contracts.ts';
 

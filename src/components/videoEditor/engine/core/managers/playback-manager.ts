@@ -1,5 +1,5 @@
 import type { EditorCore } from '@/components/videoEditor/engine/core';
-import { publish } from '../../../../base/core/eventBus.ts';
+import { publish } from '@/components/base/core/event/eventBus';
 
 export class PlaybackManager {
   private isPlaying = false;

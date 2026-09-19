@@ -34,7 +34,7 @@
  *
  *   ② **按白名单收窄 `include` —— 更快但**不安全，已否决**。做法：按 `strict-src-whitelist.json`
  *      生成只含 18 个白名单目录的子配置（285/589 文件）。实测 11.4s → 10.5s（**只省 0.9s**），
- *      但**引入伪错误**：窄配置下 `src/components/base/utils/videoEngine.ts:34` 报
+ *      但**引入伪错误**：窄配置下 `src/components/video/lib/videoEngine.ts:34` 报
  *      `TS7016 gifenc 无声明文件`，而**全量配置下不报**（`grep -c gifenc` = 0）。
  *      原因：收窄 include 会改变 tsc 的 program 组成（外部 `.d.ts` 的加载与可见性随之变化）。
  *      ⇒ **为了 0.9s 去换「可能红在别处」= 违反闸的诚实性，不做。**

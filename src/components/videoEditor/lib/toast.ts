@@ -10,7 +10,7 @@
  * 故在此做一层**纯转发适配**：实现 100% 落在统一 toastStore，这里只补齐上述语义，
  * 让原有 13 处调用点只改 import 即可，零行为回归。
  */
-import { showToast, dismissToast } from '../../base/core/toastStore.ts';
+import { showToast, dismissToast } from '@/components/base/core/event/toastStore';
 
 export interface ToastOptions {
   description?: string;

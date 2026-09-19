@@ -15,11 +15,11 @@ import { renderHook, act } from '@testing-library/react';
 
 // logger.warn 必须被调用（"只置位不留痕" = 把不可诊断的问题留给后人）
 const h = vi.hoisted(() => ({ warn: vi.fn() }));
-vi.mock('../../src/components/base/core/logger.ts', () => ({
+vi.mock('../../src/components/base/core/log/logger.ts', () => ({
   logger: { warn: h.warn, info: vi.fn(), error: vi.fn() },
 }));
 
-import { useMediaLoadFailed } from '../../src/components/base/utils/useMediaLoadFailed.ts';
+import { useMediaLoadFailed } from '../../src/components/base/utils/media/useMediaLoadFailed.ts';
 
 beforeEach(() => {
   h.warn.mockClear();

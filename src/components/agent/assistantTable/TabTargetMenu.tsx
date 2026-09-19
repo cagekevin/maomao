@@ -12,7 +12,7 @@
  */
 import { useRef, useState, type ReactNode } from 'react';
 import Icon from './icons.tsx';
-import { useOutsideClick } from '@/components/base/core/uiHooks.ts';
+import { useOutsideClick } from '@/components/base/core/interaction/uiHooks';
 
 export interface TabTargetOption {
   id: string;

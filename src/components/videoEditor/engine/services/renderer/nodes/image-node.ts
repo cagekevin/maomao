@@ -1,6 +1,6 @@
 import type { CanvasRenderer } from '../canvas-renderer';
 import { VisualNode, type VisualNodeParams } from './visual-node';
-import { setCrossOriginForReadable } from '../../../../../base/utils/asyncGuard.ts';
+import { setCrossOriginForReadable } from '@/components/base/utils/net/asyncGuard';
 
 export interface ImageNodeParams extends VisualNodeParams {
   url: string;

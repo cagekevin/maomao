@@ -4,7 +4,7 @@
  * 布局：左 3D 视口 | 右参数面板，底部提示词预览 + 操作按钮。
  */
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { copyText } from '@/components/base/utils/clipboard';
+import { copyText } from '@/components/base/utils/net/clipboard';
 import { Camera, Lightbulb, Combine, X, Copy, Check, RotateCcw, Sparkles } from 'lucide-react';
 import * as THREE from 'three';
 import {

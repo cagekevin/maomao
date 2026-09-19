@@ -1,14 +1,14 @@
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import '@/components/base/api/index';
-import LazyImage from '@/components/base/ui/LazyImage';
+import LazyImage from '@/components/base/ui/display/LazyImage';
 import AttachmentCover from '@/components/agent/panels/attachmentCover';
-import { toAbsoluteFileUrl } from '@/components/base/utils/assetUrl';
+import { toAbsoluteFileUrl } from '@/components/base/utils/media/assetUrl';
 import AgentConfirmCard from './AgentConfirmCard';
-import ImageZoomDialog from '@/components/base/ui/ImageZoomDialog';
+import ImageZoomDialog from '@/components/base/ui/display/ImageZoomDialog';
 import ChatMarkdown from './ChatMarkdown';
-import { showToast } from '@/components/base/core/toastStore';
-import { copyText } from '@/components/base/utils/clipboard';
-import { logger } from '@/components/base/core/logger';
+import { showToast } from '@/components/base/core/event/toastStore';
+import { copyText } from '@/components/base/utils/net/clipboard';
+import { logger } from '@/components/base/core/log/logger';
 
 /** 协议层 ChatMessage.content 可为 string 或 多模态数组，但本组件只渲染文本（UI 契约 content?: string）。
  *  收到数组即暴露（warn）并降级为文本块拼接，不谎称（避免数组被当 string 发画布/渲染出错）。

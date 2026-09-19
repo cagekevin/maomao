@@ -7,7 +7,7 @@ import {
   resolveAssetType,
   isAssetUrl,
   isAudio,
-} from '../../src/components/base/utils/assetType.ts';
+} from '../../src/components/base/utils/media/assetType.ts';
 
 describe('assetType §2.17', () => {
   it('detectAssetType 按 dataURL 前缀/扩展名分类', () => {

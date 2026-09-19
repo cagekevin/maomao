@@ -19,7 +19,7 @@ vi.mock('../../src/components/base/api/filesApi.ts', async (importOriginal) => (
   ...((await importOriginal()) as Record<string, unknown>),
   toAbsoluteFileUrl: (u: any) => `ABS:${u}`,
 }));
-vi.mock('../../src/components/base/ui/LazyImage.tsx', () => ({
+vi.mock('../../src/components/base/ui/display/LazyImage.tsx', () => ({
   default: ({ src }: any) => React.createElement('img', { src }),
 }));
 

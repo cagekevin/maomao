@@ -1,5 +1,5 @@
 import { Camera, Copy, FileImage, Plus, Trash2 } from 'lucide-react';
-import LazyImage from '../../base/ui/LazyImage.tsx';
+import LazyImage from '@/components/base/ui/display/LazyImage';
 
 /** 镜头卡片所需的最小形状（来自 normalizeShot 产出的完整 shot） */
 interface ShotCard {

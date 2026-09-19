@@ -5,7 +5,7 @@ import './panel-kit.css';
 import TaskCenter from '@/components/task/TaskCenter';
 import GeneratedView from '@/components/generate/GeneratedView';
 import ResourceLibrary from '@/components/resource/ResourceLibrary';
-import PromptHub from '../prompt/PromptHub.tsx';
+import PromptHub from '@/components/prompt/PromptHub';
 import { useTasks, usePanel, setPanel, getPanel, togglePin } from '../store/taskStore.ts';
 
 // tab 配置：任务 / 生成 / 素材 / 提示词库

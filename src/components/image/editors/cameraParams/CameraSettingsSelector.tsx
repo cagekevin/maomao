@@ -14,7 +14,7 @@
 
 import { useRef, useState } from 'react';
 import { Camera } from 'lucide-react';
-import { useOutsideClick } from '@/components/base/core/uiHooks';
+import { useOutsideClick } from '@/components/base/core/interaction/uiHooks';
 import './cameraParams.css';
 import type {
   CameraAperture,

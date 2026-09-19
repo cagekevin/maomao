@@ -30,7 +30,7 @@ vi.mock('../../src/components/agent/canvas/useCanvasAgentTools.ts', () => ({
 
 // mock logger：AI 助手链路新增日志会 POST /api/logs，会污染全局 fetchMock 计数，
 // 故测试环境把 logger 变成空操作（保持对 fetch/callTool 的精确断言）。
-vi.mock('../../src/components/base/core/logger.ts', () => ({
+vi.mock('../../src/components/base/core/log/logger.ts', () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), log: vi.fn(), debug: vi.fn() },
 }));
 

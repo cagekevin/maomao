@@ -32,11 +32,11 @@ import { localizeAndStoreToResourceLibrary, resourceFolderOf } from '../resource
 import { CODE_GENERATED_USER_SUB_DIRS } from '../base/utils/uploadDirs.ts';
 import { uploadFileToLocal } from '../base/api/index.ts';
 import { runGenerationOrchestration } from '../base/store/generationOrchestration.ts';
-import { toAbsoluteFileUrl } from '../base/utils/assetUrl.ts';
-import { detectFileType } from '../base/utils/assetType.ts';
+import { toAbsoluteFileUrl } from '../base/utils/media/assetUrl.ts';
+import { detectFileType } from '../base/utils/media/assetType.ts';
 import { fileNameFromUrl, canvasToImageDataUrl, clamp } from '../base/core/utils.ts';
-import { showToast } from '../base/core/toastStore.ts';
-import { logger } from '../base/core/logger.ts';
+import { showToast } from '../base/core/event/toastStore.ts';
+import { logger } from '../base/core/log/logger.ts';
 
 import { shotHandleId } from '../base/core/contracts.ts';
 import {
@@ -48,7 +48,7 @@ import {
   SCRIPT_IMAGE_TIMEOUT,
 } from '../base/core/config.ts';
 // 任务级总耗时兜底（R2 边界守卫）：给整段生成任务加超时，杜绝「转圈永不结束」
-import { withTimeout, releaseQuietly } from '../base/utils/asyncGuard.ts';
+import { withTimeout, releaseQuietly } from '../base/utils/net/asyncGuard.ts';
 import { drawVideoFrame, setCrossOriginForReadable } from '../base/utils/captureFrame.ts';
 // 【L3c】中止判定统一走 classifyError（唯一入口 genErrors.ts:24），替代原 /abort/i message 关键词判点（脆依赖）
 import { classifyError } from '../base/utils/genErrors.ts';

@@ -1,9 +1,9 @@
 import React, { useState, useRef } from 'react';
 import { ChevronDown, Check } from 'lucide-react';
-import { useOutsideClick } from '../base/core/uiHooks.ts';
+import { useOutsideClick } from '../base/core/interaction/uiHooks.ts';
 // 【TD-19-1】面板/行 chrome 与定位收口到共用窄原语（与 ModelSelect 同一份）
-import DropdownPanel from '../base/ui/DropdownPanel.tsx';
-import DropdownRow from '../base/ui/DropdownRow.tsx';
+import DropdownPanel from '../base/ui/form/DropdownPanel.tsx';
+import DropdownRow from '../base/ui/form/DropdownRow.tsx';
 
 /**
  * 通用下拉菜单（与 ModelSelect 同款交互/配色，供工作流等「少数固定选项」选择用）。

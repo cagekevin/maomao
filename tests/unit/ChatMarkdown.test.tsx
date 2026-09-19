@@ -11,7 +11,7 @@ import React from 'react';
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 
-vi.mock('../../src/components/base/ui/LazyImage.tsx', () => ({
+vi.mock('../../src/components/base/ui/display/LazyImage.tsx', () => ({
   default: ({ src }: any) => React.createElement('img', { src }),
 }));
 

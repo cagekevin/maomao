@@ -34,7 +34,7 @@ vi.mock('../../src/components/base/api/filesApi.ts', async (importOriginal) => (
   WEB_DROP_SUBFOLDER: 'web',
 }));
 const toastMock = vi.fn();
-vi.mock('../../src/components/base/core/toastStore.ts', async (importOriginal) => ({
+vi.mock('../../src/components/base/core/event/toastStore.ts', async (importOriginal) => ({
   ...((await importOriginal()) as Record<string, unknown>),
   showToast: toastMock,
 }));

@@ -28,7 +28,8 @@ export default defineConfig({
     // 重测试默认排除：imageUpscale 是真实 canvas 图片缩放（×2/clamp/锐化走
     // getImageData/putImageData），单次 7.4s 是全量最慢的 4 倍，99% 的日常改动用不到。
     // 排除后默认 `vitest run` / 门禁 / 覆盖率都不跑它；需要回归时显式跑即可（见 test:unit:heavy）。
-    // 注：exclude 不影响「指定文件路径」的调用，故 test:unit:heavy 仍能覆盖到本文件。
+    // 注：默认配置下**按路径调用也会被 exclude 拦掉**（2026-09-19 实测 `vitest run <该路径>` → "No test files found"）；
+    //     覆盖本文件必须显式走 `npm run test:unit:heavy`（`vitest.heavy.config.ts` 的 exclude 只含 node_modules/dist）。
     exclude: [...defaultExclude, 'tests/unit/imageUpscale.test.ts'],
     globals: true,
     setupFiles: ['tests/setup.mjs'],

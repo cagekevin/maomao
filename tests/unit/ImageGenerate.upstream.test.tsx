@@ -41,7 +41,7 @@ vi.mock('../../src/hooks/useNodeGeneration.ts', async (importOriginal) => ({
   },
 }));
 
-vi.mock('../../src/components/base/ui/ModelSelect.tsx', () => ({
+vi.mock('../../src/components/base/ui/form/ModelSelect.tsx', () => ({
   default: ({ value, onChange }: any) => (
     <button type="button" data-testid="model-select" onClick={() => onChange('model-x')}>
       {value || '选择模型'}
@@ -75,7 +75,7 @@ vi.mock('../../src/components/creative/CreativeLibraryButton.tsx', () => ({
   default: () => null,
 }));
 vi.mock('../../src/components/canvas/parts/JianyingIcon.tsx', () => ({ default: () => null }));
-vi.mock('../../src/components/base/core/uiHooks.ts', () => ({
+vi.mock('../../src/components/base/core/interaction/uiHooks.ts', () => ({
   useNodeResize: () => ({ onInputResize: vi.fn() }),
   useOutsideClick: () => {},
 }));

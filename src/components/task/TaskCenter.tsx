@@ -23,14 +23,14 @@ import {
   useTasks,
   statusDotClass,
 } from '../base/store/taskStore.ts';
-import { logger } from '../base/core/logger.ts';
-import { downloadUrl, copyText } from '../base/utils/clipboard.ts';
-import { showToast } from '../base/core/toastStore.ts';
+import { logger } from '../base/core/log/logger.ts';
+import { downloadUrl, copyText } from '../base/utils/net/clipboard.ts';
+import { showToast } from '../base/core/event/toastStore.ts';
 import { makeAssetDragProps } from '@/hooks/useAssetDragToCanvas';
-import VideoThumbnail from '../base/ui/VideoThumbnail.tsx';
-import ImageZoomDialog from '../base/ui/ImageZoomDialog.tsx';
-import { useRenderAssetResolver } from '../base/utils/assetUrl.ts';
-import { useOutsideClick } from '../base/core/uiHooks.ts';
+import VideoThumbnail from '../base/ui/display/VideoThumbnail.tsx';
+import ImageZoomDialog from '../base/ui/display/ImageZoomDialog.tsx';
+import { useRenderAssetResolver } from '../base/utils/media/assetUrl.ts';
+import { useOutsideClick } from '../base/core/interaction/uiHooks.ts';
 import { formatTime } from '../base/core/utils.ts';
 import { PanelSubBar, PanelMoreMenu } from '../base/panels/PanelBar.tsx';
 

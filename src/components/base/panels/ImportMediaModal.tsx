@@ -89,13 +89,13 @@ import type {
   MediaRefQuery,
   MediaRefSource,
 } from '../media/mediaRefTypes.ts';
-import { logger } from '../core/logger.ts';
-import { toastError, toastSuccess } from '../core/toastStore.ts';
+import { logger } from '../core/log/logger.ts';
+import { toastError, toastSuccess } from '../core/event/toastStore.ts';
 // 目录浏览规则（根/子目录 → 查询参数 · 上钻）：**与侧边栏素材库同一份实现**（见 libraryBrowse.ts）。
 import { libraryBrowseArgs, libraryUpFolder } from '../media/libraryBrowse.ts';
 // 本地引擎连接态：拖入归类需要它（hook 的 `connected` 是必填；漏传 = drop 恒失败的假交互）。
 import { useLocalToolStatus } from '../../../hooks/useLocalToolStatus.ts';
-import LazyImage from '../ui/LazyImage.tsx';
+import LazyImage from '../ui/display/LazyImage.tsx';
 // 归类拖拽（唯一收敛点）+ 目录路径唯一实现（`folderPathOf`：点进入 / 拖落点共用）。
 // ⚠️ 这是 base 层 import hooks 的**既有先例**（TaskCenter / GeneratedView 同样从 '../../../hooks' 取）。
 import { useResourceMoveToFolder, folderPathOf } from '../../../hooks/useResourceMoveToFolder.ts';

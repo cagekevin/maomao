@@ -34,7 +34,7 @@
 import { useState, useCallback, useRef } from 'react';
 import { contentGet, contentSet } from '@/components/base/core/contentStore';
 import { KEY_YIMAO_NODE_PREFS } from '@/components/base/core/contracts';
-import { confirmPersist } from '@/components/base/core/degrade';
+import { confirmPersist } from '@/components/base/core/log/degrade';
 
 // TD-13-4：键名唯一真源 = contracts.ts 的 KEY_YIMAO_NODE_PREFS（不再本地复刻字面量）。
 const STORAGE_KEY = KEY_YIMAO_NODE_PREFS;

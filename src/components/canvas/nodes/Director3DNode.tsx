@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useCallback } from 'react';
-import { logger } from '@/components/base/core/logger';
-import { toastWarning } from '@/components/base/core/toastStore';
+import { logger } from '@/components/base/core/log/logger';
+import { toastWarning } from '@/components/base/core/event/toastStore';
 import { useReactFlow } from '@xyflow/react';
 import { createPortal } from 'react-dom';
 import { Orbit, Maximize2 } from 'lucide-react';
@@ -10,7 +10,7 @@ import { useConnectedInputs } from '@/hooks/useConnectedInputs';
 import { useNodeRename } from '@/hooks/useNodeRename';
 import { patchNodeDataById } from '@/hooks/useNodeData';
 import { toAbsoluteFileUrl, saveInlineToLocal } from '@/components/base/api/index';
-import { useRenderAssetResolver } from '@/components/base/utils/assetUrl';
+import { useRenderAssetResolver } from '@/components/base/utils/media/assetUrl';
 import { Director3DOverlay } from '@/components/director3d/Director3DOverlay';
 import { uploadFileToLocal } from '@/components/base/api/index';
 import { generateId } from '@/components/base/core/idGen';

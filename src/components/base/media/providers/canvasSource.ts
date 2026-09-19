@@ -19,12 +19,15 @@
  * （① 与 AgentPanel 一致；② 展开多图是行为扩展，不该在收口层擅自决定）。
  * 若将来要展开，应在 `nodeMedia.ts` 加 `getNodeMediaList`（**扩真源，不在此旁路**）。
  */
-import { getNodeMedia } from '../../utils/nodeMedia.ts';
-import { resolveAssetDisplayUrl, buildContentUrlResolver } from '../../utils/assetUrl.ts';
+import { getNodeMedia } from '@/components/base/utils/media/nodeMedia';
+import {
+  resolveAssetDisplayUrl,
+  buildContentUrlResolver,
+} from '@/components/base/utils/media/assetUrl';
 // 媒体类型判定的**唯一真值源**（禁在此内联重写扩展名嗅探；check-arch 有反向判据）
-import { classifyAssetUrlKind } from '../../utils/assetType.ts';
+import { classifyAssetUrlKind } from '@/components/base/utils/media/assetType';
 import { toAbsoluteFileUrl } from '../../core/utils.ts';
-import { logger } from '../../core/logger.ts';
+import { logger } from '@/components/base/core/log/logger';
 import { getResources } from '@/components/resource/resourceStore';
 import { getCanvasNodesSnapshot } from '../canvasNodesBridge.ts';
 import { makeMediaRef } from '../mediaRefTypes.ts';

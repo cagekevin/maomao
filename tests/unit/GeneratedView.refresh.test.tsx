@@ -34,11 +34,11 @@ vi.mock('../../src/components/base/api/localToolApi.ts', async (importOriginal) 
   deleteResource: (...a: unknown[]) => h.deleteResource(...a),
   renameResource: (...a: unknown[]) => h.renameResource(...a),
 }));
-vi.mock('../../src/components/base/core/toastStore.ts', async (importOriginal) => ({
+vi.mock('../../src/components/base/core/event/toastStore.ts', async (importOriginal) => ({
   ...((await importOriginal()) as Record<string, unknown>),
   showToast: (...a: unknown[]) => h.showToast(...a),
 }));
-vi.mock('../../src/components/base/core/logger.ts', () => ({
+vi.mock('../../src/components/base/core/log/logger.ts', () => ({
   logger: {
     warn: (...a: unknown[]) => h.loggerWarn(...a),
     debug: () => {},
@@ -66,12 +66,14 @@ vi.mock('../../src/components/base/panels/PanelBar.tsx', () => ({
   PanelPills: () => React.createElement('div'),
   PanelMoreMenu: () => React.createElement('div'),
 }));
-vi.mock('../../src/components/base/ui/VideoThumbnail.tsx', () => ({ default: () => null }));
-vi.mock('../../src/components/base/ui/LazyImage.tsx', () => ({ default: () => null }));
-vi.mock('../../src/components/base/ui/ImageZoomDialog.tsx', () => ({ default: () => null }));
+vi.mock('../../src/components/base/ui/display/VideoThumbnail.tsx', () => ({ default: () => null }));
+vi.mock('../../src/components/base/ui/display/LazyImage.tsx', () => ({ default: () => null }));
+vi.mock('../../src/components/base/ui/display/ImageZoomDialog.tsx', () => ({
+  default: () => null,
+}));
 
 import GeneratedView from '../../src/components/generate/GeneratedView.tsx';
-import { publish } from '../../src/components/base/core/eventBus.ts';
+import { publish } from '../../src/components/base/core/event/eventBus.ts';
 
 const completed = (id: string) => ({
   taskId: id,

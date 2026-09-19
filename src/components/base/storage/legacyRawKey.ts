@@ -17,7 +17,7 @@
  */
 
 // 【2026-09-17】本文件原无 import；`removeLegacyRawKey` 的 catch 里加了留痕 ⇒ 需 logger。
-import { logger } from '../core/logger.ts';
+import { logger } from '../core/log/logger.ts';
 
 /** 曾以裸 localStorage（无 `yimao:` 前缀）写过的键 —— **只减不增**（存量迁移用）。 */
 const LEGACY_RAW_KEYS: ReadonlySet<string> = new Set<string>([

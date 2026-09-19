@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import 'react';
 import { render, act } from '@testing-library/react';
 import { useCanvasShortcuts } from '../../src/hooks/useCanvasShortcuts.ts';
-import { useFullscreenEditorKeys } from '../../src/components/base/core/modalLayer.ts';
+import { useFullscreenEditorKeys } from '../../src/components/base/core/interaction/modalLayer.ts';
 
 /**
  * 这些回归测试锁定 useCanvasShortcuts 的「守卫」行为，

@@ -75,7 +75,7 @@ vi.mock('../../src/components/base/media/index.ts', () => ({
 vi.mock('../../src/hooks/useLocalToolStatus.ts', () => ({
   useLocalToolStatus: () => ({ status: { isConnected: true } }),
 }));
-vi.mock('../../src/components/base/core/logger.ts', () => ({
+vi.mock('../../src/components/base/core/log/logger.ts', () => ({
   logger: {
     warn: (...a: unknown[]) => h.loggerWarn(...a),
     debug: () => {},
@@ -85,12 +85,12 @@ vi.mock('../../src/components/base/core/logger.ts', () => ({
 }));
 // ⚠️ 「会长大」类模块（toastStore）的 mock 必须走 importOriginal 派生真模块 ——
 // 全量 mock 会被 `tests/unit/mockPartialSpread.test.ts`（TD-17-15）判红。
-vi.mock('../../src/components/base/core/toastStore.ts', async (importOriginal) => ({
+vi.mock('../../src/components/base/core/event/toastStore.ts', async (importOriginal) => ({
   ...((await importOriginal()) as Record<string, unknown>),
   toastError: vi.fn(),
   toastSuccess: vi.fn(),
 }));
-vi.mock('../../src/components/base/ui/LazyImage.tsx', () => ({ default: () => null }));
+vi.mock('../../src/components/base/ui/display/LazyImage.tsx', () => ({ default: () => null }));
 vi.mock('../../src/hooks/useResourceMoveToFolder.ts', () => ({
   folderPathOf: (card: { folder?: string; name?: string }) =>
     card.folder ? `${card.folder}/${card.name}` : String(card.name),

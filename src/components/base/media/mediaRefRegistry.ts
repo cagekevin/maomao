@@ -18,7 +18,7 @@
  *    做 `@提及` 时按当时的真实消费方重写，别提前预留。
  * ════════════════════════════════════════════════════════════════
  */
-import { logger } from '../core/logger.ts';
+import { logger } from '../core/log/logger.ts';
 import type {
   MediaRefEntry,
   MediaRefProvider,

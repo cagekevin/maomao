@@ -53,11 +53,11 @@ import {
 import { normalizeAssistantTable, replaceTextInTabs } from './assistantTable.ts';
 import { useTableSelection } from './useTableSelection.ts';
 import type { AssistantTable, TableRow, TableTab } from './assistantTable.ts';
-import { showToast } from '@/components/base/core/toastStore.ts';
-import { copyText } from '@/components/base/utils/clipboard';
-import { askConfirm } from '@/components/base/core/confirmStore.ts';
-import { isCanvasSuppressed } from '@/components/base/core/modalLayer.ts';
-import { isEditableTarget } from '@/components/base/core/uiHooks.ts';
+import { showToast } from '@/components/base/core/event/toastStore';
+import { copyText } from '@/components/base/utils/net/clipboard';
+import { askConfirm } from '@/components/base/core/event/confirmStore';
+import { isCanvasSuppressed } from '@/components/base/core/interaction/modalLayer';
+import { isEditableTarget } from '@/components/base/core/interaction/uiHooks';
 import {
   useTableWorkspace,
   setTableWorkspaceRows,

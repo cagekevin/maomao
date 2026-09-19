@@ -11,13 +11,13 @@
  */
 import { useSyncExternalStore } from 'react';
 import { contentGetAsync, contentSetAsync } from '../base/core/contentStore.ts';
-import { askConfirm } from '../base/core/confirmStore.ts';
+import { askConfirm } from '../base/core/event/confirmStore.ts';
 import { generateId } from '../base/core/idGen.ts';
-import { attemptQuietly, attemptQuietlyAsync } from '../base/utils/asyncGuard.ts';
+import { attemptQuietly, attemptQuietlyAsync } from '../base/utils/net/asyncGuard.ts';
 import { KEY_YIMAO_ACCOUNTS } from '../base/core/contracts.ts';
-import { reportDegrade, tryParseOr } from '../base/core/degrade.ts';
-import { logger } from '../base/core/logger.ts';
-import { showToast } from '../base/core/toastStore.ts';
+import { reportDegrade, tryParseOr } from '../base/core/log/degrade.ts';
+import { logger } from '../base/core/log/logger.ts';
+import { showToast } from '../base/core/event/toastStore.ts';
 
 // TD-13-4：键名唯一真源 = contracts.ts 的 KEY_YIMAO_ACCOUNTS（不再本地复刻字面量）。
 const STORAGE_KEY = KEY_YIMAO_ACCOUNTS;

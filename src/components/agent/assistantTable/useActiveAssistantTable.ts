@@ -14,7 +14,7 @@ import type { ConversationStoreState } from '../conversation/conversationState.t
 import { useStoreSelector, shallowEqual } from '@/hooks/useStoreSelector.ts';
 import { normalizeAssistantTabs, getActiveTab } from './assistantTable.ts';
 import type { AssistantTableTabs, TableTab, AssistantTable } from './assistantTable.ts';
-import { logger } from '../../base/core/logger.ts';
+import { logger } from '@/components/base/core/log/logger';
 
 export interface ActiveAssistantTable {
   activeConversationId: string;

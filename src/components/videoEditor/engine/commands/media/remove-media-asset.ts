@@ -1,5 +1,5 @@
 import { videoEditorLogger } from '@/components/videoEditor/lib/videoEditorLogger';
-import { reportDegrade } from '@/components/base/core/degrade.ts';
+import { reportDegrade } from '@/components/base/core/log/degrade';
 import { Command } from '@/components/videoEditor/engine/commands/base-command';
 import { EditorCore } from '@/components/videoEditor/engine/core';
 import type { MediaAsset } from '@/components/videoEditor/types/assets';

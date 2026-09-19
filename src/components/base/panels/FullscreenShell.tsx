@@ -1,6 +1,6 @@
 import React, { useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { useFullscreenEditorKeys } from '../core/modalLayer.ts';
+import { useFullscreenEditorKeys } from '../core/interaction/modalLayer.ts';
 
 /**
  * 全屏层外壳 —— 盖住画布的整层 UI 统一从这里长出来。

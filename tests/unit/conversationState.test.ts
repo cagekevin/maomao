@@ -45,7 +45,7 @@ vi.mock('../../src/components/base/api/localToolApi.ts', async (importOriginal) 
 
 // 降级上报 spy：会话落盘**真失败**（4xx 拒收等）必须由本处交代，故断言它被调到。
 const { degradeSpy } = vi.hoisted(() => ({ degradeSpy: vi.fn() }));
-vi.mock('../../src/components/base/core/degrade.ts', async (importOriginal) => ({
+vi.mock('../../src/components/base/core/log/degrade.ts', async (importOriginal) => ({
   ...(await importOriginal()),
   reportDegrade: degradeSpy,
 }));

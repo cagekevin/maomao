@@ -30,7 +30,7 @@ vi.mock('../../src/components/base/api/localToolApi.ts', async (importOriginal) 
     kvStore.delete(key);
   }),
 }));
-vi.mock('../../src/components/base/core/logger.ts', () => ({
+vi.mock('../../src/components/base/core/log/logger.ts', () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn(), log: vi.fn() },
 }));
 

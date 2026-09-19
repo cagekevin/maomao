@@ -2,9 +2,9 @@ import type { GenerationResult } from '@/types';
 import { reportGenerate, type TaskController } from './taskStore.ts';
 import { saveResultToTasks } from '../api/index.ts';
 import { classifyError } from '../utils/genErrors.ts';
-import { reportDegrade } from '../core/degrade.ts';
-import { logger } from '../core/logger.ts';
-import { showToast } from '../core/toastStore.ts';
+import { reportDegrade } from '../core/log/degrade.ts';
+import { logger } from '../core/log/logger.ts';
+import { showToast } from '../core/event/toastStore.ts';
 
 /* ════════════════════════════════════════════════════════════════
  * 生成编排原语（纯 TS）—— 任务中心编排序列的**唯一实现**（TD-01-8 收口）

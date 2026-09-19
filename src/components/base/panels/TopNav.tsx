@@ -1,7 +1,7 @@
 import React from 'react';
 import ProjectSelector from './ProjectSelector.tsx';
 import type { Project } from '../store/projectStore.ts';
-import { showToast } from '../core/toastStore.ts';
+import { showToast } from '../core/event/toastStore.ts';
 
 /**
  * 顶部导航栏（复刻官方 Vr.jsx L3281 `Component806`，h-16）。

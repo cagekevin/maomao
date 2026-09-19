@@ -20,8 +20,8 @@ import {
 import type { Playbook } from './scriptBoxPlaybookIO.ts';
 import { DEFAULT_WORKFLOW } from './scriptBoxWorkflows.ts';
 import { exportText, parseImport } from './scriptBoxPlaybookIO.ts';
-import { downloadBlob } from '../base/utils/clipboard.ts';
-import { toastSuccess, toastError } from '../base/core/toastStore.ts';
+import { downloadBlob } from '../base/utils/net/clipboard.ts';
+import { toastSuccess, toastError } from '../base/core/event/toastStore.ts';
 import { generateId } from '../base/core/idGen.ts';
 
 /**

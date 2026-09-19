@@ -17,7 +17,7 @@
 import { useRef, useState } from 'react';
 import Icon from './icons.tsx';
 import TabTargetMenu from './TabTargetMenu.tsx';
-import { useOutsideClick } from '@/components/base/core/uiHooks.ts';
+import { useOutsideClick } from '@/components/base/core/interaction/uiHooks';
 
 export interface RowOpsMenuProps {
   /** 当前是否还有多选行（>1 删除 = 批量删选中） */

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import type { DragEvent as ReactDragEvent } from 'react';
 import { httpRequest } from '../components/base/api/index.ts';
 import { LOCAL_TOOL_PING_TIMEOUT } from '../components/base/core/config.ts';
-import { reportDegrade } from '../components/base/core/degrade.ts';
+import { reportDegrade } from '../components/base/core/log/degrade.ts';
 import { useResourceMoveToFolder } from './useResourceMoveToFolder.ts';
 import type {
   ResourceMoveItem,

@@ -32,8 +32,8 @@ import { usePanelStore } from '@/components/videoEditor/stores/panel-store';
 // 更新(2026-09-14)：agent 侧栏未搬入，useAgentStore 依赖已移除（见 EditorLayout）。
 import { cn } from '@/components/videoEditor/utils/ui';
 import { EditorCore } from '@/components/videoEditor/engine/core';
-import { logger } from '@/components/base/core/logger';
-import { toastError } from '@/components/base/core/toastStore';
+import { logger } from '@/components/base/core/log/logger';
+import { toastError } from '@/components/base/core/event/toastStore';
 
 /**
  * 退出编辑器（返回画布）——**唯一协议**，所有退出入口（右上角 X、header 菜单「退出项目」）共用。

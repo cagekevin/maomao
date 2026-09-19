@@ -13,16 +13,16 @@ import NodeShell from '@/components/canvas/parts/NodeShell';
 import { OverlayEditor, renderOverlayCanvas } from '../editors';
 import type { OverlayState } from '../editors';
 import { useConnectedInputs } from '@/hooks/useConnectedInputs';
-import ImageZoomDialog from '@/components/base/ui/ImageZoomDialog';
-import { useContentHeightSync } from '@/components/base/core/uiHooks';
-import { showToast } from '@/components/base/core/toastStore';
+import ImageZoomDialog from '@/components/base/ui/display/ImageZoomDialog';
+import { useContentHeightSync } from '@/components/base/core/interaction/uiHooks';
+import { showToast } from '@/components/base/core/event/toastStore';
 import { toAbsoluteFileUrl, persistInlineOrKeep } from '@/components/base/api/index';
-import { useRenderAssetResolver } from '@/components/base/utils/assetUrl';
-import { logger } from '@/components/base/core/logger';
+import { useRenderAssetResolver } from '@/components/base/utils/media/assetUrl';
+import { logger } from '@/components/base/core/log/logger';
 import { generateId } from '@/components/base/core/idGen';
 // 图片加载统一走 asyncGuard：带超时 + crossOrigin（失败去 crossOrigin 重试一级）+ 坏图降级 null。
 // 替代本文件原有的无超时私有实现（图片挂起会让宫格合成永久卡住）。
-import { loadImageOrNull, releaseQuietly } from '@/components/base/utils/asyncGuard';
+import { loadImageOrNull, releaseQuietly } from '@/components/base/utils/net/asyncGuard';
 
 /* ════════════════════════════════════════════════════════════════
  * 图片拼图节点（复刻官方 Yo.jsx / gridMergeNode）

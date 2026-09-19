@@ -579,7 +579,7 @@ if (assertScanned('videoEditor/types 禁依赖 engine', veTypesScanned) && !veTy
 // 故本规则不新建判据，只做**防回潮**：`hasModalLayer()` 是底层原语，外部一旦直调 = 自建第二处判据（必漂）。
 // 将来剪辑器接入「激活位」→ **只在 `isCanvasSuppressed()` 里 `||` 一项**，本规则保证没有第二个落点。
 // ─────────────────────────────────────────────────────────────────
-const MODAL_LAYER_REL = 'src/components/base/core/modalLayer.ts';
+const MODAL_LAYER_REL = 'src/components/base/core/interaction/modalLayer.ts';
 let suppressionJudgeViol = 0;
 for (const f of files) {
   const rel = f.slice(root.length + 1).replace(/\\/g, '/');
@@ -1402,7 +1402,7 @@ if (assertScanned('事件广播唯一通道（src 全域）', globalBroadcastSca
 // ─────────────────────────────────────────────────────────────────
 console.log('\n🖼 跨源裁决唯一单点：禁裸写 crossOrigin="anonymous"（反向判据）');
 const CROSSORIGIN_SSOT =
-  'src/components/base/utils/asyncGuard.ts'; // 唯一实现处（setCrossOriginForReadable）
+  'src/components/base/utils/net/asyncGuard.ts'; // 唯一实现处（setCrossOriginForReadable）
 let crossOriginViol = 0;
 let crossOriginScanned = 0;
 for (const f of files) {
@@ -1473,7 +1473,7 @@ console.log('\n☁️ 云同步范围白名单：getLocalKeys() 只允许 2 个�
 const GETLOCALKEYS_LEGIT = new Set([
   'src/components/base/core/contracts.ts', // 定义处本身（唯一真源）
   'src/components/base/store/cloudSync.ts', // 云同步范围（∩ getSyncKeys()）
-  'src/components/base/store/backupStore.ts', // 备份范围（全量；备份 ≠ 同步）
+  'src/components/canvas/backupStore.ts', // 备份范围（全量；备份 ≠ 同步）· 2026-09-19 域归位迁入 canvas（旧路径 base/store/backupStore.ts 已失效 ⇒ 未同步即假红 TD-25-21）
 ]);
 let getLocalKeysViol = 0;
 let getLocalKeysScanned = 0;
@@ -1649,10 +1649,10 @@ if (assertScanned('禁裸写 localStorage（src 全域）', rawLsScanned) && !ra
 // ─────────────────────────────────────────────────────────────────
 console.log('\n🎞 媒体类型/URL 解析真值源唯一入口：禁内联重写判定与文件名提取（反向判据）');
 const MEDIA_SSOT = new Set([
-  'src/components/base/utils/assetType.ts', // EXT_KIND / classifyAssetUrlKind / detectFileType（媒体判定真源）
+  'src/components/base/utils/media/assetType.ts', // EXT_KIND / classifyAssetUrlKind / detectFileType（媒体判定真源）
   'src/components/base/core/utils.ts', // fileNameFromUrl / relativePathFromFileUrl（URL 提取真源）
   'src/components/base/api/filesApi.ts', // relativePathFromUrl（薄委托，保留同名导出）
-  'src/components/base/utils/assetUrl.ts', // toRelativeFileUrl 等 URL 归一化出口
+  'src/components/base/utils/media/assetUrl.ts', // toRelativeFileUrl 等 URL 归一化出口
   'src/components/agent/runtime/skillStore.ts', // isSkillImportFile / skillNameFromFile（Skill 白名单真源 TD-16-8；2026-09-19 随 A1 从 base/store/ 迁入 agent/runtime/）
 ]);
 // ① 媒体扩展名「列举」正则：`\.(png|jpe?g|gif|…)` —— ≥2 个分支才算列举（单个 `\.(mp4)$` 不算表）。
@@ -2070,7 +2070,7 @@ console.log('\n📐 跨栈契约常量对账：MAX_SEND_DIM 前后端必须相�
 const CROSS_STACK_CONSTS = [
   {
     name: 'MAX_SEND_DIM',
-    fe: 'src/components/base/utils/assetUrl.ts',
+    fe: 'src/components/base/utils/media/assetUrl.ts',
     be: 'localTool/src/utils/resolveLocalImages.ts',
     why: '发送图片最长边上限（前端压 blob/data、后端压 /files/，两端口径必须一致）',
   },

@@ -8,7 +8,7 @@
 import { describe, it, expect } from 'vitest';
 
 const { isEditableTarget, parseAspect, computeSizeSync } =
-  await import('../../src/components/base/core/uiHooks.ts');
+  await import('../../src/components/base/core/interaction/uiHooks.ts');
 
 describe('hooks — isEditableTarget', () => {
   it('INPUT/TEXTAREA 标志位 → true', () => {

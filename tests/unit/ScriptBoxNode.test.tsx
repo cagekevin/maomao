@@ -88,10 +88,10 @@ vi.mock('../../src/components/base/panels/FullscreenModal.tsx', () => ({
     open ? <div data-testid="fullscreen">{children}</div> : null,
 }));
 // 数据读写通道：真实 useScriptBoxEngine 负责注入回调副作用，仅把返回的 updateData 指向 h.updateData 以记录调用（StepNav 切步用）
-vi.mock('../../src/hooks/useScriptBoxEngine.ts', async (importOriginal) => {
+vi.mock('../../src/components/scriptbox/useScriptBoxEngine.ts', async (importOriginal) => {
   // importOriginal 在 vitest 类型里返回 unknown（类型限制），断言回具体模块命名空间
   const real =
-    (await importOriginal()) as unknown as typeof import('../../src/hooks/useScriptBoxEngine.ts');
+    (await importOriginal()) as unknown as typeof import('../../src/components/scriptbox/useScriptBoxEngine.ts');
   return {
     ...real,
     useScriptBoxEngine: (nodeId: string, data: ScriptBoxNodeData) => {
@@ -114,8 +114,8 @@ vi.mock('../../src/components/settings/providerStore.ts', async (importOriginal)
   // 【2026-09-17 桩跟契约走】供应商加载收口到 store 单 hook（TD-24-4 §二），mock 缺此导出会崩。
   useEnsureProvidersLoaded: () => {},
 }));
-vi.mock('../../src/components/base/core/logger.ts', () => ({ logger: { warn: vi.fn() } }));
-vi.mock('../../src/components/base/core/uiHooks.ts', () => ({
+vi.mock('../../src/components/base/core/log/logger.ts', () => ({ logger: { warn: vi.fn() } }));
+vi.mock('../../src/components/base/core/interaction/uiHooks.ts', () => ({
   useOutsideClick: () => {},
   useNodeResize: () => ({ onMainBoxResize: vi.fn() }),
   useContentHeightSync: () => {},

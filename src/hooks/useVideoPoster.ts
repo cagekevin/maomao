@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { logger } from '../components/base/core/logger.ts';
+import { logger } from '../components/base/core/log/logger.ts';
 import {
   drawVideoFrame,
   setCrossOriginForReadable,

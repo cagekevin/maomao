@@ -94,8 +94,8 @@
  */
 
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { logger } from '../base/core/logger.ts';
-import { reportDegrade } from '../base/core/degrade.ts';
+import { logger } from '../base/core/log/logger.ts';
+import { reportDegrade } from '../base/core/log/degrade.ts';
 // 【TD-06-14】canvas 异步产出走唯一出口（原自写 Promise + `reject('PNG 生成失败')` = 第二份判据与文案）
 import { canvasToBlob } from '../base/core/utils.ts';
 import type { ChangeEvent } from 'react';
@@ -241,8 +241,8 @@ import { writeJson } from './storage.ts';
 import { hydrateProject } from './d3dPersistence.ts';
 import { useToast } from './useToast.ts';
 import { thumbnailFromCanvas } from './thumbnails.ts';
-import { probeEncoders } from '../base/utils/encoderProbe.ts';
-import { releaseQuietlyAsync } from '../base/utils/asyncGuard.ts';
+import { probeEncoders } from './encoderProbe.ts';
+import { releaseQuietlyAsync } from '../base/utils/net/asyncGuard.ts';
 import { useConfirm } from './ConfirmDialog.tsx';
 
 const nextPaint = () =>
@@ -1932,7 +1932,8 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }: Dir
       const backgroundCanvas = await referenceCanvasForExport(reference, width, height);
       setExportReferenceBackground(backgroundCanvas);
       setExporting(true);
-      // 编码器能力探针收口到 base/utils/encoderProbe（唯一实现，剪辑器导出共用同一份）；
+      // 编码器能力探针 = 本域专用（2026-09-19 域归位迁入 `director3d/encoderProbe.ts`：refs 实测唯一
+      // 消费者就是本文件；原注释「剪辑器导出共用同一份」未取证，已删）。
       // 候选与参数是 3D 的导出策略，原样保留；缺失时仍抛原文案（行为不变）。
       const probe = await probeEncoders({
         videoCodecs: ['avc', 'av1', 'vp9'],

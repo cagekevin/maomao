@@ -193,7 +193,9 @@ vi.mock('../../src/components/agent/runtime/agentModelStore.ts', async (importOr
   AGENT_CHAT_MODEL_KEY: h.AGENT_CHAT_MODEL_KEY,
 }));
 vi.mock('../../src/components/base/utils/providerModels.ts', () => ({ buildAllModels: () => [] }));
-vi.mock('../../src/components/base/core/uiHooks.ts', () => ({ useOutsideClick: () => {} }));
+vi.mock('../../src/components/base/core/interaction/uiHooks.ts', () => ({
+  useOutsideClick: () => {},
+}));
 vi.mock('../../src/components/agent/runtime/skillStore.ts', async (importOriginal) => ({
   ...((await importOriginal()) as Record<string, unknown>),
   getAllSkills: () => h.skills,
@@ -234,16 +236,16 @@ vi.mock('../../src/components/base/store/taskStore.ts', async (importOriginal) =
   ...((await importOriginal()) as Record<string, unknown>),
   runNodeGeneration: vi.fn(),
 }));
-vi.mock('../../src/components/base/core/toastStore.ts', async (importOriginal) => ({
+vi.mock('../../src/components/base/core/event/toastStore.ts', async (importOriginal) => ({
   ...((await importOriginal()) as Record<string, unknown>),
   showToast: (...a: any[]) => h.showToast(...a),
 }));
 // 确认统一走 confirmStore（D8 收敛 window.confirm）：这里给可控答案，替代真实弹窗
-vi.mock('../../src/components/base/core/confirmStore.ts', async (importOriginal) => ({
+vi.mock('../../src/components/base/core/event/confirmStore.ts', async (importOriginal) => ({
   ...((await importOriginal()) as Record<string, unknown>),
   askConfirm: h.askConfirm,
 }));
-vi.mock('../../src/components/base/core/logger.ts', () => ({
+vi.mock('../../src/components/base/core/log/logger.ts', () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), log: vi.fn(), debug: vi.fn() },
 }));
 // importOriginal 部分 mock：保留 config 全部真实导出（含 TD-7 新增的 KV_TIMEOUT），仅覆盖 AGENT_MODELS。
@@ -252,7 +254,7 @@ vi.mock('../../src/components/base/core/config.ts', async (importOriginal) => {
   const actual = (await importOriginal()) as Record<string, unknown>;
   return { ...actual, AGENT_MODELS: ['gpt-4o-mini'] };
 });
-vi.mock('../../src/components/base/utils/previewUrl.ts', () => ({
+vi.mock('../../src/components/base/utils/media/previewUrl.ts', () => ({
   default: { create: vi.fn(() => 'blob:x'), release: vi.fn() },
 }));
 // AgentMessage 子组件用最小桩
@@ -260,7 +262,7 @@ vi.mock('../../src/components/agent/panels/AgentMessage.tsx', () => ({
   default: ({ message }: any) =>
     React.createElement('div', { 'data-testid': `msg-${message.role}` }, message.content || null),
 }));
-vi.mock('../../src/components/base/ui/ModelSelect.tsx', () => ({
+vi.mock('../../src/components/base/ui/form/ModelSelect.tsx', () => ({
   default: () => React.createElement('span', null, 'ModelSelect'),
 }));
 // 表格工作区面板：本测试只验 AgentPanel 接线，不测表格本身 → mock 掉。

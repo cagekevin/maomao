@@ -23,8 +23,8 @@ import { useRef, useState } from 'react';
 import type { AssistantTableTabs, TableTab } from './assistantTable.ts';
 import { useTabDragSort } from './useTabDragSort.ts';
 import Icon from './icons.tsx';
-import { askConfirm } from '@/components/base/core/confirmStore.ts';
-import { useOutsideClick } from '@/components/base/core/uiHooks.ts';
+import { askConfirm } from '@/components/base/core/event/confirmStore';
+import { useOutsideClick } from '@/components/base/core/interaction/uiHooks';
 
 export interface TableTabsBarProps {
   tabs: AssistantTableTabs;

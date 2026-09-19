@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 import { dialogueText, hlAt, patchShots, formatLineBreaks } from './scriptBoxPrompts.ts';
 import { getPlaybook } from './scriptBoxPlaybookStore.ts';
-import { toastWarning } from '../base/core/toastStore.ts';
+import { toastWarning } from '../base/core/event/toastStore.ts';
 import type {
   ScriptBoxData,
   ScriptBoxShot,

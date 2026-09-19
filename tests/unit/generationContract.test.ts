@@ -20,18 +20,18 @@ vi.mock('../../src/components/base/api/index.ts', () => ({
 }));
 
 const showToastMock = vi.fn();
-vi.mock('../../src/components/base/core/toastStore.ts', async (importOriginal) => ({
+vi.mock('../../src/components/base/core/event/toastStore.ts', async (importOriginal) => ({
   ...((await importOriginal()) as Record<string, unknown>),
   showToast: (...a: unknown[]) => showToastMock(...a),
 }));
 
 const reportDegradeMock = vi.fn();
-vi.mock('../../src/components/base/core/degrade.ts', async (importOriginal) => ({
+vi.mock('../../src/components/base/core/log/degrade.ts', async (importOriginal) => ({
   ...((await importOriginal()) as Record<string, unknown>),
   reportDegrade: (...a: unknown[]) => reportDegradeMock(...a),
 }));
 
-vi.mock('../../src/components/base/core/logger.ts', () => ({
+vi.mock('../../src/components/base/core/log/logger.ts', () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
 }));
 

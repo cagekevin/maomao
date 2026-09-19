@@ -24,7 +24,7 @@ vi.mock('@xyflow/react', () => ({
   useUpdateNodeInternals: () => updateNodeInternals,
 }));
 
-const { useFitNodeRatio } = await import('../../src/hooks/useFitNodeRatio.ts');
+const { useFitNodeRatio } = await import('../../src/components/image/useFitNodeRatio.ts');
 
 function lastSetNodesUpdate() {
   const updater = setNodes.mock.calls[setNodes.mock.calls.length - 1][0];

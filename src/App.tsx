@@ -32,7 +32,7 @@ import { useArrangeCanvas } from './hooks/useArrangeCanvas.ts';
 import { computePatchNodeById, computePatchNodesById } from './hooks/useNodeData.ts';
 import { computePatchEdgesById, patchEdgeData } from './hooks/useEdgeData.ts';
 import { useAssetDropPaste, useGlobalPaste } from './hooks/useAssetDropPaste.ts';
-import { copyImageToClipboard } from './components/base/utils/clipboard.ts';
+import { copyImageToClipboard } from './components/base/utils/net/clipboard.ts';
 import GhostTargetNode from './components/canvas/nodes/GhostTargetNode.tsx';
 import AgentPanel from './components/agent/panels/AgentPanel.tsx';
 import {
@@ -40,14 +40,14 @@ import {
   selectedAssetSig,
   selectedNodeIdSig,
   type SelectedAsset,
-} from './components/base/utils/nodeMedia.ts';
+} from './components/base/utils/media/nodeMedia.ts';
 // 画布节点只读快照桥（docs/136 地基）：剪辑器在 ReactFlowProvider 之外、拿不到 useReactFlow，
 // 故把 nodes 投影到 base 层供「可引用媒体源」读取。单向：只有本文件写，其他模块只读。
 import { setCanvasNodesSnapshot } from './components/base/media/canvasNodesBridge.ts';
 // 可复用「导入媒体」弹窗（docs/136 地基的第一个消费方）：
 // 与剪辑器「导入」共用同一组件，4 来源（本地/生成/素材库/画布）；画布入口的落地动作 = 建 assetNode。
-import ImportMediaModalHost from './components/base/panels/ImportMediaModalHost.tsx';
-import type { ImportPickOutcome } from './components/base/panels/ImportMediaModalHost.tsx';
+import ImportMediaModalHost from './components/videoEditor/ImportMediaModalHost.tsx';
+import type { ImportPickOutcome } from './components/videoEditor/ImportMediaModalHost.tsx';
 import type { MediaRef } from './components/base/media/mediaRefTypes.ts';
 // 落地事实判据（**唯一实现**住在 ref 契约层 `base/media` —— 剪辑器入口同样消费它，
 // 禁止在此另判一份：判据属于契约面，不属于任一业务域）。
@@ -64,32 +64,32 @@ import {
   useCurrentProjectId,
   type Project,
 } from './components/base/store/projectStore.ts';
-import { broadcastCanvasSaved } from './components/canvas/canvasSyncBus.ts';
+import { broadcastCanvasSaved } from './components/base/core/canvasSyncBus.ts';
 // 【TD-15-1】agentKey 构造收口到 base/core 单一真源（与 conversationState / backupStore 共用）
 import { agentKeyForProject } from './components/base/core/agentKeys.ts';
-import previewUrls from './components/base/utils/previewUrl.ts';
-import { logger } from './components/base/core/logger.ts';
+import previewUrls from './components/base/utils/media/previewUrl.ts';
+import { logger } from './components/base/core/log/logger.ts';
 import { useProjectBackupIO } from './components/canvas/topology/useCanvasEventSubscriptions.ts';
 import { menuForState, type MenuActionCtx } from './components/canvas/shell/canvasContextMenu.tsx';
-import { useNodePosition } from './components/base/core/uiHooks.ts';
+import { useNodePosition } from './components/base/core/interaction/uiHooks.ts';
 import CustomEdge from './components/canvas/edges/CustomEdge.tsx';
 import ConnectionLine from './components/canvas/edges/ConnectionLine.tsx';
 import ContextMenu from './components/canvas/shell/ContextMenu.tsx';
-import { useContextMenu } from './hooks/useContextMenu.ts';
-import { useCanvasHistory } from './hooks/useCanvasHistory.ts';
+import { useContextMenu } from './components/canvas/shell/useContextMenu.ts';
+import { useCanvasHistory } from './components/canvas/structure/useCanvasHistory.ts';
 import { patchNodeDataById } from './hooks/useNodeData.ts';
 import { CanvasEdgesProvider } from './components/canvas/structure/CanvasEdgesContext.tsx';
 import { useCanvasShortcuts } from './hooks/useCanvasShortcuts.ts';
 import {
   isCanvasSuppressed,
   subscribeCanvasSuppressed,
-} from './components/base/core/modalLayer.ts';
+} from './components/base/core/interaction/modalLayer.ts';
 // 剪辑器开合 = 会话态（不持久化）。见模块头：这是"界面开没开"，不是"用户偏好"。
 import {
   isEditorSessionOpen,
   setEditorSessionOpen,
   subscribeEditorSession,
-} from './components/base/core/editorSession.ts';
+} from './components/base/core/interaction/editorSession.ts';
 // 更新(2026-09-14)：自建 VideoEditorDock 退役，改为挂载 cutia 版 EditorShell（docs/130-cutia搬迁计划书）。
 // import VideoEditorDock from './components/videoEditor/panels/dock/VideoEditorDock.tsx';
 // 更新(2026-09-19)：改走**域门面**（域模块化 Step A 首批）—— 此后 videoEditor 域内结构重构不再波及 App。
@@ -97,14 +97,14 @@ import { EditorShell } from './components/videoEditor/index.ts';
 import { buildNodeTypeComponents } from './components/canvas/shell/NodePalette.ts';
 import { defaultNodeData } from './components/canvas/contract/nodeDataSchema.ts';
 import LodProvider, { useLod } from './components/canvas/shell/lod.tsx';
-import ToastContainer from './components/base/ui/ToastContainer.tsx';
-import ConfirmContainer from './components/base/ui/ConfirmContainer.tsx';
-import RenameDialog from './components/base/ui/RenameDialog.tsx';
+import ToastContainer from './components/base/ui/feedback/ToastContainer.tsx';
+import ConfirmContainer from './components/base/ui/feedback/ConfirmContainer.tsx';
+import RenameDialog from './components/base/ui/feedback/RenameDialog.tsx';
 import SettingsFrame from './components/settings/SettingsFrame.tsx';
 import AccountsSettings from './components/settings/sections/AccountsSettings.tsx';
 import TopNav from './components/base/panels/TopNav.tsx';
-import { showToast } from './components/base/core/toastStore.ts';
-import { askConfirm } from './components/base/core/confirmStore.ts';
+import { showToast } from './components/base/core/event/toastStore.ts';
+import { askConfirm } from './components/base/core/event/confirmStore.ts';
 import { setSetting, useAppSettings } from './components/base/store/appSettings.ts';
 import { setAgentKey } from './components/agent/index.ts';
 import { uploadConfig, downloadConfig } from './components/base/store/cloudSync.ts';
@@ -121,7 +121,7 @@ import {
   deleteNodesWithCascade,
   duplicateSelectedWithEdges,
 } from './components/canvas/structure/groupNodes.ts';
-import { externalizeInlineData } from './components/base/utils/externalizeInline.ts';
+import { externalizeInlineData } from './components/base/utils/net/externalizeInline.ts';
 import { saveInlineToLocal } from './components/base/api/index.ts';
 import { generateId } from './components/base/core/idGen.ts';
 import {
@@ -131,7 +131,7 @@ import {
 import {
   buildNodesFromClipboard,
   copyNodesToClipboard,
-} from './components/base/utils/clipboard.ts';
+} from './components/base/utils/net/clipboard.ts';
 import {
   applyNodeTypeDefaults,
   INPUT_PANEL_NODE_TYPES,

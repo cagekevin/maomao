@@ -9,7 +9,7 @@ import {
   tryParse,
   attemptQuietly,
   attemptQuietlyAsync,
-} from '../../src/components/base/utils/asyncGuard.ts';
+} from '../../src/components/base/utils/net/asyncGuard.ts';
 
 describe('asyncGuard.withTimeout（R2 统一异步超时）', () => {
   beforeEach(() => {

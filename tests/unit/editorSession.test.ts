@@ -17,7 +17,7 @@ import {
   isEditorSessionOpen,
   setEditorSessionOpen,
   subscribeEditorSession,
-} from '../../src/components/base/core/editorSession';
+} from '../../src/components/base/core/interaction/editorSession';
 
 describe('editorSession：剪辑器开合 = 会话态', () => {
   beforeEach(() => {
@@ -28,7 +28,7 @@ describe('editorSession：剪辑器开合 = 会话态', () => {
     // 必须**重新加载模块**读它真实的初始值 —— 否则 beforeEach 的 setEditorSessionOpen(false)
     // 会把初始值抹平，这条断言就永远为真（测了个寂寞）。
     vi.resetModules();
-    const fresh = await import('../../src/components/base/core/editorSession');
+    const fresh = await import('../../src/components/base/core/interaction/editorSession');
     expect(fresh.isEditorSessionOpen()).toBe(false);
   });
 
@@ -66,7 +66,7 @@ describe('editorSession：剪辑器开合 = 会话态', () => {
     // 只看 import 语句 —— 注释里会出现这些词（用于说明"为什么不做"），不该误伤。
     const fs = await import('node:fs');
     const src = fs.readFileSync(
-      new URL('../../src/components/base/core/editorSession.ts', import.meta.url),
+      new URL('../../src/components/base/core/interaction/editorSession.ts', import.meta.url),
       'utf8',
     );
     const importLines = src

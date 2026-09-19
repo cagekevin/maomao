@@ -13,7 +13,7 @@ import {
   fileToDataUrl,
   classifyImageType,
   summarizeAssetUrls,
-} from '../../src/components/base/utils/assetUrl.ts';
+} from '../../src/components/base/utils/media/assetUrl.ts';
 
 // blobToDataUrl / urlToDataUrl 依赖 httpClient 与 FileReader（node 无原生实现），在此 mock。
 vi.mock('../../src/components/base/api/httpClient.ts', async (importOriginal) => ({
@@ -21,7 +21,7 @@ vi.mock('../../src/components/base/api/httpClient.ts', async (importOriginal) =>
   httpRequest: vi.fn(),
 }));
 // mock logger，避免转换失败时告警刷屏污染测试输出
-vi.mock('../../src/components/base/core/logger.ts', () => ({
+vi.mock('../../src/components/base/core/log/logger.ts', () => ({
   logger: { warn: vi.fn(), info: vi.fn(), error: vi.fn() },
 }));
 // 发送出口会调 compressImage（本地图压缩→base64）。本测试关注「发送归一」的 URL/分支处理，
@@ -33,7 +33,7 @@ vi.mock('../../src/components/base/utils/imageCompress.ts', () => ({
 }));
 
 import { httpRequest } from '@/components/base/api/httpClient.ts';
-import { logger } from '../../src/components/base/core/logger.ts';
+import { logger } from '../../src/components/base/core/log/logger.ts';
 import { compressImage } from '../../src/components/base/utils/imageCompress.ts';
 
 // node 环境无 FileReader：stub 一个，readAsDataURL 直接产出预设 dataURL（配合 httpRequest mock 返回 {_dataUrl}）。

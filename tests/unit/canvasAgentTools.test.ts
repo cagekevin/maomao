@@ -72,7 +72,7 @@ import {
   setCreditSwitch,
 } from '../../src/components/agent/canvas/useCanvasAgentTools.ts';
 // getNodeAssetUrl / getNodeMedia 已下沉 base/canvas（TD-04-25），测试改引新位置。
-import { getNodeAssetUrl, getNodeMedia } from '../../src/components/base/utils/nodeMedia.ts';
+import { getNodeAssetUrl, getNodeMedia } from '../../src/components/base/utils/media/nodeMedia.ts';
 import * as convStore from '../../src/components/agent/conversation/conversationStore.ts';
 import '../../src/components/agent/conversation/conversationSnapshot.ts';
 import * as taskStore from '../../src/components/base/store/taskStore.ts';

@@ -25,7 +25,7 @@ import {
   createDebouncedPersist,
 } from '../../base/core/contentStore.ts';
 import { sGet } from '@/components/base/storage/index.ts';
-import { withTimeout } from '../../base/utils/asyncGuard.ts';
+import { withTimeout } from '@/components/base/utils/net/asyncGuard';
 import { generateId } from '../../base/core/idGen.ts';
 import { CREDIT_GATE_FIELD } from '../../base/core/contracts.ts';
 // 【TD-15-1】agentKey 前缀 / 会话键构造收口到 base/core 单一真源（禁本地再拼字面量）
@@ -34,8 +34,8 @@ import {
   agentConversationsKey,
   agentActiveConversationKey,
 } from '../../base/core/agentKeys.ts';
-import { logger } from '../../base/core/logger.ts';
-import { reportDegrade } from '../../base/core/degrade.ts';
+import { logger } from '@/components/base/core/log/logger';
+import { reportDegrade } from '@/components/base/core/log/degrade';
 import { KV_TIMEOUT } from '../../base/core/config.ts';
 // 【P1c L3 整包预算安全网】落盘前对归一化副本做投影降级，保证整包序列化体积有界（见 volumePolicy.js）
 import {

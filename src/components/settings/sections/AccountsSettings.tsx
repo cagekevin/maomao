@@ -1,5 +1,5 @@
 import React from 'react';
-import { showToast } from '@/components/base/core/toastStore';
+import { showToast } from '@/components/base/core/event/toastStore';
 import type { AccountEnv } from '@/components/settings/accountsStore';
 import {
   useAccounts,

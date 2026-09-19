@@ -20,7 +20,7 @@ import { render, screen, fireEvent } from '@testing-library/react';
  */
 
 // 统一出口：resolveAssetUrl(render) — 本地 /files/ → 缩略图端点；http 原样/补绝对；空/非字符串原样
-vi.mock('../../src/components/base/utils/assetUrl.ts', async (importOriginal) => ({
+vi.mock('../../src/components/base/utils/media/assetUrl.ts', async (importOriginal) => ({
   ...((await importOriginal()) as Record<string, unknown>),
   useRenderAssetResolver: () => (u: any) => {
     if (!u || typeof u !== 'string') return u;
@@ -36,7 +36,7 @@ vi.mock('../../src/components/base/store/appSettings.ts', () => ({
   useAppSettings: () => ({ thumbnailOn: true }),
 }));
 
-import LazyImage from '../../src/components/base/ui/LazyImage.tsx';
+import LazyImage from '../../src/components/base/ui/display/LazyImage.tsx';
 // 期望值取自**真实**归一原语（assetUrl.ts 在本文件被 mock，故从 core/utils 取同一实现的真源）
 import { toAbsoluteFileUrl } from '../../src/components/base/core/utils.ts';
 

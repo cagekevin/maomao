@@ -42,10 +42,10 @@ import { setActivePendingMemorySuggest } from '../conversation/conversationStore
 // 「记」项目记忆：记忆类别枚举 + 脱敏函数（memory_suggest 工具校验/脱敏用）
 import { PROJECT_MEMORY_KINDS, sanitizeMemoryContent } from '../runtime/projectMemoryStore.ts';
 import { contentGet, contentSet } from '../../base/core/contentStore.ts';
-import { confirmPersist } from '../../base/core/degrade.ts';
+import { confirmPersist } from '@/components/base/core/log/degrade';
 import { generateId } from '../../base/core/idGen.ts';
-import { logger } from '../../base/core/logger.ts';
-import { publish } from '../../base/core/eventBus.ts';
+import { logger } from '@/components/base/core/log/logger';
+import { publish } from '@/components/base/core/event/eventBus';
 import {
   CREDIT_SWITCH_KEY,
   CREDIT_GATE_EVENT,

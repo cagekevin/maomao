@@ -11,7 +11,7 @@ import {
   HttpError,
   NetworkError,
 } from '@/components/base/api/httpClient.ts';
-import { TimeoutError } from '../../src/components/base/utils/asyncGuard.ts';
+import { TimeoutError } from '../../src/components/base/utils/net/asyncGuard.ts';
 
 let mockFetch: any;
 

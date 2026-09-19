@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { attemptQuietlyAsync } from '../base/utils/asyncGuard.ts';
+import { attemptQuietlyAsync } from '../base/utils/net/asyncGuard.ts';
 import { Loader2, Plus, Trash2, Film, Link2 } from 'lucide-react';
 import {
   SHOT_TYPES,
@@ -18,8 +18,8 @@ import {
 } from './scriptBoxPrompts.ts';
 import ResourceStrip from '../canvas/shell/ResourceStrip.tsx';
 import type { ResourceStripProps } from '../canvas/shell/ResourceStrip.tsx';
-import { useOutsideClick } from '../base/core/uiHooks.ts';
-import { useRenderAssetResolver } from '../base/utils/assetUrl.ts';
+import { useOutsideClick } from '../base/core/interaction/uiHooks.ts';
+import { useRenderAssetResolver } from '../base/utils/media/assetUrl.ts';
 import ScriptBoxModal from './ScriptBoxModal.tsx';
 import type { ScriptBoxData, ScriptBoxUpdateData, ScriptBoxCallbacks } from './scriptBoxSchema.ts';
 

@@ -8,8 +8,8 @@
  */
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
-import DropdownPanel from '../../src/components/base/ui/DropdownPanel.tsx';
-import DropdownRow from '../../src/components/base/ui/DropdownRow.tsx';
+import DropdownPanel from '../../src/components/base/ui/form/DropdownPanel.tsx';
+import DropdownRow from '../../src/components/base/ui/form/DropdownRow.tsx';
 
 /** 取面板节点（面板无 role/testid，故用测试内子节点的父节点） */
 function panelOf(text: string): HTMLElement {

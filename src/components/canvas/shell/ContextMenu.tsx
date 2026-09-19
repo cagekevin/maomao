@@ -1,5 +1,5 @@
 import React, { useRef, useState, useLayoutEffect } from 'react';
-import type { ContextMenuState } from '@/hooks/useContextMenu';
+import type { ContextMenuState } from '@/components/canvas/shell/useContextMenu';
 
 /**
  * 右键菜单项配置（支持 divider / 普通项 / 子菜单 / 分组工具面板，详见下方各接口）。

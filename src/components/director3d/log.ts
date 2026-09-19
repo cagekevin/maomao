@@ -7,7 +7,7 @@
 //  - debug 由 DIRECTOR3D_DEBUG 开关控制（收口到 config.ts），默认安静、不落盘。
 //  - DEBUG 开关收口到 config.ts（DIRECTOR3D_DEBUG），本模块不再裸读 import.meta（见 base/config.ts 注释）。
 
-import { logger } from '../base/core/logger.ts';
+import { logger } from '../base/core/log/logger.ts';
 import { DIRECTOR3D_DEBUG } from '../base/core/config.ts';
 
 const DEBUG_ENABLED = DIRECTOR3D_DEBUG;

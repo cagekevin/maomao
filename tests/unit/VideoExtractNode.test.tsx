@@ -58,7 +58,7 @@ vi.mock('../../src/hooks/useConnectedInputs.ts', async (importOriginal) => ({
   useConnectedInputs: () => h.connected,
 }));
 vi.mock('../../src/hooks/useAssetDegrade.ts', () => ({ useAssetDegrade: mocks.useAssetDegrade }));
-vi.mock('../../src/components/base/core/toastStore.ts', async (importOriginal) => ({
+vi.mock('../../src/components/base/core/event/toastStore.ts', async (importOriginal) => ({
   ...((await importOriginal()) as Record<string, unknown>),
   showToast: (...a: unknown[]) => h.showToast(...a),
   toastError: vi.fn(),
@@ -78,12 +78,12 @@ vi.mock('../../src/components/base/core/contentStore.ts', async (importOriginal)
   // 与 `AgentPanel.test.tsx` 同款漏项 —— 契约变更后按**函数名全仓扫**，别按"我记得改过哪几个文件"。
   contentGet: () => null,
 }));
-vi.mock('../../src/components/base/utils/clipboard.ts', () => ({
+vi.mock('../../src/components/base/utils/net/clipboard.ts', () => ({
   downloadUrl: (...a: unknown[]) => h.downloadUrl(...a),
   copyText: (...a: unknown[]) => h.copyText(...a),
 }));
-vi.mock('../../src/components/base/core/logger.ts', () => ({ logger: h.logger }));
-vi.mock('../../src/components/base/utils/previewUrl.ts', () => ({
+vi.mock('../../src/components/base/core/log/logger.ts', () => ({ logger: h.logger }));
+vi.mock('../../src/components/base/utils/media/previewUrl.ts', () => ({
   default: {
     create: (...a: unknown[]) => (h.previewCreate as unknown as (...x: unknown[]) => void)(...a),
     release: vi.fn(),

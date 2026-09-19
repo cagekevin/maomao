@@ -17,9 +17,9 @@
  * 【脱敏】写入前统一脱敏密钥/凭据/绝对路径并截断，禁止文件全文/网页全文/临时结果进入长期记忆。
  */
 import { contentGetAsync, contentSetAsync } from '../../base/core/contentStore.ts';
-import { withTimeout } from '../../base/utils/asyncGuard.ts';
+import { withTimeout } from '@/components/base/utils/net/asyncGuard';
 import { generateId } from '../../base/core/idGen.ts';
-import { logger } from '../../base/core/logger.ts';
+import { logger } from '@/components/base/core/log/logger';
 import { KV_TIMEOUT } from '../../base/core/config.ts';
 // 键构造真源 = base/core/agentKeys.ts（TD-13-5：本模块不再裸拼模板）
 import { agentProjectMemoryKey } from '../../base/core/agentKeys.ts';

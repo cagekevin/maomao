@@ -25,8 +25,8 @@
  *  - 2xx 但**体非空且不是合法 JSON**（网关改写 / 传输截断）→ `logger.error` + 抛错；
  *  - 2xx 且**体为空**（如 204）→ 真空，静默返回 `{}`（`CLAUDE.md §5.1①`，不是失败）。
  */
-import { withTimeout, isTimeoutError, tryParse } from '../utils/asyncGuard.ts';
-import { logger } from '../core/logger.ts';
+import { withTimeout, isTimeoutError, tryParse } from '../utils/net/asyncGuard.ts';
+import { logger } from '../core/log/logger.ts';
 
 /**
  * 判定一个 TypeError 是否**由 fetch 自身因网络失败抛出**（TD-03-12，2026-09-13）。

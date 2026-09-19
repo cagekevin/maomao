@@ -1,6 +1,6 @@
 import { videoEditorLogger } from '@/components/videoEditor/lib/videoEditorLogger';
 import { useEffect, useRef, useState } from 'react';
-import { releaseQuietly } from '@/components/base/utils/asyncGuard.ts';
+import { releaseQuietly } from '@/components/base/utils/net/asyncGuard';
 import WaveSurfer from 'wavesurfer.js';
 import { MissingMediaIndicator } from './missing-media-indicator';
 

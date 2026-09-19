@@ -32,7 +32,7 @@
  */
 import { useSyncExternalStore } from 'react';
 import { contentGet, contentSet } from '../../base/core/contentStore.ts';
-import { logger } from '../../base/core/logger.ts';
+import { logger } from '@/components/base/core/log/logger';
 import {
   getCurrentAssistantTabs,
   setCurrentAssistantTabs,
@@ -54,7 +54,7 @@ import type { AssistantTableJson, AssistantTableTabs, CellRange } from './assist
 /** 选区类型由模型层（assistantTable.ts）定义并拥有，此处转出供 UI 层直接用 */
 export type { CellRange };
 import { pushHistory } from './tableHistory.ts';
-import { showToast } from '../../base/core/toastStore.ts';
+import { showToast } from '@/components/base/core/event/toastStore';
 // 键名真源 = contracts.ts（TD-13-7 收口：本模块不再自持第二份键字面量）
 import { KEY_AGENT_SPLIT_WIDTH } from '../../base/core/contracts.ts';
 

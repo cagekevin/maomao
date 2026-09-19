@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { parseAspect, computeSizeSync } from '../../src/components/base/core/uiHooks.ts';
+import {
+  parseAspect,
+  computeSizeSync,
+} from '../../src/components/base/core/interaction/uiHooks.ts';
 
 // §2.17 横切纯逻辑：useSizeSync 的尺寸计算（computeSizeSync） + 比例解析（parseAspect）
 // 规划 §3.1 的 sizeSync.test.js 遗漏项。

@@ -19,7 +19,7 @@
  */
 import { useCallback } from 'react';
 import type { AssistantTable, CellRange } from './assistantTable.ts';
-import { copyText } from '@/components/base/utils/clipboard';
+import { copyText } from '@/components/base/utils/net/clipboard';
 import {
   copyRows,
   pasteRows,

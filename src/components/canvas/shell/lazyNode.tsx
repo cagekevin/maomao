@@ -1,7 +1,7 @@
 import React, { Suspense } from 'react';
-import ErrorBoundary from '@/components/base/ui/ErrorBoundary';
+import ErrorBoundary from '@/components/base/ui/feedback/ErrorBoundary';
 import NodeShell from '../parts/NodeShell.tsx';
-import { logger } from '@/components/base/core/logger';
+import { logger } from '@/components/base/core/log/logger';
 import { NODE_HANDLE_CONTRACT } from '@/components/base/core/contracts';
 
 /**

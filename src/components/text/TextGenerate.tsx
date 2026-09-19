@@ -5,7 +5,7 @@ import NodeShell from '@/components/canvas/parts/NodeShell';
 import HoverToolbar from '@/components/canvas/shell/HoverToolbar';
 import ExpandablePanel from '@/components/canvas/parts/ExpandablePanel';
 import GenerateButton from '@/components/canvas/parts/GenerateButton';
-import ModelSelect from '@/components/base/ui/ModelSelect';
+import ModelSelect from '@/components/base/ui/form/ModelSelect';
 import PromptInput from '@/components/canvas/shell/PromptInput';
 import ResourceStrip from '@/components/canvas/shell/ResourceStrip';
 import ResizeFullscreenHandle from '@/components/canvas/parts/ResizeFullscreenHandle';
@@ -15,7 +15,7 @@ import { CreativeLibraryButton } from '@/components/creative';
 import { toDictEntry } from '@/components/creative';
 import type { CreativePreset, CreativePresetsDict } from '@/components/creative';
 
-import { useNodeResize } from '@/components/base/core/uiHooks';
+import { useNodeResize } from '@/components/base/core/interaction/uiHooks';
 import { useConnectedInputs } from '@/hooks/useConnectedInputs';
 import { useGenerateNode } from '@/hooks/useGenerateNode';
 import { buildEffectivePrompt } from '@/components/base/core/utils';
@@ -36,8 +36,8 @@ import { chatCompletions } from '@/components/base/api/index';
 import { useNodePrefs, PREFS_DEFAULTS } from '@/components/canvas/contract/nodePrefs';
 import { resolveProviderModel } from '@/components/base/utils/providerModels';
 import { resolvePromptChips, mergeReferenceImageUrls } from '@/components/canvas/shell/promptChips';
-import { logger } from '@/components/base/core/logger';
-import { reportDegrade } from '@/components/base/core/degrade';
+import { logger } from '@/components/base/core/log/logger';
+import { reportDegrade } from '@/components/base/core/log/degrade';
 
 /**
  * 文本节点（复刻原 Co.jsx / textGenerateNode）

@@ -1,6 +1,6 @@
 import { useEffect, useCallback } from 'react';
-import { isEditableTarget } from '../components/base/core/uiHooks.ts';
-import { isCanvasSuppressed } from '../components/base/core/modalLayer.ts';
+import { isEditableTarget } from '../components/base/core/interaction/uiHooks.ts';
+import { isCanvasSuppressed } from '../components/base/core/interaction/modalLayer.ts';
 
 /** 快捷键回调集合；未提供的快捷键自动不响应 */
 export interface CanvasShortcutHandlers {

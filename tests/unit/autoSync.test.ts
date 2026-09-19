@@ -38,7 +38,7 @@ import type {
 const { startAutoSync, stopAutoSync } = await import('../../src/components/base/store/autoSync.ts');
 const { setSetting } = await import('../../src/components/base/store/appSettings.ts');
 const { resolveChoice, getConfirm } =
-  await import('../../src/components/base/core/confirmStore.ts');
+  await import('../../src/components/base/core/event/confirmStore.ts');
 
 /** 让 uploadConfig 触发冲突三选一（模拟现实冲突，交由 autoResolveConflict 处理） */
 function makeConflictUploadImpl() {

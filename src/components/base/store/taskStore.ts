@@ -18,7 +18,7 @@
  *    status:'pending'|'running'|'completed'|'failed', progress, errorMsg, resultUrl, createdAt }
  */
 import { useSyncExternalStore } from 'react';
-import { logger } from '../core/logger.ts';
+import { logger } from '../core/log/logger.ts';
 import { createDebouncedPersist } from '../core/contentStore.ts';
 import { saveTask, deleteTask, batchDeleteTasks, clearAllTasksApi } from '../api/localToolApi.ts';
 // 取全量任务（分页读取的唯一实现）：见 initTasks 注释（原「请求 500」实际只拿到 100）。

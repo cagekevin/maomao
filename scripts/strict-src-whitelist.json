@@ -1,5 +1,5 @@
 {
-  "_comment": "已收口目录白名单（TD-09-1 选项 A）。check-strict-src.mjs 与 strict-report.mjs 共用本文件作为单一真源。每收口一个目录，把其路径加进 whitelist（末尾带 /）。",
+  "_comment": "已收口目录白名单（TD-09-1 选项 A）。check-strict-src.mjs 与 strict-report.mjs 共用本文件作为单一真源。每收口一个目录，把其路径加进 whitelist（末尾带 /）。注（2026-09-19 域归位 A2）：canvas/nodes 的 11 件节点按域迁出，白名单须【跟着搬迁走】——否则保护范围静默缩水（原 15 件掉到 4 件）。故补 image/nodes · video/nodes · text 三处新落点。",
   "whitelist": [
     "src/components/base/core/",
     "src/components/base/storage/",
@@ -12,6 +12,9 @@
     "src/components/base/panels/",
     "src/hooks/",
     "src/components/canvas/nodes/",
+    "src/components/image/nodes/",
+    "src/components/video/nodes/",
+    "src/components/text/",
     "src/components/agent/",
     "src/components/canvas/edges/",
     "src/components/scriptbox/",

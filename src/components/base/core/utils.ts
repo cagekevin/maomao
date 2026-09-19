@@ -17,7 +17,7 @@
 import { useEffect, type DependencyList } from 'react';
 import { API_BASE } from './config.ts';
 // 解析兜底统一走唯一原语（`PARSE_FALLBACK` 的唯一实现），不再逐处手写 catch（2026-09-17 拆回潮）。
-import { tryParse } from '../utils/asyncGuard.ts';
+import { tryParse } from '../utils/net/asyncGuard.ts';
 
 /**
  * 相对 `/files/` 路径 → 完整可访问 URL（localTool 本地引擎端口）。

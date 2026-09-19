@@ -16,7 +16,7 @@
 import type { GenerationResult } from '@/types';
 import { API_BASE, GEN_POLL_INTERVAL, CHAT_TIMEOUT, CHAT_TOTAL_TIMEOUT } from '../core/config.ts';
 import { httpRequest } from './httpClient.ts';
-import { logger } from '../core/logger.ts';
+import { logger } from '../core/log/logger.ts';
 
 /**
  * 连续 N 轮 attach 均报 transport 错误即 fail-loud。

@@ -69,10 +69,10 @@ vi.mock('../../src/components/base/store/taskStore.ts', async () => {
     clearAllTasks: (...a: unknown[]) => h.clearAllTasks(...a),
   };
 });
-vi.mock('../../src/components/base/core/logger.ts', () => ({
+vi.mock('../../src/components/base/core/log/logger.ts', () => ({
   logger: { warn: (...a: unknown[]) => h.loggerWarn(...a) },
 }));
-vi.mock('../../src/components/base/utils/clipboard.ts', () => ({
+vi.mock('../../src/components/base/utils/net/clipboard.ts', () => ({
   downloadUrl: (...a: unknown[]) => h.downloadUrl(...a),
   // copyText 走真实信封；这里仅在测试环境把底层 navigator.clipboard.writeText 接到可断言 mock
   copyText: (...a: unknown[]) => {
@@ -80,19 +80,21 @@ vi.mock('../../src/components/base/utils/clipboard.ts', () => ({
     return { ok: true, msg: '已复制' };
   },
 }));
-vi.mock('../../src/components/base/core/toastStore.ts', async (importOriginal) => ({
+vi.mock('../../src/components/base/core/event/toastStore.ts', async (importOriginal) => ({
   ...((await importOriginal()) as Record<string, unknown>),
   showToast: (...a: unknown[]) => h.showToast(...a),
 }));
 vi.mock('../../src/hooks/useAssetDragToCanvas.ts', () => ({
   makeAssetDragProps: () => ({ draggable: true }),
 }));
-vi.mock('../../src/components/base/core/uiHooks.ts', () => ({ useOutsideClick: () => {} }));
-vi.mock('../../src/components/base/utils/assetUrl.ts', async (importOriginal) => ({
+vi.mock('../../src/components/base/core/interaction/uiHooks.ts', () => ({
+  useOutsideClick: () => {},
+}));
+vi.mock('../../src/components/base/utils/media/assetUrl.ts', async (importOriginal) => ({
   ...((await importOriginal()) as Record<string, unknown>),
   useRenderAssetResolver: () => (u: any) => (u && u.startsWith('/files/') ? `THUMB${u}` : u || ''),
 }));
-vi.mock('../../src/components/base/ui/VideoThumbnail.tsx', () => ({
+vi.mock('../../src/components/base/ui/display/VideoThumbnail.tsx', () => ({
   default: ({ src, onActivate }: any) =>
     React.createElement('div', { 'data-testid': 'video-thumbnail', onClick: onActivate }, src),
 }));

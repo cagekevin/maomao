@@ -28,7 +28,7 @@ import {
   setTabGlobalStyle,
 } from '../assistantTable/assistantTable.ts';
 import { validateTabs } from '../assistantTable/tableInvariants.ts';
-import { logger } from '../../base/core/logger.ts';
+import { logger } from '@/components/base/core/log/logger';
 import type { AssistantTableTabs } from '../assistantTable/assistantTable.ts';
 
 /* ── 统一风格契约 global_contract + 跨步成果 artifact（对齐大雄，per-conversation）── */

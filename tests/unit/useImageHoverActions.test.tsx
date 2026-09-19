@@ -16,7 +16,7 @@ vi.mock('../../src/components/image/editors/ImageEditor.tsx', () => ({ default: 
 vi.mock('../../src/components/base/utils/imageCompress.ts', () => ({
   compressImage: async (_url: any) => ({ dataUrl: 'data:compressed', size: 1, originalSize: 2 }),
 }));
-vi.mock('../../src/components/base/utils/imageUpscale.ts', () => ({
+vi.mock('../../src/components/image/lib/imageUpscale.ts', () => ({
   upscaleImage: async (_url: any) => ({ dataUrl: 'data:upscaled' }),
 }));
 vi.mock('../../src/components/base/api/filesApi.ts', async (importOriginal) => ({
@@ -27,7 +27,7 @@ vi.mock('../../src/components/base/api/filesApi.ts', async (importOriginal) => (
     show('local://saved');
   }),
 }));
-vi.mock('../../src/components/base/core/toastStore.ts', async (importOriginal) => ({
+vi.mock('../../src/components/base/core/event/toastStore.ts', async (importOriginal) => ({
   ...((await importOriginal()) as Record<string, unknown>),
   showToast: () => {},
   toastError: () => {},
