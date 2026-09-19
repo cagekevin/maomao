@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { isEditableTarget } from './uiHooks.ts';
+import { IS_DEV } from './config.ts';
 import { isEditorSessionOpen, subscribeEditorSession } from './editorSession.ts';
 
 /**
@@ -126,7 +127,7 @@ function registerLayer(getElement?: () => Element | null): () => void {
   // 加一道「是否真占视口」的门后，只有「登记着、却没有任何东西盖在屏幕上」才告警 ——
   // 那正是误登记的唯一特征，误报归零，告警重新变得可信。
   let timer: ReturnType<typeof setTimeout> | undefined;
-  if (import.meta.env?.DEV) {
+  if (IS_DEV) {
     timer = setTimeout(() => {
       const info = layers.get(id);
       if (!info) return;

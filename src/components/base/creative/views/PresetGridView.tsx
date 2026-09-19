@@ -38,7 +38,14 @@ export default function PresetGridView({ presets, onApply }: PresetGridViewProps
         <article
           key={p.id}
           className="cl-card-item"
-          title={p.name}
+          // 【TD-05-19】悬停显示提示词正文。原为 `title={p.name}` —— 只给名字，
+          // 而 `p.prompt` 数据早已归一化齐备（`creativeCatalog.ts:92/106`）、**285/285 全有值**。
+          // 名条（下方 `.cl-name`）仍只显示名字：名字用于「识别」，prompt 是「内容」，分工不同。
+          // 【实测长度】min 21 / 中位 54 / max 97 字 ⇒ 原生 tooltip 完全放得下（**不会截断**），
+          // 故不引入自定义 tooltip 组件（那是为长文本设计的，此处用不上）。
+          // 【为什么不需要判 kind】MJ 与 prompt 类**不走本组件**（各有专属视图，见 CreativeLibrary.tsx:34），
+          // 能进这里的只有 style / filter / motion —— 三者都要显示（用户 2026-09-19 裁定）。
+          title={`${p.name}\n${p.prompt}`}
           onClick={() => onApply(p)}
           onMouseEnter={() => {
             const v = videoRefs.current.get(p.id);

@@ -802,21 +802,43 @@ test('[files/multipart] TD-03-8：filename 已带扩展名时优先用文件名�
   assert.ok(body.data.url.endsWith('.jpg'), '文件名后缀优先，实际: ' + body.data.url);
 });
 
-test('[files/dataUri] 子目录缺省回退 canvas / 嵌套目录合法', async () => {
-  // 【TD-12-5】用独立字节，避开与上面 tasks 用例的 contentId 去重（否则返回既有 tasks url、测不到缺省 canvas）
+// 【2026-09-19 · TD-08-45】原用例名「子目录缺省回退 canvas / 嵌套目录合法」——
+//   那是 ADR-0012 §违反判据明文点名的一类断言（「非法 subfolder 回退 canvas 类断言复活 → 违规」）。
+//   缺省 subfolder 不是"合法默认"，而是**调用方契约违约**（忘传）⇒ 与显式非法同对待：400、不落盘。
+//   本用例改为**锁正确行为**（缺省即拒），并保留"嵌套目录按登记表判定"这条仍在意的分支。
+test('[files/dataUri] 子目录缺省 → 400（禁止回退 canvas，TD-08-45）', async () => {
   const uniq = `data:image/png;base64,${Buffer.concat([
     Buffer.from(TINY_PNG.split(',')[1], 'base64'),
-    Buffer.from('canvas-default'),
+    Buffer.from('no-subfolder'),
   ]).toString('base64')}`;
   const res = makeRes();
   await handleUpload(makeJsonReq({ dataUri: uniq }), res);
+  assert.equal(
+    res.status,
+    400,
+    '缺省 subfolder 必须 400（原为静默回退 canvas）；got ' + res.status,
+  );
+  assert.match(parseResBody(res).error, /Invalid subfolder/, '错误须指明 subfolder 非法');
+});
+
+test('[files/dataUri] 已登记的嵌套目录仍合法（分域判据未被本改动波及）', async () => {
+  const uniq = `data:image/png;base64,${Buffer.concat([
+    Buffer.from(TINY_PNG.split(',')[1], 'base64'),
+    Buffer.from('nested-ok'),
+  ]).toString('base64')}`;
+  const res = makeRes();
+  await handleUpload(makeJsonReq({ dataUri: uniq, subfolder: 'canvas/drop' }), res);
   const url = parseResBody(res).data.url;
-  assert.ok(url.startsWith(`${uploadBase}/canvas/`), '缺省应落 canvas，实际: ' + url);
+  assert.ok(url.startsWith(`${uploadBase}/canvas/drop/`), '已登记嵌套目录应放行，实际: ' + url);
 });
 
 test('[files/dataUri] 非法 base64 → 400（Node 宽容解码被 isValidBase64 拦截，杜绝落盘损坏文件）', async () => {
   const res = makeRes();
-  await handleUpload(makeJsonReq({ dataUri: 'data:image/png;base64,@@invalid@@' }), res);
+  // 【TD-08-45】补显式 subfolder：本用例测的是 **base64 合法性**，不该顺带依赖"缺省回退"。
+  await handleUpload(
+    makeJsonReq({ dataUri: 'data:image/png;base64,@@invalid@@', subfolder: 'canvas' }),
+    res,
+  );
   assert.equal(res.status, 400);
   assert.match(parseResBody(res).error, /Invalid dataUri/);
 });
@@ -832,7 +854,8 @@ test('[files/dataUri] 写盘失败 → 500（系统故障不得归因为 400 Inv
     throw new Error('disk full');
   });
   const res = makeRes();
-  await handleUpload(makeJsonReq({ dataUri: uniq }), res);
+  // 【TD-08-45】补显式 subfolder：本用例测的是 **写盘故障归因**，不该依赖"缺省回退"。
+  await handleUpload(makeJsonReq({ dataUri: uniq, subfolder: 'canvas' }), res);
   assert.equal(res.status, 500);
   assert.match(parseResBody(res).error, /Failed to persist dataUri/);
 });

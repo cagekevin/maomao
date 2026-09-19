@@ -19,6 +19,8 @@ import { KEY_DIRECTOR3D_CUSTOM_POSES, KEY_DIRECTOR3D_PROJECT } from '../base/cor
 // 数值钳制唯一入口（TD-18-5 收口）：本域曾私有复制同签名 clamp，现统一走 core SSOT；
 // 原样 re-export 使既有消费方（如本域 App.tsx）零改动。
 import { clamp, deepClone, canvasToImageDataUrl } from '../base/core/utils.ts';
+import { IS_DEV } from '../base/core/config.ts';
+import { generateId } from '../base/core/idGen.ts';
 
 export { clamp };
 
@@ -356,7 +358,17 @@ export function exportDimensionsForAspect(aspectRatio: string) {
     : { width: even(1280 * ratio), height: 1280 };
 }
 
-export const uid = () => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
+/**
+ * director3d 局部唯一 id。
+ *
+ * 【TD-18-7 收口（2026-09-19）】原为**本文件私有**的第二份 idGen：
+ *   `` () => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}` ``
+ * 与真源 `base/core/idGen.generateId`（`{prefix}_{ts36}_{rand36}`）**同语义、异格式**，
+ * 且违反 idGen 文件头明文「禁止自己写 `Date.now() + Math.random()` 拼接」。
+ * 现改为**委托唯一入口**（`d3d` 前缀标识域）—— 8 个消费点（App.tsx:6 处 + 本文件 2 处）
+ * **零改动**（本函数签名/出口形态不变），运行时行为等价（都是"时间戳+随机"的唯一串）。
+ */
+export const uid = () => generateId('d3d');
 export const radToDeg = (value: number) => Math.round(((value * 180) / Math.PI) * 10) / 10;
 export const degToRad = (value: number) => (Number(value || 0) * Math.PI) / 180;
 export const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
@@ -514,7 +526,7 @@ const ENTITY_FIELD_NAMES: Record<string, Set<string>> = Object.fromEntries(
 //      而不是等到运行时表现为「改了没反应」再去追。生产构建下为空操作（零开销）。
 // 注意：只告警不拦截——避免因个别未登记的历史字段导致写入被吞。
 export function assertRegisteredPatch(entityType: string, patch: Record<string, unknown>) {
-  if (!import.meta.env?.DEV) return;
+  if (!IS_DEV) return;
   const allowed = ENTITY_FIELD_NAMES[entityType];
   if (!allowed || !patch || typeof patch !== 'object') return;
   for (const field of Object.keys(patch)) {

@@ -127,12 +127,36 @@ export function withNodeSize(
 }
 
 /**
+ * `applyNodeTypeDefaults` 会**按需补**的结构字段（**全可选**：仅在原缺时填，已有值不覆盖）。
+ * 声明为可选 = 如实反映"补或不补取决于原对象与类型表"，不做假承诺（一诚实）。
+ */
+export interface NodeStructuralDefaults {
+  width?: number;
+  height?: number;
+  initialWidth?: number;
+  initialHeight?: number;
+  className?: string;
+  style?: Record<string, unknown>;
+}
+
+/**
  * 对已有 node 补缺失的结构默认（不覆盖已存在的字段），返回新 node 对象。
  * 纯函数，由 App.addNode 新建与快照加载还原复用。
- * @param {object} node
- * @returns {object} 补齐默认后的新 node（未补任何字段时也返回浅拷贝新对象）
+ *
+ * 【泛型 T（2026-09-19 · TD-24-5 母体收口）】原签名 `(Record<string, unknown>) => Record<string, unknown>`
+ * 把入参的具体形状**擦除**了 ⇒ 3 个调用点只能 `applyNodeTypeDefaults(n) as unknown as Node`
+ * 硬转回来（双重断言，绕过类型系统）。改泛型后**入参类型原样保留**：
+ *   - 传 `Node` → 返回 `Node & NodeStructuralDefaults`（`deriveNodes.ts` 的 `as unknown as` 直接消失）；
+ *   - 传 `Record<string, unknown>` → 返回同类型（**不谎称是 `Node`**，转换责任仍归调用方）。
+ * 返回 `T & NodeStructuralDefaults` 是**生产者的诚实契约**：它确实会补这些字段（见 §决议），
+ * 声明出来调用方/测试即可直接访问，不必各自再断言（此前测试靠"类型被擦除"才写得出）。
+ * 运行时行为**零变化**（实现体本就是浅拷贝 + 按需补字段，与本改动无关）。
+ * @param node 待补齐的节点对象
+ * @returns 补齐默认后的新节点（形状 = T + 可补字段；未补任何字段时也返回浅拷贝新对象）
  */
-export function applyNodeTypeDefaults(node: Record<string, unknown>): Record<string, unknown> {
+export function applyNodeTypeDefaults<T extends Record<string, unknown>>(
+  node: T,
+): T & NodeStructuralDefaults {
   const type = String(node.type || '');
   const d = NODE_TYPE_DEFAULTS[type];
   if (!d) return node;
@@ -162,5 +186,9 @@ export function applyNodeTypeDefaults(node: Record<string, unknown>): Record<str
       label: (data.label as string | undefined) ?? legacyName ?? '编组',
     };
   }
-  return next;
+  // 出口回 `T`：函数体内部一律按宽 `Record<string,unknown>` 操作（要按 key 动态补字段），
+  // 但**入参形状未变、只在缺失时补字段** ⇒ 返回对象仍是 T 的形状。
+  // 这里只需**单次**断言（`as T`），不再是调用点那种 `as unknown as Node` 的**双重**断言
+  // —— 后者连"它是不是 Node"都绕过了（TD-24-5 治的就是它）。
+  return next as T;
 }

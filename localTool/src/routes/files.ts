@@ -47,9 +47,17 @@ const BASE_URL = localToolBaseUrl();
  * 【TD-08-31】为什么必须在**入口**拦：底层 `resolveUploadTarget` 已改为非法即 throw（不再静默回退 `canvas`）。
  * 若不在入口拦，非法目录会在"落盘/下载"深处炸 → 被外层 catch 归因成「下载失败/500」，把排查引偏。
  * 且**落盘与登记行必须用同一个规范化值**，否则盘在 A、行记 B（素材库按 folder 分组时看不见文件）。
+ *
+ * 【TD-08-45】空/缺省 subfolder **不再回退 `canvas`**：那是「默认值兜底」（Step 4 形态④）——
+ * 它把"调用方忘传/传错"静默吞成一次看似成功的落盘，文件进了 `canvas/` 而调用方以为落在自己声明的目录
+ * （盘与声明脱钩，且用户按分组看不见该文件）。ADR-0012 决议字面即「非法 subfolder 回 400」，
+ * 空值与显式非法同属**调用方契约违约**，一并 fail-fast（口径与 `normalizeSubfolder` 的 `''→null` 一致）。
+ * 前端三条落盘出口（`saveInlineToLocal`/`uploadFileToLocal`/`uploadRemoteUrl`）均**显式传** subfolder
+ * 且各自有 `isKnownUploadDir` 写侧自查，无人依赖此默认值（删前已实测取证）。
+ * 【将来若真需要"落 canvas"】由**调用方显式传** `canvas`，不在入口替它决定。
  */
 function resolveRequestSubfolder(raw: unknown): string | null {
-  return normalizeSubfolder(raw === undefined || raw === null || raw === '' ? 'canvas' : raw);
+  return normalizeSubfolder(raw);
 }
 
 // 注：「thumbnail format 是否可编码」判据**不再在本文件自持**（原为 `SUPPORTED_THUMB_FORMATS` Set）。

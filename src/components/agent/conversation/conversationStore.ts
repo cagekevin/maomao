@@ -13,7 +13,7 @@
  *
  * 【兼容性】调用方 import 路径与符号名全部不变（App/useAgentChat/useCanvasAgentTools/AgentPanel 零改动）：
  *   - 本文件内部定义的 A 类函数 re-export 自本模块；
- *   - D/E/Skill/F 与底座公开 API 通过 `export { x } from './xxx.js'` 原样 re-export。
+ *   - D/E/Skill/F 与底座公开 API 通过 `export { x } from './xxx.ts'` 原样 re-export。
  * 依赖方向单向无环：state ← { snapshot, aiState, skillState } ← { imageMap, store }。
  * ════════════════════════════════════════════════════════════════
  */

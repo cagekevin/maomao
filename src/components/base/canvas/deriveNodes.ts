@@ -136,7 +136,9 @@ export function commitNewNodes(
   payload: { nodes?: Node[]; edges?: Edge[] },
   handles: CanvasCommitHandles,
 ): Node[] {
-  const nodes = (payload.nodes || []).map((n) => applyNodeTypeDefaults(n) as unknown as Node);
+  // 【TD-24-5】原为 `applyNodeTypeDefaults(n) as unknown as Node` —— 双重断言。
+  // 现 `applyNodeTypeDefaults` 已泛型化（入参 T → 返回 T）⇒ 传 `Node` 直接得 `Node`，断言删除。
+  const nodes = (payload.nodes || []).map((n) => applyNodeTypeDefaults(n));
   const edges = payload.edges || [];
   // 仅在需要记历史时才读 getEdges（无 history 的宿主/最小 mock 不必提供 getEdges）。
   const snapshot = handles.history

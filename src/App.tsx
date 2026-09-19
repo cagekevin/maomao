@@ -253,12 +253,20 @@ function Canvas() {
           // 兜底：历史快照里各节点类型可能缺 width/style/className/data.label 等结构字段
           // （如早期「右键新建 group」未补 style/className），加载时统一补默认，与新建路径保持一致。
           // 兜底：归一化父子顺序 + 清理孤儿 parentId（防「Parent node not found」崩溃）
-          const safeNodes = normalizeNodeParents(
-            saved.nodes.map((n) => applyNodeTypeDefaults(n) as unknown as Node),
-          );
+          // 【TD-24-5】原为 `applyNodeTypeDefaults(n) as unknown as Node`（双重断言）。
+          // 现两个原语均已泛型化 ⇒ **形状原样贯通**：`Record<string,unknown>[]` 进、
+          // `Record<string,unknown>[]` 出，窄化到 `Node[]` 的**唯一责任**落在下面这一处显式转换上
+          // （不再各处散落双重断言）。
+          const safeNodes = normalizeNodeParents(saved.nodes.map((n) => applyNodeTypeDefaults(n)));
           // 2026-09-07：编组折叠状态整体下线，加载时不再做 collapsed ↔ hidden 对齐兜底。
           // 存量快照里「group data.collapsed + 子节点 hidden:true」不做迁移（见方案 D4/S3 决策）。
-          setNodes(safeNodes);
+          // 【唯一窄化点】快照数据的真相是"形状未校验的宽对象"（`canvasSnapshotSchema` 只做白名单裁剪，
+          // 不做全字段校验）⇒ 到 React Flow 边界必须窄化一次。这里**显式集中在此**：
+          // 此前分散在 map 里的 `as unknown as Node` 已删（TD-24-5），转换责任只剩这一处。
+          // 单次断言 `as Node[]`（非 `as unknown as`）：宽对象与 Node 的共有键（id/type/position/data）
+          // 使 TS 认可该窄化可表达，无需再过 `unknown` 中转 —— 中转 = 连"有没有关系"都放弃了。
+          const nodesForCanvas = safeNodes as Node[];
+          setNodes(nodesForCanvas);
           // 预取重依赖节点 chunk：画布里若含 3D/视频处理节点，立即预热（不阻塞渲染），
           // 让节点真正渲染时 chunk 已在模块缓存里，骨架屏一闪而过甚至不出现。
           for (const n of safeNodes)
@@ -684,9 +692,10 @@ function Canvas() {
       injectNodePrefs(type, nodeData);
 
       const newNode = { id, type, position: { ...position }, data: nodeData };
-      // 复用 nodeDefaults.js 单源表，与「快照加载还原」保持一致（见加载 effect）
-      const nodeWithDefaults = applyNodeTypeDefaults(newNode) as unknown as Node;
-      const nextNodes = [...nodesRef.current, nodeWithDefaults];
+      // 复用 nodeDefaults 单源表，与「快照加载还原」保持一致（见加载 effect）。
+      // 【TD-24-5】原为 `as unknown as Node`；现 `applyNodeTypeDefaults` 已泛型化 ⇒ **保留字面量形状**。
+      const nodeWithDefaults = applyNodeTypeDefaults(newNode);
+      const nextNodes: Node[] = [...nodesRef.current, nodeWithDefaults];
       // 若带 connection：自动创建 source→新节点 的边。
       // 目标端口走模块级单源表 TARGET_HANDLE_BY_NODE_TYPE（见文件头【区 1】）：
       // 表内节点显式指到其 targetHandleId，表外节点沿用默认 null 口。

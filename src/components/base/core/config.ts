@@ -2,7 +2,7 @@
  * 集中配置（env 变量的单一来源）。
  *
  * 所有 import.meta.env 读取必须集中在此文件，禁止散落在业务代码中。
- * 业务代码 import { xxx } from './config.js' 即可。
+ * 业务代码 import { xxx } from './config.ts' 即可。
  *
  * 命名规则：UPPER_SNAKE_CASE，与 env 变量名对齐。
  */
@@ -64,13 +64,31 @@ export function isDebugModuleOn(module?: string) {
   return false;
 }
 
+// ── 开发模式（唯一真源）───────────────────────────────────────────
+/**
+ * 是否开发模式（`import.meta.env.DEV` 的**唯一出口**）。
+ *
+ * 【TD-18-32 收口（2026-09-19）】`import.meta.env.DEV` 曾被 3 处业务代码**裸读**
+ * （`director3d/project.ts:517` · `agent/assistantTable/tableWorkspaceState.ts:120` ·
+ * `base/core/modalLayer.ts:129`），违反本文件头「所有 import.meta.env 读取必须集中在此文件」
+ * 与 ADR-0033（配置与常量的单一真源）。
+ * 典型用途 = 「开发期自检 / 守卫 / 不变量告警」，生产构建下**必须为空操作**（零开销）。
+ * ⚠️ 用 `?.` 安全形式：根脚本 `define:{'import.meta.env':'{}'}` 可正常覆盖。
+ */
+export const IS_DEV = import.meta.env?.DEV === true;
+
+/**
+ * 静态资源基址（`import.meta.env.BASE_URL` 的**唯一出口**）。Vite 注入，结尾自带 `/`。
+ * 【TD-18-32】原 `director3d/models.tsx:81` 裸读 `import.meta.env.BASE_URL` 拼模型 URL，已收口。
+ */
+export const BASE_URL = import.meta.env?.BASE_URL ?? '/';
+
 // ── director3d 调试日志开关 ────────────────────────────────────────
 /** director3d 调试日志开关（原散落在 director3d/log.ts 的裸 import.meta 读取，已收口至此）。
- *  开启条件（沿用原语义，未改名）：VITE_DEBUG_LOG='1' 或开发模式（import.meta.env.DEV）。
+ *  开启条件（沿用原语义，未改名）：VITE_DEBUG_LOG='1' 或开发模式（`IS_DEV`）。
  *  注意：此处用 import.meta.env?.X 安全形式，根脚本 define:{'import.meta.env':'{}'} 可正常覆盖，
  *  不再出现 "import.meta is not available with cjs" 警告。 */
-export const DIRECTOR3D_DEBUG =
-  import.meta.env?.VITE_DEBUG_LOG === '1' || import.meta.env?.DEV === true;
+export const DIRECTOR3D_DEBUG = import.meta.env?.VITE_DEBUG_LOG === '1' || IS_DEV;
 
 // ── AI 助手模型列表 ──────────────────────────────────────────────
 // 【2026-09-04 清理】AGENT_MODELS / DEFAULT_AGENT_MODELS 已随「AI 助手模型改用设置页厂商 chat_models」

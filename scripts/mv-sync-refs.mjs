@@ -18,9 +18,21 @@
  *                           例：--root download/ai-relay/src  --root localTool/src
  *   --alias <from>:<to>     追加自定义 import 别名，如 --alias '@proto/:/src/protocol/'
  *                           （from 须以 / 结尾，to 相对扫描根，可多次）
- *   --suffix auto|ts|js     import 产物后缀策略（默认 auto）：
+ *   --suffix keep|auto|ts|js  import 产物后缀策略（**默认 keep**）：
+ *                               keep → **原样保留**原说明符后缀（原 .ts 保持 .ts、原 .js 保持 .js、
+ *                                      原裸写保持裸写）。**这是本仓的正确默认** —— 见下方"为什么"。
  *                               auto → 按目标源码推断运行后缀（.ts 源写 .js，ESM 约定）
  *                               ts   → 显式统一写 .ts；  js → 显式统一写 .js
+ *
+ * 【为什么默认是 keep 而不是 auto】本仓存在**两种后缀约定，且各自都对**：
+ *   - `src/**`（bundler 域）：1322 处 import **全部**显式写 `.ts`/`.tsx`（`.js` 0 处）；
+ *   - `localTool/**`（Node-ESM 域）：`"type":"module"`，262 处写 `.js`（该域 `.js` 属正当）。
+ * `auto` 拿一条硬编码映射（`.ts → .js`）去套两个域 ⇒ **对后端对、对前端错**，且
+ * `allowImportingTsExtensions:true` + `moduleResolution:bundler` 下两种写法**都能解析**
+ * ⇒ 改完不报错、**静默**、单方面把 `src/` 的 `.ts` 风格改掉。
+ * **判据**（它凭什么成立）：`auto` 成立的前提是"所有项目都用 Node-ESM 后缀"—— **本仓不成立**，
+ * 故该前提答不出 ⇒ 它就是要被消灭的默认值。`keep` 成立：它**不猜**，两域各自的约定自己作数。
+ * 【需要旧行为时】显式 `--suffix auto`（或 `ts`/`js`）—— 决定权交还调用方，工具不替它猜。
  *   --dry                   只预览改动，不落盘、不改名（对 rename/move/move-dir/convert/batch 均生效）
  *   --force                 绕过永久豁免红线（convert 用）
  *
@@ -77,10 +89,16 @@
  *
  * ═══════════════════════════════════════════════════════════════════════════
  * 常用示例：
- *   # 对子项目重命名并让全仓（含该根下测试 .mjs/.cjs）引用指向新名，ESM 项目保持 .js：
+ *   # 默认（keep）= 原样保留 import 既有后缀风格 —— 搬 src/ 的 .ts 仍写 .ts、搬 localTool/ 的 .js 仍写 .js：
+ *   node scripts/mv-sync-refs.mjs move src/hooks/a.ts src/components/base/panels/a.ts
+ *   node scripts/mv-sync-refs.mjs --root localTool/src rename localTool/src/lib/x.ts x.ts
+ *   # 对子项目重命名并让全仓（含该根下测试 .mjs/.cjs）引用指向新名：
  *   node scripts/mv-sync-refs.mjs --root download/ai-relay/src rename download/ai-relay/src/connection.ts connectionTest.ts
- *   # 强制 import 写 .ts（纯 bundler / 开了 allowImportingTsExtensions 的项目）：
+ *   # 显式统一后缀（覆盖原风格）：强制写 .ts / 强制写 .js
  *   node scripts/mv-sync-refs.mjs --root download/ai-relay/src --suffix ts rename download/ai-relay/src/a.ts b.ts
+ *   node scripts/mv-sync-refs.mjs --suffix js move src/a.ts src/b.ts
+ *   # 需要旧行为（按目标源码推断：.ts 源写 .js）才显式指定：
+ *   node scripts/mv-sync-refs.mjs --suffix auto move src/a.ts src/b.ts
  *   # 先 dry 预览整目录搬运影响面：
  *   node scripts/mv-sync-refs.mjs --root localTool/src move-dir localTool/src/lib localTool/src/core --dry
  *   # 搬完发现不对，一键回退：
@@ -337,11 +355,18 @@ function runtimeSuffixForSource(newAbs) {
  * 把一个「可能带源码扩展名」的规范说明符片段，套用 --suffix 策略归一：
  *   suffix='ts'   → 一律补 .ts（或 .tsx，若原目标带 tsx/含 JSX 场景——这里统一 ts）
  *   suffix='js'   → 一律补 .js（真实 .jsx 源也归 .js，见下）
- *   suffix='auto' → 按目标源码推导「运行时后缀」（.ts→.js / .tsx→.jsx / .js→.js）
+ *   suffix='keep' → **原样保留**：原说明符写什么后缀就是什么后缀（无后缀 → 仍无后缀）。
+ *                   适用于「本仓存在两种后缀约定、且各自都对」的场景 —— 例：本仓
+ *                   `src/**`（bundler 域）全显式写 `.ts`/`.tsx`，`localTool/**`（Node-ESM 域）
+ *                   全写 `.js`。`keep` 让两域**各自的约定自己作数**，工具不替调用方决定。
+ *   suffix='auto' → 按目标源码推导「运行时后缀」（.ts→.js / .tsx→.jsx / .js→.js）【默认】
  * 说明：suffix 是用户显式声明的「想要的项目 import 后缀」，它直接决定产物；auto 才是"智能推断"。
  * 仅处理带源码扩展名的片段；无扩展名片段（如 @/types、@/hooks/useX）原样保留。
+ *
+ * @param origSpecExt 原说明符里写的源码后缀（如 './x.ts' → '.ts'；'./x' → ''）。
+ *                    仅 `keep` 分支需要；其余分支忽略。**必须直接 `extname(oldSpec)` 取**。
  */
-function applySpecSuffix(specStem, targetExt, suffix) {
+function applySpecSuffix(specStem, targetExt, suffix, origSpecExt = '') {
   const st = toPosix(specStem);
   // 显式 ts：目标若是 .ts/.tsx 源，就按 .ts/.tsx；但用户想要统一 ts 就统 .ts。为精确，
   // 这里按目标真实源码扩展名给（.ts→.ts、.tsx→.tsx、.js→.js），让"生成 TS"落对扩展名。
@@ -354,6 +379,10 @@ function applySpecSuffix(specStem, targetExt, suffix) {
     if (targetExt === '.tsx' || targetExt === '.jsx') return st + '.jsx';
     return st + '.js';
   }
+  // keep：原样保留原说明符后缀（源码后缀则沿用；无后缀则保持无后缀）
+  if (suffix === 'keep') {
+    return SOURCE_EXTS.includes(origSpecExt) ? st + origSpecExt : st;
+  }
   // auto：按目标源码推导运行时后缀
   const rs = runtimeSuffixForSource(st + targetExt);
   return rs ? st + rs : st;
@@ -364,6 +393,10 @@ function computeNewSpec(fromFile, newAbs, oldSpec) {
   const targetExt = extname(newAbs);
   const mkRel = (rel) => (toPosix(rel).startsWith('.') ? toPosix(rel) : './' + toPosix(rel));
   const stripExt = (p) => p.replace(/\.[a-z0-9]+$/i, '');
+  // 【--suffix keep 用】原说明符写的源码后缀。
+  // ⚠️ 必须**直接** `extname(oldSpec)` —— 曾误写 `extname(stripExt(oldSpec))`（先剥后缀再取）= 恒 `''`
+  //    ⇒ keep 会丢掉后缀。stripExt 与 extname 是相反方向的操作，串起来等于"擦掉再问写了什么"。
+  const origSpecExt = extname(oldSpec);
 
   // 旧 spec 原本是别名形式 → 保持别名前缀；alias 惯用不带后缀，仅当显式 --suffix 非 auto 时补全
   const m = matchAlias(oldSpec);
@@ -377,21 +410,24 @@ function computeNewSpec(fromFile, newAbs, oldSpec) {
     const aliasBase = resolve(root, m.to);
     if (newAbs.startsWith(aliasBase)) {
       const aliasRel = stripExt(toPosix(relative(aliasBase, newAbs)));
-      return suffixMode === 'auto'
+      // auto / keep：别名惯用**不带后缀** ⇒ 两者都保持裸别名（keep 的语义即"原样"，原样就是裸的）。
+      // 仅显式 ts/js 才补后缀。
+      return suffixMode === 'auto' || suffixMode === 'keep'
         ? m.alias + aliasRel
-        : m.alias + applySpecSuffix(aliasRel, targetExt, suffixMode);
+        : m.alias + applySpecSuffix(aliasRel, targetExt, suffixMode, origSpecExt);
     }
   }
 
   // 普通相对路径：去掉目标扩展名算出 stem，再按 suffix 策略决定产物扩展名
   let rel = stripExt(toPosix(relative(dirname(fromFile), newAbs)));
 
-  // 相对过深(≥2 层回退)且目标仍在本根内 → 净化成 @/ 别名（仅 auto 下，别名不带后缀）
-  if (rel.startsWith('../../') && newAbs.startsWith(currentRoot) && suffixMode === 'auto') {
+  // 相对过深(≥2 层回退)且目标仍在本根内 → 净化成 @/ 别名
+  //   auto / keep → 别名不带后缀（keep 原样即裸别名）；显式 ts/js 不净化（保后缀）。
+  if (rel.startsWith('../../') && newAbs.startsWith(currentRoot) && (suffixMode === 'auto' || suffixMode === 'keep')) {
     return '@/' + stripExt(toPosix(relative(currentRoot, newAbs)));
   }
 
-  return mkRel(applySpecSuffix(rel, targetExt, suffixMode));
+  return mkRel(applySpecSuffix(rel, targetExt, suffixMode, origSpecExt));
 }
 
 /**
@@ -472,16 +508,21 @@ function rewriteImports(oldAbs, newExt) {
   const oldExt = extname(oldAbs);
   const newAbs = oldAbs.slice(0, oldAbs.length - oldExt.length) + newExt;
   // convert/batch：物理改扩展名(.js→.ts)。import 后缀按 suffix 策略落：
-  //   auto → 沿用「指向 .ts 源写 .js」的项目约定（import 后缀由 newExt 推导运行后缀）；
-  //   ts/js → 显式统一成对应后缀。
-  // 复用 applySpecSuffix：specStem=去旧后缀的路径，targetExt=新文件真实后缀。
+  //   keep（默认）→ 原样保留说明符里写的后缀（**不跟随文件新扩展名**）。
+  //        【为什么 convert 下也保持 keep】**方向性**：说明符后缀属于"调用方写法/所属域的约定"，
+  //        而 convert 改的是"**文件自身**的扩展名"。两者是**不同维度**，不该联动 ——
+  //        例：把 `localTool/**` 一个 .js 文件转 .ts，其引用方写的是 `./x.js`（Node-ESM 域约定）
+  //        且**不在本仓 bundler 域**，硬跟随成 `.ts` 可能反而引入域外不可解析的写法。
+  //        想把"引用后缀也一起统一" → **显式** `--suffix ts`（一条命令全转好，见下）。
+  //   auto → 按 newExt 推导运行后缀（.ts→.js / .tsx→.jsx）；ts/js → 显式统一。
+  // 复用 applySpecSuffix：specStem=去旧后缀的路径，targetExt=新文件真实后缀，origSpecExt=原后缀。
   return planImportRewrites(
     oldAbs,
     (_fromFile, fullSpec) => {
       const specExt = extname(fullSpec);
       if (!SOURCE_EXTS.includes(specExt)) return fullSpec;
       const stem = fullSpec.slice(0, fullSpec.length - specExt.length);
-      return applySpecSuffix(stem, newExt, suffixMode);
+      return applySpecSuffix(stem, newExt, suffixMode, specExt);
     },
     new Set([oldAbs, newAbs]),
   );
@@ -679,15 +720,16 @@ const { positionals, values } = parseArgs({
     nocheck: { type: 'boolean', default: false },
     root: { type: 'string', multiple: true },
     alias: { type: 'string', multiple: true }, // 追加自定义别名：--alias <from>:<to>，可多次
-    suffix: { type: 'string', default: 'auto' }, // import 产物后缀：auto(默认,按目标源码推断) | ts | js
+    suffix: { type: 'string', default: 'keep' }, // import 产物后缀：keep(默认,原样保留) | auto(按目标源码推断) | ts | js
     undo: { type: 'boolean', default: false },
     file: { type: 'string' }, // rename-symbol 限定符号定义文件
   },
   allowPositionals: true,
 });
 
-// import 产物后缀策略：默认 auto = 对 .ts 源生成 .js（ESM 惯用）；显式 ts/js 强制统一。
-const suffixMode = ['auto', 'ts', 'js'].includes(values.suffix) ? values.suffix : 'auto';
+// import 产物后缀策略：默认 keep = 原样保留调用方写法的后缀（不猜；两域各自约定自己作数）。
+// 非法取值 → 回落 keep（安全侧：不改变既有写法），而非 auto（凭映射猜）。
+const suffixMode = ['auto', 'ts', 'js', 'keep'].includes(values.suffix) ? values.suffix : 'keep';
 
 if (values.root) {
   for (const r of values.root) {

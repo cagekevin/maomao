@@ -1247,6 +1247,47 @@ test('【TD-08-31】非法 subfolder → 400 且不落盘不建行（禁止静�
   assert.equal(rows.length, 0, '被拒请求不得留下 resource 行');
 });
 
+test('【TD-08-45】空/缺省 subfolder → 400 且不落盘（禁止静默回退 canvas）', async () => {
+  // 与 TD-08-31 同族：显式非法已 400，但**空值**此前被 `?? 'canvas'` 静默吞成默认目录。
+  // 空值 = 调用方契约违约（忘传），属"默认值兜底"（Step 4 形态④），须与显式非法同等对待。
+  const emptyRes = makeRes();
+  await filesMod.handleUpload(
+    makeMultipartReq({
+      filename: 'nosub.png',
+      fileContent: Buffer.concat([RED_PNG_BUFFER, Buffer.from('nosub')]),
+      contentType: 'image/png',
+      fields: { subfolder: '' },
+    }),
+    emptyRes,
+  );
+  assert.equal(
+    emptyRes.status,
+    400,
+    '空 subfolder 必须拒绝（原静默回退 canvas）；got ' + emptyRes.status,
+  );
+
+  // 缺省字段同样拒绝（undefined 分支）
+  const missingRes = makeRes();
+  await filesMod.handleUpload(
+    makeMultipartReq({
+      filename: 'miss.png',
+      fileContent: Buffer.concat([RED_PNG_BUFFER, Buffer.from('miss')]),
+      contentType: 'image/png',
+      fields: {},
+    }),
+    missingRes,
+  );
+  assert.equal(missingRes.status, 400, '缺省 subfolder 必须拒绝；got ' + missingRes.status);
+
+  // 被拒请求不得留下 resource 行（盘行一致：不落盘就不建行）
+  const db = await dbMod.getDb();
+  const rows = dbMod.queryAll(
+    db,
+    "SELECT id FROM resources WHERE id LIKE 'local-%nosub%' OR id LIKE 'local-%miss%'",
+  );
+  assert.equal(rows.length, 0, '被拒请求不得留下 resource 行');
+});
+
 // 【2026-09-19 · TD-08-44】本用例靠 `chmod 0o000` 造「不可读目录」，但**两种环境造不出来**：
 //   ① Windows —— POSIX 权限位不生效，目录照样能读 ⇒ `errors` 恒 0 ⇒ 断言必红（不是被测代码坏了）；
 //   ② 以 root 运行 —— root 绕过权限位，同样读得到。

@@ -94,6 +94,16 @@ export async function generateAndInsertSpeech({
       file,
       url,
       duration: result.duration,
+      // ⚠️ 【TD-18-26 · 接入 TTS 时**必须先改**这一行】`ephemeral: true` 是错的语义：
+      //   全仓唯一一处（`grep -rn 'ephemeral: *true' src` 仅此）；
+      //   而 `storage/service.ts:413-414` 定义 `ephemeral` = 「**故意**不落盘（合法状态）」
+      //   的临时预览素材（`loadMediaAsset` 见无 url 即返 null）。
+      //   语音是用户要**留在时间轴里**的成品素材 ⇒ 标 ephemeral 会让"接 TTS 后刷新即丢"。
+      // 【当前为什么不能改】`generateSpeechFromText`（`:39`）无条件 `throw`（TTS 未接入，用户裁定方案甲）
+      //   ⇒ 本行 `addMediaAsset` 在 `:89` **运行不可达**，改了无法验证（探针红不了）。
+      //   按 A8「状态不许预支」：只登记 + 留痕，不预付修复（见 `18-跨区-TD18-25TTS幽灵预留证伪与清偿-2026-09-19.md`）。
+      // 【正确形态】接入 TTS 时：删 `ephemeral: true`（默认 false ⇒ 走持久落盘分支）；
+      //   若将来要为"可重生成的语音"另立判据，须先经 Step 1 三问 + 用户拍板，不得在消费端顺手决定。
       ephemeral: true,
     },
   });

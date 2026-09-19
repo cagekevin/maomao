@@ -48,6 +48,7 @@ import {
   setTabTable,
 } from './assistantTable.ts';
 import { validateWorkspace } from './tableInvariants.ts';
+import { IS_DEV } from '../../base/core/config.ts';
 import type { AssistantTableJson, AssistantTableTabs, CellRange } from './assistantTable.ts';
 
 /** 选区类型由模型层（assistantTable.ts）定义并拥有，此处转出供 UI 层直接用 */
@@ -117,7 +118,7 @@ function setState(next: TableWorkspaceState): void {
   // 运行态不变量自检：每次变更都拿最新 tabs 对账（spec §七「写了不跑 = 形同没写」——
   // validateWorkspace 此前全库零生产调用，本轮补上接线）。dev 下告警、不阻断交互；
   // 用签名缓存避免持久违规在高频 setState（如拖拽宽度）下反复刷屏。
-  if (import.meta.env?.DEV) {
+  if (IS_DEV) {
     const violations = validateWorkspace(next, getCurrentAssistantTabs());
     if (violations.length) {
       const sig = violations.map((v) => `${v.level}:${v.code}`).join('|');

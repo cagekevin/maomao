@@ -103,25 +103,25 @@ export function createGroupFromNodes(
  *    相对坐标当绝对坐标渲染——位置可能偏一点，但远好于崩溃/丢节点）。
  *
  * 纯函数，不修改入参，返回新数组。
+ *
+ * 【泛型 T（2026-09-19 · TD-24-5 母体收口）】原签名 `(Node[]) => Node[]` —— 但**加载入口**喂进来的
+ * 是**快照宽对象**（`Record<string, unknown>[]`，见 `canvasSnapshotSchema`），调用方只能
+ * `applyNodeTypeDefaults(n) as unknown as Node` 硬转。泛型化后**入参形状原样保留**：
+ * 传宽对象 → 返回宽对象（**不谎称是 `Node`**）；传 `Node[]` → 返回 `Node[]`。
+ * 本函数只读写 `id` / `parentId` / `extent` 三个字段，对宽对象与 `Node` 同样适用（运行时零变化）。
  */
-export function normalizeNodeParents(nodes: Node[]): Node[] {
+export function normalizeNodeParents<T extends Record<string, unknown>>(nodes: T[]): T[] {
   if (!Array.isArray(nodes) || nodes.length === 0) return nodes;
-  const byId = new Map<string, Node>();
+  const byId = new Map<string, T>();
   for (const n of nodes) byId.set(String(n.id), n);
 
   // 1) 清理孤儿 parentId（父节点不存在的，解除父子关系），避免 React Flow 抛 not found。
-  const cleaned = nodes.map((n) => {
+  const cleaned = nodes.map((n): T => {
     const pid = n.parentId != null ? String(n.parentId) : undefined;
     if (pid && !byId.has(pid)) {
-      const {
-        parentId: _drop,
-        extent: _dropExt,
-        ...rest
-      } = n as Node & {
-        parentId?: string;
-        extent?: unknown;
-      };
-      return rest as Node;
+      const { parentId: _drop, extent: _dropExt, ...rest } = n;
+      // 解构剔除两个字段后仍是 T 的形状（T 允许可选 parentId/extent）⇒ 单次断言，非双重。
+      return rest as T;
     }
     return n;
   });

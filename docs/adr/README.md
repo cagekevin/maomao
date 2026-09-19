@@ -327,6 +327,7 @@ node scripts/adr.mjs status 0002 --to 已毕业 --note "对账测试：tests/uni
 | [0034](ADR-0034-节点外壳唯一实现-NodeShell：禁止手写节点外壳.md) | 节点外壳唯一实现 NodeShell：禁止手写节点外壳 | ✅ 生效 | 节点 UI 外壳统一走 NodeShell（选中态/边框/端口/工具栏同址）；UI 用 useState(data.xxx)、写回用 setNodes 不可变更新、上游数据走 useConnectedInputs。禁止手写外壳。 |
 | [0035](ADR-0035-错误分类与异步超时唯一入口：genErrors-+-asyncGuard.md) | 错误分类与异步超时唯一入口：genErrors + asyncGuard | ✅ 生效 | 错误→类型只由 genErrors.classifyError 判定；超时/释放/解析等异步语义只由 asyncGuard 承担。禁止自写关键词式网络错误判定，禁止无超时 Promise。 |
 | [0036](ADR-0036-分层职责不越层：提示不写日志、日志不弹提示.md) | 分层职责不越层：提示不写日志、日志不弹提示 | ✅ 生效 | 弹提示→toast、记日志→logger、广播→事件总线、存数据→contentStore、算/转换→工具层、下载→clipboard.downloadUrl；禁止越层代劳。新增事件/存储键/错误类型先登记 contracts.ts。 |
+| [0037](ADR-0037-工具不得凭硬编码映射替调用方决定-import-后缀：默认继承既有写法.md) | 工具不得凭硬编码映射替调用方决定 import 后缀：默认继承既有写法 | ✅ 生效 | 改写 import 的工具，默认必须继承既有写法（原 .ts 保 .ts、原 .js 保 .js），禁凭硬编码映射推断；当仓内两种约定各自都对时，'按项目类型推断'的前提即被证伪。 |
 
 **已退出**（保留作记录 · **勿再引用为现行判据**）
 

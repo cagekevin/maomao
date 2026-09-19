@@ -12,6 +12,7 @@ import type { ThreeEvent } from '@react-three/fiber';
 import { useGLTF } from '@react-three/drei';
 import * as THREE from 'three';
 import { clone as skeletonClone } from 'three/examples/jsm/utils/SkeletonUtils.js';
+import { BASE_URL } from '../base/core/config.ts';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { MIXAMO_BODY_SCALES, poseForObject, presetDefinition } from './rig.ts';
 import { log } from './log.ts';
@@ -78,7 +79,7 @@ interface MixamoPersonModelProps {
 
 // 内置人物模型：使用减面版（49k→15k 三角），蒙皮/骨骼/动画全保留，降低每帧渲染成本
 // 原件 xbot-animated.glb 保留在 public/models/ 作回退
-const BUILT_IN_MODEL_URL = `${import.meta.env.BASE_URL}models/xbot-animated-lod.glb`;
+const BUILT_IN_MODEL_URL = `${BASE_URL}models/xbot-animated-lod.glb`;
 const whiteMaterial = { roughness: 0.78, metalness: 0.02 };
 
 // 内置人物的场景高度（xbot 包围盒 ~1.6），作为导入模型的自动缩放目标
