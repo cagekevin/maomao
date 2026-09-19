@@ -387,8 +387,21 @@ if (structuralCycles.size) {
 // 【何时该改】新增/删除 `base/` 下的**横切**子目录时同步本表；**域**子目录不要加进来。
 // 【怎么改】把新横切子目录加进 `BASE_CROSS_CUTTING`。若某横切子目录确实要依赖某域 ⇒ 先问
 //   「它是不是其实属于那个域」（多半是域物住横切层，应迁出而不是加白名单）。
+// 【🔴 2026-09-19 第二次判据修正：`panels` 从横切子目录移出 ⇒ 改判「宿主 / 挂载层」】
+//   依据 = `docs/DOMAIN-MODULES.md §3.3 C4` 原文：「`base/panels` **多数 app-shell（仅 App）**」。
+//   实测坐实：`LeftPanel.tsx` 装配**四个域的 UI**（`TaskCenter` 任务 · `GeneratedView` 生成 ·
+//   `ResourceLibrary` 素材 · `PromptHub` 提示词）并 import `taskStore`（任务域真源）
+//   ⇒ 它就是 **app-shell 组合件**，职责就是「把各域的 UI 接起来」。
+//   ⇒ 拿「横切不许依赖域」管它 = 与 `App.tsx` 同类误判（`§2.5` 明确「App.tsx 不计为消费域」）。
+//   **代价核算**：移出时 `base/panels` 出向依赖 = **0 处**（实测）⇒ 今天不损失任何防护；
+//   未来若 `panels` 里的**横切 UI kit**（`FullscreenModal` / `ImportMediaModal` / `panel-kit.css` …）
+//   开始依赖域，需按「横切原语下沉」处理（不能靠本 guard，改由 code review 守）。
+//   **用户裁定（2026-09-19）：`base/panels` 整体不拆** —— 它是**内聚的面板层**，
+//   `FullscreenEditor` / `HoverToolbar` 等**留在原地**（`§3.3 C4` 那句「属画布域 ⇒ 应迁出」
+//   据此作废，见 `docs/DOMAIN-MODULES.md §7` 修订记录）。
 console.log('\n🏗 分层边界：base/ 的横切子目录禁止反向依赖业务域');
-const BASE_CROSS_CUTTING = new Set(['core', 'utils', 'ui', 'api', 'storage', 'panels']);
+const BASE_CROSS_CUTTING = new Set(['core', 'utils', 'ui', 'api', 'storage']);
+const BASE_HOST_LAYER = new Set(['panels']); // 宿主 / 挂载层（app-shell · 面板层）· 可依赖域，见上注
 const BASE_PREFIX = 'src/components/base/';
 let baseViol = 0;
 for (const [from, deps] of graph) {
