@@ -166,3 +166,7 @@ localTool/.lovart_project.json
 # 只服务于「刚做完这一次 move 出错时回退」，不是仓库内容（误入库会产生 6 处假断链，
 # 且 --undo 会回退已完成的迁移批次）。见 TD-24-8。
 scripts/.move-dir-undo.json
+
+# Vitest / Vite 加载 *.config.ts 时由 esbuild 生成的临时打包产物（每次加载换一个时间戳名）。
+# 纯瞬时垃圾，误入库会污染历史（S2-1b 曾被提交 4 个，见 TD-17-28）。
+*.timestamp-*.mjs
