@@ -2,14 +2,14 @@ import React, { useState, useRef, useCallback, useMemo } from 'react';
 import { useReactFlow } from '@xyflow/react';
 import { Image as ImageIcon, Send, Download, AlertCircle, Camera } from 'lucide-react';
 import NodeShell from '@/components/canvas/parts/NodeShell';
-import HoverToolbar from '@/components/canvas/HoverToolbar';
+import HoverToolbar from '@/components/canvas/shell/HoverToolbar';
 import ExpandablePanel from '@/components/canvas/parts/ExpandablePanel';
 import GenerateButton from '@/components/canvas/parts/GenerateButton';
 import ModelSelect from '@/components/base/ui/ModelSelect';
-import PromptInput from '@/components/canvas/PromptInput';
+import PromptInput from '@/components/canvas/shell/PromptInput';
 import ResourceStrip from '@/components/canvas/shell/ResourceStrip';
 import ResizeFullscreenHandle from '@/components/canvas/parts/ResizeFullscreenHandle';
-import FullscreenEditor from '@/components/canvas/FullscreenEditor';
+import FullscreenEditor from '@/components/canvas/shell/FullscreenEditor';
 import GeneratingOverlay from '@/components/canvas/parts/GeneratingOverlay';
 import { NODE_AREA_FIXED_BASE_SIZE } from '@/components/base/core/config';
 import ImageZoomDialog from '@/components/base/ui/ImageZoomDialog';
@@ -39,14 +39,18 @@ import '@/components/base/api/index';
 import { logger } from '@/components/base/core/logger';
 import { generateImage } from '@/components/base/api/index';
 import { fetchTaskPage } from '@/components/base/api/pagedList';
-import { useNodePrefs, injectNodePrefs, PREFS_DEFAULTS } from '@/components/canvas/nodePrefs';
-import { commitNewNodes } from '@/components/canvas/deriveNodes';
-import { useCanvasEdges } from '@/components/canvas/CanvasEdgesContext';
+import {
+  useNodePrefs,
+  injectNodePrefs,
+  PREFS_DEFAULTS,
+} from '@/components/canvas/contract/nodePrefs';
+import { commitNewNodes } from '@/components/canvas/structure/deriveNodes';
+import { useCanvasEdges } from '@/components/canvas/structure/CanvasEdgesContext';
 import { useRenderAssetResolver } from '@/components/base/utils/assetUrl';
 import { resolveProviderModel } from '@/components/base/utils/providerModels';
 import { mergeRefImages, buildEffectivePrompt } from '@/components/base/core/utils';
-import { resolvePromptChips, mergeReferenceImageUrls } from '@/components/canvas/promptChips';
-import { PROMPT_PANEL_PAD_X } from '@/components/canvas/promptLayout';
+import { resolvePromptChips, mergeReferenceImageUrls } from '@/components/canvas/shell/promptChips';
+import { PROMPT_PANEL_PAD_X } from '@/components/canvas/shell/promptLayout';
 import { CameraStudioPanel, CameraSettingsSelector, applyCameraSettingsToPrompt } from '../editors';
 import type { CameraGenerationSettings, CameraStudioResult } from '../editors';
 

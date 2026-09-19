@@ -19,7 +19,7 @@ import { useConnectedInputs } from '@/hooks/useConnectedInputs';
 import { useNodeRename } from '@/hooks/useNodeRename';
 import { patchNodeDataById } from '@/hooks/useNodeData';
 import { classifyAssetUrlKind } from '@/components/base/utils/assetType';
-import { ASSET_NODE_SIZE } from '@/components/canvas/nodeDefaults';
+import { ASSET_NODE_SIZE } from '@/components/canvas/contract/nodeDefaults';
 import {
   pxDeltaToTime,
   snapTime,
@@ -29,7 +29,7 @@ import {
 } from '@/components/base/utils/timeline/timeScale';
 import { useAssetDegrade } from '@/hooks/useAssetDegrade';
 import { useNodeResize } from '@/components/base/core/uiHooks';
-import { useCanvasKeydown } from '@/components/canvas/canvasHotkeys';
+import { useCanvasKeydown } from '@/components/canvas/topology/canvasHotkeys';
 import { showToast } from '@/components/base/core/toastStore';
 // 【TD-22-64 · 2026-09-18】时长显示唯一实现：此前本文件自持一份 `formatDuration`，
 // 与 videoEditor/ui/…/media.tsx 的同名实现重复，且多一个「非有限 → '0:00'」的发明值。
@@ -49,8 +49,8 @@ import {
   ConversionCanceled,
 } from '@/components/base/utils/videoEngine';
 import { generateId } from '@/components/base/core/idGen';
-import { buildSpawnNodes, spawnAndCommit } from '@/components/canvas/deriveNodes';
-import { useCanvasEdges } from '@/components/canvas/CanvasEdgesContext';
+import { buildSpawnNodes, spawnAndCommit } from '@/components/canvas/structure/deriveNodes';
+import { useCanvasEdges } from '@/components/canvas/structure/CanvasEdgesContext';
 import { httpRequest, uploadFileToLocal } from '@/components/base/api/index';
 import { updateNodeRuntime, useNodeRuntime } from '@/components/base/store/nodeRuntimeStore';
 import previewUrls from '@/components/base/utils/previewUrl';

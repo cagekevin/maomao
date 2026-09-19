@@ -25,7 +25,7 @@
     "src/components/agent/runtime/workflowState.ts::exports::WORKFLOW_STATUS",
     "src/components/base/api/httpClient.ts::exports::httpRequestLogged",
     "src/components/base/api/localToolApi.ts::exports::batchSaveTasks",
-    "src/components/canvas/NodePalette.ts::exports::builtinNodeTypes",
+    "src/components/canvas/shell/NodePalette.ts::exports::builtinNodeTypes",
     "src/components/canvas/nodeMedia.ts::exports::selectedNodeIdsOfSig",
     "src/components/canvas/toolRegistry.ts::exports::resetTools",
     "src/components/base/core/contentStore.ts::exports::contentDelete",

@@ -31,7 +31,7 @@ import FaceMosaicNode from '@/components/image/nodes/FaceMosaicNode';
 import PanoramaNode from '@/components/image/nodes/PanoramaNode';
 import GroupNode from '@/components/canvas/nodes/GroupNode';
 import ScriptBoxNode from '@/components/scriptbox/ScriptBoxNode';
-import { defaultNodeData } from '@/components/canvas/nodeDataSchema';
+import { defaultNodeData } from '@/components/canvas/contract/nodeDataSchema';
 
 // 每个节点的渲染参数（数据 + 关键结构断言）。
 // expect：该节点真实且稳定的结构标记（统一外壳 NodeShell + 端口 + 独有标识）。

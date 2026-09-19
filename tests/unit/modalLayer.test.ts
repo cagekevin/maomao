@@ -25,7 +25,7 @@ import {
   isEditorSessionOpen,
   setEditorSessionOpen,
 } from '../../src/components/base/core/editorSession.ts';
-import { useCanvasKeydown } from '../../src/components/canvas/canvasHotkeys.ts';
+import { useCanvasKeydown } from '../../src/components/canvas/topology/canvasHotkeys.ts';
 import FullscreenShell from '../../src/components/base/panels/FullscreenShell.tsx';
 
 /** 造一个只含必要字段的 KeyboardEvent（describeKey 只读这几个标志位与 key）。 */
@@ -304,7 +304,7 @@ describe('modalLayer — 视频剪辑器接入全屏收口（TD-22-19 · 判据�
 
   it('画布内组件的键盘入口认的是同一判据（useCanvasKeydown 不得另写条件）', async () => {
     const src = await import('node:fs').then((fs) =>
-      fs.readFileSync('src/components/canvas/canvasHotkeys.ts', 'utf8'),
+      fs.readFileSync('src/components/canvas/topology/canvasHotkeys.ts', 'utf8'),
     );
     expect(src).toContain('isCanvasSuppressed()');
     expect(src).not.toContain('hasModalLayer()');

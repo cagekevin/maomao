@@ -26,7 +26,7 @@ vi.mock('../../src/hooks/useNodeGeneration.ts', async (importOriginal) => ({
   useNodeGeneration: () => ({ loading: false, error: null, stop: vi.fn(), start: vi.fn() }),
 }));
 // HoverToolbar：把传入的 buttons 数组按 title 渲染成可点击按钮（show=false 不渲染）
-vi.mock('../../src/components/canvas/HoverToolbar.tsx', () => ({
+vi.mock('../../src/components/canvas/shell/HoverToolbar.tsx', () => ({
   default: ({
     buttons = [],
   }: {
@@ -50,7 +50,7 @@ vi.mock('../../src/components/canvas/parts/ExpandablePanel.tsx', () => ({
   default: ({ children }: any) => children,
 }));
 vi.mock('../../src/components/canvas/shell/ResourceStrip.tsx', () => ({ default: () => null }));
-vi.mock('../../src/components/canvas/PromptInput.tsx', () => ({ default: () => null }));
+vi.mock('../../src/components/canvas/shell/PromptInput.tsx', () => ({ default: () => null }));
 vi.mock('../../src/components/canvas/parts/ResizeFullscreenHandle.tsx', () => ({
   default: () => null,
 }));
@@ -73,8 +73,8 @@ vi.mock('../../src/hooks/useAssetDegrade.ts', () => ({
 }));
 // TD-04-23：节点侧改引 `PREFS_DEFAULTS`（单一真源）→ 本 mock 用 importOriginal **部分 mock**：
 // 只覆盖 useNodePrefs，其余导出保持真实（不在测试里再抄一份默认值）。
-vi.mock('../../src/components/canvas/nodePrefs.ts', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('../../src/components/canvas/nodePrefs.ts')>()),
+vi.mock('../../src/components/canvas/contract/nodePrefs.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../src/components/canvas/contract/nodePrefs.ts')>()),
   useNodePrefs: () => ({ prefs: {}, set: vi.fn() }),
 }));
 vi.mock('../../src/components/base/api/filesApi.ts', async (importOriginal) => ({

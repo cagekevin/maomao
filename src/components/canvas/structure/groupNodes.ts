@@ -1,5 +1,5 @@
-import { generateId, generateUUID } from '../base/core/idGen.ts';
-import { withNodeSize } from '../base/core/nodeSizePatch.ts';
+import { generateId, generateUUID } from '@/components/base/core/idGen';
+import { withNodeSize } from '@/components/base/core/nodeSizePatch';
 import type { Node, Edge } from '@xyflow/react';
 
 /**

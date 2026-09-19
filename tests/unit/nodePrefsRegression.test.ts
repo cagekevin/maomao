@@ -4,7 +4,10 @@ import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const root = resolve(__dirname, '../../src/components/canvas/nodes');
+const components = resolve(__dirname, '../../src/components');
+// 2026-09-19 域归位：节点已按产品 cat 分散到各能力域 ⇒ 探测多个候选目录
+// （避免以后再搬迁又把本测试弄红 —— 这正是 Handoff 硬坑 #1 的同类问题）
+const NODE_DIRS = ['canvas/nodes', 'image/nodes', 'text', 'video/nodes'];
 
 // 回归防护：确认四个节点的初始化已去掉「读记忆做回退」的写法，
 // 记忆只由 App.addNode 注入新建节点，存量节点初始化只读 data + 纯常量。
@@ -22,14 +25,18 @@ const TARGETS = {
 /** TemplateNode 是参考蓝本，已迁至 _template/ 子目录（2026-09-11，TD-04-5） */
 const SUBDIR: Record<string, string> = { TemplateNode: '_template' };
 
-/** 按 .jsx → .tsx 顺序探测节点文件（迁移期两者皆可能存在；蓝本在 _template/ 子目录） */
+/** 按 .jsx → .tsx 顺序探测节点文件（跨多个能力域目录；蓝本在 _template/ 子目录） */
 function resolveNodeFile(name: any) {
-  const dir = SUBDIR[name] ? resolve(root, SUBDIR[name]) : root;
-  for (const ext of ['.jsx', '.tsx']) {
-    const p = resolve(dir, name + ext);
-    if (existsSync(p)) return p;
+  const dirs = SUBDIR[name]
+    ? [resolve(components, 'canvas/nodes', SUBDIR[name])]
+    : NODE_DIRS.map((d) => resolve(components, d));
+  for (const dir of dirs) {
+    for (const ext of ['.jsx', '.tsx']) {
+      const p = resolve(dir, name + ext);
+      if (existsSync(p)) return p;
+    }
   }
-  throw new Error(`未找到节点文件：${name}.jsx / ${name}.tsx`);
+  throw new Error(`未找到节点文件：${name}.jsx / ${name}.tsx（已查 ${dirs.join(', ')}）`);
 }
 
 describe('记忆回退回归防护（存量节点不得读记忆）', () => {

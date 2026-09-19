@@ -7,10 +7,10 @@ import { renderHook, act } from '@testing-library/react';
 // 1. useAssetDegrade.js
 // 依赖 useLod()（LodContext）。mock useLod 返回不同 lodLevel。
 // ───────────────────────────────────────────────────────────
-vi.mock('../../src/components/canvas/lod.tsx', () => ({
+vi.mock('../../src/components/canvas/shell/lod.tsx', () => ({
   useLod: vi.fn(() => ({ lodLevel: 0 })),
 }));
-import { useLod } from '../../src/components/canvas/lod.tsx';
+import { useLod } from '../../src/components/canvas/shell/lod.tsx';
 import { useAssetDegrade } from '../../src/hooks/useAssetDegrade.ts';
 import { contentClearCache } from '../../src/components/base/core/contentStore.ts';
 
@@ -101,7 +101,7 @@ vi.mock('../../src/components/base/storage/storageAdapter.ts', async (importOrig
   // 否则内存实现永远读不到 seed（nodePrefs 会退化为默认值）。
   isStorageReady: () => true,
 }));
-import { useNodePrefs } from '../../src/components/canvas/nodePrefs.ts';
+import { useNodePrefs } from '../../src/components/canvas/contract/nodePrefs.ts';
 
 describe('nodePrefs —— 节点上次参数记忆', () => {
   beforeEach(() => {

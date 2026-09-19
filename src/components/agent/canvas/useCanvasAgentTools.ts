@@ -10,7 +10,7 @@ import {
 } from '@/components/canvas';
 
 import { runNodeGeneration } from '../../base/store/taskStore.ts';
-import '@/components/canvas/groupNodes';
+import '@/components/canvas/structure/groupNodes';
 import { createAgentCanvasHost, type AgentCanvasHostCtx } from './agentCanvasHost.ts';
 import { executePlan, type GenerationStep } from './canvasPlanExecutor.ts';
 import {

@@ -1,5 +1,5 @@
-import { generateId } from '../base/core/idGen.ts';
-import { applyNodeTypeDefaults } from './nodeDefaults.ts';
+import { generateId } from '@/components/base/core/idGen';
+import { applyNodeTypeDefaults } from '../contract/nodeDefaults.ts';
 import type { Node, Edge } from '@xyflow/react';
 
 /**

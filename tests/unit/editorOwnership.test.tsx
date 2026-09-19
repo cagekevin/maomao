@@ -21,8 +21,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, cleanup, fireEvent } from '@testing-library/react';
 import { useGlobalPaste } from '../../src/hooks/useAssetDropPaste.ts';
-import { useCanvasKeydown } from '../../src/components/canvas/canvasHotkeys.ts';
-import PromptInput from '../../src/components/canvas/PromptInput.tsx';
+import { useCanvasKeydown } from '../../src/components/canvas/topology/canvasHotkeys.ts';
+import PromptInput from '../../src/components/canvas/shell/PromptInput.tsx';
 
 const GROUP_JSON = JSON.stringify({ type: 'mutiwindow-nodes', nodes: [] });
 

@@ -10,15 +10,15 @@ import {
   Layers,
 } from 'lucide-react';
 import NodeShell from '@/components/canvas/parts/NodeShell';
-import HoverToolbar from '@/components/canvas/HoverToolbar';
+import HoverToolbar from '@/components/canvas/shell/HoverToolbar';
 import ExpandablePanel from '@/components/canvas/parts/ExpandablePanel';
 import GenerateButton from '@/components/canvas/parts/GenerateButton';
 import ModelSelect from '@/components/base/ui/ModelSelect';
 import ResizeFullscreenHandle from '@/components/canvas/parts/ResizeFullscreenHandle';
-import FullscreenEditor from '@/components/canvas/FullscreenEditor';
+import FullscreenEditor from '@/components/canvas/shell/FullscreenEditor';
 import GeneratingOverlay from '@/components/canvas/parts/GeneratingOverlay';
 import { NODE_AREA_FIXED_BASE_SIZE } from '@/components/base/core/config';
-import { useCanvasEdges } from '@/components/canvas/CanvasEdgesContext';
+import { useCanvasEdges } from '@/components/canvas/structure/CanvasEdgesContext';
 import { DepthVideoModal, spawnDepthVideoNode } from '@/components/video';
 
 import { downloadUrl, resolveDownloadFilename } from '@/components/base/utils/clipboard';
@@ -28,9 +28,9 @@ import type { CreativePreset, CreativePresetsDict } from '@/components/creative'
 
 import JianyingIcon from '@/components/canvas/parts/JianyingIcon';
 import ResourceStrip from '@/components/canvas/shell/ResourceStrip';
-import PromptInput from '@/components/canvas/PromptInput';
-import { resolvePromptChips, mergeReferenceImageUrls } from '@/components/canvas/promptChips';
-import { PROMPT_PANEL_PAD_X } from '@/components/canvas/promptLayout';
+import PromptInput from '@/components/canvas/shell/PromptInput';
+import { resolvePromptChips, mergeReferenceImageUrls } from '@/components/canvas/shell/promptChips';
+import { PROMPT_PANEL_PAD_X } from '@/components/canvas/shell/promptLayout';
 import { useNodeResize, useOutsideClick } from '@/components/base/core/uiHooks';
 import { useConnectedInputs } from '@/hooks/useConnectedInputs';
 import { useAssetDegrade } from '@/hooks/useAssetDegrade';
@@ -40,7 +40,7 @@ import VideoThumbnail from '@/components/base/ui/VideoThumbnail';
 import ImageZoomDialog from '@/components/base/ui/ImageZoomDialog';
 import { useGenerateNode } from '@/hooks/useGenerateNode';
 import { generateVideo } from '@/components/base/api/index';
-import { useNodePrefs, PREFS_DEFAULTS } from '@/components/canvas/nodePrefs';
+import { useNodePrefs, PREFS_DEFAULTS } from '@/components/canvas/contract/nodePrefs';
 import { logger } from '@/components/base/core/logger';
 import { resolveProviderModel } from '@/components/base/utils/providerModels';
 import { buildEffectivePrompt, clampSeconds, fileNameFromUrl } from '@/components/base/core/utils';

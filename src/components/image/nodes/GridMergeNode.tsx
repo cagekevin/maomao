@@ -1,9 +1,9 @@
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { useDebouncedEffect, clamp, canvasToImageDataUrl } from '@/components/base/core/utils';
 import '@xyflow/react';
-import { buildSpawnNodes, spawnAndCommit } from '@/components/canvas/deriveNodes';
-import { ASSET_NODE_SIZE } from '@/components/canvas/nodeDefaults';
-import { useCanvasEdges } from '@/components/canvas/CanvasEdgesContext';
+import { buildSpawnNodes, spawnAndCommit } from '@/components/canvas/structure/deriveNodes';
+import { ASSET_NODE_SIZE } from '@/components/canvas/contract/nodeDefaults';
+import { useCanvasEdges } from '@/components/canvas/structure/CanvasEdgesContext';
 
 import { Grid3X3, PanelsTopLeft, Layers, Loader2 } from 'lucide-react';
 import { useReactFlow } from '@xyflow/react';

@@ -20,16 +20,16 @@ import {
   Move3D,
 } from 'lucide-react';
 import NodeShell from '@/components/canvas/parts/NodeShell';
-import { IMAGE_BOX_NODE_SIZE } from '@/components/canvas/nodeDefaults';
-import HoverToolbar from '@/components/canvas/HoverToolbar';
+import { IMAGE_BOX_NODE_SIZE } from '@/components/canvas/contract/nodeDefaults';
+import HoverToolbar from '@/components/canvas/shell/HoverToolbar';
 import { useConnectedInputs } from '@/hooks/useConnectedInputs';
 import { PanoViewer } from '../editors';
 import type { PanoViewerHandle } from '../editors';
 import { generateId } from '@/components/base/core/idGen';
 // 编辑器内的交互归编辑器（ADR-0029）：判据走共用原语，禁自写（自写必漏）。
 import { isEditableTarget } from '@/components/base/core/uiHooks';
-import { buildSpawnNodes, spawnAndCommit } from '@/components/canvas/deriveNodes';
-import { useCanvasEdges } from '@/components/canvas/CanvasEdgesContext';
+import { buildSpawnNodes, spawnAndCommit } from '@/components/canvas/structure/deriveNodes';
+import { useCanvasEdges } from '@/components/canvas/structure/CanvasEdgesContext';
 import { useRenderAssetResolver } from '@/components/base/utils/assetUrl';
 import { logger } from '@/components/base/core/logger';
 import {

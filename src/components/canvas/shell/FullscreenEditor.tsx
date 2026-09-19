@@ -1,9 +1,9 @@
 import React from 'react';
 import { Minimize2 } from 'lucide-react';
-import FullscreenModal from '../base/panels/FullscreenModal';
-import ResourceStrip from './shell/ResourceStrip.tsx';
-import PromptInput from '@/components/canvas/PromptInput';
-import { PROMPT_PANEL_PAD_X } from '@/components/canvas/promptLayout';
+import FullscreenModal from '@/components/base/panels/FullscreenModal';
+import ResourceStrip from './ResourceStrip.tsx';
+import PromptInput from '@/components/canvas/shell/PromptInput';
+import { PROMPT_PANEL_PAD_X } from '@/components/canvas/shell/promptLayout';
 
 /** 上游连入的素材形状（图片 / 文本），与 ResourceStrip / PromptInput 对齐。 */
 interface RefAsset {

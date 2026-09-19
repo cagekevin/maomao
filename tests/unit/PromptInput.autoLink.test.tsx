@@ -13,7 +13,7 @@
 import { useState } from 'react';
 import { describe, it, expect } from 'vitest';
 import { render, fireEvent, act } from '@testing-library/react';
-import PromptInput from '../../src/components/canvas/PromptInput.tsx';
+import PromptInput from '../../src/components/canvas/shell/PromptInput.tsx';
 
 // jsdom 未实现 Range#getBoundingClientRect：@提及弹层定位（getAtRect）依赖它，
 // 测试里输入 @ 会触发 detectMention → 无此方法直接抛错、中断 onInput（自动转换随之失效）。

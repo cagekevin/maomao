@@ -5,7 +5,7 @@ import { useReactFlow } from '@xyflow/react';
 import { createPortal } from 'react-dom';
 import { Orbit, Maximize2 } from 'lucide-react';
 import NodeShell from '@/components/canvas/parts/NodeShell';
-import { IMAGE_BOX_NODE_SIZE } from '@/components/canvas/nodeDefaults';
+import { IMAGE_BOX_NODE_SIZE } from '@/components/canvas/contract/nodeDefaults';
 import { useConnectedInputs } from '@/hooks/useConnectedInputs';
 import { useNodeRename } from '@/hooks/useNodeRename';
 import { patchNodeDataById } from '@/hooks/useNodeData';
@@ -14,8 +14,8 @@ import { useRenderAssetResolver } from '@/components/base/utils/assetUrl';
 import { Director3DOverlay } from '@/components/director3d/Director3DOverlay';
 import { uploadFileToLocal } from '@/components/base/api/index';
 import { generateId } from '@/components/base/core/idGen';
-import { buildSpawnNodes, spawnAndCommit } from '@/components/canvas/deriveNodes';
-import { useCanvasEdges } from '@/components/canvas/CanvasEdgesContext';
+import { buildSpawnNodes, spawnAndCommit } from '@/components/canvas/structure/deriveNodes';
+import { useCanvasEdges } from '@/components/canvas/structure/CanvasEdgesContext';
 
 interface Director3DNodeData {
   label?: string;

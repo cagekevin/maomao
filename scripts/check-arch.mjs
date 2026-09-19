@@ -2040,7 +2040,7 @@ if (!sendViol) {
 //   · 【诚实边界】只机器化 `patchData({ images` 这一最直接形态；经变量中转的写回不在此判定。
 // ─────────────────────────────────────────────────────────────────
 console.log('\n📥 进节点的图必须已持久：禁在 ImageBoxNode 之外直写 data.images（反向判据）');
-const IMAGE_WRITER_HOST = 'src/components/canvas/nodes/ImageBoxNode.tsx';
+const IMAGE_WRITER_HOST = 'src/components/image/nodes/ImageBoxNode.tsx';
 let collectViol = 0;
 if (existsSync(SRC)) {
   for (const f of collectFiles(SRC)) {

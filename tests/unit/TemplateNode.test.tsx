@@ -28,7 +28,7 @@ vi.mock('@xyflow/react', () => ({
   useStore: () => () => ({}),
 }));
 vi.mock('../../src/components/canvas/parts/NodeShell.tsx', () => ({ default: mocks.NodeShell }));
-vi.mock('../../src/components/canvas/HoverToolbar.tsx', () => ({
+vi.mock('../../src/components/canvas/shell/HoverToolbar.tsx', () => ({
   default: mocks.HoverToolbar,
 }));
 vi.mock('../../src/components/canvas/parts/ExpandablePanel.tsx', () => ({
@@ -38,7 +38,9 @@ vi.mock('../../src/components/canvas/parts/GenerateButton.tsx', () => ({
   default: mocks.GenerateButton,
 }));
 vi.mock('../../src/components/base/ui/ModelSelect.tsx', () => ({ default: mocks.ModelSelect }));
-vi.mock('../../src/components/canvas/PromptInput.tsx', () => ({ default: mocks.PromptInput }));
+vi.mock('../../src/components/canvas/shell/PromptInput.tsx', () => ({
+  default: mocks.PromptInput,
+}));
 vi.mock('../../src/components/canvas/shell/ResourceStrip.tsx', () => ({
   default: mocks.ResourceStrip,
 }));
@@ -104,8 +106,8 @@ vi.mock('../../src/hooks/useNodeGeneration.ts', async (importOriginal) => ({
 }));
 // TD-04-23：节点侧改引 `PREFS_DEFAULTS`（单一真源）→ 本 mock 用 importOriginal **部分 mock**：
 // 只覆盖 useNodePrefs，其余导出保持真实（不在测试里再抄一份默认值）。
-vi.mock('../../src/components/canvas/nodePrefs.ts', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('../../src/components/canvas/nodePrefs.ts')>()),
+vi.mock('../../src/components/canvas/contract/nodePrefs.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../src/components/canvas/contract/nodePrefs.ts')>()),
   useNodePrefs: mocks.useNodePrefs,
 }));
 vi.mock('../../src/hooks/useSyncNodeData.ts', async (importOriginal) => ({

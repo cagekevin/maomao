@@ -9,8 +9,8 @@ import { toastWarning } from '@/components/base/core/toastStore';
 import { useSyncNodeData } from '@/hooks/useSyncNodeData';
 import { useOutsideClick } from '@/components/base/core/uiHooks';
 import { generateId } from '@/components/base/core/idGen';
-import { buildSpawnNodes, spawnAndCommit } from '@/components/canvas/deriveNodes';
-import { useCanvasEdges } from '@/components/canvas/CanvasEdgesContext';
+import { buildSpawnNodes, spawnAndCommit } from '@/components/canvas/structure/deriveNodes';
+import { useCanvasEdges } from '@/components/canvas/structure/CanvasEdgesContext';
 
 /** 循环节点 data 契约 */
 interface LoopNodeData {

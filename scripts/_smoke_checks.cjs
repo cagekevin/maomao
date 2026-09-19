@@ -216,7 +216,7 @@ function resolveCompFile(ROOT, comp) {
 }
 function checkNodeTypes(ROOT) {
   const palette = read(
-    resolveSourceFile(path.join(ROOT, 'src/components/canvas/NodePalette')) || '',
+    resolveSourceFile(path.join(ROOT, 'src/components/canvas/shell/NodePalette')) || '',
   );
   // 常规 component 字段：裸组件标识符（`component: ImageNode`）。排除 lazyNode(...) 函数调用包装：
   // `component: lazyNode(HEAVY_NODE_LOADERS.panoramaNode, ...)` 会被 \w+Node 误抓成 lazyNode
@@ -225,7 +225,7 @@ function checkNodeTypes(ROOT) {
   // 重依赖懒加载节点：lazyNode 只是动态 import 包装，底层仍是必存在的节点组件（防漏校验）。
   // 从 lazyNode.tsx 的 HEAVY_NODE_LOADERS 动态 import 路径抽取真实文件名，随常规组件一并校验。
   const lazySrc = read(
-    resolveSourceFile(path.join(ROOT, 'src/components/canvas/lazyNode')) || '',
+    resolveSourceFile(path.join(ROOT, 'src/components/canvas/shell/lazyNode')) || '',
   );
   // ⚠️ 路径形态随 S2-1a 变更：原 `../nodes/X.jsx` ⇒ 现 `@/components/<域>/nodes/X`（**别名 + 无扩展名**）。
   //    正则两种形态都收：`@/components/<canvas|video|image|text>/nodes/` 与相对 `.../<域>/nodes/`，扩展名可选。

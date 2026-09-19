@@ -5,7 +5,7 @@
  *      同分取更大的 perRow（更贴从左到右阅读流向）。
  */
 import { describe, it, expect } from 'vitest';
-import { packComponents } from '../../src/components/canvas/arrangePack.ts';
+import { packComponents } from '../../src/components/canvas/structure/arrangePack.ts';
 
 describe('packComponents', () => {
   it('空输入 → perRow=0、无占位、零包围盒', () => {

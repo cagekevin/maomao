@@ -3,23 +3,23 @@ import { useReactFlow } from '@xyflow/react';
 import { Image as ImageIcon, Download } from 'lucide-react';
 // ═══ 基座组件（统一入口，禁止手写外壳/端口/背景）═══
 import NodeShell from '@/components/canvas/parts/NodeShell';
-import HoverToolbar from '@/components/canvas/HoverToolbar';
+import HoverToolbar from '@/components/canvas/shell/HoverToolbar';
 import ExpandablePanel from '@/components/canvas/parts/ExpandablePanel';
 import GenerateButton from '@/components/canvas/parts/GenerateButton';
 import ModelSelect from '@/components/base/ui/ModelSelect';
-import PromptInput from '@/components/canvas/PromptInput';
-import { resolvePromptChips, mergeReferenceImageUrls } from '@/components/canvas/promptChips';
+import PromptInput from '@/components/canvas/shell/PromptInput';
+import { resolvePromptChips, mergeReferenceImageUrls } from '@/components/canvas/shell/promptChips';
 import ResourceStrip from '@/components/canvas/shell/ResourceStrip';
 import ResizeFullscreenHandle from '@/components/canvas/parts/ResizeFullscreenHandle';
 import FullscreenModal from '@/components/base/panels/FullscreenModal';
-import FullscreenEditor from '@/components/canvas/FullscreenEditor';
+import FullscreenEditor from '@/components/canvas/shell/FullscreenEditor';
 import GeneratingOverlay from '@/components/canvas/parts/GeneratingOverlay';
 // ═══ 基座 hook（统一范式）═══
 import { useNodeResize } from '@/components/base/core/uiHooks';
 import { useConnectedInputs } from '@/hooks/useConnectedInputs';
 import { useAssetDegrade } from '@/hooks/useAssetDegrade';
 import { useGenerateNode } from '@/hooks/useGenerateNode';
-import { useNodePrefs } from '@/components/canvas/nodePrefs';
+import { useNodePrefs } from '@/components/canvas/contract/nodePrefs';
 import { showToast } from '@/components/base/core/toastStore';
 import { generateImage } from '@/components/base/api/index';
 import { toAbsoluteFileUrl } from '@/components/base/api/index';
@@ -29,7 +29,7 @@ import { useNodeData } from '@/hooks/useNodeData';
 import { useNodeExpanded } from '@/hooks/useNodeExpanded';
 import { useNodeField } from '@/hooks/useNodeField';
 import { resolveProviderModel } from '@/components/base/utils/providerModels';
-import { PROMPT_PANEL_PAD_X } from '@/components/canvas/promptLayout';
+import { PROMPT_PANEL_PAD_X } from '@/components/canvas/shell/promptLayout';
 
 /**
  * ════════════════════════════════════════════════════════════════

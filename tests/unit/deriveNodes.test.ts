@@ -4,7 +4,7 @@ import {
   commitNewNodes,
   spawnAndCommit,
   makeChildId,
-} from '../../src/components/canvas/deriveNodes.ts';
+} from '../../src/components/canvas/structure/deriveNodes.ts';
 
 describe('buildSpawnNodes', () => {
   const parent = { id: 'p1', position: { x: 100, y: 200 } };

@@ -100,29 +100,27 @@ describe('replaceNodeImage — 节点主图唯一写入口', () => {
 describe('源码护栏 — 图片写回只有一个门', () => {
   it('ImageGenerate / AssetNode 的图片替换都必须经 replaceNodeImage', () => {
     for (const rel of [
-      'src/components/canvas/nodes/ImageGenerate.tsx',
-      'src/components/canvas/nodes/AssetNode.tsx',
+      'src/components/image/nodes/ImageGenerate.tsx',
+      'src/components/image/nodes/AssetNode.tsx',
     ]) {
       const src = readSrc(rel);
       expect(src.includes('replaceNodeImage('), `${rel} 必须走 replaceNodeImage`).toBe(true);
     }
     // 漂移原形：AssetNode 旧 replaceImage 内联双写 / ImageGenerate 旧 patchData 直接塞图
     expect(
-      /assetUrl: dataUrl,\s*url: dataUrl/.test(
-        readSrc('src/components/canvas/nodes/AssetNode.tsx'),
-      ),
+      /assetUrl: dataUrl,\s*url: dataUrl/.test(readSrc('src/components/image/nodes/AssetNode.tsx')),
       'AssetNode 旧 replaceImage 内联双写不得回归（必须走 replaceNodeImage）',
     ).toBe(false);
     expect(
       /patchData\(\{\s*assetUrl: dataUrl/.test(
-        readSrc('src/components/canvas/nodes/ImageGenerate.tsx'),
+        readSrc('src/components/image/nodes/ImageGenerate.tsx'),
       ),
       'ImageGenerate 旧 patchData 直塞图片字段不得回归（必须走 replaceNodeImage）',
     ).toBe(false);
   });
 
   it('已知例外已收口：AssetNode「上传替换内容」也走 replaceNodeImage（不再直写图片字段）', () => {
-    const src = readSrc('src/components/canvas/nodes/AssetNode.tsx');
+    const src = readSrc('src/components/image/nodes/AssetNode.tsx');
     // 上传分支：主图经唯一入口写，assetType/text 用 dataPatch 一并置空
     expect(
       /replaceNodeImage\(\s*\{[^}]*dataPatch:\s*\{\s*assetType:\s*undefined,\s*text:\s*undefined/ms.test(
@@ -137,7 +135,7 @@ describe('源码护栏 — 图片写回只有一个门', () => {
   it('写侧停写 data.url（值写归零）：只允许 url: undefined 这种「清空」', () => {
     // docs/118 §7.3 ⑤ 分层收口：写侧只写 assetUrl；存量兼容字段 url 不再写【值】。
     for (const rel of [
-      'src/components/canvas/nodes/AssetNode.tsx',
+      'src/components/image/nodes/AssetNode.tsx',
       'src/components/canvas/nodes/Director3DNode.tsx',
       'src/components/canvas/nodeImage.ts',
     ]) {
@@ -161,7 +159,7 @@ describe('源码护栏 — 图片写回只有一个门', () => {
     // 护栏分两层：① AssetNode 必须经由该入口（防回退内联 / 绕过 missing 态）；
     // ② 该入口函数本身必须保留 assetUrl 存量兜底（无 resourceId/url 时退回 assetUrl）。
     expect(
-      /resolveAssetDisplayUrl\(/.test(readSrc('src/components/canvas/nodes/AssetNode.tsx')),
+      /resolveAssetDisplayUrl\(/.test(readSrc('src/components/image/nodes/AssetNode.tsx')),
       'AssetNode 渲染必须经唯一入口 resolveAssetDisplayUrl（不得回退内联 assetUrl || url）',
     ).toBe(true);
     expect(
@@ -191,7 +189,7 @@ describe('源码护栏 — 图片写回只有一个门', () => {
     // 都走全库唯一「图像入节点落盘策略」filesApi.showThenPersistInline。
     // 旧断言数的是 `saveInlineToLocal(`——该直调已被收口替换（见 CONTEXT §5.4.9 唯一实现），
     // 数它会恒为 0（陈旧断言，2026-09-11 修正）。按 tests 约定「测行为不测实现形式」改为数唯一入口。
-    const src = readSrc('src/components/canvas/nodes/useImageHoverActions.tsx');
+    const src = readSrc('src/components/image/useImageHoverActions.tsx');
     const hits = src.match(/showThenPersistInline\(/g) || [];
     expect(
       hits.length,

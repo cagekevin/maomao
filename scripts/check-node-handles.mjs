@@ -57,7 +57,7 @@ const root = resolve(__dirname, '..');
 // 不得进白名单。历史教训：GridMerge/GridSplit/ImageBox/Group 都曾被错误豁免，掩盖了
 // children 手写口定位基准错误（建边成功但线不显示）的真实隐患。
 const HANDLE_EXEMPT = {
-  'src/components/base/ui/NodeShell': '端口渲染的唯一标准实现，本身即定义处（非 node type，不属 NODE_HANDLE_CONTRACT）',
+  'src/components/canvas/parts/NodeShell': '端口渲染的唯一标准实现，本身即定义处（非 node type，不属 NODE_HANDLE_CONTRACT）',
 };
 
 const SHOW_HANDLES_OFF_RE = /showHandles\s*=\s*\{\s*false\s*\}/;

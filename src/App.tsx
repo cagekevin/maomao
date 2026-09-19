@@ -27,7 +27,7 @@ import {
 import type { Node, Edge, Connection, Viewport } from '@xyflow/react';
 import { Zap, ChevronUp, RefreshCw } from 'lucide-react';
 import CanvasToolbar from './components/canvas/shell/CanvasToolbar.tsx';
-import ArrangeConfirm from './components/canvas/ArrangeConfirm.tsx';
+import ArrangeConfirm from './components/canvas/structure/ArrangeConfirm.tsx';
 import { useArrangeCanvas } from './hooks/useArrangeCanvas.ts';
 import { computePatchNodeById, computePatchNodesById } from './hooks/useNodeData.ts';
 import { computePatchEdgesById, patchEdgeData } from './hooks/useEdgeData.ts';
@@ -69,8 +69,8 @@ import { broadcastCanvasSaved } from './components/canvas/canvasSyncBus.ts';
 import { agentKeyForProject } from './components/base/core/agentKeys.ts';
 import previewUrls from './components/base/utils/previewUrl.ts';
 import { logger } from './components/base/core/logger.ts';
-import { useProjectBackupIO } from './components/canvas/useCanvasEventSubscriptions.ts';
-import { menuForState, type MenuActionCtx } from './components/canvas/canvasContextMenu.tsx';
+import { useProjectBackupIO } from './components/canvas/topology/useCanvasEventSubscriptions.ts';
+import { menuForState, type MenuActionCtx } from './components/canvas/shell/canvasContextMenu.tsx';
 import { useNodePosition } from './components/base/core/uiHooks.ts';
 import CustomEdge from './components/canvas/edges/CustomEdge.tsx';
 import ConnectionLine from './components/canvas/edges/ConnectionLine.tsx';
@@ -78,7 +78,7 @@ import ContextMenu from './components/canvas/shell/ContextMenu.tsx';
 import { useContextMenu } from './hooks/useContextMenu.ts';
 import { useCanvasHistory } from './hooks/useCanvasHistory.ts';
 import { patchNodeDataById } from './hooks/useNodeData.ts';
-import { CanvasEdgesProvider } from './components/canvas/CanvasEdgesContext.tsx';
+import { CanvasEdgesProvider } from './components/canvas/structure/CanvasEdgesContext.tsx';
 import { useCanvasShortcuts } from './hooks/useCanvasShortcuts.ts';
 import {
   isCanvasSuppressed,
@@ -94,9 +94,9 @@ import {
 // import VideoEditorDock from './components/videoEditor/panels/dock/VideoEditorDock.tsx';
 // 更新(2026-09-19)：改走**域门面**（域模块化 Step A 首批）—— 此后 videoEditor 域内结构重构不再波及 App。
 import { EditorShell } from './components/videoEditor/index.ts';
-import { buildNodeTypeComponents } from './components/canvas/NodePalette.ts';
-import { defaultNodeData } from './components/canvas/nodeDataSchema.ts';
-import LodProvider, { useLod } from './components/canvas/lod.tsx';
+import { buildNodeTypeComponents } from './components/canvas/shell/NodePalette.ts';
+import { defaultNodeData } from './components/canvas/contract/nodeDataSchema.ts';
+import LodProvider, { useLod } from './components/canvas/shell/lod.tsx';
 import ToastContainer from './components/base/ui/ToastContainer.tsx';
 import ConfirmContainer from './components/base/ui/ConfirmContainer.tsx';
 import RenameDialog from './components/base/ui/RenameDialog.tsx';
@@ -110,7 +110,7 @@ import { setAgentKey } from './components/agent/index.ts';
 import { uploadConfig, downloadConfig } from './components/base/store/cloudSync.ts';
 import { startAutoSync, stopAutoSync } from './components/base/store/autoSync.ts';
 import { useLocalToolStatus } from './hooks/useLocalToolStatus.ts';
-import { useUpstreamAutoTrigger } from './components/canvas/upstreamLink.ts';
+import { useUpstreamAutoTrigger } from './components/canvas/topology/upstreamLink.ts';
 import LocalToolConnectModal from './components/base/panels/LocalToolConnectModal.tsx';
 import EmptyCanvasGuide from './components/canvas/shell/EmptyCanvasGuide.tsx';
 import { initTasks } from './components/base/store/taskStore.ts';
@@ -120,20 +120,26 @@ import {
   ungroupNodes,
   deleteNodesWithCascade,
   duplicateSelectedWithEdges,
-} from './components/canvas/groupNodes.ts';
+} from './components/canvas/structure/groupNodes.ts';
 import { externalizeInlineData } from './components/base/utils/externalizeInline.ts';
 import { saveInlineToLocal } from './components/base/api/index.ts';
 import { generateId } from './components/base/core/idGen.ts';
-import { resolveDragGrouping, normalizeNodeParents } from './components/canvas/groupNodes.ts';
+import {
+  resolveDragGrouping,
+  normalizeNodeParents,
+} from './components/canvas/structure/groupNodes.ts';
 import {
   buildNodesFromClipboard,
   copyNodesToClipboard,
 } from './components/base/utils/clipboard.ts';
-import { applyNodeTypeDefaults, INPUT_PANEL_NODE_TYPES } from './components/canvas/nodeDefaults.ts';
-import { injectNodePrefs } from './components/canvas/nodePrefs.ts';
+import {
+  applyNodeTypeDefaults,
+  INPUT_PANEL_NODE_TYPES,
+} from './components/canvas/contract/nodeDefaults.ts';
+import { injectNodePrefs } from './components/canvas/contract/nodePrefs.ts';
 import { useCanvasSync } from './hooks/useCanvasSync.ts';
 import { parseShotHandle, NODE_HANDLE_CONTRACT } from './components/base/core/contracts.ts';
-import { prefetchHeavyNode } from './components/canvas/lazyNode.tsx';
+import { prefetchHeavyNode } from './components/canvas/shell/lazyNode.tsx';
 
 // 拖线连接态：menu.state.connection 声明为 Connection，但 onConnectEnd 构造时额外补了 dropPosition，
 // 运行时实际形态是 Connection & { dropPosition }。本文件 buildFromConnection 仅消费 source/sourceHandle/dropPosition。

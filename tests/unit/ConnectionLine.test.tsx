@@ -39,7 +39,7 @@ vi.mock('../../src/components/canvas/edges/CometParticles.tsx', () => ({
   default: (props: any) => h.CometParticlesMock(props),
 }));
 
-vi.mock('../../src/components/canvas/lod.tsx', () => ({
+vi.mock('../../src/components/canvas/shell/lod.tsx', () => ({
   useLod: () => h.useLodMock(),
 }));
 

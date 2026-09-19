@@ -9,7 +9,7 @@ import {
   IMAGE_BOX_NODE_SIZE,
   applyNodeTypeDefaults,
   NODE_TYPE_DEFAULTS,
-} from '../../src/components/canvas/nodeDefaults.ts';
+} from '../../src/components/canvas/contract/nodeDefaults.ts';
 import { withNodeSize } from '../../src/components/base/core/nodeSizePatch.ts';
 
 describe('withNodeSize — 尺寸「三写不变量」唯一实现（TD-04-28）', () => {
@@ -155,13 +155,13 @@ describe('造节点尺寸单源（TD-16-48）', () => {
 
   it('★源码级：造节点点不再自持尺寸字面量（一律引用单源常量）', () => {
     const sites: Array<[string, string]> = [
-      ['src/components/canvas/nodes/GridSplitNode.tsx', 'ASSET_NODE_SIZE'],
-      ['src/components/canvas/nodes/GridMergeNode.tsx', 'ASSET_NODE_SIZE'],
-      ['src/components/canvas/nodes/FaceMosaicNode.tsx', 'ASSET_NODE_SIZE'],
-      ['src/components/canvas/nodes/VideoProcessNode.tsx', 'ASSET_NODE_SIZE'],
+      ['src/components/image/nodes/GridSplitNode.tsx', 'ASSET_NODE_SIZE'],
+      ['src/components/image/nodes/GridMergeNode.tsx', 'ASSET_NODE_SIZE'],
+      ['src/components/image/nodes/FaceMosaicNode.tsx', 'ASSET_NODE_SIZE'],
+      ['src/components/video/nodes/VideoProcessNode.tsx', 'ASSET_NODE_SIZE'],
       ['src/components/video/depthVideo/spawn.ts', 'ASSET_NODE_SIZE'],
       ['src/components/canvas/nodes/Director3DNode.tsx', 'IMAGE_BOX_NODE_SIZE'],
-      ['src/components/canvas/nodes/PanoramaNode.tsx', 'IMAGE_BOX_NODE_SIZE'],
+      ['src/components/image/nodes/PanoramaNode.tsx', 'IMAGE_BOX_NODE_SIZE'],
     ];
     for (const [rel, constName] of sites) {
       const text = readFileSync(new URL('../../' + rel, import.meta.url), 'utf8');

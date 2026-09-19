@@ -16,7 +16,7 @@ import {
   buildSelectionMenuItems,
   menuForState,
   type MenuActionCtx,
-} from '../../src/components/canvas/canvasContextMenu.tsx';
+} from '../../src/components/canvas/shell/canvasContextMenu.tsx';
 import type { ContextMenuItem } from '../../src/components/canvas/shell/ContextMenu.tsx';
 
 /** 构造最小合法 Node（honest：字段齐整，非 as 强转） */

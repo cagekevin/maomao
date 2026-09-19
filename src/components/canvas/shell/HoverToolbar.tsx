@@ -1,5 +1,5 @@
 import React from 'react';
-import ToolbarButton from './parts/ToolbarButton.tsx';
+import ToolbarButton from '../parts/ToolbarButton.tsx';
 
 /**
 

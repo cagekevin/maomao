@@ -11,7 +11,7 @@
 import { useState } from 'react';
 import { describe, it, expect } from 'vitest';
 import { render, act } from '@testing-library/react';
-import PromptInput from '../../src/components/canvas/PromptInput.tsx';
+import PromptInput from '../../src/components/canvas/shell/PromptInput.tsx';
 
 /** 双实例中省略；这里单实例：value 已含 img1 芯片串，refImages 提供该素材，可随时断开 */
 function DisconnectHarness({ onChangeOut }: any) {

@@ -8,7 +8,7 @@
     "src/components/base/store/",
     "src/components/base/prompt/",
     "src/components/base/ui/",
-    "src/components/editors/",
+    "src/components/image/editors/",
     "src/components/base/panels/",
     "src/hooks/",
     "src/components/canvas/nodes/",

@@ -15,10 +15,10 @@
  */
 import { useEffect } from 'react';
 import { useReactFlow } from '@xyflow/react';
-import { subscribe } from '../base/core/eventBus.ts';
-import { runNodeGeneration } from '../base/store/taskStore.ts';
-import { AUTO_TRIGGER_DOWNSTREAM } from '../base/core/config.ts';
-import { logger } from '../base/core/logger.ts';
+import { subscribe } from '@/components/base/core/eventBus';
+import { runNodeGeneration } from '@/components/base/store/taskStore';
+import { AUTO_TRIGGER_DOWNSTREAM } from '@/components/base/core/config';
+import { logger } from '@/components/base/core/logger';
 
 /**
  * 订阅 `upstream:updated`，打开开关时自动触发直接下游。返回取消函数。

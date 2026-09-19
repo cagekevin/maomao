@@ -14,7 +14,7 @@ import {
 } from 'lucide-react';
 import { useReactFlow } from '@xyflow/react';
 import NodeShell from '@/components/canvas/parts/NodeShell';
-import HoverToolbar from '@/components/canvas/HoverToolbar';
+import HoverToolbar from '@/components/canvas/shell/HoverToolbar';
 import ImageZoomDialog from '@/components/base/ui/ImageZoomDialog';
 import VideoThumbnail from '@/components/base/ui/VideoThumbnail';
 import { replaceNodeImage } from '@/components/canvas/nodeImage';
@@ -37,11 +37,11 @@ import { sendToResourceLibrary, getResources } from '@/components/resource/resou
 import { openResourceLibrary } from '@/components/base/store/taskStore';
 import { CameraStudioPanel } from '../editors';
 import type { CameraStudioResult } from '../editors';
-import { useCanvasEdges } from '@/components/canvas/CanvasEdgesContext';
+import { useCanvasEdges } from '@/components/canvas/structure/CanvasEdgesContext';
 import { DepthVideoModal, spawnDepthVideoNode } from '@/components/video';
 
-import { commitNewNodes } from '@/components/canvas/deriveNodes';
-import { injectNodePrefs } from '@/components/canvas/nodePrefs';
+import { commitNewNodes } from '@/components/canvas/structure/deriveNodes';
+import { injectNodePrefs } from '@/components/canvas/contract/nodePrefs';
 import { generateId } from '@/components/base/core/idGen';
 
 /**

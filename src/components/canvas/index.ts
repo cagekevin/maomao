@@ -20,26 +20,35 @@
  * ⇒ 本条是**有意的例外**，不是漏收口。新增域外消费者（非装配层）**必须**走本门面。
  */
 /* ── G1 · 节点数据契约（新建 data 初值 / 结构默认 / 参数记忆）── */
-export { defaultNodeData } from './nodeDataSchema.ts';
-export { applyNodeTypeDefaults, INPUT_PANEL_NODE_TYPES, ASSET_NODE_SIZE } from './nodeDefaults.ts';
-export { injectNodePrefs } from './nodePrefs.ts';
+export { defaultNodeData } from './contract/nodeDataSchema.ts';
+export {
+  applyNodeTypeDefaults,
+  INPUT_PANEL_NODE_TYPES,
+  ASSET_NODE_SIZE,
+} from './contract/nodeDefaults.ts';
+export { injectNodePrefs } from './contract/nodePrefs.ts';
 
 /* ── G2 · 结构变更与历史（编组 / 派生 / 快照白名单 / 撤销 / 结构快照）── */
-export { deleteNodesWithCascade, normalizeNodeParents } from './groupNodes.ts';
-export { buildSpawnNodes, spawnAndCommit, makeChildId, commitNewNodes } from './deriveNodes.ts';
-export type { CanvasCommitHandles } from './deriveNodes.ts';
-export { sanitizeSnapshotNodes, sanitizeSnapshotEdges } from './canvasSnapshotSchema.ts';
-export { HistoryStack } from './historyStack.ts';
+export { deleteNodesWithCascade, normalizeNodeParents } from './structure/groupNodes.ts';
+export {
+  buildSpawnNodes,
+  spawnAndCommit,
+  makeChildId,
+  commitNewNodes,
+} from './structure/deriveNodes.ts';
+export type { CanvasCommitHandles } from './structure/deriveNodes.ts';
+export { sanitizeSnapshotNodes, sanitizeSnapshotEdges } from './contract/canvasSnapshotSchema.ts';
+export { HistoryStack } from './structure/historyStack.ts';
 export {
   applyStructuralSnapshot,
   extractStructuralSnapshot,
   isSameStructure,
-} from './structuralSnapshot.ts';
-export type { StructuralSnapshot } from './structuralSnapshot.ts';
+} from './structure/structuralSnapshot.ts';
+export type { StructuralSnapshot } from './structure/structuralSnapshot.ts';
 
 /* ── G4 · 注册表（画布 AI 工具）── */
 export { registerTool, getTools } from './toolRegistry.ts';
 export type { ToolDef, ToolResult } from './toolRegistry.ts';
 
 /* ── G5 · 画布外壳（LOD 性能降级）── */
-export { useLod } from './lod.tsx';
+export { useLod } from './shell/lod.tsx';

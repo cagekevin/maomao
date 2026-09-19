@@ -11,7 +11,7 @@ import { describe, it, expect } from 'vitest';
 import { renderHook } from '@testing-library/react';
 import { createElement } from 'react';
 
-const { useLod, LodContext } = await import('../../src/components/canvas/lod.tsx');
+const { useLod, LodContext } = await import('../../src/components/canvas/shell/lod.tsx');
 
 describe('lod 深模块', () => {
   it('默认 context 提供 lodLevel=0', () => {

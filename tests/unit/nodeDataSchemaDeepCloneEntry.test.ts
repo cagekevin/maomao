@@ -16,7 +16,7 @@ vi.mock('../../src/components/base/core/utils.ts', async (importOriginal) => {
 });
 
 import { deepClone } from '../../src/components/base/core/utils.ts';
-import { defaultNodeData } from '../../src/components/canvas/nodeDataSchema.ts';
+import { defaultNodeData } from '../../src/components/canvas/contract/nodeDataSchema.ts';
 
 describe('defaultNodeData 的深拷贝必经唯一入口（TD-18-15 锁）', () => {
   it('登记了默认值的类型：必须调用 deepClone（不得裸调 structuredClone）', () => {

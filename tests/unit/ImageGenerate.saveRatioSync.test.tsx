@@ -52,7 +52,7 @@ vi.mock('../../src/hooks/useGenerateNode.ts', () => ({
     generate: vi.fn(),
   }),
 }));
-vi.mock('../../src/components/canvas/HoverToolbar.tsx', () => ({
+vi.mock('../../src/components/canvas/shell/HoverToolbar.tsx', () => ({
   default: ({ buttons = [] }: any) => (
     <>
       {buttons
@@ -69,13 +69,13 @@ vi.mock('../../src/components/canvas/parts/ExpandablePanel.tsx', () => ({
   default: ({ children }: any) => children,
 }));
 vi.mock('../../src/components/canvas/shell/ResourceStrip.tsx', () => ({ default: () => null }));
-vi.mock('../../src/components/canvas/PromptInput.tsx', () => ({ default: () => null }));
+vi.mock('../../src/components/canvas/shell/PromptInput.tsx', () => ({ default: () => null }));
 vi.mock('../../src/components/canvas/parts/GenerateButton.tsx', () => ({ default: () => null }));
 vi.mock('../../src/components/base/ui/ModelSelect.tsx', () => ({ default: () => null }));
 vi.mock('../../src/components/canvas/parts/ResizeFullscreenHandle.tsx', () => ({
   default: () => null,
 }));
-vi.mock('../../src/components/canvas/FullscreenEditor.tsx', () => ({ default: () => null }));
+vi.mock('../../src/components/canvas/shell/FullscreenEditor.tsx', () => ({ default: () => null }));
 vi.mock('../../src/components/canvas/parts/GeneratingOverlay.tsx', () => ({ default: () => null }));
 vi.mock('../../src/components/creative/CreativeLibraryButton.tsx', () => ({
   default: () => null,
@@ -106,8 +106,8 @@ vi.mock('../../src/components/base/utils/clipboard.ts', () => ({
 }));
 // TD-04-23：节点侧改引 `PREFS_DEFAULTS`（单一真源）→ 本 mock 用 importOriginal **部分 mock**：
 // 只覆盖 useNodePrefs，其余导出保持真实（不在测试里再抄一份默认值）。
-vi.mock('../../src/components/canvas/nodePrefs.ts', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('../../src/components/canvas/nodePrefs.ts')>()),
+vi.mock('../../src/components/canvas/contract/nodePrefs.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../src/components/canvas/contract/nodePrefs.ts')>()),
   useNodePrefs: () => ({ prefs: {}, set: vi.fn() }),
 }));
 vi.mock('../../src/hooks/useConnectedInputs.ts', async (importOriginal) => ({

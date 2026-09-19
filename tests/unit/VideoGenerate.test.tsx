@@ -50,7 +50,7 @@ vi.mock('../../src/components/canvas/parts/NodeShell.tsx', () => ({
   default: ({ children }: any) => children,
 }));
 // HoverToolbar：渲染按钮数组，供点击下载/删除/发送到剪映
-vi.mock('../../src/components/canvas/HoverToolbar.tsx', () => ({
+vi.mock('../../src/components/canvas/shell/HoverToolbar.tsx', () => ({
   default: ({ buttons }: any) => (
     <div data-testid="hover-toolbar">
       {buttons.map((b: any) => (
@@ -88,7 +88,7 @@ vi.mock('../../src/components/base/ui/ModelSelect.tsx', () => ({ default: () => 
 // PromptInput：桩为 textarea，透传 value/onChange/placeholder；onReady 上抛一个
 // 「追加 @label 文本」的插入函数（复刻旧 textarea 行为），避免测试耦合富文本内部实现。
 // 富文本芯片本身的序列化/交互由 promptChips.test.js 与 PromptInput 自己的测试覆盖。
-vi.mock('../../src/components/canvas/PromptInput.tsx', async (importOriginal) => {
+vi.mock('../../src/components/canvas/shell/PromptInput.tsx', async (importOriginal) => {
   const ReactMock = (await import('react')).default;
   // 桩组件的 props 形状（只声明被测用到的字段）。不声明的话 forwardRef 把 props 推断成 {}，
   // 解构 value/onChange/onReady 等会报 TS2339。
@@ -162,8 +162,8 @@ vi.mock('../../src/hooks/useVideoPoster.ts', () => ({ useVideoPoster: () => null
 // TD-04-23：节点侧改引 `PREFS_DEFAULTS`（单一真源）→ 本 mock 必须提供该导出。
 // 用 `importOriginal` **部分 mock**：只覆盖 useNodePrefs，其余导出（PREFS_DEFAULTS 等）保持**真实**
 // —— 避免在测试里再抄一份默认值（那会成为第三份真相）。
-vi.mock('../../src/components/canvas/nodePrefs.ts', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('../../src/components/canvas/nodePrefs.ts')>()),
+vi.mock('../../src/components/canvas/contract/nodePrefs.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../src/components/canvas/contract/nodePrefs.ts')>()),
   useNodePrefs: () => ({
     prefs: { model: '', size: '', resolution: '', seconds: '' },
     set: (...a: any[]) => h.vidPrefsSet(...a),

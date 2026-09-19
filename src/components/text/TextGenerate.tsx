@@ -2,14 +2,14 @@ import React, { useState, useRef, useCallback, useMemo } from 'react';
 import { useReactFlow } from '@xyflow/react';
 import { FileText, Copy, Loader2, AlertCircle, Lock, LockOpen } from 'lucide-react';
 import NodeShell from '@/components/canvas/parts/NodeShell';
-import HoverToolbar from '@/components/canvas/HoverToolbar';
+import HoverToolbar from '@/components/canvas/shell/HoverToolbar';
 import ExpandablePanel from '@/components/canvas/parts/ExpandablePanel';
 import GenerateButton from '@/components/canvas/parts/GenerateButton';
 import ModelSelect from '@/components/base/ui/ModelSelect';
-import PromptInput from '@/components/canvas/PromptInput';
+import PromptInput from '@/components/canvas/shell/PromptInput';
 import ResourceStrip from '@/components/canvas/shell/ResourceStrip';
 import ResizeFullscreenHandle from '@/components/canvas/parts/ResizeFullscreenHandle';
-import FullscreenEditor from '@/components/canvas/FullscreenEditor';
+import FullscreenEditor from '@/components/canvas/shell/FullscreenEditor';
 import GeneratingOverlay from '@/components/canvas/parts/GeneratingOverlay';
 import { CreativeLibraryButton } from '@/components/creative';
 import { toDictEntry } from '@/components/creative';
@@ -19,19 +19,23 @@ import { useNodeResize } from '@/components/base/core/uiHooks';
 import { useConnectedInputs } from '@/hooks/useConnectedInputs';
 import { useGenerateNode } from '@/hooks/useGenerateNode';
 import { buildEffectivePrompt } from '@/components/base/core/utils';
-import { PROMPT_PANEL_PAD_X } from '@/components/canvas/promptLayout';
+import { PROMPT_PANEL_PAD_X } from '@/components/canvas/shell/promptLayout';
 import { useNodeData } from '@/hooks/useNodeData';
 import { useNodeRename } from '@/hooks/useNodeRename';
 import { useDisconnectSource } from '@/hooks/useDisconnectSource';
 import { useNodeExpanded } from '@/hooks/useNodeExpanded';
 import { useNodeField } from '@/hooks/useNodeField';
-import { buildSpawnNodes, spawnAndCommit, makeChildId } from '@/components/canvas/deriveNodes';
-import { useCanvasEdges } from '@/components/canvas/CanvasEdgesContext';
+import {
+  buildSpawnNodes,
+  spawnAndCommit,
+  makeChildId,
+} from '@/components/canvas/structure/deriveNodes';
+import { useCanvasEdges } from '@/components/canvas/structure/CanvasEdgesContext';
 import { saveTextToTasks } from '@/components/base/api/index';
 import { chatCompletions } from '@/components/base/api/index';
-import { useNodePrefs, PREFS_DEFAULTS } from '@/components/canvas/nodePrefs';
+import { useNodePrefs, PREFS_DEFAULTS } from '@/components/canvas/contract/nodePrefs';
 import { resolveProviderModel } from '@/components/base/utils/providerModels';
-import { resolvePromptChips, mergeReferenceImageUrls } from '@/components/canvas/promptChips';
+import { resolvePromptChips, mergeReferenceImageUrls } from '@/components/canvas/shell/promptChips';
 import { logger } from '@/components/base/core/logger';
 import { reportDegrade } from '@/components/base/core/degrade';
 

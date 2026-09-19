@@ -58,20 +58,20 @@ const root = resolve(__dirname, '..');
  * 未登记的类型请补此表；nodes/ 下出现未登记的文件会在收尾处报出（防本表悄悄过期）。
  */
 const NODE_TYPE_TO_FILE = {
-  assetNode: 'src/components/canvas/nodes/AssetNode.tsx',
-  imageBoxNode: 'src/components/canvas/nodes/ImageBoxNode.tsx',
-  gridSplitNode: 'src/components/canvas/nodes/GridSplitNode.tsx',
-  gridMergeNode: 'src/components/canvas/nodes/GridMergeNode.tsx',
-  panoramaNode: 'src/components/canvas/nodes/PanoramaNode.tsx',
+  assetNode: 'src/components/image/nodes/AssetNode.tsx',
+  imageBoxNode: 'src/components/image/nodes/ImageBoxNode.tsx',
+  gridSplitNode: 'src/components/image/nodes/GridSplitNode.tsx',
+  gridMergeNode: 'src/components/image/nodes/GridMergeNode.tsx',
+  panoramaNode: 'src/components/image/nodes/PanoramaNode.tsx',
   director3dNode: 'src/components/canvas/nodes/Director3DNode.tsx',
-  faceMosaicNode: 'src/components/canvas/nodes/FaceMosaicNode.tsx',
-  loopNode: 'src/components/canvas/nodes/LoopNode.tsx',
+  faceMosaicNode: 'src/components/image/nodes/FaceMosaicNode.tsx',
+  loopNode: 'src/components/image/nodes/LoopNode.tsx',
   videoExtractNode: 'src/components/canvas/nodes/VideoExtractNode.tsx',
   videoProcessNode: 'src/components/canvas/nodes/VideoProcessNode.tsx',
   group: 'src/components/canvas/nodes/GroupNode.tsx',
-  scriptBoxNode: 'src/components/canvas/nodes/ScriptBoxNode.tsx',
-  textGenerateNode: 'src/components/canvas/nodes/TextGenerate.tsx',
-  imageGenerateNode: 'src/components/canvas/nodes/ImageGenerate.tsx',
+  scriptBoxNode: 'src/components/scriptbox/ScriptBoxNode.tsx',
+  textGenerateNode: 'src/components/text/TextGenerate.tsx',
+  imageGenerateNode: 'src/components/image/nodes/ImageGenerate.tsx',
   videoGenerateNode: 'src/components/canvas/nodes/VideoGenerate.tsx',
   ghostTarget: 'src/components/canvas/nodes/GhostTargetNode.tsx',
 };
@@ -80,7 +80,7 @@ const NODE_TYPE_TO_FILE = {
 const NON_NODE_FILES = new Set(['nodeImage.ts', 'useImagePersistence.tsx', 'useImageHoverActions.tsx']);
 const NODES_DIR = 'src/components/canvas/nodes';
 // 数据默认值真源（2026-09-12 / TD-02-7：原在 NodePalette.paletteNodes[].data，已迁此）
-const DATA_SCHEMA_FILE = 'src/components/canvas/nodeDataSchema.ts';
+const DATA_SCHEMA_FILE = 'src/components/canvas/contract/nodeDataSchema.ts';
 const OUTPUTS_FILE = 'src/hooks/useConnectedInputs.ts';
 
 // ───────────────────────── 文本扫描工具（抹注释 / 配对 / 分片 / 取 key）─────────────────────────

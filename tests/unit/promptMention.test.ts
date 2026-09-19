@@ -3,7 +3,7 @@ import {
   detectMentionQuery,
   computeMentionPlacement,
   MENTION_FLIP_MIN_H,
-} from '../../src/components/canvas/promptMention.ts';
+} from '../../src/components/canvas/shell/promptMention.ts';
 
 describe('detectMentionQuery', () => {
   it('正常触发：@ 后跟中文/英文 query，中文后直接打 @ 也弹', () => {
