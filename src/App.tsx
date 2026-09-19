@@ -27,7 +27,7 @@ import {
 import type { Node, Edge, Connection, Viewport } from '@xyflow/react';
 import { Zap, ChevronUp, RefreshCw } from 'lucide-react';
 import CanvasToolbar from './components/base/panels/CanvasToolbar.tsx';
-import ArrangeConfirm from './components/base/canvas/ArrangeConfirm.tsx';
+import ArrangeConfirm from './components/canvas/ArrangeConfirm.tsx';
 import { useArrangeCanvas } from './hooks/useArrangeCanvas.ts';
 import { computePatchNodeById, computePatchNodesById } from './hooks/useNodeData.ts';
 import { computePatchEdgesById, patchEdgeData } from './hooks/useEdgeData.ts';
@@ -40,7 +40,7 @@ import {
   selectedAssetSig,
   selectedNodeIdSig,
   type SelectedAsset,
-} from './components/base/canvas/nodeMedia.ts';
+} from './components/base/utils/nodeMedia.ts';
 // 画布节点只读快照桥（docs/136 地基）：剪辑器在 ReactFlowProvider 之外、拿不到 useReactFlow，
 // 故把 nodes 投影到 base 层供「可引用媒体源」读取。单向：只有本文件写，其他模块只读。
 import { setCanvasNodesSnapshot } from './components/base/media/canvasNodesBridge.ts';
@@ -69,8 +69,8 @@ import { broadcastCanvasSaved } from './components/base/core/canvasSyncBus.ts';
 import { agentKeyForProject } from './components/base/core/agentKeys.ts';
 import previewUrls from './components/base/utils/previewUrl.ts';
 import { logger } from './components/base/core/logger.ts';
-import { useProjectBackupIO } from './components/base/canvas/useCanvasEventSubscriptions.ts';
-import { menuForState, type MenuActionCtx } from './components/base/canvas/canvasContextMenu.tsx';
+import { useProjectBackupIO } from './components/canvas/useCanvasEventSubscriptions.ts';
+import { menuForState, type MenuActionCtx } from './components/canvas/canvasContextMenu.tsx';
 import { useNodePosition } from './components/base/core/uiHooks.ts';
 import CustomEdge from './components/canvas/edges/CustomEdge.tsx';
 import ConnectionLine from './components/canvas/edges/ConnectionLine.tsx';
@@ -78,7 +78,7 @@ import ContextMenu from './components/base/ui/ContextMenu.tsx';
 import { useContextMenu } from './hooks/useContextMenu.ts';
 import { useCanvasHistory } from './hooks/useCanvasHistory.ts';
 import { patchNodeDataById } from './hooks/useNodeData.ts';
-import { CanvasEdgesProvider } from './components/base/canvas/CanvasEdgesContext.tsx';
+import { CanvasEdgesProvider } from './components/canvas/CanvasEdgesContext.tsx';
 import { useCanvasShortcuts } from './hooks/useCanvasShortcuts.ts';
 import {
   isCanvasSuppressed,
@@ -94,9 +94,9 @@ import {
 // import VideoEditorDock from './components/videoEditor/panels/dock/VideoEditorDock.tsx';
 // 更新(2026-09-19)：改走**域门面**（域模块化 Step A 首批）—— 此后 videoEditor 域内结构重构不再波及 App。
 import { EditorShell } from './components/videoEditor/index.ts';
-import { buildNodeTypeComponents } from './components/base/canvas/NodePalette.ts';
-import { defaultNodeData } from './components/base/canvas/nodeDataSchema.ts';
-import LodProvider, { useLod } from './components/base/canvas/lod.tsx';
+import { buildNodeTypeComponents } from './components/canvas/NodePalette.ts';
+import { defaultNodeData } from './components/canvas/nodeDataSchema.ts';
+import LodProvider, { useLod } from './components/canvas/lod.tsx';
 import ToastContainer from './components/base/ui/ToastContainer.tsx';
 import ConfirmContainer from './components/base/ui/ConfirmContainer.tsx';
 import RenameDialog from './components/base/ui/RenameDialog.tsx';
@@ -110,7 +110,7 @@ import { setAgentKey } from './components/agent/index.ts';
 import { uploadConfig, downloadConfig } from './components/base/store/cloudSync.ts';
 import { startAutoSync, stopAutoSync } from './components/base/store/autoSync.ts';
 import { useLocalToolStatus } from './hooks/useLocalToolStatus.ts';
-import { useUpstreamAutoTrigger } from './components/base/canvas/upstreamLink.ts';
+import { useUpstreamAutoTrigger } from './components/canvas/upstreamLink.ts';
 import LocalToolConnectModal from './components/base/panels/LocalToolConnectModal.tsx';
 import EmptyCanvasGuide from './components/base/panels/EmptyCanvasGuide.tsx';
 import { initTasks } from './components/base/store/taskStore.ts';
@@ -120,23 +120,20 @@ import {
   ungroupNodes,
   deleteNodesWithCascade,
   duplicateSelectedWithEdges,
-} from './components/base/canvas/groupNodes.ts';
+} from './components/canvas/groupNodes.ts';
 import { externalizeInlineData } from './components/base/utils/externalizeInline.ts';
 import { saveInlineToLocal } from './components/base/api/index.ts';
 import { generateId } from './components/base/core/idGen.ts';
-import { resolveDragGrouping, normalizeNodeParents } from './components/base/canvas/groupNodes.ts';
+import { resolveDragGrouping, normalizeNodeParents } from './components/canvas/groupNodes.ts';
 import {
   buildNodesFromClipboard,
   copyNodesToClipboard,
 } from './components/base/utils/clipboard.ts';
-import {
-  applyNodeTypeDefaults,
-  INPUT_PANEL_NODE_TYPES,
-} from './components/base/canvas/nodeDefaults.ts';
-import { injectNodePrefs } from './components/base/canvas/nodePrefs.ts';
+import { applyNodeTypeDefaults, INPUT_PANEL_NODE_TYPES } from './components/canvas/nodeDefaults.ts';
+import { injectNodePrefs } from './components/canvas/nodePrefs.ts';
 import { useCanvasSync } from './hooks/useCanvasSync.ts';
 import { parseShotHandle, NODE_HANDLE_CONTRACT } from './components/base/core/contracts.ts';
-import { prefetchHeavyNode } from './components/base/canvas/lazyNode.tsx';
+import { prefetchHeavyNode } from './components/canvas/lazyNode.tsx';
 
 // 拖线连接态：menu.state.connection 声明为 Connection，但 onConnectEnd 构造时额外补了 dropPosition，
 // 运行时实际形态是 Connection & { dropPosition }。本文件 buildFromConnection 仅消费 source/sourceHandle/dropPosition。

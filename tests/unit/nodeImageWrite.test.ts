@@ -177,12 +177,12 @@ describe('源码护栏 — 图片写回只有一个门', () => {
       ),
       'App.copyNodeImage 必须保留 assetUrl 兜底 url（?? / || 均可，容忍 as 标注）',
     ).toBe(true);
-    // 【2026-09-13 修正】getNodeAssetUrl 已下沉 base/canvas/nodeMedia.ts（TD-04-25）；
+    // 【2026-09-13 修正】getNodeAssetUrl 已下沉 base/utils/nodeMedia.ts（TD-04-25）；
     // 旧断言仍指向 agent/canvas/useCanvasAgentTools.ts（该文件已不再实现、仅转发注释）→ 恒红。
     // 护栏应指向**实现真源**（agent/index.ts barrel 转发到 nodeMedia）。
     expect(
-      /\['assetUrl',\s*'url'\]/.test(readSrc('src/components/base/canvas/nodeMedia.ts')),
-      'getNodeAssetUrl 必须保留 assetUrl → url 的字段兼容顺序（实现真源 = base/canvas/nodeMedia.ts）',
+      /\['assetUrl',\s*'url'\]/.test(readSrc('src/components/base/utils/nodeMedia.ts')),
+      'getNodeAssetUrl 必须保留 assetUrl → url 的字段兼容顺序（实现真源 = base/utils/nodeMedia.ts）',
     ).toBe(true);
   });
 

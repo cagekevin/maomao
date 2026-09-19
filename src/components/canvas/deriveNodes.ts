@@ -1,4 +1,4 @@
-import { generateId } from '../core/idGen.ts';
+import { generateId } from '../base/core/idGen.ts';
 import { applyNodeTypeDefaults } from './nodeDefaults.ts';
 import type { Node, Edge } from '@xyflow/react';
 

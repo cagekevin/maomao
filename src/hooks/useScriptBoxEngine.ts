@@ -12,8 +12,8 @@ import {
   localizeAndStoreToResourceLibrary,
   resourceFolderOf,
 } from '../components/base/store/resourceStore.ts';
-import { injectNodePrefs } from '../components/base/canvas/nodePrefs.ts';
-import { commitNewNodes } from '../components/base/canvas/deriveNodes.ts';
+import { injectNodePrefs } from '../components/canvas/nodePrefs.ts';
+import { commitNewNodes } from '../components/canvas/deriveNodes.ts';
 import {
   useProvidersList,
   useEnsureProvidersLoaded,

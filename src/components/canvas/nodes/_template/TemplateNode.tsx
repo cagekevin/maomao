@@ -19,7 +19,7 @@ import { useNodeResize } from '@/components/base/core/uiHooks';
 import { useConnectedInputs } from '@/hooks/useConnectedInputs';
 import { useAssetDegrade } from '@/hooks/useAssetDegrade';
 import { useGenerateNode } from '@/hooks/useGenerateNode';
-import { useNodePrefs } from '@/components/base/canvas/nodePrefs';
+import { useNodePrefs } from '@/components/canvas/nodePrefs';
 import { showToast } from '@/components/base/core/toastStore';
 import { generateImage } from '@/components/base/api/index';
 import { toAbsoluteFileUrl } from '@/components/base/api/index';

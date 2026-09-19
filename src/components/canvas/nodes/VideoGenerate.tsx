@@ -18,7 +18,7 @@ import ResizeFullscreenHandle from '@/components/base/ui/ResizeFullscreenHandle'
 import FullscreenEditor from '@/components/base/panels/FullscreenEditor';
 import GeneratingOverlay from '@/components/base/ui/GeneratingOverlay';
 import { NODE_AREA_FIXED_BASE_SIZE } from '@/components/base/core/config';
-import { useCanvasEdges } from '@/components/base/canvas/CanvasEdgesContext';
+import { useCanvasEdges } from '@/components/canvas/CanvasEdgesContext';
 import { DepthVideoModal } from '@/components/base/depthVideo/DepthVideoModal';
 import { spawnDepthVideoNode } from '@/components/base/depthVideo/spawn';
 import { downloadUrl, resolveDownloadFilename } from '@/components/base/utils/clipboard';
@@ -42,7 +42,7 @@ import VideoThumbnail from '@/components/base/ui/VideoThumbnail';
 import ImageZoomDialog from '@/components/base/editors/ImageZoomDialog';
 import { useGenerateNode } from '@/hooks/useGenerateNode';
 import { generateVideo } from '@/components/base/api/index';
-import { useNodePrefs, PREFS_DEFAULTS } from '@/components/base/canvas/nodePrefs';
+import { useNodePrefs, PREFS_DEFAULTS } from '@/components/canvas/nodePrefs';
 import { logger } from '@/components/base/core/logger';
 import { resolveProviderModel } from '@/components/base/utils/providerModels';
 import { buildEffectivePrompt, clampSeconds, fileNameFromUrl } from '@/components/base/core/utils';

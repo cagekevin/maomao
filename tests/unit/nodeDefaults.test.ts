@@ -8,9 +8,9 @@ import {
   ASSET_NODE_SIZE,
   IMAGE_BOX_NODE_SIZE,
   applyNodeTypeDefaults,
-  withNodeSize,
   NODE_TYPE_DEFAULTS,
-} from '../../src/components/base/canvas/nodeDefaults.ts';
+} from '../../src/components/canvas/nodeDefaults.ts';
+import { withNodeSize } from '../../src/components/base/core/nodeSizePatch.ts';
 
 describe('withNodeSize — 尺寸「三写不变量」唯一实现（TD-04-28）', () => {
   it('同时产出 width/height 字段 + style.width/height（NodeShell 读 width 优先，缺一则塌陷）', () => {

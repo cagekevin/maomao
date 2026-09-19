@@ -1,7 +1,7 @@
 import React from 'react';
 import { getBezierPath, Position, type ConnectionLineComponentProps } from '@xyflow/react';
 import CometParticles from '@/components/base/ui/CometParticles';
-import { useLod } from '@/components/base/canvas/lod';
+import { useLod } from '@/components/canvas/lod';
 
 /**
  * 拖拽中的临时连线（复刻原 Pg.jsx）

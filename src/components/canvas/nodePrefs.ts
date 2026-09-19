@@ -32,9 +32,9 @@
  * 接真系统：可改为后端 KV（app_settings / node_prefs），本模块是纯前端唯一数据源。
  */
 import { useState, useCallback, useRef } from 'react';
-import { contentGet, contentSet } from '../core/contentStore.ts';
-import { KEY_YIMAO_NODE_PREFS } from '../core/contracts.ts';
-import { confirmPersist } from '../core/degrade.ts';
+import { contentGet, contentSet } from '../base/core/contentStore.ts';
+import { KEY_YIMAO_NODE_PREFS } from '../base/core/contracts.ts';
+import { confirmPersist } from '../base/core/degrade.ts';
 
 // TD-13-4：键名唯一真源 = contracts.ts 的 KEY_YIMAO_NODE_PREFS（不再本地复刻字面量）。
 const STORAGE_KEY = KEY_YIMAO_NODE_PREFS;

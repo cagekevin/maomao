@@ -19,7 +19,7 @@ import { useConnectedInputs } from '@/hooks/useConnectedInputs';
 import { useNodeRename } from '@/hooks/useNodeRename';
 import { patchNodeDataById } from '@/hooks/useNodeData';
 import { classifyAssetUrlKind } from '@/components/base/utils/assetType';
-import { ASSET_NODE_SIZE } from '@/components/base/canvas/nodeDefaults';
+import { ASSET_NODE_SIZE } from '@/components/canvas/nodeDefaults';
 import {
   pxDeltaToTime,
   snapTime,
@@ -49,8 +49,8 @@ import {
   ConversionCanceled,
 } from '@/components/base/utils/videoEngine';
 import { generateId } from '@/components/base/core/idGen';
-import { buildSpawnNodes, spawnAndCommit } from '@/components/base/canvas/deriveNodes';
-import { useCanvasEdges } from '@/components/base/canvas/CanvasEdgesContext';
+import { buildSpawnNodes, spawnAndCommit } from '@/components/canvas/deriveNodes';
+import { useCanvasEdges } from '@/components/canvas/CanvasEdgesContext';
 import { httpRequest, uploadFileToLocal } from '@/components/base/api/index';
 import { updateNodeRuntime, useNodeRuntime } from '@/components/base/store/nodeRuntimeStore';
 import previewUrls from '@/components/base/utils/previewUrl';

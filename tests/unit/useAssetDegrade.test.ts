@@ -13,7 +13,7 @@ import { renderHook } from '@testing-library/react';
 import { createElement } from 'react';
 
 const { useAssetDegrade } = await import('../../src/hooks/useAssetDegrade.ts');
-const { LodContext } = await import('../../src/components/base/canvas/lod.tsx');
+const { LodContext } = await import('../../src/components/canvas/lod.tsx');
 
 function renderWithLod(lodLevel: any) {
   return renderHook(() => useAssetDegrade(), {

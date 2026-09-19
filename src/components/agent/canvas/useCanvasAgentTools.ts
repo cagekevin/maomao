@@ -5,11 +5,11 @@ import {
   getTools,
   type ToolResult,
   type ToolDef,
-} from '../../base/canvas/toolRegistry.ts';
-import { defaultNodeData } from '@/components/base/canvas/nodeDataSchema';
-import { applyNodeTypeDefaults } from '@/components/base/canvas/nodeDefaults.ts';
+} from '@/components/canvas/toolRegistry';
+import { defaultNodeData } from '@/components/canvas/nodeDataSchema';
+import { applyNodeTypeDefaults } from '@/components/canvas/nodeDefaults';
 import { runNodeGeneration } from '../../base/store/taskStore.ts';
-import '@/components/base/canvas/groupNodes';
+import '@/components/canvas/groupNodes';
 import { createAgentCanvasHost, type AgentCanvasHostCtx } from './agentCanvasHost.ts';
 import { executePlan, type GenerationStep } from './canvasPlanExecutor.ts';
 import {
@@ -260,7 +260,7 @@ const num = (v: unknown, fb: number): number => {
   return Number.isFinite(n) ? n : fb;
 };
 
-// getNodeAssetUrl / getNodeMedia 已下沉至 base/canvas/nodeMedia.ts（TD-04-25：二者仅依赖
+// getNodeAssetUrl / getNodeMedia 已下沉至 base/utils/nodeMedia.ts（TD-04-25：二者仅依赖
 // Node 数据形态、属画布基础设施；留在 agent 层会让 base/canvas 的选中派生反向依赖本层，
 // 依赖方向倒置）。本文件不再实现、也不再消费它们；对外聚合入口见 components/agent/index.ts。
 

@@ -33,7 +33,7 @@ vi.mock('../../src/components/base/store/taskStore.ts', async (importOriginal) =
 }));
 vi.mock('../../src/components/base/core/logger.ts', () => ({ logger: loggerState }));
 
-import { useUpstreamAutoTrigger } from '../../src/components/base/canvas/upstreamLink.ts';
+import { useUpstreamAutoTrigger } from '../../src/components/canvas/upstreamLink.ts';
 
 describe('useUpstreamAutoTrigger — 下游触发失败可见（§3.3）', () => {
   beforeEach(() => {

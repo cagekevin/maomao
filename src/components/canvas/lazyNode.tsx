@@ -1,8 +1,8 @@
 import React, { Suspense } from 'react';
-import ErrorBoundary from '../ui/ErrorBoundary.tsx';
-import NodeShell from '../ui/NodeShell.tsx';
-import { logger } from '../core/logger.ts';
-import { NODE_HANDLE_CONTRACT } from '../core/contracts.ts';
+import ErrorBoundary from '../base/ui/ErrorBoundary.tsx';
+import NodeShell from '../base/ui/NodeShell.tsx';
+import { logger } from '../base/core/logger.ts';
+import { NODE_HANDLE_CONTRACT } from '../base/core/contracts.ts';
 
 /**
  * 重依赖节点的「按需加载」包装（3D 引擎 / 视频处理等）。

@@ -7,8 +7,8 @@ import {
   deleteNodesWithCascade,
   duplicateSelectedWithEdges,
   resolveDragGrouping,
-} from '../../src/components/base/canvas/groupNodes.ts';
-import { NODE_KEEP } from '../../src/components/base/canvas/canvasSnapshotSchema.ts';
+} from '../../src/components/canvas/groupNodes.ts';
+import { NODE_KEEP } from '../../src/components/canvas/canvasSnapshotSchema.ts';
 
 describe('编组算法 §2.2', () => {
   const nodes = [

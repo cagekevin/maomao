@@ -29,8 +29,11 @@ import {
 import { logger } from '../core/logger.ts';
 // 落盘失败的**自确认**原语（本处自己报，不寄生于任何全局总线）—— 见下方 saveCanvasState 失败分支。
 import { confirmPersist, reportDegrade } from '../core/degrade.ts';
-import { normalizeNodeParents } from '../canvas/groupNodes.ts';
-import { sanitizeSnapshotNodes, sanitizeSnapshotEdges } from '../canvas/canvasSnapshotSchema.ts';
+import { normalizeNodeParents } from '@/components/canvas/groupNodes';
+import {
+  sanitizeSnapshotNodes,
+  sanitizeSnapshotEdges,
+} from '@/components/canvas/canvasSnapshotSchema';
 
 /** 项目结构（对齐官方，仅 id + name） */
 export interface Project {

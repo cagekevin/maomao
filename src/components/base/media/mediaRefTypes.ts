@@ -5,7 +5,7 @@
  * 【为什么这层存在（docs/136 · 母体 M4「可引用内容没有统一视图」）】
  * 每个消费方各自去"能拿到的地方"捞数据：
  *   · 剪辑器（videoEditor，在 ReactFlowProvider 之外）结构上拿不到画布节点 → 引用不了画布；
- *   · 「画布节点 → 媒体」的真源是 `base/canvas/nodeMedia.ts`，但它只认 `Node`，不知道素材库；
+ *   · 「画布节点 → 媒体」的真源是 `base/utils/nodeMedia.ts`，但它只认 `Node`，不知道素材库；
  *   · 「素材库 → 资源」的真源是 `base/store/resourceStore.ts` / `base/api/localToolApi.ts`，
  *     但它只认 `Resource`，不知道画布。
  * 全库没有任何地方回答「一共有哪些东西可以被引用」—— 这正是那个**缺席的层**。

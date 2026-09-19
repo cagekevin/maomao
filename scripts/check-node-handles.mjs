@@ -143,7 +143,7 @@ for (const file of targets) {
 
 
 // 节点文件里的 NodeShell handle prop 字面量（只扫节点目录，排除注释行）
-const NODE_DIR = resolve(root, 'src/components/nodes');
+const NODE_DIR = resolve(root, 'src/components/canvas/nodes');
 const TARGET_PROP_RE = /\btargetHandleId\s*=\s*"([^"]+)"/;
 const SOURCE_PROP_RE = /\bsourceHandleId\s*=\s*"([^"]+)"/;
 const declaredHandleFiles = [];

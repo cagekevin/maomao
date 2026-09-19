@@ -10,8 +10,11 @@ const mkNode = (data: Record<string, unknown> = {}): Node => ({
 
 // 隔离依赖：AI 撤销栈 / 真实生成 / 多步执行器
 // 状态（awaiting / pending）用 beforeEach 内 vi.mocked 配对闭包管理，避免模块级变量在 vi.mock 工厂下 TDZ 怪异
-vi.mock('../../src/components/agent/conversation/conversationStore.ts', async (importOriginal) => ({
-  ...((await importOriginal()) as Record<string, unknown>),
+vi.mock(
+  '../../src/components/agent/conversation/conversationStore.ts',
+  async (importOriginal) =>
+    ({
+      ...((await importOriginal()) as Record<string, unknown>),
       pushActiveAiUndo: vi.fn(),
       popActiveAiUndo: vi.fn(() => null),
       getActiveAiUndoStack: vi.fn(() => []),
@@ -69,7 +72,7 @@ import {
   setCreditSwitch,
 } from '../../src/components/agent/canvas/useCanvasAgentTools.ts';
 // getNodeAssetUrl / getNodeMedia 已下沉 base/canvas（TD-04-25），测试改引新位置。
-import { getNodeAssetUrl, getNodeMedia } from '../../src/components/base/canvas/nodeMedia.ts';
+import { getNodeAssetUrl, getNodeMedia } from '../../src/components/base/utils/nodeMedia.ts';
 import * as convStore from '../../src/components/agent/conversation/conversationStore.ts';
 import '../../src/components/agent/conversation/conversationSnapshot.ts';
 import * as taskStore from '../../src/components/base/store/taskStore.ts';

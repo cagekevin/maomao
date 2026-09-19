@@ -4,7 +4,7 @@ import {
   getTools,
   resetTools,
   type ToolDef,
-} from '../../src/components/base/canvas/toolRegistry.ts';
+} from '../../src/components/canvas/toolRegistry.ts';
 
 beforeEach(() => {
   resetTools();

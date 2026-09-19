@@ -7,10 +7,7 @@
  *  3. **嵌套值深拷贝** —— 不同调用/不同节点不得共享同一数组实例（否则一处 push 污染全局）。
  */
 import { describe, it, expect } from 'vitest';
-import {
-  defaultNodeData,
-  NODE_DATA_DEFAULTS,
-} from '../../src/components/base/canvas/nodeDataSchema.ts';
+import { defaultNodeData, NODE_DATA_DEFAULTS } from '../../src/components/canvas/nodeDataSchema.ts';
 
 describe('nodeDataSchema.defaultNodeData', () => {
   it('有输入面板的节点注入 expanded:false，并合并该类型登记项', () => {

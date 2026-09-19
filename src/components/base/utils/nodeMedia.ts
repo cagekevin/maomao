@@ -1,14 +1,16 @@
 import type { Node } from '@xyflow/react';
-import { classifyAssetUrlKind } from '../utils/assetType.ts';
+import { classifyAssetUrlKind } from './assetType.ts';
 
 /* ════════════════════════════════════════════════════════════════
- * 节点媒体提取 / 选中派生（画布基础设施 · 纯函数，零 React / 零 store 依赖）
+ * 节点媒体提取 / 选中派生（**横切层** · 纯函数，零 React / 零 store 依赖）
  * ────────────────────────────────────────────────────────────────
- * 【为什么住在这里（TD-04-25）】这两个提取器 + 派生函数只依赖 Node 数据形态，
- * 属「画布节点数据读取」基础设施。此前 getNodeAssetUrl/getNodeMedia 住在
- * agent/canvas/useCanvasAgentTools.ts（agent 层）——but 它们被画布选中链（App 编排层）
- * 消费，若将来把选中派生收进 base/canvas 就会反向依赖 agent 层（依赖方向倒置）。
- * 故下沉到 base/canvas，agent 层改为消费者（useCanvasAgentTools 不再实现、只引用）。
+ * 【为什么住在这里（TD-04-25 → S2-1b-pre 2026-09-19 再下沉）】
+ * 这两个提取器 + 派生函数**只依赖 Node 数据形态**，属「节点数据读取」原语，与画布渲染无关。
+ *   ① TD-04-25：此前住 `agent/canvas/useCanvasAgentTools.ts`（agent 层），被画布选中链消费
+ *      ⇒ 依赖方向倒置 ⇒ 下沉 `base/canvas`。
+ *   ② S2-1b-pre：`base/media/providers/canvasSource.ts`（**横切**媒体引用协议层）也要用它
+ *      ⇒ 住画布域会让横切反向依赖业务域（违反规则 2）⇒ 按同一逻辑再下沉到 `base/utils`（横切）。
+ * 判据：**横切层不得依赖业务域；域依赖横切是正确单向**。
  * ════════════════════════════════════════════════════════════════ */
 
 /**

@@ -1,5 +1,5 @@
 import React, { createContext, useContext } from 'react';
-import type { CanvasHistoryApi } from '../../../hooks/useCanvasHistory.ts';
+import type { CanvasHistoryApi } from '@/hooks/useCanvasHistory';
 
 /**
  * 画布边/历史注入 Context —— 让节点组件拿到 useCanvasHistory 的 record（否则节点无法原子进 undo 栈）。

@@ -4,7 +4,7 @@ import {
   applyStructuralSnapshot,
   extractStructuralSnapshot,
   isSameStructure,
-} from '../../src/components/base/canvas/structuralSnapshot.ts';
+} from '../../src/components/canvas/structuralSnapshot.ts';
 
 /**
  * TD-04-31 · 结构化撤销（对标对方 plans/2026-07-24）。

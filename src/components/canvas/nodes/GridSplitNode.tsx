@@ -15,7 +15,7 @@ import { useReactFlow, Handle, Position } from '@xyflow/react';
 import { useNodeData } from '@/hooks/useNodeData';
 import { useNodeRename } from '@/hooks/useNodeRename';
 import NodeShell from '@/components/base/ui/NodeShell';
-import { ASSET_NODE_SIZE } from '@/components/base/canvas/nodeDefaults';
+import { ASSET_NODE_SIZE } from '@/components/canvas/nodeDefaults';
 import { useConnectedInputs } from '@/hooks/useConnectedInputs';
 import { useAssetDegrade } from '@/hooks/useAssetDegrade';
 import { useContentHeightSync } from '@/components/base/core/uiHooks';
@@ -25,8 +25,8 @@ import { useRenderAssetResolver } from '@/components/base/utils/assetUrl';
 import { loadImageWithTimeout } from '@/components/base/utils/asyncGuard';
 import { logger } from '@/components/base/core/logger';
 import { generateId } from '@/components/base/core/idGen';
-import { buildSpawnNodes, spawnAndCommit } from '@/components/base/canvas/deriveNodes';
-import { useCanvasEdges } from '@/components/base/canvas/CanvasEdgesContext';
+import { buildSpawnNodes, spawnAndCommit } from '@/components/canvas/deriveNodes';
+import { useCanvasEdges } from '@/components/canvas/CanvasEdgesContext';
 import {
   createRafBatch,
   clamp,

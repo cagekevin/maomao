@@ -78,9 +78,9 @@ const NODE_TYPE_TO_FILE = {
 
 /** nodes/ 下非节点组件文件（辅助 hook / 纯工具 / 素材），不参与 data 对账 */
 const NON_NODE_FILES = new Set(['nodeImage.ts', 'useImagePersistence.tsx', 'useImageHoverActions.tsx']);
-const NODES_DIR = 'src/components/nodes';
+const NODES_DIR = 'src/components/canvas/nodes';
 // 数据默认值真源（2026-09-12 / TD-02-7：原在 NodePalette.paletteNodes[].data，已迁此）
-const DATA_SCHEMA_FILE = 'src/components/base/canvas/nodeDataSchema.ts';
+const DATA_SCHEMA_FILE = 'src/components/canvas/nodeDataSchema.ts';
 const OUTPUTS_FILE = 'src/hooks/useConnectedInputs.ts';
 
 // ───────────────────────── 文本扫描工具（抹注释 / 配对 / 分片 / 取 key）─────────────────────────

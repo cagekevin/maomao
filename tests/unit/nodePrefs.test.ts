@@ -3,7 +3,7 @@ import {
   getNodePrefs,
   injectNodePrefs,
   mergeNodePrefs,
-} from '../../src/components/base/canvas/nodePrefs.ts';
+} from '../../src/components/canvas/nodePrefs.ts';
 import { contentSet, contentClearCache } from '../../src/components/base/core/contentStore.ts';
 
 // 记忆写入必须走业务唯一入口 contentSet（带 yimao: 前缀 + STORAGE_KEYS 登记），

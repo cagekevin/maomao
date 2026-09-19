@@ -160,8 +160,8 @@ vi.mock('../../src/hooks/useVideoPoster.ts', () => ({ useVideoPoster: () => null
 // TD-04-23：节点侧改引 `PREFS_DEFAULTS`（单一真源）→ 本 mock 必须提供该导出。
 // 用 `importOriginal` **部分 mock**：只覆盖 useNodePrefs，其余导出（PREFS_DEFAULTS 等）保持**真实**
 // —— 避免在测试里再抄一份默认值（那会成为第三份真相）。
-vi.mock('../../src/components/base/canvas/nodePrefs.ts', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('../../src/components/base/canvas/nodePrefs.ts')>()),
+vi.mock('../../src/components/canvas/nodePrefs.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../src/components/canvas/nodePrefs.ts')>()),
   useNodePrefs: () => ({
     prefs: { model: '', size: '', resolution: '', seconds: '' },
     set: (...a: any[]) => h.vidPrefsSet(...a),

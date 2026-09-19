@@ -3,7 +3,7 @@
  *
  * ════════════════════════════════════════════════════════════════
  * 【本文件只做映射，不重实现】（docs/136 §一 普查结论 ①–⑦ 全部复用）
- *  · 取节点媒体：复用 `base/canvas/nodeMedia.ts::getNodeMedia`（**只取主媒体**，
+ *  · 取节点媒体：复用 `base/utils/nodeMedia.ts::getNodeMedia`（**只取主媒体**，
  *    与 AgentPanel 待发送区口径一致）；
  *  · 解析 contentId → resource.url：复用 `base/utils/assetUrl.ts::resolveAssetDisplayUrl`
  *    （处理 `contentId`/`url`/`assetUrl` 三形态互斥，**禁止**在此重写字段嗅探）；
@@ -19,7 +19,7 @@
  * （① 与 AgentPanel 一致；② 展开多图是行为扩展，不该在收口层擅自决定）。
  * 若将来要展开，应在 `nodeMedia.ts` 加 `getNodeMediaList`（**扩真源，不在此旁路**）。
  */
-import { getNodeMedia } from '../../canvas/nodeMedia.ts';
+import { getNodeMedia } from '../../utils/nodeMedia.ts';
 import { resolveAssetDisplayUrl, buildContentUrlResolver } from '../../utils/assetUrl.ts';
 // 媒体类型判定的**唯一真值源**（禁在此内联重写扩展名嗅探；check-arch 有反向判据）
 import { classifyAssetUrlKind } from '../../utils/assetType.ts';

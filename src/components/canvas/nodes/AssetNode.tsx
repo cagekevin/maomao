@@ -36,11 +36,11 @@ import { showToast, toastError } from '@/components/base/core/toastStore';
 import { sendToResourceLibrary, getResources } from '@/components/base/store/resourceStore';
 import { openResourceLibrary } from '@/components/base/store/taskStore';
 import CameraStudioPanel from '@/components/base/editors/CameraStudioPanel';
-import { useCanvasEdges } from '@/components/base/canvas/CanvasEdgesContext';
+import { useCanvasEdges } from '@/components/canvas/CanvasEdgesContext';
 import { DepthVideoModal } from '@/components/base/depthVideo/DepthVideoModal';
 import { spawnDepthVideoNode } from '@/components/base/depthVideo/spawn';
-import { commitNewNodes } from '@/components/base/canvas/deriveNodes';
-import { injectNodePrefs } from '@/components/base/canvas/nodePrefs';
+import { commitNewNodes } from '@/components/canvas/deriveNodes';
+import { injectNodePrefs } from '@/components/canvas/nodePrefs';
 import { generateId } from '@/components/base/core/idGen';
 import type { CameraStudioResult } from '@/components/base/editors/cameraStudio';
 

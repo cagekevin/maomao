@@ -1,12 +1,12 @@
 import { useState, useRef, useCallback } from 'react';
 import type { Edge, Node } from '@xyflow/react';
-import { HistoryStack } from '../components/base/canvas/historyStack.ts';
+import { HistoryStack } from '../components/canvas/historyStack.ts';
 import {
   applyStructuralSnapshot,
   extractStructuralSnapshot,
   isSameStructure,
   type StructuralSnapshot,
-} from '../components/base/canvas/structuralSnapshot.ts';
+} from '../components/canvas/structuralSnapshot.ts';
 
 /** 一次画布快照：节点 + 连线 */
 export interface CanvasSnapshot {

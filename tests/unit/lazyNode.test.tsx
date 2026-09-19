@@ -20,7 +20,7 @@ import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const { lazyNode, HEAVY_NODE_LOADERS, prefetchHeavyNode } =
-  await import('../../src/components/base/canvas/lazyNode.tsx');
+  await import('../../src/components/canvas/lazyNode.tsx');
 
 // 测试源码文本（用于拦截「静态 import 回归」）
 const readSrc = (rel: any) => fs.readFileSync(path.resolve(__dirname, '../../', rel), 'utf-8');
@@ -89,11 +89,14 @@ describe('prefetchHeavyNode', () => {
 // 源码级护栏：静态 import 一旦回来，首屏立刻 +1.7MB
 // ══════════════════════════════════════════════════════════════
 describe('按需加载 · 静态 import 回归拦截', () => {
-  const staticImportsOf = (src: any) => src.split('\n').filter((l: any) => /^\s*import\s.+from\s/.test(l));
+  const staticImportsOf = (src: any) =>
+    src.split('\n').filter((l: any) => /^\s*import\s.+from\s/.test(l));
 
   it('NodePalette 不得静态 import 重依赖节点（否则 vendor-3d/media 进首屏）', () => {
-    const imports = staticImportsOf(readSrc('src/components/base/canvas/NodePalette.ts'));
-    const offenders = imports.filter((l: any) => /VideoProcessNode|PanoramaNode|Director3DNode/.test(l));
+    const imports = staticImportsOf(readSrc('src/components/canvas/NodePalette.ts'));
+    const offenders = imports.filter((l: any) =>
+      /VideoProcessNode|PanoramaNode|Director3DNode/.test(l),
+    );
     expect(
       offenders,
       `NodePalette 静态 import 了重依赖节点：${offenders.join(' | ')}\n` +
@@ -110,10 +113,11 @@ describe('按需加载 · 静态 import 回归拦截', () => {
   });
 
   it('重依赖 loader 必须是字面量动态 import（供 Vite 静态分析出 chunk）', () => {
-    const src = readSrc('src/components/base/canvas/lazyNode.tsx');
+    const src = readSrc('src/components/canvas/lazyNode.tsx');
     // 先剥离注释：文档里会写「禁止的反例」（import(`../nodes/${type}.jsx`)），
     // 不剥离会被下面的检测误判成违规。
-    const stripComments = (s: any) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^[ \t]*\/\/.*$/gm, '');
+    const stripComments = (s: any) =>
+      s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^[ \t]*\/\/.*$/gm, '');
     const loaderBlock = stripComments(
       src.slice(
         src.indexOf('HEAVY_NODE_LOADERS'),

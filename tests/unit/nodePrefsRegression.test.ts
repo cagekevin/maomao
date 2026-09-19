@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const root = resolve(__dirname, '../../src/components/nodes');
+const root = resolve(__dirname, '../../src/components/canvas/nodes');
 
 // 回归防护：确认四个节点的初始化已去掉「读记忆做回退」的写法，
 // 记忆只由 App.addNode 注入新建节点，存量节点初始化只读 data + 纯常量。

@@ -8,7 +8,7 @@
  *
  * 注 ①：useSyncNodeData 曾在此文件重复覆盖，已迁至专用文件 tests/unit/useSyncNodeData.test.ts（去重）。
  * 注 ②【TD-11-6 / 2026-09-11】：原第 3 节「workflowRuntime 生命周期」已随模块删除——
- *   `src/components/base/canvas/workflowRuntime.ts` 是**生产级死代码**（0 生产 import，仅自证测试），
+ *   `src/components/canvas/workflowRuntime.ts` 是**生产级死代码**（0 生产 import，仅自证测试），
  *   且其 `awaitingConfirm`/`aiUndoStack`/`steerQueue` 与 `agent/conversation/*` 的 per-conversation
  *   同构实现构成「第二份真相」。真实工作流状态现由 `conversationSkillState` / `workflowState` /
  *   `conversationSnapshot` 承担。禁止据本注释恢复该模块。

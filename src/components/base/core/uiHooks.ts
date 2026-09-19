@@ -4,7 +4,7 @@ import { useReactFlow, useUpdateNodeInternals } from '@xyflow/react';
 import { NODE_AREA_FIXED_BASE_SIZE } from './config.ts';
 import { releaseQuietly } from '../utils/asyncGuard.ts';
 import { patchNodeById, patchNodeDataById } from '../../../hooks/useNodeData.ts';
-import { withNodeSize } from '../canvas/nodeDefaults.ts';
+import { withNodeSize } from './nodeSizePatch.ts';
 
 /**
  * 判断事件目标是否在可编辑元素内（INPUT / TEXTAREA / contenteditable）。

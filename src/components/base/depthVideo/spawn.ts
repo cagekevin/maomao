@@ -21,10 +21,10 @@ import {
   spawnAndCommit,
   makeChildId,
   type CanvasCommitHandles,
-} from '../canvas/deriveNodes.ts';
+} from '@/components/canvas/deriveNodes';
 import type { Node } from '@xyflow/react';
 import { buildDepthChildSpec } from './engine.ts';
-import { ASSET_NODE_SIZE } from '../canvas/nodeDefaults.ts';
+import { ASSET_NODE_SIZE } from '@/components/canvas/nodeDefaults';
 
 /** spawn 所需句柄：除提交句柄外，还需 getNode 读取源节点位置/尺寸用于右缘排布 */
 export interface DepthSpawnHandles extends CanvasCommitHandles {
