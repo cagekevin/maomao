@@ -16,15 +16,17 @@ import {
 // 画布渲染组件引用（component 字段用于 App.jsx 派生 nodeTypes，避免双维护平行表）。
 // 注意：节点组件均不反向 import 本文件，故无循环依赖（已验证）。
 import TextGenerate from '@/components/text/TextGenerate';
-import AssetNode from '@/components/image/nodes/AssetNode';
-import LoopNode from '@/components/image/nodes/LoopNode';
-import ImageGenerate from '@/components/image/nodes/ImageGenerate';
+import {
+  ImageGenerate,
+  ImageBoxNode,
+  GridSplitNode,
+  GridMergeNode,
+  FaceMosaicNode,
+  LoopNode,
+  AssetNode,
+} from '@/components/image';
 import VideoGenerate from '@/components/video/nodes/VideoGenerate';
 import VideoExtractNode from '@/components/video/nodes/VideoExtractNode';
-import ImageBoxNode from '@/components/image/nodes/ImageBoxNode';
-import GridSplitNode from '@/components/image/nodes/GridSplitNode';
-import GridMergeNode from '@/components/image/nodes/GridMergeNode';
-import FaceMosaicNode from '@/components/image/nodes/FaceMosaicNode';
 import GroupNode from '@/components/canvas/nodes/GroupNode';
 import ScriptBoxNode from '@/components/scriptbox/ScriptBoxNode';
 // 重依赖节点（3D / 视频处理）**不在此静态 import**：静态 import 会让 vendor-3d(1.06MB) 与

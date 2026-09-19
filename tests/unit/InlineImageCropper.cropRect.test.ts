@@ -8,7 +8,7 @@
  * 另导出 cropRectFromSelection 一份且口径不同 → 双实现、测试锁住的还不是生产路径）。
  */
 import { describe, it, expect } from 'vitest';
-import { cropRectFromPercent } from '../../src/components/editors/InlineImageCropper.tsx';
+import { cropRectFromPercent } from '../../src/components/image/editors/InlineImageCropper.tsx';
 
 // 固定原图：1200×800
 const NAT = { natW: 1200, natH: 800 };

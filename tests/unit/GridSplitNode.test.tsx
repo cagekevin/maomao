@@ -13,7 +13,7 @@ import { mocks } from './_nodeMocks.mjs';
 vi.mock('@xyflow/react', () => mocks.xyflow);
 vi.mock('../../src/components/base/ui/NodeShell.tsx', () => ({ default: mocks.NodeShell }));
 vi.mock('../../src/components/base/ui/CustomHandle.tsx', () => ({ default: mocks.CustomHandle }));
-vi.mock('../../src/components/editors/OverlayEditor.tsx', () => ({
+vi.mock('../../src/components/image/editors/OverlayEditor.tsx', () => ({
   OverlayEditor: mocks.OverlayEditor,
   renderOverlayCanvas: mocks.renderOverlayCanvas,
 }));

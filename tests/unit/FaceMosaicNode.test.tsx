@@ -82,7 +82,7 @@ vi.mock('../../src/components/base/utils/faceMosaic.ts', () => ({
   ],
   MOSAIC_PALETTE: ['#000000', '#ffffff'],
 }));
-vi.mock('../../src/components/editors/FaceMosaicEditor.tsx', () => ({
+vi.mock('../../src/components/image/editors/FaceMosaicEditor.tsx', () => ({
   default: ({ assetUrl: _assetUrl, onSave, onClose }: any) =>
     React.createElement(
       'div',

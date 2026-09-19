@@ -1,10 +1,10 @@
 import { useState, useRef, useCallback } from 'react';
 import ReactCrop, { type Crop, type PercentCrop } from 'react-image-crop';
 import 'react-image-crop/dist/ReactCrop.css';
-import { toastError } from '../base/core/toastStore.ts';
-import { loadImageWithTimeout } from '../base/utils/asyncGuard.ts';
-import { compressImage } from '../base/utils/imageCompress.ts';
-import { canvasToImageDataUrl } from '../base/core/utils.ts';
+import { toastError } from '@/components/base/core/toastStore';
+import { loadImageWithTimeout } from '@/components/base/utils/asyncGuard';
+import { compressImage } from '@/components/base/utils/imageCompress';
+import { canvasToImageDataUrl } from '@/components/base/core/utils';
 
 /**
  * 就地裁剪浮层（极简，只做裁剪）。

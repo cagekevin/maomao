@@ -17,11 +17,11 @@ import {
   MOSAIC_MODES,
   MOSAIC_PALETTE,
   MosaicMode,
-} from '../base/utils/faceMosaic.ts';
-import { createRafBatch, canvasToImageDataUrl } from '../base/core/utils.ts';
-import { toastError } from '../base/core/toastStore.ts';
-import { loadImageOrNull } from '../base/utils/asyncGuard.ts';
-import FullscreenShell from '../base/panels/FullscreenShell.tsx';
+} from '@/components/base/utils/faceMosaic';
+import { createRafBatch, canvasToImageDataUrl } from '@/components/base/core/utils';
+import { toastError } from '@/components/base/core/toastStore';
+import { loadImageOrNull } from '@/components/base/utils/asyncGuard';
+import FullscreenShell from '@/components/base/panels/FullscreenShell';
 
 /**
  * 人脸打码 · 手动编辑器（完整复刻官方 _Component55.jsx）。

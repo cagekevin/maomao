@@ -21,8 +21,8 @@ import {
   type CameraStudioMode,
   type CameraStudioResult,
   type LightTemperature,
-} from './cameraStudio.ts';
-import FullscreenShell from '../base/panels/FullscreenShell.tsx';
+} from '@/components/image/editors/cameraStudio';
+import FullscreenShell from '@/components/base/panels/FullscreenShell';
 
 // 模块级持久化：跨面板开关保留上一次参数
 let _lastCamera: CameraStudioCameraState | null = null;

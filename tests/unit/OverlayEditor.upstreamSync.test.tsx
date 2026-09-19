@@ -39,7 +39,9 @@ vi.mock('../../src/components/base/core/modalLayer.ts', () => ({
   useFullscreenEditorKeys: () => {},
 }));
 
-import OverlayEditor, { type OverlayState } from '../../src/components/editors/OverlayEditor.tsx';
+import OverlayEditor, {
+  type OverlayState,
+} from '../../src/components/image/editors/OverlayEditor.tsx';
 
 /** 受控 harness：真实 useState 复现「父层持 state、子组件受控」的形态 */
 let setOuterState: React.Dispatch<React.SetStateAction<OverlayState>> | null = null;

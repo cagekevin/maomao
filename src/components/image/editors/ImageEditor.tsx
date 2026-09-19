@@ -23,12 +23,16 @@ import {
 } from 'lucide-react';
 import ReactCrop, { centerCrop, makeAspectCrop, type Crop as CropRect } from 'react-image-crop';
 import 'react-image-crop/dist/ReactCrop.css';
-import { logger } from '../base/core/logger.ts';
-import FullscreenShell from '../base/panels/FullscreenShell.tsx';
-import { createRafBatch, canvasToImageDataUrl } from '../base/core/utils.ts';
-import { compressImage } from '../base/utils/imageCompress.ts';
-import { attemptQuietly, loadImageWithTimeout, releaseQuietly } from '../base/utils/asyncGuard.ts';
-import '../base/core/toastStore.ts';
+import { logger } from '@/components/base/core/logger';
+import FullscreenShell from '@/components/base/panels/FullscreenShell';
+import { createRafBatch, canvasToImageDataUrl } from '@/components/base/core/utils';
+import { compressImage } from '@/components/base/utils/imageCompress';
+import {
+  attemptQuietly,
+  loadImageWithTimeout,
+  releaseQuietly,
+} from '@/components/base/utils/asyncGuard';
+import '@/components/base/core/toastStore';
 
 /**
  * 全屏图片编辑器（三 Tab 统一编辑台：涂鸦 / 裁剪 / 扩图）。

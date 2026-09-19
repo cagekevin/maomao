@@ -139,13 +139,13 @@ vi.mock('../../src/components/settings/providerStore.ts', async (importOriginal)
 }));
 
 // ImageEditor：记录 onSave（模拟裁剪/扩图保存回传 dims）
-vi.mock('../../src/components/editors/ImageEditor.tsx', () => ({
+vi.mock('../../src/components/image/editors/ImageEditor.tsx', () => ({
   default: ({ assetUrl, onSave, onClose: _onClose }: any) => {
     lastEditorSave = onSave;
     return <div data-testid="image-editor" data-url={assetUrl} />;
   },
 }));
-vi.mock('../../src/components/editors/InlineImageCropper.tsx', () => ({
+vi.mock('../../src/components/image/editors/InlineImageCropper.tsx', () => ({
   default: () => null,
 }));
 // docs/118 §五 C5：编辑器/裁剪保存出口改为「先落盘再写回」（useImageHoverActions 内调

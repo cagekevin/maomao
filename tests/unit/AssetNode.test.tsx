@@ -13,7 +13,7 @@ vi.mock('../../src/components/base/ui/NodeShell.tsx', () => ({ default: mocks.No
 vi.mock('../../src/components/canvas/HoverToolbar.tsx', () => ({
   default: mocks.HoverToolbar,
 }));
-vi.mock('../../src/components/editors/ImageEditor.tsx', () => ({
+vi.mock('../../src/components/image/editors/ImageEditor.tsx', () => ({
   default: mocks.ImageEditor,
 }));
 vi.mock('../../src/hooks/useAssetDegrade.ts', () => ({ useAssetDegrade: mocks.useAssetDegrade }));

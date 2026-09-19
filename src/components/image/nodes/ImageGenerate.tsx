@@ -13,7 +13,7 @@ import FullscreenEditor from '@/components/canvas/FullscreenEditor';
 import GeneratingOverlay from '@/components/base/ui/GeneratingOverlay';
 import { NODE_AREA_FIXED_BASE_SIZE } from '@/components/base/core/config';
 import ImageZoomDialog from '@/components/base/ui/ImageZoomDialog';
-import '@/components/editors/ImageEditor';
+import '@/components/image/editors/ImageEditor';
 import { useImageHoverActions } from '@/components/image/useImageHoverActions';
 import { replaceNodeImage } from '@/components/canvas/nodeImage';
 import { useNodeData } from '@/hooks/useNodeData';
@@ -47,12 +47,8 @@ import { resolveProviderModel } from '@/components/base/utils/providerModels';
 import { mergeRefImages, buildEffectivePrompt } from '@/components/base/core/utils';
 import { resolvePromptChips, mergeReferenceImageUrls } from '@/components/canvas/promptChips';
 import { PROMPT_PANEL_PAD_X } from '@/components/canvas/promptLayout';
-import {
-  CameraStudioPanel,
-  CameraSettingsSelector,
-  applyCameraSettingsToPrompt,
-} from '@/components/editors';
-import type { CameraGenerationSettings, CameraStudioResult } from '@/components/editors';
+import { CameraStudioPanel, CameraSettingsSelector, applyCameraSettingsToPrompt } from '../editors';
+import type { CameraGenerationSettings, CameraStudioResult } from '../editors';
 
 import { generateId } from '@/components/base/core/idGen';
 
