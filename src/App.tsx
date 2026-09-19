@@ -92,7 +92,8 @@ import {
 } from './components/base/core/editorSession.ts';
 // 更新(2026-09-14)：自建 VideoEditorDock 退役，改为挂载 cutia 版 EditorShell（docs/130-cutia搬迁计划书）。
 // import VideoEditorDock from './components/videoEditor/panels/dock/VideoEditorDock.tsx';
-import { EditorShell } from './components/videoEditor/EditorShell.tsx';
+// 更新(2026-09-19)：改走**域门面**（域模块化 Step A 首批）—— 此后 videoEditor 域内结构重构不再波及 App。
+import { EditorShell } from './components/videoEditor/index.ts';
 import { buildNodeTypeComponents } from './components/base/canvas/NodePalette.ts';
 import { defaultNodeData } from './components/base/canvas/nodeDataSchema.ts';
 import LodProvider, { useLod } from './components/base/canvas/lod.tsx';
