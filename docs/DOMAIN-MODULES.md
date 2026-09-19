@@ -142,9 +142,9 @@ V2 §4.1 原文「**跨域** hooks 放 `src/hooks/`」被实测误用成"所有 
 | --- | --- |
 | **videoEditor**(258) | `engine`(102；**内还有第二层**：`core`门面 / `commands`38 / `lib`22 / `services`21 / `timeline`10) · `ui`(79) · `hooks-cutia`(29) · `constants`(14) · `types`(12) · `stores`(9；内还有 `keybindings/migrations`) · `utils`(4) · `lib`(3) · `data`(3) |
 | **agent**(56) | `assistantTable`(22) · `runtime`(12) · `conversation`(8) · `canvas`(3) |
-| **画布域** | `base/canvas`（机制） · `nodes`（节点） · `edges`（边） |
+| **画布域**(38) | `canvas/`（机制 17）· `canvas/nodes/`（节点 18）· `canvas/edges/`（边 3） —— **域根 = `components/canvas/`** |
 | **图像编辑域** | `editors/*`（查看/裁剪/全景/相机） · `cameraParams`（相机参数） · 打码 |
-| **`base/`** —— **它不是域，是「横切层 + 域」的容器** | 横切：`core`·`utils`·`ui`·`api`·`storage`；**域**：`canvas`·`creative`·`depthVideo`·`editors`·`media`·`prompt`·`store` |
+| **`base/`** —— **目标形态：只留横切层**（2026-09-19 裁定，见 §7） | 横切：`core`·`utils`·`ui`·`api`·`storage`·`panels`；**待迁出的域**：`creative`·`depthVideo`·`editors`·`media`·`prompt`·`store`（`canvas` 已迁出 ⇒ `components/canvas/`） |
 | **`base/store`**(15) | **直接住着 8 个域**（§3.6） |
 
 **子域真实存在的硬证据 —— 域内子域撞名 8 组**（若子域只是目录，不该有独立命名冲突）：
@@ -570,10 +570,12 @@ src/components/base/media/
 | 2 | `groupNodes` · `nodeMedia` |
 | 1 | `ArrangeConfirm`(App) · `NodePalette`(App) · `canvasContextMenu`(App) · `canvasSnapshotSchema`(base) · `historyStack`(hooks) · `lazyNode`(App) · `nodeDataSchema`(App) · `structuralSnapshot`(hooks) · **`toolRegistry`(agent)** · `upstreamLink`(App) · `useCanvasEventSubscriptions`(App) |
 
-⇒ 消费方**全在画布侧**（App · nodes · hooks · base · edges · agent）⇒ **`base/canvas/` 整体归画布域** ✅（含画布域内部件，单消费者是"被 App 装配"，正常）。
+⇒ 消费方**全在画布侧**（App · nodes · hooks · base · edges · agent）⇒ **原 `base/canvas/` 整体归画布域** ✅（含画布域内部件，单消费者是"被 App 装配"，正常）。
 ⇒ 唯一跨域点：`toolRegistry` 被 **agent** 消费 1 处 ⇒ 那是 **AI 操作画布的桥**（显式命名即可，不必拆）。
-⇒ 修正后的画布域构成：**`base/canvas/`(18 机制) + `nodes/`(18 挂载点) + `edges/`(3) + `App.tsx` 装配**，
+⇒ 修正后的画布域构成：**机制 17 + `nodes/`(18 挂载点) + `edges/`(3) + `App.tsx` 装配**，
 再加 `base/core/{canvasHotkeys,canvasSyncBus}` 归位进来；`agent/canvas/` 归 agent 域（D15）。
+⇒ **域根落点（2026-09-19 裁定 · S2-1 执行）= `src/components/canvas/`**：机制件住域根，`nodes/`、`edges/` 为子域目录。
+判据见 §2.6 与 §7 修订记录 —— 核心是 **N5「域目录须有门面」要求「域 = 一个目录」**，跨 3 目录的域建不了单一 `域/index.ts`。
 
 **⇒ 第六批净收益**：**把"横切层要重排"降级为"迁出 4 个域物"**（成本估计从"大"降到"小"）。
 
@@ -718,7 +720,7 @@ src/components/base/media/
 | `agent/canvas` → `base/canvas` | **单向**，反向 0 | `useCanvasAgentTools.ts:8-10`；`canvasHost.ts:28` |
 | **文件级循环** | **无**（`no-circular` 红线成立） | `NodePalette.ts:17` 自述；回指的 A 文件不 import 它 |
 | **架构例外边** | `base → nodes` 在 `check-arch.mjs:218-221` 的 `BASE_ALLOWLIST` 里 | 合并时**必须保留该边语义** |
-| **判定** | A/B/C 合并为画布域；`agent/canvas` 归 **agent**（单向 + 消费方全在 agent 侧） | — |
+| **判定** | A/B/C 合并为画布域（**域根 = `components/canvas/`**，见 §2.6 落点裁定）；`agent/canvas` 归 **agent**（单向 + 消费方全在 agent 侧） | — |
 
 ### 3.3 关键更正（推翻我上一版 4 处）
 
@@ -1160,6 +1162,7 @@ grep -rn "from '.*<拟迁出的文件名>" src/components/base --include='*.ts' 
 | **2026-09-19** | D8「`i18n.ts` 空壳」 | **确认已泄漏成用户可见 bug**：`t(key) => key` 直接把英文 key 返回，而 `sounds-store`/`use-editor-actions` 用它做 `toast.error/loading/success` ⇒ **英文提示直接上屏**（如 "Failed to save sound"）⇒ 19 处改中文直写 + 删空壳件 | §8 S1-7 |
 | **2026-09-19** | §3.4 #6「`kvStore` 唯一引用 = `storage/index.ts:16`」 | **不准**：实测 **5 个消费者含 2 处 `vi.mock`**；但逐条核清后**成本远小于表面**（`kvGet/kvSet/kvDelete` 零消费者 · `projectStore.test` 的 mock 是纯 no-op · `logger.test` 那行只是软证据）⇒ 已删壳并 repoint；**顺带断掉「因为测试 import 它所以保留它」的自证循环** | §8 S1-4 ③ |
 | **2026-09-19** | 工具「`rename` 只改文件名 + 同步 import」 | **两处缺口（新登记）**：① 对 `.css` **会丢扩展名**（`main.tsx` 的 import 被写成无扩展名，Vite 解析失败风险）② **不改写无扩展名 import**（如 `tailwind.config.ts` 的 `./src/.../ve-tailwind-colors`）⇒ 改名后**静默漏改、只在构建期暴露**。本批已手工收敛；**债号 TD-17-22 / TD-17-23**（area 17） | §8 S1-4 ② |
+| **2026-09-19** | 「`base/` 是**「横切层 + 域」的容器**」→ 域（含 `canvas`）住 `base/` 内是设计内的 | **目标形态改为：`base/` 只留横切层；域一律住 `components/<域>/`**（`canvas` 已迁出 ⇒ `components/canvas/`）。**判据**：① N5「域目录须有门面」要求「域 = 一个目录」，跨 3 目录的域建不了单一 `域/index.ts`（§2.7 门面模型）；② §3.1.3.7 的 3 个范本（`agent/`·`videoEditor/`）都是 `components/` 下顶层域目录，画布是一级视图应同级；③ 域全迁出后 `base/` 变纯横切层 ⇒ **规则 2 的前提（base = 地基）从近似假设变成事实**，横切/域之分由目录结构承载，不再靠登记表。**待办**：`creative`·`depthVideo`·`editors`·`media`·`prompt`·`store` 六个域同样迁出（§8 S2-8） | §2.6 · S2-1 |
 
 ---
 
@@ -1228,13 +1231,15 @@ grep -rn "from '.*<拟迁出的文件名>" src/components/base --include='*.ts' 
 
 | 批次 | 范围 |
 | --- | --- |
-| S2-1 | 画布域合并（四组 → 1 域，保留 `check-arch` 白名单边语义） |
+| **S2-1** | 画布域合并 —— ✅ **已完成**（S2-1a 节点/边迁入 + S2-1b 机制件迁入 + S2-1b-pre 解 2 条跨层边）。**域根 = `components/canvas/`**（落点裁定见 §2.6 / §7）。`check-arch` 白名单边**已整体删除**（规则 2 收窄后不再需要，见 §7） |
 | S2-2 | 图像编辑域成型（逻辑 + UI 同目录） |
 | S2-3 | AI 中继域成型（`api/relay/` + 门面，对齐后端 `ai-relay/`） |
 | S2-4 | `base/store` 按 8 域拆出非真源 |
 | S2-5 | videoEditor：`engine/lib` 拆关注点、工具层三合一、UI 两套收口 |
 | S2-6 | `src/hooks` **逐条二分**：编排机制留横切 / 真域私有迁回（**D12 已改判 · 见 §9 A1**） |
 | S2-7 | 后端：`routes/utils` 域物归位 + `ai-relay` 门面收口 |
+| **S2-8** | **其余 6 个域迁出 `base/`** ⇒ `components/<域>/`（`creative` · `depthVideo` · `editors` · `media` · `prompt` · `store`）。**它是「base/ 只留横切层」这个目标形态的收尾**（§2.6 / §7 裁定）；S2-2 与 S2-4 落地时**顺带做**，不另开批 |
+| **S2-1c** | 画布域门面 `canvas/index.ts` + 域外消费点收口（建面判据见 §2.7：域外直连的是**实现件** ⇒ 必建） |
 
 ### Stage 3 · 契约与验收
 
@@ -1244,6 +1249,8 @@ grep -rn "from '.*<拟迁出的文件名>" src/components/base --include='*.ts' 
 
 | 项 | 状态 | 证据 |
 | --- | --- | --- |
+| **规则 2 作用域修正**（从「整个 base/」收窄到「base/ 的横切子目录」） | **已完成** | `BASE_ALLOWLIST` 整体删除；负例探针双向验证（横切子目录跨出 base → 红 · 域→域 → 绿） |
+| **S2-1 画布域合并** | **已完成** | 域根 = **`components/canvas/`**（机制 17 + `nodes/`18 + `edges/`3）。**前置**：解 2 条「横切→画布域」真缺陷（`withNodeSize`→`base/core/nodeSizePatch.ts` · `nodeMedia`→`base/utils/nodeMedia.ts`）。工具缺陷登记 **TD-17-27** |
 | 第一步（分清有哪些鱼） | **已完成** | §2–§4，含 7 处更正；5 个子 Agent 取证 |
 | 安全移名/移位 SOP | **已完成** | §5 |
 | **P1 修闸盲区（硬前置）** | **已完成** | `daily/架构日志/17-跨区-闸判据对准TDZ红线与结构环登记-2026-09-19.md`；工具债 **TD-17-21 已解决** · 结构环债 **TD-22-68 待还** |

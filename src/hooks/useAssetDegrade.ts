@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { useLod } from '../components/canvas/lod.tsx';
+import { useLod } from '../components/canvas';
 
 /**
 

@@ -1,7 +1,7 @@
 import { useCallback } from 'react';
 import dagre from 'dagre';
 import type { Edge, Node } from '@xyflow/react';
-import { INPUT_PANEL_NODE_TYPES } from '../components/canvas/nodeDefaults';
+import { INPUT_PANEL_NODE_TYPES } from '../components/canvas';
 import { withNodeSize } from '../components/base/core/nodeSizePatch';
 import { packComponents } from '../components/base/utils/arrangePack';
 

@@ -5,9 +5,10 @@ import {
   getTools,
   type ToolResult,
   type ToolDef,
-} from '@/components/canvas/toolRegistry';
-import { defaultNodeData } from '@/components/canvas/nodeDataSchema';
-import { applyNodeTypeDefaults } from '@/components/canvas/nodeDefaults';
+  defaultNodeData,
+  applyNodeTypeDefaults,
+} from '@/components/canvas';
+
 import { runNodeGeneration } from '../../base/store/taskStore.ts';
 import '@/components/canvas/groupNodes';
 import { createAgentCanvasHost, type AgentCanvasHostCtx } from './agentCanvasHost.ts';
