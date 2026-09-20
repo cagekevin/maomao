@@ -101,7 +101,12 @@ export function useScriptBoxEngine(
       // 供并发场景下安全合并，避免 getData() 读到旧引用导致状态互相覆盖）。
       updateData,
       nodeId,
-      setEdges: setEdges as unknown as (updater: (edges: unknown[]) => unknown[]) => void,
+      // 【TD-07-9 C 组 · 2026-09-20】原为 `setEdges as unknown as (updater) => void`
+      //   —— **双重断言**会把整个函数变得不受检查（引擎传错参数也不报错）。
+      //   引擎有意与 React Flow 解耦（用 `unknown[]` 保可单测性，与它对节点用 `NodeLike` 同手法）
+      //   ⇒ 边界处**一次**断言不可避免；但改为下面这种后，**不检查面从「整个函数」缩到「返回值」**：
+      //   入参 `es` 仍是 React Flow 真类型（引擎拿到什么由它决定），只有 `unknown[] → 边[]` 这一处断言。
+      setEdges: (updater) => setEdges((es) => updater(es) as typeof es),
       getNodes,
       // 供应商解析（接真系统）：返回 { providers, primary }，供引擎选模型/转发
       // 注意：读 providersRef.current 而非闭包捕获的 providers，避免闭包过期读到空数组。

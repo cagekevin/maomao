@@ -150,7 +150,7 @@ function EditorRuntimeBindings() {
     const handleBeforeUnload = (event: BeforeUnloadEvent) => {
       if (!editor.save.getIsDirty()) return;
       event.preventDefault();
-      (event as unknown as { returnValue: string }).returnValue = '';
+      event.returnValue = '';
     };
 
     window.addEventListener('beforeunload', handleBeforeUnload);

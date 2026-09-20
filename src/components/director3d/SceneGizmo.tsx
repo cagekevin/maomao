@@ -1,4 +1,5 @@
 // 3D 轴视图导航：使用 drei Hud 渲染 + 基础图元绘制三轴，瞬移跳转（无 slerp 动画）
+import { useThreeTyped } from './threeState';
 import { useRef, useEffect, useMemo, useState, useCallback } from 'react';
 import { useThree, useFrame } from '@react-three/fiber';
 import { Hud, OrthographicCamera } from '@react-three/drei';
@@ -94,7 +95,7 @@ interface SceneGizmoProps {
 
 export default function SceneGizmo({ onReady }: SceneGizmoProps) {
   const mainCamera = useThree((s) => s.camera);
-  const controls = useThree((s) => s.controls) as unknown as { update: () => void } | null;
+  const { controls } = useThreeTyped();
   const invalidate = useThree((s) => s.invalidate);
   const size = useThree((s) => s.size);
   const groupRef = useRef<THREE.Group | null>(null);

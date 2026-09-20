@@ -7,6 +7,7 @@ import {
   useMemo,
   useRef,
 } from 'react';
+import { useThreeTyped } from './threeState';
 import { useFrame, useThree } from '@react-three/fiber';
 import type { ThreeEvent } from '@react-three/fiber';
 import { useGLTF } from '@react-three/drei';
@@ -267,12 +268,9 @@ function MixamoPersonModel({
   onSurfacePointerUp,
 }: MixamoPersonModelProps) {
   const gltf = useGLTF(BUILT_IN_MODEL_URL);
-  const orbitControls = useThree((state) => state.controls) as unknown as {
-    enabled: boolean;
-  } | null;
+  const { controls: orbitControls } = useThreeTyped();
   const invalidate = useThree((state) => state.invalidate);
-  const camera = useThree((state) => state.camera) as unknown as
-    (THREE.PerspectiveCamera & { fov?: number }) | null;
+  const { camera } = useThreeTyped();
   const viewportSize = useThree((state) => state.size);
   const modelRoot = useRef<THREE.Group | null>(null);
   const rig = poseForObject({ pose, rigRoot, joints });

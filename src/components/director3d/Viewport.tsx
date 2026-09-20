@@ -8,6 +8,7 @@ import {
   useRef,
   useState,
 } from 'react';
+import { useThreeTyped } from './threeState';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import type { ThreeEvent } from '@react-three/fiber';
 import { ContactShadows, Grid, OrbitControls, TransformControls } from '@react-three/drei';
@@ -91,9 +92,7 @@ function SceneObject({
   } | null>(null);
   const scaleTransformStart = useRef<number[] | null>(null);
   const appliedGroundRequest = useRef<string | null>(null);
-  const orbitControls = useThree((state) => state.controls) as unknown as {
-    enabled: boolean;
-  } | null;
+  const { controls: orbitControls } = useThreeTyped();
   const invalidate = useThree((state) => state.invalidate);
   const scaleAxisLocks = Array.isArray(data.scaleAxisLocks)
     ? data.scaleAxisLocks
@@ -651,23 +650,15 @@ function Ground({
   );
 }
 
-/** OrbitControls 在 R3F 里的运行期最小形状（target + update + change 事件） */
-interface OrbitLike {
-  target: THREE.Vector3;
-  update: () => void;
-  addEventListener: (type: string, fn: () => void) => void;
-  removeEventListener: (type: string, fn: () => void) => void;
-}
-
+// 【TD-07-9 A 组收口】原 `interface OrbitLike`（OrbitControls 的运行期形状）已**删除**：
+// 其字段被 `threeState.ts` 的 `ThreeControls` 完整覆盖（并补了 `enabled`）⇒ 留着就是第二份真相。
+// 需要该形状处请改用 `useThreeTyped()` / `ThreeControls`。
 function ViewFocusController({
   request,
 }: {
   request: { position: number[]; height?: number; distance?: number } | null;
 }): null {
-  const { camera, controls } = useThree() as unknown as {
-    camera: THREE.Camera;
-    controls: OrbitLike | null;
-  };
+  const { camera, controls } = useThreeTyped();
   useEffect(() => {
     if (!request || !controls) return;
     const target = new THREE.Vector3(request.position[0], request.position[1], request.position[2]);
@@ -689,10 +680,7 @@ function EditorCameraReporter({
   enabled: boolean;
   onChange: (snapshot: { position: number[]; rotation: number[]; target: number[] }) => void;
 }): null {
-  const { camera, controls } = useThree() as unknown as {
-    camera: THREE.Camera;
-    controls: OrbitLike | null;
-  };
+  const { camera, controls } = useThreeTyped();
   useEffect(() => {
     if (!enabled || !controls || !onChange) return undefined;
     let frame = 0;
@@ -750,7 +738,7 @@ function ScreenConstantDot({
   onContextMenu?: (e: React.PointerEvent) => void;
 }) {
   const ref = useRef<THREE.Mesh>(null);
-  const { camera } = useThree() as unknown as { camera: THREE.Camera };
+  const { camera } = useThreeTyped();
   const worldPos = useMemo(() => new THREE.Vector3(), []);
   const hotRef = useRef(hot);
   hotRef.current = hot;
@@ -806,12 +794,8 @@ function PathEditor({
 }: PathEditorProps) {
   // 控制点抽稀间距：拖动超过该距离才新增一个点。档位越大点越少（曲线由平滑样条补齐，无需密点）
   const spacing = { dense: 0.6, mid: 1.4, sparse: 2.8 }[density] || 1.4;
-  const { camera, gl, invalidate } = useThree() as unknown as {
-    camera: THREE.Camera;
-    gl: THREE.WebGLRenderer;
-    invalidate: () => void;
-  };
-  const controls = useThree((state) => state.controls) as unknown as { enabled: boolean } | null;
+  const { camera, gl, invalidate } = useThreeTyped();
+  const { controls } = useThreeTyped();
   const [points, setPoints] = useState<{ x: number; y: number; z: number }[]>([]);
   const activeMode = useRef<number | 'draw' | null>(null); // null | 'draw' | grab 的索引
   const trailRef = useRef<{ x: number; y: number; z: number }[]>([]); // 绘制态进行中的笔画轨迹
@@ -1267,10 +1251,7 @@ function PreviewCameraController({
   cameraData: ProjectCamera;
   cameraAspect: number;
 }): null {
-  const { camera, size } = useThree() as unknown as {
-    camera: THREE.PerspectiveCamera;
-    size: { width: number; height: number };
-  };
+  const { camera, size } = useThreeTyped();
   useFrame(() => {
     camera.position.fromArray(cameraData.position);
     // 'YXZ'（先 yaw 后 pitch）：与 cameraRotationToward 的生成约定一致，目标在侧方/后方也精确对准

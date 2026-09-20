@@ -153,7 +153,9 @@ describe('creativePresets —— 字典校验与产物', () => {
   it('isValidPresetEntry：非 cp_ / 缺 prompt / 空 prompt 拒绝', () => {
     expect(isValidPresetEntry('cp_style-1', { kind: 'style', prompt: 'x' })).toBe(true);
     expect(isValidPresetEntry('style-1', { kind: 'style', prompt: 'x' })).toBe(false);
-    expect(isValidPresetEntry('cp_style-1', null as any)).toBe(false);
+    expect(
+      isValidPresetEntry('cp_style-1', null as unknown as Parameters<typeof isValidPresetEntry>[1]),
+    ).toBe(false);
     expect(isValidPresetEntry('cp_style-1', { kind: 'style', prompt: '' })).toBe(false);
   });
   it('toDictEntry 产出 {kind,name,prompt}', () => {

@@ -47,11 +47,17 @@ vi.mock('../../src/components/base/core/event/toastStore.ts', async (importOrigi
   toastWarning: mocks.toastWarning,
 }));
 // 补全 subscribe/subscribeOnce（taskStore 等模块顶层会 subscribe，缺则崩）；返回 no-op unsubscribe
+/** eventBus 可选 mock 形状（全可选 ⇒ 可直接从 `mocks` 断言过来，无需 `as any`） */
+type OptionalEventBusMocks = {
+  subscribe?: () => () => void;
+  subscribeOnce?: () => () => void;
+  clearEvent?: () => void;
+};
 vi.mock('../../src/components/base/core/event/eventBus.ts', () => ({
   publish: mocks.publish,
-  subscribe: (mocks as any).subscribe ?? (() => () => {}),
-  subscribeOnce: (mocks as any).subscribeOnce ?? (() => () => {}),
-  clearEvent: (mocks as any).clearEvent ?? (() => {}),
+  subscribe: (mocks as OptionalEventBusMocks).subscribe ?? (() => () => {}),
+  subscribeOnce: (mocks as OptionalEventBusMocks).subscribeOnce ?? (() => () => {}),
+  clearEvent: (mocks as OptionalEventBusMocks).clearEvent ?? (() => {}),
 }));
 // 【2026-09-17】`fileNameFromUrl`（core/utils.ts）现在依赖 `tryParse`；本 mock 原先只给
 // `withTimeout/isTimeoutError`，缺 `tryParse` 会在**组件渲染路径**上抛

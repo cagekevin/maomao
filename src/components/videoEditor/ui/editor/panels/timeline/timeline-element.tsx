@@ -642,7 +642,7 @@ function VideoEditSubmenu({ element, trackId }: { element: VideoElement; trackId
   const isMirrored = element.transform.flipX === true;
   const isReversed = element.reversed === true;
 
-  const toggleMirror = (event: React.MouseEvent) => {
+  const toggleMirror = (event: React.SyntheticEvent) => {
     event.stopPropagation();
     editor.timeline.updateElements({
       updates: [
@@ -660,7 +660,7 @@ function VideoEditSubmenu({ element, trackId }: { element: VideoElement; trackId
     });
   };
 
-  const toggleReverse = (event: React.MouseEvent) => {
+  const toggleReverse = (event: React.SyntheticEvent) => {
     event.stopPropagation();
     editor.timeline.updateElements({
       updates: [
@@ -686,7 +686,7 @@ function VideoEditSubmenu({ element, trackId }: { element: VideoElement; trackId
           onClick={toggleMirror}
           onKeyDown={(event) => {
             if (event.key === 'Enter' || event.key === ' ') {
-              toggleMirror(event as unknown as React.MouseEvent);
+              toggleMirror(event);
             }
           }}
         >
@@ -699,7 +699,7 @@ function VideoEditSubmenu({ element, trackId }: { element: VideoElement; trackId
           onClick={toggleReverse}
           onKeyDown={(event) => {
             if (event.key === 'Enter' || event.key === ' ') {
-              toggleReverse(event as unknown as React.MouseEvent);
+              toggleReverse(event);
             }
           }}
         >
