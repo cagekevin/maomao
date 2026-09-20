@@ -578,6 +578,63 @@ function cmdReanchor(argv) {
 }
 
 /**
+ * edit —— 就地回改某条债的**现象 / 解法**文本（TD-17-33）。
+ *
+ * 【为什么需要它】**描述过期是常态**（实证 2026-09-20 一轮撞到 3 次：TD-23-5 记「252 文件」实测 16 项 ·
+ *   TD-07-9 记的处数 · TD-25-32 的「4 处」）。此前**没有**就地改的路，只能二选一，且两条都不可接受：
+ *   ① 手改表格行 = 破「唯一写入者」红线；② `resolve --note` = 把债**误标成已解决**（A8 状态不许预支）。
+ *   ⇒ 补本命令，让「改描述」有**正当路径**。
+ *
+ * 【语义】`edit <TD-ID> --field summary|solution --value "…"`
+ *   · `summary`  = 现象列（整格替换）
+ *   · `solution` = 解法文本（寄居在状态格：`· ` 之后的文本；**状态词与日期原样保留**）
+ * 【明确不改】ID / 区 / 归类 / 利率 / 状态词 / 锚点 —— 各有其命令：`move` / `resolve` / `reanchor`。
+ */
+function cmdEdit(argv) {
+  const id = argv.find((a) => /^TD-\d+-\d+|^MD-\d+-\d+/.test(a));
+  const field = argVal(argv, '--field');
+  const value = argVal(argv, '--value');
+  if (!id || !field || !value) fail('用法：edit <TD-ID> --field summary|solution --value "…"');
+  if (!['summary', 'solution'].includes(field)) {
+    fail('--field 只支持 `summary`（现象）或 `solution`（解法）；ID/区/状态/锚点请用 move / resolve / reanchor');
+  }
+  // 与 add / resolve 同口径：裸管道符会撑破表格列（本仓已有数行因此错位）
+  if (/[|｜]/.test(value)) fail('value 含竖线 → 用「／」代替（裸管道符会撑破表格列）');
+  if (field === 'summary' && value.length > 120) {
+    fail(`现象 ${value.length} 字 > 120（一行一债，长叙述写区域文件）`);
+  }
+
+  const files = [{ file: LEDGER, src: '主表', lines: loadLedger().lines }];
+  if (existsSync(ARCHIVE)) files.push({ file: ARCHIVE, src: '归档', lines: readFileSync(ARCHIVE, 'utf8').split(/\r?\n/) });
+  for (const f of files) {
+    const hits = f.lines.map((l, i) => [readRow(l), i]).filter(([r]) => r && !r.broken && r.fields && r.fields.id === id);
+    if (!hits.length) continue;
+    const hit = hits.find(([r]) => r.mode !== 'manual');
+    if (!hit) fail(`${id} 在${f.src}是「列错位需人工」行 → 先修列，再改文本`);
+    const [r, li] = hit;
+    const C = MAP[r.kind];
+    const parts = f.lines[li].split('|');
+    const old = field === 'summary' ? r.fields.summary : String(r.fields.status || '');
+    if (field === 'summary') {
+      parts[1 + C.summary] = ` ${value} `;
+    } else {
+      // 解法寄居在状态格：保留状态词与日期，只换 `· ` 之后的文本
+      const cell = String(parts[1 + C.status] || '');
+      const m = cell.match(/^\s*\[\s*([^\]·]*)/);
+      const head = m ? m[1].trim() : '';
+      parts[1 + C.status] = ` [${head} · ${value}] `;
+    }
+    f.lines[li] = parts.join('|');
+    writeFileSync(f.file, f.lines.join('\n'));
+    console.log(`✅ ${id} 的${field === 'summary' ? '现象' : '解法'}已改（${f.src}）`);
+    console.log(`   旧：${old}`);
+    console.log(`   新：${value}`);
+    return;
+  }
+  fail(`主表与归档中均无 ${id}`);
+}
+
+/**
  * move —— 把某条债**整体迁往另一区**（改 ID 区段 + 区名列，其余字段逐字保留）。
  *
  * 【为什么需要它】债 ID 永久绑区域（§七.3），但「登记时选错区」是真实会发生的
@@ -911,6 +968,7 @@ switch (cmd) {
   case 'add': cmdAdd(rest); break;
   case 'resolve': cmdResolve(rest); break;
   case 'reanchor': cmdReanchor(rest); break;
+  case 'edit': cmdEdit(rest); break;
   case 'move': cmdMove(rest); break;
   case 'archive': cmdArchive(rest); break;
   case 'audit': cmdAudit(rest); break;
@@ -919,7 +977,7 @@ switch (cmd) {
   default:
     console.log('债务账本读写唯一入口（详见文件头注释）');
     console.log('  读：list [--area NN] [--status X] [--all] | area <NN> | search <关键词> | show <TD-ID>');
-    console.log('  写：add --area NN --summary "…" | resolve <TD-ID> --note "…" | reanchor <TD-ID> --anchor <区域文件> | move <TD-ID> --to <NN>');
+    console.log('  写：add --area NN --summary "…" | resolve <TD-ID> --note "…" | edit <TD-ID> --field summary｜solution --value "…" | reanchor <TD-ID> --anchor <区域文件> | move <TD-ID> --to <NN>');
     console.log('  维护：archive [--dry] | audit [--liveness] | fix [--dry]（规范化历史列错位行）');
     console.log('  统计：stats（形态/解法分布 —— 供"找债捷径"与"手法排行"，见两份 SOP）');
     process.exit(cmd ? 1 : 0);
