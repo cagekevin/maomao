@@ -492,8 +492,6 @@ function ImageBoxNode({ id, data, selected }: ImageBoxNodeProps) {
     clipboardDownload(url, name || `image-${Date.now()}.png`);
   }, []);
 
-  // 标题图标（对齐官方 _Component30）
-  const titleIcon = <Box size={11} className="text-muted" />;
   // 端口：target「in」/ source「active」（对齐官方 _Component12 id）
   const smallHandle = 'small';
 
@@ -503,7 +501,7 @@ function ImageBoxNode({ id, data, selected }: ImageBoxNodeProps) {
         id={id}
         label={data.label}
         defaultTitle="图片盒子"
-        icon={titleIcon}
+        icon={Box}
         selected={selected}
         onRename={rename}
         handleVariant={smallHandle}

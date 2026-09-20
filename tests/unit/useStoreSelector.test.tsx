@@ -13,7 +13,7 @@
  */
 import { act } from 'react';
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, renderHook, screen } from '@testing-library/react';
 import { useStoreSelector, shallowEqual } from '../../src/hooks/useStoreSelector.ts';
 
 /** 最小可操控外部 store（对齐各 store 的 subscribe/getSnapshot 契约） */
@@ -122,5 +122,43 @@ describe('shallowEqual — 纯函数语义', () => {
     const inner = { x: 1 };
     expect(shallowEqual({ a: inner }, { a: inner })).toBe(true); // 内层同引用
     expect(shallowEqual({ a: inner }, { a: { x: 1 } })).toBe(false); // 内层不同引用
+  });
+});
+
+describe('useStoreSelector — selector 闭包捕获值变化时取最新（TD-04-44）', () => {
+  it('selector 依赖的外部变量变化后返回最新结果（不得冻结在首帧）', () => {
+    // 契约：selector 是"每次渲染取最新"的取值器，不是首帧快照。
+    // 反证：把实现里的 selectorRef.current 改回直接闭包捕获 selector（旧实现）
+    // ⇒ 本断言红（会一直返回首帧那个 key 的值）。
+    const store = createStore({ items: { a: 1, b: 2 } });
+    const { result, rerender } = renderHook(
+      ({ id }: { id: string }) =>
+        useStoreSelector(
+          store.subscribe,
+          store.getState,
+          (s) => (s.items as Record<string, number>)[id],
+        ),
+      { initialProps: { id: 'a' } },
+    );
+    expect(result.current).toBe(1);
+    rerender({ id: 'b' });
+    expect(result.current).toBe(2);
+  });
+
+  it('内联箭头 selector（身份每次渲染都变）不会击穿缓存 ⇒ 不无限重渲', () => {
+    // 反面约束：修 TD-04-44 **不得**把缓存改成"selector 一变就重建"
+    //（那会让返回新对象的 selector 每次重算 → 浅比较失效 → 无限重渲）。
+    const store = createStore({ n: 1 });
+    let renders = 0;
+    function Probe() {
+      renders += 1;
+      // 内联箭头：每次渲染身份都不同；返回新对象 ⇒ 必须靠缓存 + 浅比较挡住重渲
+      useStoreSelector(store.subscribe, store.getState, (s) => ({ v: s.n }));
+      return null;
+    }
+    render(<Probe />);
+    expect(renders).toBe(1);
+    act(() => store.setState({ n: 1 })); // 通知一次，但选中值浅比较相等
+    expect(renders).toBe(1);
   });
 });

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import type { LucideIcon } from 'lucide-react';
 
 /**
  * 节点标题栏（复刻原 _Component8.jsx）
@@ -14,8 +15,11 @@ interface NodeTitleProps {
   label?: string;
   /** label 为空时的兜底标题 */
   defaultTitle?: string;
-  /** 标题前的小图标节点 */
-  icon?: React.ReactNode;
+  /** 标题前的小图标**组件**（不是 element）。
+      收组件引用而非 JSX 有两个硬理由：
+      ① 组件引用是模块级常量 ⇒ 引用天然稳定 ⇒ 不会击穿 memo(NodeTitle)；
+      ② 图标尺寸/颜色属**本组件**的呈现决定，不该由 16 个调用方各写一遍（本仓 PanelBar/LeftPanel 同形）。 */
+  icon?: LucideIcon;
   className?: string;
   /** 浮层模式：绝对定位到节点上方（默认内联在标题栏） */
   floating?: boolean;
@@ -26,7 +30,7 @@ interface NodeTitleProps {
 function NodeTitle({
   label,
   defaultTitle,
-  icon,
+  icon: Icon,
   className = '',
   floating = false,
   onRename,
@@ -48,7 +52,8 @@ function NodeTitle({
     <div
       className={`${floating ? 'absolute -top-6 left-0 z-30' : 'mb-1 self-start'} flex items-center gap-1.5 text-caption-sm text-secondary drag-handle cursor-move ${className || ''}`}
     >
-      {icon}
+      {/* 图标样式（11px / muted）在此**唯一**定义 —— 调用方只声明"我是哪个图标"，不重复写样式。 */}
+      {Icon && <Icon size={11} className="text-muted" />}
       {editing ? (
         <input
           value={val}

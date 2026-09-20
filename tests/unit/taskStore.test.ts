@@ -32,6 +32,8 @@ const {
   getTasks,
   completeTask,
   failTask,
+  computeTaskCounts,
+  isTaskActive,
 } = await import('../../src/components/base/store/taskStore.ts');
 
 beforeEach(() => {
@@ -263,6 +265,41 @@ describe('taskStore §P4 进度落库节流', () => {
     completeTask('no-such-task', '/files/x.png');
     failTask('no-such-task', 'boom');
     expect(getTasks()).toHaveLength(before);
+  });
+});
+
+describe('computeTaskCounts — 任务计数口径（TD-04-47 收口）', () => {
+  const mk = (status: Task['status']): Task => ({ id: 'id', nodeId: 'n1', type: 't', status });
+
+  it('running 含 running+pending；failed 含 failed+unknown；两档互斥', () => {
+    // 口径唯一真源：LeftPanel 角标与 TaskCenter 计数共用本函数（此前两处各写一份同义口径）。
+    // 反证：把 unknown 改判进 running ⇒ 本断言红（角标将永不清 —— TD-08-24 记的原始事故）。
+    expect(
+      computeTaskCounts([
+        mk('running'),
+        mk('pending'),
+        mk('failed'),
+        mk('unknown'),
+        mk('completed'),
+      ]),
+    ).toEqual({ running: 2, failed: 2 });
+  });
+
+  it('终态（completed 等）不计入任何一档', () => {
+    expect(computeTaskCounts([mk('completed')])).toEqual({ running: 0, failed: 0 });
+  });
+
+  it('空列表 → 双零', () => {
+    expect(computeTaskCounts([])).toEqual({ running: 0, failed: 0 });
+  });
+
+  it('isTaskActive：「进行中」判据与计数口径同源（running/pending 为真，其余为假）', () => {
+    expect(isTaskActive(mk('running'))).toBe(true);
+    expect(isTaskActive(mk('pending'))).toBe(true);
+    // unknown 已终态、不再推进 ⇒ 不算进行中（否则角标永不清，见 computeTaskCounts 口径注释）
+    expect(isTaskActive(mk('unknown'))).toBe(false);
+    expect(isTaskActive(mk('failed'))).toBe(false);
+    expect(isTaskActive(mk('completed'))).toBe(false);
   });
 });
 

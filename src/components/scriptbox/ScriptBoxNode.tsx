@@ -195,7 +195,7 @@ function ScriptBoxNode({ id, data, selected }: ScriptBoxNodeProps) {
       id={id}
       label={d.label}
       defaultTitle="剧本盒子"
-      icon={<Clapperboard size={11} className="text-muted" />}
+      icon={Clapperboard}
       selected={selected}
       handleVariant="small"
       showHandles={false}

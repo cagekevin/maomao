@@ -7,6 +7,7 @@
  * 本模块提供统一的 read/write + React hook，App 层用它初始化各 state 并在变化时写回。
  */
 import { useSyncExternalStore } from 'react';
+import { useStoreSelector } from '../../../hooks/useStoreSelector.ts';
 import { contentGet, contentSet } from '../core/contentStore.ts';
 import { confirmPersist } from '../core/log/degrade.ts';
 import { onStorageReady } from '../storage/index.ts';
@@ -108,7 +109,31 @@ onStorageReady(() => {
   notify();
 });
 
-/** React hook：订阅 app_settings */
+/** React hook：订阅 app_settings **全量**。
+ *  ⚠️ 只给「真的要用到大多数字段」的消费方（如设置面板 `OtherSettings`）。
+ *  只取一两个字段时用 `useAppSettingsSelector`（见下），否则改任一设置都会连坐本组件重渲。 */
 export function useAppSettings(): SettingState {
   return useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
+}
+
+/**
+ * 【TD-04-38】原子订阅：只订阅 selector 选中的字段。
+ *
+ * 为什么由 **store 层**提供：`subscribe` / `getSnapshot` 是本模块内部实现，
+ * 消费方无从自行组合 selector ⇒ 订阅粒度必须由拥有真相的这一层给出（形态对齐
+ * `projectStore.useCurrentProjectId` 的原子订阅口）。
+ *
+ * 典型用法：
+ *   · 单字段：`useAppSettingsSelector((s) => s.thumbnailOn !== false)`
+ *   · 多字段组合（默认浅比较，任一字段真变才重渲）：
+ *     `useAppSettingsSelector((s) => ({ a: s.a, b: s.b }))`
+ *
+ * @param selector 从设置状态中取所需字段
+ * @param isEqual  自定义相等判断（默认浅比较；返回原始值时 `Object.is` 已足够）
+ */
+export function useAppSettingsSelector<T>(
+  selector: (state: SettingState) => T,
+  isEqual?: (a: T, b: T) => boolean,
+): T {
+  return useStoreSelector(subscribe, getSnapshot, selector, isEqual);
 }

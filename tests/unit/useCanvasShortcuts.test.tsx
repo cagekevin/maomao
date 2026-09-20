@@ -146,3 +146,34 @@ describe('useCanvasShortcuts 守卫（防回退）', () => {
     expect(onUndo).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('useCanvasShortcuts — 订阅生命周期不随回调身份变化（TD-04-43）', () => {
+  it('回调身份每次渲染都变时，不触发「解绑 + 重绑」window keydown', () => {
+    // 契约：快捷键订阅的生命周期**不该由"回调身份"决定** —— 回调一律走 ref 读最新。
+    // 反证：把 effect deps 改回那 9 个回调（旧实现）⇒ 每次 rerender 都会 remove+add ⇒ 本断言红。
+    const add = vi.spyOn(window, 'addEventListener');
+    const remove = vi.spyOn(window, 'removeEventListener');
+    const keydownAdds = () => add.mock.calls.filter((c) => c[0] === 'keydown').length;
+    const keydownRemoves = () => remove.mock.calls.filter((c) => c[0] === 'keydown').length;
+
+    const { rerender } = render(<Harness handlers={{ onAdd: () => {} }} />);
+    const addsAfterMount = keydownAdds();
+    const removesAfterMount = keydownRemoves();
+
+    rerender(<Harness handlers={{ onAdd: () => {} }} />); // 新函数身份
+    rerender(<Harness handlers={{ onAdd: () => {} }} />);
+
+    expect(keydownAdds()).toBe(addsAfterMount);
+    expect(keydownRemoves()).toBe(removesAfterMount);
+  });
+
+  it('回调身份变化后，按键仍调用**最新**的那一个（语义等价，不能读旧闭包）', () => {
+    const first = vi.fn();
+    const second = vi.fn();
+    const { rerender } = render(<Harness handlers={{ onUndo: first }} />);
+    rerender(<Harness handlers={{ onUndo: second }} />);
+    fireKeyDown({ key: 'z', ctrlKey: true });
+    expect(second).toHaveBeenCalledTimes(1);
+    expect(first).not.toHaveBeenCalled();
+  });
+});

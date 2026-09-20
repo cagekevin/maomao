@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { Crop, Pencil, Maximize2, Minimize2, Copy } from 'lucide-react';
 import { ImageEditor, InlineImageCropper } from './editors';
 
@@ -143,43 +143,55 @@ export function useImageHoverActions({
 
   // 共享图片 hover 按钮：裁剪（就地）/ 放大 / 压缩（图片编辑核心能力）。
   // 仅 hasImage 时显示（无图不显示死按钮）。发送/下载由各节点按自身语义保留。
-  const imageButtons = [
-    {
-      key: 'crop',
-      icon: <Crop size={14} />,
-      title: '裁剪',
-      onClick: () => url && setCropping(true),
-      show: hasImage,
-    },
-    {
-      key: 'edit',
-      icon: <Pencil size={14} />,
-      title: '标记',
-      onClick: () => url && setEditor({ tool: 'pencil' }),
-      show: hasImage,
-    },
-    {
-      key: 'upscale',
-      icon: <Maximize2 size={14} />,
-      title: '超分放大（AI 2x）',
-      onClick: handleUpscale,
-      show: hasImage && !!url,
-    },
-    {
-      key: 'compress',
-      icon: <Minimize2 size={14} />,
-      title: '压缩图片（80%）',
-      onClick: handleCompress,
-      show: hasImage && !!url,
-    },
-    {
-      key: 'copy',
-      icon: <Copy size={14} />,
-      title: '复制节点（Ctrl+V 粘贴到画布）',
-      onClick: () => copyNode(id),
-      show: true,
-    },
-  ];
+  // 【TD-04-41】回调必须引用稳定 —— 本数组被 AssetNode / ImageGenerate 交给 memo(HoverToolbar)，
+  // 数组或其内部回调每帧新建 ⇒ 浅比较必失败、memo 恒失效（**修节点侧也无效，根在这里**）。
+  const handleCropOpen = useCallback(() => {
+    if (url) setCropping(true);
+  }, [url]);
+  const handleEditOpen = useCallback(() => {
+    if (url) setEditor({ tool: 'pencil' });
+  }, [url]);
+  const handleCopyNode = useCallback(() => copyNode(id), [copyNode, id]);
+  const imageButtons = useMemo(
+    () => [
+      {
+        key: 'crop',
+        icon: <Crop size={14} />,
+        title: '裁剪',
+        onClick: handleCropOpen,
+        show: hasImage,
+      },
+      {
+        key: 'edit',
+        icon: <Pencil size={14} />,
+        title: '标记',
+        onClick: handleEditOpen,
+        show: hasImage,
+      },
+      {
+        key: 'upscale',
+        icon: <Maximize2 size={14} />,
+        title: '超分放大（AI 2x）',
+        onClick: handleUpscale,
+        show: hasImage && !!url,
+      },
+      {
+        key: 'compress',
+        icon: <Minimize2 size={14} />,
+        title: '压缩图片（80%）',
+        onClick: handleCompress,
+        show: hasImage && !!url,
+      },
+      {
+        key: 'copy',
+        icon: <Copy size={14} />,
+        title: '复制节点（Ctrl+V 粘贴到画布）',
+        onClick: handleCopyNode,
+        show: true,
+      },
+    ],
+    [hasImage, url, handleCropOpen, handleEditOpen, handleUpscale, handleCompress, handleCopyNode],
+  );
 
   // 渲染编辑器（调用方在节点末尾 render，全屏重编辑入口，保留未删）
   const renderEditor = () =>

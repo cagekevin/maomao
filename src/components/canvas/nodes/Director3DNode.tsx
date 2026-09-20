@@ -39,13 +39,16 @@ function Director3DNode({ id, data, selected }: Director3DNodeProps) {
   // 缩略图显示：兼容相对 /files/ 路径（刷新后需补全为绝对 URL 才不破图）
   const assetUrl = toAbsoluteFileUrl(data.assetUrl || '') || null;
 
-  // 输入全景图 URL：连接上游图片 或 已保存
-  useMemo(() => {
+  // 输入全景图 URL：连接上游图片 或 已保存。
+  // 【TD-04-48 接上】此前本 useMemo **返回值无人接收**（写了等于没写）⇒ 上游输入从未生效。
+  const panoramaUrl = useMemo(() => {
     // 上游图片（图片节点 / 图片盒子 / 视频抽帧等）作为全景背景。
     // 兼容三种形式：http(s) URL / data: base64 / 相对 /files/ 路径（补全为绝对 URL）。
     const src = connected.images?.find((im) => im?.url)?.url;
     return toAbsoluteFileUrl(src || '') || null;
   }, [connected]);
+  // 显示优先级：**上游输入优先**，无上游时回退到已保存的缩略图（data.assetUrl）—— 后者是原有行为，未变。
+  const displayUrl = panoramaUrl || assetUrl;
 
   // 截图输出到图片盒子（对齐全景图节点 / 官方 onCaptureToBox）。
   // 截图是 data: base64，直接塞进图片盒子 → 后端 KV 会外置成相对 /files/ 路径 → 刷新破图。
@@ -303,7 +306,7 @@ function Director3DNode({ id, data, selected }: Director3DNodeProps) {
       id={id}
       label={data.label}
       defaultTitle="3D 导演台"
-      icon={<Orbit size={11} className="text-muted" />}
+      icon={Orbit}
       selected={selected}
       handleVariant="small"
       defaultHeight={260}
@@ -318,9 +321,9 @@ function Director3DNode({ id, data, selected }: Director3DNodeProps) {
           setOpen(true);
         }}
       >
-        {assetUrl ? (
+        {displayUrl ? (
           <img
-            src={render(assetUrl)}
+            src={render(displayUrl)}
             className="w-full h-full object-cover rounded-xl"
             alt="导演台预览"
             draggable={false}

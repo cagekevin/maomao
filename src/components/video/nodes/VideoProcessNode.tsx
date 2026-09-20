@@ -1486,7 +1486,7 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
       id={id}
       label={data.label}
       defaultTitle="视频处理"
-      icon={<Clapperboard size={11} className="text-muted" />}
+      icon={Clapperboard}
       selected={selected}
       handleVariant="small"
       defaultHeight={620}

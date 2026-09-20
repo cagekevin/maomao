@@ -704,9 +704,6 @@ function GridSplitNode({ id, data, selected }: GridSplitNodeProps) {
     [assetUrl, data.extractedImages, splitMode, titlePattern, spawnImageNodes],
   );
 
-  // 标题图标
-  const titleIcon = <Grid3X3 size={11} className="text-muted" />;
-
   // 模式切换按钮
   const modeBtn = (mode: string, label: string, icon: React.ReactNode, title: string) => (
     <button
@@ -899,7 +896,7 @@ function GridSplitNode({ id, data, selected }: GridSplitNodeProps) {
         id={id}
         label={data.label}
         defaultTitle="图像切分"
-        icon={titleIcon}
+        icon={Grid3X3}
         selected={selected}
         onRename={rename}
         // 端口契约收口到 NodeShell（勿改回 children 手写 CustomHandle）：

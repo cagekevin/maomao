@@ -1,4 +1,4 @@
-import { useMemo, useEffect, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { Clock, FolderOpen, Sparkles, Pin, PinOff, BookOpen } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import './panel-kit.css';
@@ -6,7 +6,7 @@ import TaskCenter from '@/components/task/TaskCenter';
 import GeneratedView from '@/components/generate/GeneratedView';
 import ResourceLibrary from '@/components/resource/ResourceLibrary';
 import PromptHub from '@/components/prompt/PromptHub';
-import { useTasks, usePanel, setPanel, getPanel, togglePin } from '../store/taskStore.ts';
+import { useTaskBadge, usePanel, setPanel, getPanel, togglePin } from '../store/taskStore.ts';
 
 // tab 配置：任务 / 生成 / 素材 / 提示词库
 export type PanelTabKey = 'tasks' | 'generated' | 'assets' | 'prompts';
@@ -36,7 +36,6 @@ export default function LeftPanel() {
   const { expanded, activeTab, pinned } = usePanel();
   const setActiveTab = (key: PanelTabKey) => setPanel({ activeTab: key });
   const setExpanded = (v: boolean) => setPanel({ expanded: v });
-  const tasks = useTasks();
   const panelRef = useRef<HTMLDivElement>(null);
 
   // 未读角标：失败任务数 + 进行中任务数，单次遍历
@@ -45,19 +44,12 @@ export default function LeftPanel() {
   // 注：此处原写作 `status === 'queued'`，但 TaskStatus 无该取值（queued 属消息媒体态
   // mediaStatus / 节点 node.queued，与本任务表无关），是永假分支，已修正为 pending。
   // 语义色（panel-kit）：有失败 → 红（需处理）；无失败但仍有生成中/待跑 → 绿（进行中，非报错）；全部完成则无角标。
-  const { badgeCount, badgeFailed } = useMemo(() => {
-    let active = 0;
-    let failed = 0;
-    for (const t of tasks) {
-      // 【TD-08-24】unknown（提交结果未知·可能已在跑）与 failed 同归「需用户处理」，一并计入角标；
-      // 不能计入 running（它已终态、不再推进），否则角标永远不清。
-      if (t.status === 'failed' || t.status === 'unknown') {
-        active++;
-        failed++;
-      } else if (t.status === 'running' || t.status === 'pending') active++;
-    }
-    return { badgeCount: active, badgeFailed: failed };
-  }, [tasks]);
+  // 【TD-04-47】角标改用 store 的**原子订阅**（口径收口到 `taskStore.computeTaskCounts`，
+  // 与 TaskCenter 共用同一份 —— 此前两处各写一份同义口径）。
+  // 此前整包订阅 `tasks` + 组件内遍历 ⇒ 任务进度高频 notify 时 LeftPanel 每帧重渲。
+  // 口径等价性：旧 `active` 已把 failed/unknown 一并计入 ⇒ `badgeCount = running + failed` 逐项等价。
+  const { running, failed: badgeFailed } = useTaskBadge();
+  const badgeCount = running + badgeFailed;
 
   // 点面板外部收起
   useEffect(() => {

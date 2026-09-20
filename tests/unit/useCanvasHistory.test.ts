@@ -103,3 +103,36 @@ describe('useCanvasHistory — 记录与撤销', () => {
     expect(result.current.canUndo).toBe(false);
   });
 });
+
+describe('useCanvasHistory — 返回值引用稳定性（TD-04-39）', () => {
+  // 返回值经 `CanvasEdgesProvider` 直接作 Context value（Provider 只透传、不加工）。
+  // `React.memo` 只挡 props、**挡不住 context** ⇒ 它每换一次引用，画布上 11 个节点组件
+  // 全部重渲（拖拽期间 App 每帧重渲 ⇒ 全部节点每帧重渲，是拖拽卡顿的头号放大器）。
+  it('实参稳定 ⇒ 跨渲染返回同一引用', () => {
+    // 反证：把 :111 的 useMemo 改回裸对象字面量 ⇒ 本断言红。
+    const getSnapshot = () => ({ nodes: [], edges: [] });
+    const apply = () => {};
+    const { result, rerender } = renderHook(() => useCanvasHistory(getSnapshot, apply));
+
+    const first = result.current;
+    rerender();
+    expect(result.current).toBe(first);
+    rerender();
+    expect(result.current).toBe(first);
+  });
+
+  it('撤销栈真变化 ⇒ 引用必须换（防止用空依赖买绿、锁死状态）', () => {
+    // 上一条的反面：契约是「无关重渲不换引用」，不是「永远不换」。
+    // 若有人把 deps 写成 [] 求稳，canUndo 变了引用却不变 ⇒ 本断言红。
+    const apply = vi.fn();
+    const { result } = renderHook(() => useCanvasHistory(() => ({ nodes: [], edges: [] }), apply));
+
+    const before = result.current;
+    act(() => {
+      result.current.record(snap('n1'));
+      result.current.record(snap('n2'));
+    });
+    expect(result.current.canUndo).toBe(true);
+    expect(result.current).not.toBe(before);
+  });
+});

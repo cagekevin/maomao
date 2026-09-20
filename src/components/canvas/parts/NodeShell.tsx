@@ -1,4 +1,5 @@
-import React, { useMemo, type CSSProperties, type Ref, type ReactNode } from 'react';
+import { useMemo, type CSSProperties, type Ref, type ReactNode } from 'react';
+import type { LucideIcon } from 'lucide-react';
 import { NodeResizer, useStore } from '@xyflow/react';
 import NodeTitle from '@/components/canvas/parts/NodeTitle';
 import CustomHandle from '@/components/canvas/parts/CustomHandle';
@@ -14,7 +15,12 @@ interface NodeShellProps {
   id: string;
   label?: string;
   defaultTitle?: string;
-  icon?: ReactNode;
+  /** 标题栏图标：传**图标组件本身**（如 `icon={Orbit}`），不传 element。
+      【TD-04-37】此前是 `ReactNode`，16 个调用方各写一份 `<Xxx size={11} className="text-muted" />`
+      —— 每次渲染新建 element ⇒ 经本组件透传后击穿 memo(NodeTitle)（memo 只比 props 引用）。
+      收组件引用后：引用是模块级常量（天然稳定）+ 尺寸/颜色收口到 NodeTitle 一处，
+      且**类型层禁止再写内联 element** ⇒ 结构上不可能回潮（无需机器闸）。 */
+  icon?: LucideIcon;
   selected?: boolean;
   resizable?: boolean;
   minWidth?: number;
@@ -353,4 +359,11 @@ function NodeShell({
     </div>
   );
 }
-export default React.memo(NodeShell);
+// 【TD-04-51】此处原为 `export default React.memo(NodeShell)` —— 已删。
+// 理由：`React.memo` 只做 props 浅比较，而本组件 **20/20 调用点都以 JSX children 形式使用**
+// （`<NodeShell …>…</NodeShell>`，0 处自闭合）。父组件每次渲染产生的 children 都是新的
+// React element ⇒ 浅比较**永不命中** ⇒ 这个 memo 从未拦下任何一次重渲，是纯开销兼假护栏
+// （它曾让人误判「把 icon 提到组件外即可让 NodeShell 生效」，实际修不好）。
+// 真正让节点 bail out 的是「外层节点组件自身的 memo」+「Context value 引用稳定」（见 TD-04-39），
+// 与本组件无关。将来若调用点改为传引用稳定的 children，再在此处加回 `React.memo`。
+export default NodeShell;

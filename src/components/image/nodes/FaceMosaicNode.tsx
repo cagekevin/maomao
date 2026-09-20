@@ -237,7 +237,7 @@ function FaceMosaicNode({ id, data, selected }: FaceMosaicNodeProps) {
       id={id}
       label={data.label}
       defaultTitle="人脸打码"
-      icon={<Shuffle size={11} className="text-muted" />}
+      icon={Shuffle}
       selected={selected}
       handleVariant="small"
       aspectRatio={undefined}

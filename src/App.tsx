@@ -114,7 +114,7 @@ import AccountsSettings from './components/settings/sections/AccountsSettings.ts
 import TopNav from './components/base/panels/TopNav.tsx';
 import { showToast } from './components/base/core/event/toastStore.ts';
 import { askConfirm } from './components/base/core/event/confirmStore.ts';
-import { setSetting, useAppSettings } from './components/base/store/appSettings.ts';
+import { setSetting, useAppSettingsSelector } from './components/base/store/appSettings.ts';
 import { setAgentKey } from './components/agent/index.ts';
 import { uploadConfig, downloadConfig } from './components/base/store/cloudSync.ts';
 import { startAutoSync, stopAutoSync } from './components/base/store/autoSync.ts';
@@ -211,12 +211,17 @@ function handleReactFlowError(code: string, message: string) {
 }
 
 // ═══ P0-C（106 画布重渲放大器根治）常量提取：消除每帧多余的 store.setState ═══
-// 背景：StoreUpdater（react/index.mjs）的 effect deps 含 fitViewOptions / deleteKeyCode。
+// 背景：StoreUpdater（react/index.mjs）的 effect deps 含 fitViewOptions / nodeOrigin / deleteKeyCode。
 // 内联字面量会让「App 每次渲染 → effect 重跑 → 多一次 store.setState → 全画布 selector 重跑一轮」。
 // 提成模块常量后引用永远稳定，effect 只在真变化时触发（零行为改动，值完全不变）。
 // C1：fitViewOptions 只在初始化 fitView 时读一次（fitView={initialFitView}），提常量无副作用。
 // C2：deleteKeyCode 内联数组会破坏 memo(FlowRenderer)（react/index.mjs:2117），提常量恢复命中率。
 const DELETE_KEY_CODE = ['Backspace', 'Delete'];
+// 【TD-04-35】本段注释曾长期声称 C1 已落地，但 fitViewOptions / nodeOrigin 直到本轮**仍是内联字面量**
+// （注释假收口：写了理由、没改代码）。二者同为 StoreUpdater 的 deps 成员（index.mjs:216/230），
+// 现真正提为模块常量 —— 拖拽期间 App 每帧重渲不再额外触发这两次 store.setState。
+const FIT_VIEW_OPTIONS = { padding: 0.2, maxZoom: 1, minZoom: 0.05 };
+const NODE_ORIGIN: [number, number] = [0, 0];
 
 // ═══ P0-C C3：缩放百分比叶子组件（把 App 重渲移出 rAF 回调）═══
 // 原实现：onViewportChange → viewportRaf（rAF 回调内 setZoomPercent）→ App 全量 setState →
@@ -377,7 +382,14 @@ function Canvas() {
 
   // 应用设置单一订阅（读写唯一入口 appSettings）：agentOpen/minimapOn/performanceMode/pinnedTools 从此快照解构。
   // 默认值/类型由 settingRegistry.ts 单一真源派生；写统一走 setSetting（内存+持久化+通知），不再用 useState+useEffect 镜像回写。
-  const { agentOpen, minimapOn, performanceMode, pinnedTools } = useAppSettings();
+  // 【TD-04-38】原子订阅这 4 个字段（默认浅比较）—— 旧实现整包订阅，改**任一**设置
+  // （调试模式 / 缩略图 / 其它偏好）都会让 App 宿主重渲一次，进而牵动整棵画布树。
+  const { agentOpen, minimapOn, performanceMode, pinnedTools } = useAppSettingsSelector((s) => ({
+    agentOpen: s.agentOpen,
+    minimapOn: s.minimapOn,
+    performanceMode: s.performanceMode,
+    pinnedTools: s.pinnedTools,
+  }));
 
   // 剪辑器开合 = **会话态**（`base/core/editorSession.ts`），不是 appSettings 设置项。
   // 【为什么】设置项会持久化 + 同步云端 → 「打开过一次就永远自动开」（2026-09-15 用户报障）。
@@ -441,9 +453,17 @@ function Canvas() {
   // P0-C 收尾（docs/106）：CanvasToolbar 三个回调提 useCallback，让 memo(CanvasToolbar) 在
   // 「App 因拖拽等其它原因每帧重渲」时命中 → 拖拽期间工具栏不再跟着每帧重渲。
   // 依赖都是稳定源：setSetting 是模块级函数、fitView 是 useReactFlow 的 store action、minimapOn/performanceMode 来自 useAppSettings。
-  React.useCallback(() => setSetting('minimapOn', !minimapOn), [minimapOn]);
-  React.useCallback(() => fitView({ padding: 0.2, duration: 800 }), [fitView]);
-  React.useCallback(() => setSetting('performanceMode', !performanceMode), [performanceMode]);
+  // 【TD-04-36】此前三行只有 hook 调用、**返回值未赋值** ⇒ 优化从未生效（下方调用点仍内联同款箭头，
+  // memo(CanvasToolbar) 恒失效）。现接上引用，调用点改传这三个变量。
+  const toggleMinimap = React.useCallback(() => setSetting('minimapOn', !minimapOn), [minimapOn]);
+  const fitViewToContent = React.useCallback(
+    () => fitView({ padding: 0.2, duration: 800 }),
+    [fitView],
+  );
+  const togglePerformance = React.useCallback(
+    () => setSetting('performanceMode', !performanceMode),
+    [performanceMode],
+  );
 
   // 始终指向最新 nodes/edges（撤销/重做取快照用）
   const nodesRef = React.useRef(nodes);
@@ -475,14 +495,23 @@ function Canvas() {
     setSelectedAssetNodes(list);
   }, [nodes]);
 
-  // 历史栈（基座 useCanvasHistory）：record 需显式传最新快照，避免异步 setState 取到旧值
-  const history = useCanvasHistory(
+  // 【TD-04-39 · 两个实参必须引用稳定】它们是 hook 内 record/undo/redo 的 useCallback 依赖：
+  // 内联传入 ⇒ 三个回调每次渲染重出 ⇒ hook 返回值引用必变 ⇒ Context value 每帧换引用
+  // ⇒ 11 个节点组件每帧重渲（memo 挡不住 context）。
+  // 两者都不捕获渲染期变量（只读 ref.current / 只用 state setter）⇒ 固定引用无陈旧闭包风险。
+  const getCanvasSnapshot = React.useCallback(
     () => ({ nodes: nodesRef.current, edges: edgesRef.current }),
-    ({ nodes: ns, edges: es }) => {
+    [],
+  );
+  const applyCanvasSnapshot = React.useCallback(
+    ({ nodes: ns, edges: es }: { nodes: Node[]; edges: Edge[] }) => {
       setNodes(ns);
       setEdges(es);
     },
+    [setNodes, setEdges],
   );
+  // 历史栈（基座 useCanvasHistory）：record 需显式传最新快照，避免异步 setState 取到旧值
+  const history = useCanvasHistory(getCanvasSnapshot, applyCanvasSnapshot);
 
   // 保存画布并广播到其他窗口（**一次性落盘**：仅切项目/新建项目这类「必须立刻写旧项目」的路径用）。
   // 常规的「内容变更 / 视窗变更」落盘统一走 projectStore.scheduleCanvasSave（唯一调度入口）。
@@ -1491,7 +1520,7 @@ function Canvas() {
               minZoom={0.05}
               maxZoom={4}
               fitView={initialFitView}
-              fitViewOptions={{ padding: 0.2, maxZoom: 1, minZoom: 0.05 }}
+              fitViewOptions={FIT_VIEW_OPTIONS}
               onViewportChange={onViewportChange}
               onMoveEnd={handleViewportMoveEnd}
               /* ===== 画布性能优化===== */
@@ -1501,7 +1530,7 @@ function Canvas() {
              关掉它省不了性能却会导致选中节点被挡，故保持开启。 */
               elevateNodesOnSelect
               elevateEdgesOnSelect={false}
-              nodeOrigin={[0, 0]}
+              nodeOrigin={NODE_ORIGIN}
               onlyRenderVisibleElements={nodes.length > 20}
               /* 框选统一走 React Flow 默认的 Shift+拖拽，关闭 selectionOnDrag，
              避免与 panOnDrag 抢 mousedown 导致框选错位 */
@@ -1577,12 +1606,12 @@ function Canvas() {
                   {/* onClearCache 已接 handleClearCache；CanvasToolbar 无 onRun 属性（CanvasToolbarProps 无此 prop），故无占位待传项 */}
                   <CanvasToolbar
                     minimapOn={minimapOn}
-                    onToggleMinimap={() => setSetting('minimapOn', !minimapOn)}
+                    onToggleMinimap={toggleMinimap}
                     onArrange={arrangeCanvas}
-                    onFitView={() => fitView({ padding: 0.2, duration: 800 })}
+                    onFitView={fitViewToContent}
                     zoomPercentNode={zoomPercentSlot}
                     performanceMode={performanceMode}
-                    onTogglePerformance={() => setSetting('performanceMode', !performanceMode)}
+                    onTogglePerformance={togglePerformance}
                     onClearCache={handleClearCache}
                     localToolConnected={localTool.isConnected}
                   />

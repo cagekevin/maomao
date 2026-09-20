@@ -1,4 +1,4 @@
-import { useEffect, useCallback } from 'react';
+import { useEffect, useCallback, useRef } from 'react';
 import { isEditableTarget } from '../components/base/core/interaction/uiHooks.ts';
 import { isCanvasSuppressed } from '../components/base/core/interaction/modalLayer.ts';
 
@@ -46,17 +46,13 @@ export interface CanvasShortcutHandlers {
  *  - onToggleInputPanels      Tab 一键折叠/展开输入面板
  */
 export function useCanvasShortcuts(handlers: CanvasShortcutHandlers = {}) {
-  const {
-    onUndo,
-    onRedo,
-    onSelectAll,
-    onDuplicate,
-    onGroup,
-    onUngroup,
-    onArrange,
-    onAdd,
-    onToggleInputPanels,
-  } = handlers;
+  // 【TD-04-43】用 ref 承接**最新** handlers —— **订阅的生命周期不该由"回调身份"决定**。
+  // 旧实现把 9 个回调全塞进 effect deps ⇒ 调用方传内联箭头（App 的 `onAdd`）时，
+  // 宿主每次重渲都「解绑 + 重绑」window keydown（拖拽期间 = **每帧一次**）。
+  // 语义等价：旧 = 回调变就重绑以取用新回调；新 = 不重绑、但每次事件读最新 ⇒ 两者都"总是用最新回调"。
+  // （渲染期赋值是必需的：effect 里赋值会让"绑定后、首次事件前"的那次读取拿到旧值。）
+  const handlersRef = useRef(handlers);
+  handlersRef.current = handlers;
 
   const hasSelectionText = useCallback(() => {
     try {
@@ -87,6 +83,7 @@ export function useCanvasShortcuts(handlers: CanvasShortcutHandlers = {}) {
       // 输入框内一律跳过
       if (isEditableTarget(e)) return;
 
+      const h = handlersRef.current; // TD-04-43：每次事件读最新回调
       const mod = e.ctrlKey || e.metaKey;
       const key = e.key.toLowerCase();
 
@@ -95,22 +92,22 @@ export function useCanvasShortcuts(handlers: CanvasShortcutHandlers = {}) {
         if (hasSelectionText()) return;
         if (key === 'q') {
           e.preventDefault();
-          onAdd?.('textGenerateNode');
+          h.onAdd?.('textGenerateNode');
           return;
         }
         if (key === 'w') {
           e.preventDefault();
-          onAdd?.('imageGenerateNode');
+          h.onAdd?.('imageGenerateNode');
           return;
         }
         if (key === 'e') {
           e.preventDefault();
-          onAdd?.('videoGenerateNode');
+          h.onAdd?.('videoGenerateNode');
           return;
         }
         if (key === 'tab') {
           e.preventDefault();
-          onToggleInputPanels?.();
+          h.onToggleInputPanels?.();
           return;
         }
       }
@@ -118,17 +115,17 @@ export function useCanvasShortcuts(handlers: CanvasShortcutHandlers = {}) {
       if (!mod) return;
       if (e.shiftKey && key === 'z') {
         e.preventDefault();
-        onRedo?.();
+        h.onRedo?.();
         return;
       }
       if (key === 'z') {
         e.preventDefault();
-        onUndo?.();
+        h.onUndo?.();
         return;
       }
       if (key === 'y') {
         e.preventDefault();
-        onRedo?.();
+        h.onRedo?.();
         return;
       }
 
@@ -136,12 +133,12 @@ export function useCanvasShortcuts(handlers: CanvasShortcutHandlers = {}) {
       // 提前处理、不因「有文本选中」跳过 —— 编组是画布操作，任意时刻都应可触发
       if (key === 'g' && e.shiftKey) {
         e.preventDefault();
-        onUngroup?.();
+        h.onUngroup?.();
         return;
       }
       if (key === 'g') {
         e.preventDefault();
-        onGroup?.();
+        h.onGroup?.();
         return;
       }
 
@@ -150,28 +147,19 @@ export function useCanvasShortcuts(handlers: CanvasShortcutHandlers = {}) {
 
       if (key === 'a') {
         e.preventDefault();
-        onSelectAll?.();
+        h.onSelectAll?.();
       } else if (key === 'd') {
         e.preventDefault();
-        onDuplicate?.();
+        h.onDuplicate?.();
       } else if (key === 'l') {
         e.preventDefault();
-        onArrange?.();
+        h.onArrange?.();
       }
     };
 
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [
-    hasSelectionText,
-    onUndo,
-    onRedo,
-    onSelectAll,
-    onDuplicate,
-    onGroup,
-    onUngroup,
-    onArrange,
-    onAdd,
-    onToggleInputPanels,
-  ]);
+    // 【TD-04-43】deps 只留**真正影响订阅本身**的项：回调一律走 handlersRef 读最新，
+    // 故不再入 deps ⇒ 内联箭头不再触发每帧「解绑+重绑」。
+  }, [hasSelectionText]);
 }

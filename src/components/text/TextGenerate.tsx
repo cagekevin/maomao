@@ -21,6 +21,7 @@ import { useGenerateNode } from '@/hooks/useGenerateNode';
 import { buildEffectivePrompt } from '@/components/base/core/utils';
 import { PROMPT_PANEL_PAD_X } from '@/components/canvas/shell/promptLayout';
 import { useNodeData } from '@/hooks/useNodeData';
+import { useAssetInsertion } from '@/hooks/useAssetInsertion';
 import { useNodeRename } from '@/hooks/useNodeRename';
 import { useDisconnectSource } from '@/hooks/useDisconnectSource';
 import { useNodeExpanded } from '@/hooks/useNodeExpanded';
@@ -143,10 +144,8 @@ function TextGenerate({ id, data, selected }: TextGenerateProps) {
   }, [editingText]);
   const promptInputRef = useRef<HTMLDivElement | null>(null); // 提示词编辑器 ref（供面板右下角手柄拖拽改尺寸）
   const wrapperRef = useRef<HTMLDivElement | null>(null); // NodeShell 根 div ref（主框手柄拖拽改整体尺寸）
-  const insertAssetRef = useRef<((asset: unknown) => void) | null>(null); // 富文本素材插入：由 PromptInput onReady 上抛（主框 ResourceStrip 共用）
-  const insertMention = (asset: unknown) => {
-    if (typeof insertAssetRef.current === 'function') insertAssetRef.current(asset);
-  };
+  // 富文本素材插入（TD-04-52：原 4 节点各抄一份 ⇒ 收口到 useAssetInsertion，引用天然稳定）
+  const { insertAssetRef, insertMention } = useAssetInsertion();
   // 创作库预设应用：落胶囊（有 preview 显示缩略图）+ 写 data.creativePresets 字典（键 = item.id）。
   const handleCreativeApply = (item: CreativePreset) => {
     const hasPreview = !!item.preview;
@@ -297,45 +296,51 @@ function TextGenerate({ id, data, selected }: TextGenerateProps) {
     <Loader2 size={12} className="animate-spin flex-shrink-0" style={{ color: 'rgb(210,2,7)' }} />
   );
 
-  const toolbarButtons = [
-    {
-      key: 'copy',
-      icon: <Copy size={12} />,
-      title: '复制文本',
-      onClick: () => {
-        // 【debug】复制按钮点击时确认 text state 的实际值（排查复制空）
-        logger.debug(
-          'TextGenerate',
-          'copy button',
-          {
-            textType: typeof text,
-            len: typeof text === 'string' ? text.length : null,
-            sample: typeof text === 'string' ? text.slice(0, 80) : text,
-          },
-          { module: 'text' },
-        );
-        navigator.clipboard?.writeText(text);
+  // 【TD-04-41】配置数组 + 回调引用稳定（否则 memo(HoverToolbar) 浅比较必失败）。
+  const handleToolbarCopy = useCallback(() => {
+    // 【debug】复制按钮点击时确认 text state 的实际值（排查复制空）
+    logger.debug(
+      'TextGenerate',
+      'copy button',
+      {
+        textType: typeof text,
+        len: typeof text === 'string' ? text.length : null,
+        sample: typeof text === 'string' ? text.slice(0, 80) : text,
       },
-    },
-    {
-      key: 'lock',
-      icon: inputLocked ? <Lock size={12} /> : <LockOpen size={12} />,
-      title: inputLocked ? '输入已锁定,点击解锁' : '输入已解锁,点击锁定',
-      onClick: () => {
-        const next = !inputLocked;
-        setInputLocked(next);
-        // 加锁 = 合上抽屉：已展开的输入面板要一并收起
-        if (next) setExpanded(false);
+      { module: 'text' },
+    );
+    navigator.clipboard?.writeText(text);
+  }, [text]);
+  const handleToolbarLock = useCallback(() => {
+    const next = !inputLocked;
+    setInputLocked(next);
+    // 加锁 = 合上抽屉：已展开的输入面板要一并收起
+    if (next) setExpanded(false);
+  }, [inputLocked]);
+  const toolbarButtons = useMemo(
+    () => [
+      {
+        key: 'copy',
+        icon: <Copy size={12} />,
+        title: '复制文本',
+        onClick: handleToolbarCopy,
       },
-    },
-  ];
+      {
+        key: 'lock',
+        icon: inputLocked ? <Lock size={12} /> : <LockOpen size={12} />,
+        title: inputLocked ? '输入已锁定,点击解锁' : '输入已解锁,点击锁定',
+        onClick: handleToolbarLock,
+      },
+    ],
+    [handleToolbarCopy, handleToolbarLock, inputLocked],
+  );
 
   return (
     <NodeShell
       id={id}
       label={data.label}
       defaultTitle="文本生成"
-      icon={<FileText size={11} className="text-muted" />}
+      icon={FileText}
       selected={selected}
       handleVariant="small"
       aspectRatio={undefined}

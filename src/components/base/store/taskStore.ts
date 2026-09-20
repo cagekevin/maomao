@@ -46,6 +46,7 @@
  * ════════════════════════════════════════════════════════════════
  */
 import { useSyncExternalStore } from 'react';
+import { useStoreSelector } from '../../../hooks/useStoreSelector.ts';
 import { logger } from '../core/log/logger.ts';
 import { createDebouncedPersist } from '../core/contentStore.ts';
 import { saveTask, deleteTask, batchDeleteTasks, clearAllTasksApi } from '../api/localToolApi.ts';
@@ -804,4 +805,45 @@ export function clearAllTasks(): void {
 
 export function useTasks() {
   return useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
+}
+
+/**
+ * 【任务计数口径 · 唯一真源】任务列表 → 「进行中 / 需处理」两档计数。
+ *
+ * 口径（TD-08-24 定的语义，此前在 LeftPanel 与 TaskCenter **各写了一份**）：
+ *  - `running`：`running`（正在跑）+ `pending`（已建单未开跑）—— 都显示为「生成中」；
+ *  - `failed` ：`failed` + `unknown`（提交结果未知、可能已在跑）—— 同归「需用户处理」，
+ *    且 `unknown` 必须计入 failed 才能被「清理失败任务」一并清掉（否则卡在列表里无入口）。
+ *  - 两档**互斥**：`unknown` 已终态、不再推进，故**不计入 running**，否则角标永不清。
+ */
+export function computeTaskCounts(list: Task[]): { running: number; failed: number } {
+  let running = 0;
+  let failed = 0;
+  for (const t of list) {
+    if (isTaskActive(t)) running++;
+    else if (t.status === 'failed' || t.status === 'unknown') failed++;
+  }
+  return { running, failed };
+}
+
+/** 单个任务是否「进行中」（= `running` 正在跑 | `pending` 已建单未开跑，两者都显示为「生成中」）。
+ *
+ *  与 `computeTaskCounts` 的 running 档是**同一判据**，收口在此 —— 此前 `TaskCenter` 的任务卡片
+ *  另写了一份 `status === 'running' || status === 'pending'`。禁止消费方再内联这条判断。
+ *  （形态对齐同模块的 `statusLabel` / `statusDotClass`：单任务判断归 store。） */
+export function isTaskActive(t: Task): boolean {
+  return t.status === 'running' || t.status === 'pending';
+}
+
+/**
+ * 【TD-04-47】原子订阅：只订阅「任务计数」（角标用），不订阅任务列表本身。
+ *
+ * 为什么由 store 层提供：① `subscribe`/`getSnapshot` 是本模块内部实现，消费方无法自行组合 selector；
+ * ② 计数口径是**任务状态语义**（见 `computeTaskCounts`），归真相源所有，避免消费方各写一份。
+ *
+ * 效果：任务**内容**变化（进度文本、缩略图、新增条目）不再连坐订阅方重渲 ——
+ * 只有这两个数字真变时才重渲（此前 LeftPanel 整包订阅 ⇒ 任务进度高频 notify 时每帧重渲）。
+ */
+export function useTaskBadge(): { running: number; failed: number } {
+  return useStoreSelector(subscribe, getSnapshot, computeTaskCounts);
 }

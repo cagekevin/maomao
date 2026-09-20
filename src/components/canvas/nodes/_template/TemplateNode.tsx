@@ -18,6 +18,7 @@ import GeneratingOverlay from '@/components/canvas/parts/GeneratingOverlay';
 import { useNodeResize } from '@/components/base/core/interaction/uiHooks';
 import { useConnectedInputs } from '@/hooks/useConnectedInputs';
 import { useAssetDegrade } from '@/hooks/useAssetDegrade';
+import { useAssetInsertion } from '@/hooks/useAssetInsertion';
 import { useGenerateNode } from '@/hooks/useGenerateNode';
 import { useNodePrefs } from '@/components/canvas/contract/nodePrefs';
 import { showToast } from '@/components/base/core/event/toastStore';
@@ -221,10 +222,8 @@ function TemplateNode({ id, data, selected }: TemplateNodeProps) {
   // ─── 4. refs + 尺寸写回（通用）───
   const wrapperRef = useRef<HTMLDivElement | null>(null); // NodeShell 根 div（供主框手柄拖拽）
   const promptInputRef = useRef<HTMLDivElement | null>(null); // 提示词编辑器（PromptInput 暴露 contentEditable div）
-  const insertAssetRef = useRef<((asset: unknown) => void) | null>(null); // 富文本素材插入：由 PromptInput onReady 上抛（主框 ResourceStrip 共用）
-  const insertMention = (asset: unknown) => {
-    if (typeof insertAssetRef.current === 'function') insertAssetRef.current(asset);
-  };
+  // 富文本素材插入（TD-04-52：原 4 节点各抄一份 ⇒ 收口到 useAssetInsertion，引用天然稳定）
+  const { insertAssetRef, insertMention } = useAssetInsertion();
   const { onMainBoxResize, onInputResize } = useNodeResize(id); // 主框/输入框尺寸写回 ReactFlow
 
   // 断连线：点击素材缩略图红色 ×，删除该素材来源节点 → 本节点的连线（通用）
@@ -300,15 +299,21 @@ function TemplateNode({ id, data, selected }: TemplateNodeProps) {
 
   // ─── 7. hover 工具栏按钮（通用；可选）───
   // 【模板】换成你的按钮：{ key, icon, title, show, onClick }
-  const toolbarButtons = [
-    {
-      key: 'download',
-      icon: <Download size={12} />,
-      title: '下载',
-      show: !!assetUrl,
-      onClick: () => showToast('下载'),
-    },
-  ];
+  // 【TD-04-41】配置数组 + 回调必须**引用稳定**：否则 `memo(HoverToolbar)` 的浅比较必然失败。
+  // 数组进 useMemo 后，其内部的 `icon={<Xxx/>}` element 也只创建一次（无需另改 HoverToolbar 契约）。
+  const handleToolbarDownload = useCallback(() => showToast('下载'), []);
+  const toolbarButtons = useMemo(
+    () => [
+      {
+        key: 'download',
+        icon: <Download size={12} />,
+        title: '下载',
+        show: !!assetUrl,
+        onClick: handleToolbarDownload,
+      },
+    ],
+    [assetUrl, handleToolbarDownload],
+  );
 
   // ─── 8. 渲染（外壳 + hover 栏 + 主显示框 + 展开面板）───
   return (
@@ -316,7 +321,7 @@ function TemplateNode({ id, data, selected }: TemplateNodeProps) {
       id={id}
       label={data.label}
       defaultTitle="模板节点" // 【模板】改成你的节点名
-      icon={<ImageIcon size={11} className="text-muted" />} // 【模板】换成你的图标
+      icon={ImageIcon} // 【模板】换成你的图标
       selected={selected}
       handleVariant="small" // 'large'(48) / 'small'(32)
       aspectRatio={aspectRatio}

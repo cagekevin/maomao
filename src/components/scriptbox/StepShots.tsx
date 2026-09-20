@@ -18,6 +18,11 @@ import {
 } from './scriptBoxPrompts.ts';
 import ResourceStrip from '../canvas/shell/ResourceStrip.tsx';
 import type { ResourceStripProps } from '../canvas/shell/ResourceStrip.tsx';
+
+// 【TD-04-52】模块级常量空数组：此前用 `?? []` 兜底 —— 每次渲染新建数组 ⇒
+// 作为 props 传给 `memo(ResourceStrip)` 时引用恒变 ⇒ 浅比较必失败、memo 恒失效。
+const EMPTY_IMAGES: NonNullable<ResourceStripProps['images']> = [];
+const EMPTY_TEXTS: NonNullable<ResourceStripProps['texts']> = [];
 import { useOutsideClick } from '../base/core/interaction/uiHooks.ts';
 import { useRenderAssetResolver } from '../base/utils/media/assetUrl.ts';
 import ScriptBoxModal from './ScriptBoxModal.tsx';
@@ -42,6 +47,9 @@ interface StepShotsProps {
  */
 export default function StepShots({ data, updateData, callbacks }: StepShotsProps) {
   const d = data ?? ({} as ScriptBoxData);
+  // TD-04-52：只求值一次（原先判空与传参各算一遍），且缺省时复用模块级常量空数组 ⇒ 引用稳定。
+  const upstreamImages = (d.upstreamImages as ResourceStripProps['images']) ?? EMPTY_IMAGES;
+  const upstreamTexts = (d.upstreamTexts as ResourceStripProps['texts']) ?? EMPTY_TEXTS;
   const shots = d.shots || [];
   const [editing, setEditing] = useState<{ idx: number; field: string; title: string } | null>(
     null,
@@ -128,12 +136,11 @@ export default function StepShots({ data, updateData, callbacks }: StepShotsProp
           {/* 上游接入只读素材区（位置在剧情框上方）：展示连入的上游文本/图片，内容只读不可改，仅可断线。
               素材来自 node.data.upstreamTexts / upstreamImages（ScriptBoxNode 经 useConnectedInputs 同步）；
               多个时 flex-wrap 自动换行。 */}
-          {(((d.upstreamImages as ResourceStripProps['images']) ?? []).length > 0 ||
-            ((d.upstreamTexts as ResourceStripProps['texts']) ?? []).length > 0) && (
+          {(upstreamImages.length > 0 || upstreamTexts.length > 0) && (
             <div className="mb-1.5">
               <ResourceStrip
-                images={(d.upstreamImages as ResourceStripProps['images']) ?? []}
-                texts={(d.upstreamTexts as ResourceStripProps['texts']) ?? []}
+                images={upstreamImages}
+                texts={upstreamTexts}
                 readOnly
                 onDisconnect={callbacks?.onDisconnectUpstream}
               />

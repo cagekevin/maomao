@@ -71,15 +71,21 @@ export default function FullscreenEditor({
   const showMaterials = variant === 'prompt';
   // 富文本模式：ResourceStrip 插入走 PromptInput 上抛的能力；否则兼容旧回调（提取 label 字符串）
   const insertAssetRef = React.useRef<((asset: unknown) => void) | null>(null);
-  const handleInsert = (asset: unknown) => {
-    if (richText && typeof insertAssetRef.current === 'function') {
-      insertAssetRef.current(asset);
-    } else {
-      const label =
-        typeof asset === 'string' ? asset : (asset as { label?: string } | null)?.label || '';
-      onInsert?.(label);
-    }
-  };
+  // TD-04-52：handleInsert 作为 onInsert 传给 memo(ResourceStrip) ⇒ 必须引用稳定，
+  // 否则浅比较必失败、memo 恒失效。此处语义与节点侧不同（非 richText 时降级为 label 回调），
+  // 故不复用 useAssetInsertion，只保证引用稳定。
+  const handleInsert = React.useCallback(
+    (asset: unknown) => {
+      if (richText && typeof insertAssetRef.current === 'function') {
+        insertAssetRef.current(asset);
+      } else {
+        const label =
+          typeof asset === 'string' ? asset : (asset as { label?: string } | null)?.label || '';
+        onInsert?.(label);
+      }
+    },
+    [richText, onInsert],
+  );
   return (
     <FullscreenModal
       open={open}

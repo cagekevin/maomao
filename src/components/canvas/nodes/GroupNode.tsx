@@ -37,7 +37,7 @@ function GroupNode({ id, data, selected }: GroupNodeProps) {
       id={id}
       label={label}
       defaultTitle="编组"
-      icon={<Folder size={11} className="text-muted" />}
+      icon={Folder}
       selected={selected}
       onRename={rename}
       resizable

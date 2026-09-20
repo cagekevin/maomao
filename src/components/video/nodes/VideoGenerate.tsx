@@ -45,6 +45,7 @@ import { logger } from '@/components/base/core/log/logger';
 import { resolveProviderModel } from '@/components/base/utils/providerModels';
 import { buildEffectivePrompt, clampSeconds, fileNameFromUrl } from '@/components/base/core/utils';
 import { useNodeData } from '@/hooks/useNodeData';
+import { useAssetInsertion } from '@/hooks/useAssetInsertion';
 import { useDisconnectSource } from '@/hooks/useDisconnectSource';
 import { useNodeRename } from '@/hooks/useNodeRename';
 import { useNodeExpanded } from '@/hooks/useNodeExpanded';
@@ -149,10 +150,8 @@ function VideoGenerate({ id, data, selected }: VideoGenerateProps) {
   const posterUrl = useVideoPoster(videoUrl, !!videoUrl);
   const videoRef = useRef<HTMLVideoElement | null>(null); // 主视频元素（点击播放按钮用）
   const promptInputRef = useRef<HTMLDivElement | null>(null); // 提示词编辑器 ref（供面板右下角手柄拖拽改尺寸）
-  const insertAssetRef = useRef<((asset: unknown) => void) | null>(null); // 富文本素材插入：由 PromptInput onReady 上抛（主框 ResourceStrip 共用）
-  const insertMention = (asset: unknown) => {
-    if (typeof insertAssetRef.current === 'function') insertAssetRef.current(asset);
-  };
+  // 富文本素材插入（TD-04-52：原 4 节点各抄一份 ⇒ 收口到 useAssetInsertion，引用天然稳定）
+  const { insertAssetRef, insertMention } = useAssetInsertion();
   // 创作库预设应用：落胶囊（有 preview 显示缩略图）+ 写 data.creativePresets 字典（键 = item.id）。
   const handleCreativeApply = (item: CreativePreset) => {
     const hasPreview = !!item.preview;
@@ -263,51 +262,66 @@ function VideoGenerate({ id, data, selected }: VideoGenerateProps) {
   });
 
   // 下载当前视频（<a download> 触发浏览器保存；文件名推导走统一 resolveDownloadFilename，label 缺扩展名补 .mp4）
-  const handleDownload = () => {
+  // 【TD-04-41】它作为 HoverToolbar 按钮的 onClick ⇒ 必须引用稳定（否则 memo 恒失效）。
+  const handleDownload = useCallback(() => {
     if (!videoUrl) return;
     downloadUrl(
       videoUrl,
       resolveDownloadFilename(data.label ?? '', videoUrl, { ext: 'mp4', fallback: 'video.mp4' }),
     );
-  };
+  }, [videoUrl, data.label]);
 
   // hover 操作栏按钮
-  const toolbarButtons = [
-    ...(videoUrl
-      ? [
-          { key: 'fullscreen', icon: <Expand size={14} />, title: '全屏播放' },
-          { key: 'download', icon: <Download size={14} />, title: '下载', onClick: handleDownload },
-          {
-            key: 'depth',
-            icon: <Layers size={14} />,
-            title: '转深度视频',
-            hoverClass: 'hover:text-sky-400',
-            onClick: () => setDepthOpen(true),
-          },
-          {
-            key: 'jianying',
-            icon: <JianyingIcon size={14} />,
-            title: '发送到剪映素材库',
-            hoverClass: 'hover:text-emerald-400',
-            onClick: () => logger.info('VideoGenerate', '发送到剪映素材库'),
-          },
-          {
-            key: 'delete',
-            icon: <Trash2 size={14} />,
-            title: '删除',
-            hoverClass: 'hover:text-red-500',
-            onClick: () => setVideoUrl(''),
-          },
-        ]
-      : []),
-  ];
+  // 【TD-04-41】配置数组 + 各按钮回调引用稳定（否则 memo(HoverToolbar) 浅比较必失败）。
+  const handleToolbarDepth = useCallback(() => setDepthOpen(true), []);
+  const handleToolbarJianying = useCallback(
+    () => logger.info('VideoGenerate', '发送到剪映素材库'),
+    [],
+  );
+  const handleToolbarDelete = useCallback(() => setVideoUrl(''), []);
+  const toolbarButtons = useMemo(
+    () =>
+      videoUrl
+        ? [
+            { key: 'fullscreen', icon: <Expand size={14} />, title: '全屏播放' },
+            {
+              key: 'download',
+              icon: <Download size={14} />,
+              title: '下载',
+              onClick: handleDownload,
+            },
+            {
+              key: 'depth',
+              icon: <Layers size={14} />,
+              title: '转深度视频',
+              hoverClass: 'hover:text-sky-400',
+              onClick: handleToolbarDepth,
+            },
+            {
+              key: 'jianying',
+              icon: <JianyingIcon size={14} />,
+              title: '发送到剪映素材库',
+              hoverClass: 'hover:text-emerald-400',
+              onClick: handleToolbarJianying,
+            },
+            {
+              key: 'delete',
+              icon: <Trash2 size={14} />,
+              title: '删除',
+              hoverClass: 'hover:text-red-500',
+              onClick: handleToolbarDelete,
+            },
+          ]
+        : [],
+    [videoUrl, handleDownload, handleToolbarDepth, handleToolbarJianying, handleToolbarDelete],
+  );
 
   return (
     <NodeShell
       id={id}
       label={data.label}
       defaultTitle="视频生成"
-      icon={<Clapperboard size={11} className="text-muted" />}
+      icon={Clapperboard}
       selected={selected}
       minWidth={200}
       minHeight={200}

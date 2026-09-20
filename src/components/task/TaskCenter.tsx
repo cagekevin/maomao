@@ -21,6 +21,8 @@ import {
   type Task,
   type TaskMediaKind,
   useTasks,
+  computeTaskCounts,
+  isTaskActive,
   statusDotClass,
 } from '../base/store/taskStore.ts';
 import { logger } from '../base/core/log/logger.ts';
@@ -62,18 +64,9 @@ function TaskCenter() {
     }
   }, [preview]);
 
-  // 运行/失败计数合并为单次遍历，避免每次渲染跑两次全量 filter
-  const counts = useMemo(() => {
-    let running = 0;
-    let failed = 0;
-    for (const t of tasks) {
-      if (t.status === 'running' || t.status === 'pending') running++;
-      // 【TD-08-24】unknown 与 failed 同归「需处理」→ 一并计入 failedCount，
-      // 使「清理失败任务」也能清掉 unknown（否则 unknown 卡在列表里无入口清理）。
-      else if (t.status === 'failed' || t.status === 'unknown') failed++;
-    }
-    return { running, failed };
-  }, [tasks]);
+  // 【TD-04-47】计数口径**收口到 `taskStore.computeTaskCounts`**（与 LeftPanel 角标共用同一份，
+  // 此前两处各写一份同义口径）。本组件仍整包订阅 `tasks` —— 它要渲染整个列表，属真需要全量。
+  const counts = useMemo(() => computeTaskCounts(tasks), [tasks]);
   const runningCount = counts.running;
   const failedCount = counts.failed;
 
@@ -223,7 +216,8 @@ const TaskCard = React.memo(function TaskCard({
   const TypeIcon = TYPE_ICON[task.type] || ImageIcon;
   const dot = statusDotClass(task.status);
   const statusText = statusLabel(task.status, task.progress);
-  const isActive = task.status === 'running' || task.status === 'pending';
+  // 【TD-04-47】「进行中」判据收口到 store 的 isTaskActive（此前本处内联一份同义判断）。
+  const isActive = isTaskActive(task);
   const isCompleted = task.status === 'completed';
   // 结果媒体形态：**唯一判据**（taskMediaKind）。缩略图/下载/预览三个出口全部由它派生，
   // 禁止再写 `type==='video' ? … : <img>` 这类 fail-open 默认（那会把非媒体类型当图片请求）。

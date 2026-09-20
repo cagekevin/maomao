@@ -28,7 +28,7 @@ import { httpRequest } from '@/components/base/api/httpClient';
 import { API_BASE } from '@/components/base/core/config';
 import { IMAGE_FETCH_TIMEOUT } from '@/components/base/core/config';
 import { API_ENDPOINTS } from '@/components/base/core/contracts';
-import { useAppSettings } from '@/components/base/store/appSettings';
+import { useAppSettingsSelector } from '@/components/base/store/appSettings';
 import { compressImage } from '../imageCompress.ts';
 // TD-06-7：URL 归一化原语已下沉 core/utils（消除与 imageCompress 的循环依赖复制）；本模块自用 + 同名导出
 import { toAbsoluteFileUrl } from '@/components/base/core/utils';
@@ -206,8 +206,9 @@ export function resolveAssetUrl(url: string, opts: AssetResolveOptions = NO_RESO
  * 在渲染内/循环内（如网格格元）直接调用 resolve(u) 即可，避免 hook 进循环。
  */
 export function useRenderAssetResolver(): (u: string, extra?: AssetResolveOptions) => string {
-  const settings = useAppSettings();
-  const thumbnail = settings.thumbnailOn !== false;
+  // 【TD-04-38】只订阅 `thumbnailOn` 一个字段。本 hook 被 20+ 组件消费，
+  // 整包订阅会让「改任一设置」（调试模式 / 小地图 / 性能模式…）连坐它们**全部重渲**。
+  const thumbnail = useAppSettingsSelector((s) => s.thumbnailOn !== false);
   return useCallback(
     (u: string, extra?: AssetResolveOptions) =>
       resolveAssetUrl(u, { scope: 'render', thumbnail, ...extra }),

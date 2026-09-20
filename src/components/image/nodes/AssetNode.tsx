@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useMemo } from 'react';
 import { logger } from '@/components/base/core/log/logger';
 import {
   Image as ImageIcon,
@@ -291,79 +291,91 @@ function AssetNode({ id, data, selected }: AssetNodeProps) {
 
   // 显示名取自资产类型目录（`assetTypeLabel`）；非内容状态（other/empty）沿用历史回退「图片」
   const defaultTitle = assetTypeLabel(type, '图片');
+  // 标题图标：传**组件引用**（不是 element，契约见 NodeTitle.icon）。
+  // 三元求值结果始终是同一个模块级组件引用 ⇒ 引用天然稳定，不会击穿 memo(NodeTitle)。
   const titleIcon =
-    type === 'video' ? (
-      <Video size={11} />
-    ) : type === 'audio' ? (
-      <Music size={11} />
-    ) : type === 'text' ? (
-      <FileText size={11} />
-    ) : (
-      <ImageIcon size={11} />
-    );
+    type === 'video' ? Video : type === 'audio' ? Music : type === 'text' ? FileText : ImageIcon;
   // 画布内显示地址由 useImageFallbackSrc 给出（本地 /files/ → 按需小图，治全分辨率解码卡顿；
   // 外部 http/data/blob → 原图），失败回退策略与 LazyImage 同一出处；缩放弹层与发送仍用原图 `url`。
 
   // hover 操作栏按钮：图片类共享能力(crop/edit/compress)走 useImageHoverActions，
   // upload/send/download 按本节点多类型语义各自声明。
-  const toolbarButtons = [
-    {
-      key: 'upload',
-      icon: <Plus size={14} />,
-      title: '上传/替换',
-      onClick: () => fileRef.current?.click(),
-    },
-    {
-      key: 'cameraStudio',
-      icon: <Camera size={14} />,
-      title: '摄影棚',
-      show: type === 'image',
-      onClick: () => setIsCameraStudioOpen(true),
-    },
-    {
-      key: 'depth',
-      icon: <Layers size={14} />,
-      title: '转深度视频',
-      hoverClass: 'hover:text-sky-400',
-      show: type === 'video' && !!url,
-      onClick: () => setDepthOpen(true),
-    },
-    ...imageButtons,
-    {
-      key: 'send',
-      icon: <Send size={14} />,
-      title: '发送到素材库',
-      hoverClass: 'hover:text-blue-400',
-      // 【用户裁定 2026-09-18】**文本 / 视频不提供**「发送到素材库」；图片保留。
-      //   · 文本那半本来就是**假入口**：按钮对 text 也显示，但文本内联无 `url`
-      //     ⇒ 点了一律走下面的 `if (!url)` 弹「没有可发送的素材」，原 `type:'text'` 分支永远执行不到（已删）。
-      //   · 视频那半：视频不提供该能力（与 VideoGenerate 一致 —— 那里也不加此按钮）。
-      //   · 音频：用户未点名，**保守保留**（素材库语义本就含"用户自放的可复用音频"）。
-      show: type === 'image' || type === 'audio',
-      onClick: () => {
-        if (!url) {
-          toastError('没有可发送的素材');
-          return;
-        }
-        const name = (data.label && String(data.label).trim()) || '';
-        openResourceLibrary();
-        // 【TD-12-10】成功 toast 必须等落盘完成（唯一知道真相的那层）再弹：
-        // 此前在发起处同步宣告成功 → 落盘失败也显示「已发送」，用户只见成功、库里无物、零报错。
-        // type 恒为 'image'（上方 show 已把入口限定在图片资产）⇒ 不再需要运行时判别。
-        void sendToResourceLibrary(url, { name, type: 'image' }).then((outcome) => {
-          if (outcome.ok) showToast('已发送到素材库', { type: 'success' });
-          else showToast('发送到素材库失败，请稍后重试', { type: 'error' });
-        });
+  // 【TD-04-41】配置数组 + 各按钮回调引用稳定（否则 memo(HoverToolbar) 浅比较必失败）。
+  const handleToolbarUpload = useCallback(() => fileRef.current?.click(), []);
+  const handleToolbarCameraStudio = useCallback(() => setIsCameraStudioOpen(true), []);
+  const handleToolbarDepth = useCallback(() => setDepthOpen(true), []);
+  const handleToolbarSend = useCallback(() => {
+    if (!url) {
+      toastError('没有可发送的素材');
+      return;
+    }
+    const name = (data.label && String(data.label).trim()) || '';
+    openResourceLibrary();
+    // 【TD-12-10】成功 toast 必须等落盘完成（唯一知道真相的那层）再弹：
+    // 此前在发起处同步宣告成功 → 落盘失败也显示「已发送」，用户只见成功、库里无物、零报错。
+    // type 恒为 'image'（上方 show 已把入口限定在图片资产）⇒ 不再需要运行时判别。
+    void sendToResourceLibrary(url, { name, type: 'image' }).then((outcome) => {
+      if (outcome.ok) showToast('已发送到素材库', { type: 'success' });
+      else showToast('发送到素材库失败，请稍后重试', { type: 'error' });
+    });
+  }, [url, data.label]);
+  const toolbarButtons = useMemo(
+    () => [
+      {
+        key: 'upload',
+        icon: <Plus size={14} />,
+        title: '上传/替换',
+        onClick: handleToolbarUpload,
       },
-    },
-    {
-      key: 'download',
-      icon: <Download size={14} />,
-      title: '下载',
-      onClick: handleDownload,
-      show: !!url,
-    },
-  ];
+      {
+        key: 'cameraStudio',
+        icon: <Camera size={14} />,
+        title: '摄影棚',
+        show: type === 'image',
+        onClick: handleToolbarCameraStudio,
+      },
+      {
+        key: 'depth',
+        icon: <Layers size={14} />,
+        title: '转深度视频',
+        hoverClass: 'hover:text-sky-400',
+        show: type === 'video' && !!url,
+        onClick: handleToolbarDepth,
+      },
+      ...imageButtons,
+      {
+        key: 'send',
+        icon: <Send size={14} />,
+        title: '发送到素材库',
+        hoverClass: 'hover:text-blue-400',
+        // 【用户裁定 2026-09-18】**文本 / 视频不提供**「发送到素材库」；图片保留。
+        //   · 文本那半本来就是**假入口**：按钮对 text 也显示，但文本内联无 `url`
+        //     ⇒ 点了一律走下面的 `if (!url)` 弹「没有可发送的素材」，原 `type:'text'` 分支永远执行不到（已删）。
+        //   · 视频那半：视频不提供该能力（与 VideoGenerate 一致 —— 那里也不加此按钮）。
+        //   · 音频：用户未点名，**保守保留**（素材库语义本就含"用户自放的可复用音频"）。
+        show: type === 'image' || type === 'audio',
+        onClick: handleToolbarSend,
+      },
+      {
+        key: 'download',
+        icon: <Download size={14} />,
+        title: '下载',
+        onClick: handleDownload,
+        show: !!url,
+      },
+    ],
+    [
+      type,
+      url,
+      data.label,
+      imageButtons,
+      handleDownload,
+      handleToolbarUpload,
+      handleToolbarCameraStudio,
+      handleToolbarDepth,
+      handleToolbarSend,
+    ],
+  );
 
   return (
     <>

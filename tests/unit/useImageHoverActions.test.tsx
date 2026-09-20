@@ -10,6 +10,11 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 
 import { useImageHoverActions } from '../../src/components/image/useImageHoverActions.tsx';
+import { mocks } from './_nodeMocks.mjs';
+
+// useCopyNode 内部依赖 `useReactFlow().getNode/getEdges`（**生产环境由 Provider 保证引用稳定**）。
+// 测试必须同样提供稳定的它们，否则会把「测试环境缺 Provider」误判成「实现不稳定」。
+vi.mock('@xyflow/react', () => mocks.xyflow);
 
 // 依赖 stub（hook 内部 import 的真实模块，测试中用轻量替身）
 vi.mock('../../src/components/image/editors/ImageEditor.tsx', () => ({ default: () => null }));
@@ -211,5 +216,37 @@ describe('useImageHoverActions — 图片共享 hover 能力', () => {
     expect(onReplaced).toHaveBeenNthCalledWith(1, 'data:cropped');
     expect(onReplaced).toHaveBeenNthCalledWith(2, 'local://saved');
     expect(result.current.cropping).toBe(false);
+  });
+});
+
+describe('imageButtons 引用稳定性（TD-04-41）', () => {
+  it('入参值不变时跨渲染返回同一数组引用（memo(HoverToolbar) 可命中）', () => {
+    // 反证：把 imageButtons 的 useMemo 去掉（回到裸数组）⇒ 本断言红。
+    // 本数组经 AssetNode / ImageGenerate 交给 memo(HoverToolbar)，引用一变浅比较必失败。
+    const onReplaced = () => {};
+    const { result, rerender } = renderHook(() =>
+      useImageHoverActions({
+        id: 'n1',
+        url: 'u.png',
+        hasImage: true,
+        label: 'x',
+        onImageReplaced: onReplaced,
+      }),
+    );
+    const first = result.current.imageButtons;
+    rerender();
+    const second = result.current.imageButtons;
+    if (first !== second) {
+      // 诊断：哪一项换了引用（定位是哪个回调不稳定）
+      first.forEach((b: { key: string; onClick?: unknown }, i: number) => {
+        const nb = second[i] as { key: string; onClick?: unknown };
+        if (b !== nb || b.onClick !== nb?.onClick) {
+          console.log(
+            `[诊断] item 变了: key=${b.key} 引用同=${b === nb} onClick同=${b.onClick === nb?.onClick}`,
+          );
+        }
+      });
+    }
+    expect(second).toBe(first);
   });
 });

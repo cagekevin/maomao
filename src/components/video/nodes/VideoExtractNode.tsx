@@ -420,7 +420,7 @@ function VideoExtractNode({ id, data, selected }: VideoExtractNodeProps) {
       id={id}
       label={data.label}
       defaultTitle="视频抽帧"
-      icon={<Clapperboard size={11} className="text-muted" />}
+      icon={Clapperboard}
       selected={selected}
       onRename={rename}
       minWidth={280}

@@ -17,7 +17,7 @@
  *   返回新对象/新数组时必须配浅比较，否则每次订阅都判不等 → 无限重渲染。
  * ════════════════════════════════════════════════════════════════
  */
-import { useState, useSyncExternalStore } from 'react';
+import { useRef, useState, useSyncExternalStore } from 'react';
 
 /**
  * 浅比较：一层引用相等判断（同引用 / 同原始值 / 同键同值对象、数组 → true）。
@@ -52,13 +52,24 @@ export function useStoreSelector<S, T>(
   selector: (state: S) => T,
   isEqual: (a: T, b: T) => boolean = shallowEqual,
 ): T {
+  // 【TD-04-44】selector / isEqual 必须**每次渲染取最新**。
+  // 旧实现把二者关进 `useState` 惰性初始化 ⇒ 只捕获首帧那一份 ⇒ 任何「闭包捕获 props / 派生值」
+  // 的 selector（如 `(s) => s.items[id]`）会**静默返回陈旧结果** —— 这不是重渲问题，是**正确性问题**。
+  // 这里用 ref 承接最新值：缓存（memoizedSelection）跨渲染保持不变（浅比较仍有效），
+  // 但"怎么取值 / 怎么比"始终是最新的一份。渲染期赋值是必需的 —— 放进 effect 会晚一帧，
+  // 而 `useSyncExternalStore` 正是在渲染期调用 getSelection 取快照。
+  const selectorRef = useRef(selector);
+  const isEqualRef = useRef(isEqual);
+  selectorRef.current = selector;
+  isEqualRef.current = isEqual;
+
   // getSelection 用 useState 惰性初始化，缓存 memoizedSelection（跨调用复用同一引用）
   const [getSelection] = useState(() => {
     let hasValue = false;
     let memoizedSelection: T = null as T;
     return () => {
-      const nextSelection = selector(getSnapshot());
-      if (hasValue && isEqual(memoizedSelection, nextSelection)) {
+      const nextSelection = selectorRef.current(getSnapshot());
+      if (hasValue && isEqualRef.current(memoizedSelection, nextSelection)) {
         return memoizedSelection;
       }
       hasValue = true;

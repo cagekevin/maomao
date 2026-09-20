@@ -17,6 +17,7 @@ import '@/components/image/editors/ImageEditor';
 import { useImageHoverActions } from '@/components/image/useImageHoverActions';
 import { replaceNodeImage } from '@/components/image/lib/nodeImage';
 import { useNodeData } from '@/hooks/useNodeData';
+import { useAssetInsertion } from '@/hooks/useAssetInsertion';
 import { useDisconnectSource } from '@/hooks/useDisconnectSource';
 import { useNodeRename } from '@/hooks/useNodeRename';
 import { useNodeExpanded } from '@/hooks/useNodeExpanded';
@@ -408,12 +409,8 @@ function ImageGenerate({ id, data, selected }: ImageGenerateProps) {
 
   // 富文本素材插入：由 PromptInput 挂载后通过 onReady 上抛（在光标处插芯片）。
   // ResourceStrip 的蓝色 @按钮点击也走这里，复用同一插入能力（保持组件职责内聚）。
-  const insertAssetRef = useRef<((asset: unknown) => void) | null>(null);
-  const insertMention = (asset: unknown) => {
-    if (typeof insertAssetRef.current === 'function') {
-      insertAssetRef.current(asset);
-    }
-  };
+  // TD-04-52：原 4 节点各抄一份同构实现 ⇒ 收口到 useAssetInsertion，insertMention 引用天然稳定。
+  const { insertAssetRef, insertMention } = useAssetInsertion();
   // 创作库预设应用：落胶囊（有 preview 显示缩略图）+ 写 data.creativePresets 字典（键 = item.id）。
   // ⚠️ 字典写入走 `addCreativePreset`（useNodeData 的函数式单点合并），**不读闭包里的 data**：
   //   本函数可能被连续调用（连点多张卡），且 insertMention 会经 onChange 触发重渲；
@@ -433,7 +430,8 @@ function ImageGenerate({ id, data, selected }: ImageGenerateProps) {
   const [isCameraStudioOpen, setIsCameraStudioOpen] = useState(false);
 
   // 下载生成的图片（<a download> 触发浏览器保存；文件名推导走统一 resolveDownloadFilename）
-  const handleDownload = () => {
+  // 【TD-04-41】作为 HoverToolbar 按钮的 onClick ⇒ 必须引用稳定（否则 memo 恒失效）。
+  const handleDownload = useCallback(() => {
     if (!assetUrl) return;
     // 【2026-09-11】原为 `data.label || (data.name as string)`：`name` 不在本节点 data 契约里
     // （只有 group 的 data 有 name，见 nodeDefaults/applyNodeTypeDefaults），恒为 undefined——
@@ -446,7 +444,7 @@ function ImageGenerate({ id, data, selected }: ImageGenerateProps) {
         fallback: 'generated.png',
       }),
     );
-  };
+  }, [assetUrl, data.label]);
 
   // 摄影棚生成：创建新生图节点，预填摄影棚提示词，连线提供垫图
   const handleCameraStudioGenerate = useCallback(
@@ -502,20 +500,10 @@ function ImageGenerate({ id, data, selected }: ImageGenerateProps) {
     [id, getNodes, getEdges, setNodes, setEdges, history],
   );
 
-  // 共享图片 hover 能力（裁剪/标记/压缩）：写回走 setAssetUrl + patchData（不可变落盘）。
-  const {
-    editor: _editor,
-    setEditor: _setEditor,
-    cropping,
-    renderEditor,
-    renderInlineCropper,
-    imageButtons,
-  } = useImageHoverActions({
-    id,
-    url: assetUrl,
-    hasImage,
-    label: data.label ?? '',
-    onImageReplaced: (dataUrl, dims) => {
+  // 【TD-04-41】图片替换回调必须引用稳定：它经 useImageHoverActions 传给 imageButtons 的
+  // handleUpscale / handleCompress ⇒ 不稳定则 memo(HoverToolbar) 恒失效（**修节点侧也无效，根在这**）。
+  const handleImageReplaced = useCallback(
+    (dataUrl: string, dims?: { width: number; height: number }) => {
       // 本地 state 立即生效（渲染读 state，先于节点 data 落盘）。
       setAssetUrl(dataUrl);
       // ★ 图片字段唯一写入口（docs/118 §五 C5b）；尺寸模型仍留在本节点 afterWrite：
@@ -536,57 +524,82 @@ function ImageGenerate({ id, data, selected }: ImageGenerateProps) {
         patchData({ aspectRatio: 'Auto' }); // 写的是 aspectRatio 不是图，故不经 replaceNodeImage
       });
     },
+    [id, setNodes, aspectRatio, fitByRatio, patchData],
+  );
+
+  // 共享图片 hover 能力（裁剪/标记/压缩）：写回走 setAssetUrl + patchData（不可变落盘）。
+  const {
+    editor: _editor,
+    setEditor: _setEditor,
+    cropping,
+    renderEditor,
+    renderInlineCropper,
+    imageButtons,
+  } = useImageHoverActions({
+    id,
+    url: assetUrl,
+    hasImage,
+    label: data.label ?? '',
+    onImageReplaced: handleImageReplaced,
   });
 
   // hover 操作栏按钮：图片类共享能力(crop/edit/compress)走 useImageHoverActions（带 onClick，修死按钮），
   // zoom/upload/send/jianying/download 按生图节点语义各自声明。
-  const toolbarButtons = [
-    ...(hasImage
-      ? [
-          {
-            key: 'cameraStudio',
-            icon: <Camera size={14} />,
-            title: '摄影棚',
-            onClick: () => setIsCameraStudioOpen(true),
-          },
-          // 共享图片能力：裁剪/标记（开 ImageEditor）/压缩，show 已由 hook 控制为 hasImage
-          ...imageButtons,
-          {
-            key: 'send',
-            icon: <Send size={14} />,
-            title: '发送到素材库',
-            hoverClass: 'hover:text-blue-400',
-            onClick: () => {
-              if (!assetUrl) {
-                showToast('没有可发送的素材', { type: 'error' });
-                return;
-              }
-              const name = (data.label && String(data.label).trim()) || '';
-              openResourceLibrary();
-              // 【TD-12-10】成功 toast 必须等落盘完成（唯一知道真相的那层）再弹（同 AssetNode）。
-              void sendToResourceLibrary(assetUrl, { name, type: 'image' }).then((outcome) => {
-                if (outcome.ok) showToast('已发送到素材库', { type: 'success' });
-                else showToast('发送到素材库失败，请稍后重试', { type: 'error' });
-              });
+  // 【TD-04-41】配置数组 + 各按钮回调引用稳定（否则 memo(HoverToolbar) 浅比较必失败）。
+  const handleToolbarCameraStudio = useCallback(() => setIsCameraStudioOpen(true), []);
+  const handleToolbarSend = useCallback(() => {
+    if (!assetUrl) {
+      showToast('没有可发送的素材', { type: 'error' });
+      return;
+    }
+    const name = (data.label && String(data.label).trim()) || '';
+    openResourceLibrary();
+    // 【TD-12-10】成功 toast 必须等落盘完成（唯一知道真相的那层）再弹（同 AssetNode）。
+    void sendToResourceLibrary(assetUrl, { name, type: 'image' }).then((outcome) => {
+      if (outcome.ok) showToast('已发送到素材库', { type: 'success' });
+      else showToast('发送到素材库失败，请稍后重试', { type: 'error' });
+    });
+  }, [assetUrl, data.label]);
+  // 两个分支共用同一按钮项 ⇒ 也必须引用稳定（否则外层 useMemo 每次失效）。
+  const cameraStudioButton = useMemo(
+    () => ({
+      key: 'cameraStudio',
+      icon: <Camera size={14} />,
+      title: '摄影棚',
+      onClick: handleToolbarCameraStudio,
+    }),
+    [handleToolbarCameraStudio],
+  );
+  const toolbarButtons = useMemo(
+    () =>
+      hasImage
+        ? [
+            cameraStudioButton,
+            // 共享图片能力：裁剪/标记（开 ImageEditor）/压缩，show 已由 hook 控制为 hasImage
+            ...imageButtons,
+            {
+              key: 'send',
+              icon: <Send size={14} />,
+              title: '发送到素材库',
+              hoverClass: 'hover:text-blue-400',
+              onClick: handleToolbarSend,
             },
-          },
-          {
-            key: 'jianying',
-            icon: <JianyingIcon size={14} />,
-            title: '发送到剪映素材库',
-            hoverClass: 'hover:text-emerald-400',
-          },
-          { key: 'download', icon: <Download size={14} />, title: '下载', onClick: handleDownload },
-        ]
-      : [
-          {
-            key: 'cameraStudio',
-            icon: <Camera size={14} />,
-            title: '摄影棚',
-            onClick: () => setIsCameraStudioOpen(true),
-          },
-        ]),
-  ];
+            {
+              key: 'jianying',
+              icon: <JianyingIcon size={14} />,
+              title: '发送到剪映素材库',
+              hoverClass: 'hover:text-emerald-400',
+            },
+            {
+              key: 'download',
+              icon: <Download size={14} />,
+              title: '下载',
+              onClick: handleDownload,
+            },
+          ]
+        : [cameraStudioButton],
+    [hasImage, cameraStudioButton, imageButtons, handleToolbarSend, handleDownload],
+  );
 
   return (
     <>
@@ -594,7 +607,7 @@ function ImageGenerate({ id, data, selected }: ImageGenerateProps) {
         id={id}
         label={data.label}
         defaultTitle="生图节点"
-        icon={<ImageIcon size={11} className="text-muted" />}
+        icon={ImageIcon}
         selected={selected}
         minWidth={160}
         minHeight={160}

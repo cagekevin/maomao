@@ -569,7 +569,6 @@ function GridMergeNode({ id, data, selected }: GridMergeNodeProps) {
     },
   });
 
-  const titleIcon = <Layers size={11} className="text-muted" />;
   const totalCells = rows * cols;
 
   const modeBtn = (mode: string, label: string, icon: React.ReactNode, title: string) => (
@@ -590,7 +589,7 @@ function GridMergeNode({ id, data, selected }: GridMergeNodeProps) {
         id={id}
         label={data.label}
         defaultTitle="图像拼图"
-        icon={titleIcon}
+        icon={Layers}
         selected={selected}
         onRename={rename}
         // 端口契约收口到 NodeShell（勿改回 children 手写 CustomHandle）：

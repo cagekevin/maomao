@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useMemo } from 'react';
 import type { Edge, Node } from '@xyflow/react';
 import {
   HistoryStack,
@@ -108,5 +108,13 @@ export function useCanvasHistory(
     setVersion((v) => v + 1);
   }, [stack]);
 
-  return { canUndo: stack.canUndo, canRedo: stack.canRedo, record, undo, redo, clear };
+  // 【TD-04-39 · 返回值必须引用稳定】本对象经 `CanvasEdgesProvider` 直接作 Context value
+  // （`CanvasEdgesContext.tsx:28` 只透传、不加工）⇒ 它每换一次引用，11 个节点组件全部重渲 ——
+  // `React.memo` 只挡 props，**挡不住 context 变化**，故拖拽期间 App 每帧重渲 = 全部节点每帧重渲。
+  // 依赖全为稳定源：record/undo/redo/clear 是 useCallback（其稳定性由调用方传入的
+  // getSnapshot/apply 决定）、canUndo/canRedo 是 boolean 原始值 ⇒ 仅撤销栈真变化时才换引用。
+  return useMemo(
+    () => ({ canUndo: stack.canUndo, canRedo: stack.canRedo, record, undo, redo, clear }),
+    [stack.canUndo, stack.canRedo, record, undo, redo, clear],
+  );
 }

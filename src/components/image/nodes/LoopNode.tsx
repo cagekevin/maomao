@@ -278,7 +278,7 @@ function LoopNode({ id, data, selected }: LoopNodeProps) {
       id={id}
       label={data.label}
       defaultTitle="循环"
-      icon={<Repeat size={11} className="text-muted" />}
+      icon={Repeat}
       selected={selected}
       handleVariant="small"
       minWidth={240}

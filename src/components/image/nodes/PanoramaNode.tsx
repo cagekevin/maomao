@@ -759,7 +759,7 @@ function PanoramaNode({ id, data, selected }: PanoramaNodeProps) {
       id={id}
       label={data.label}
       defaultTitle="720全景图"
-      icon={<Globe size={11} className="text-muted" />}
+      icon={Globe}
       selected={selected}
       keepAspect
       aspectRatio="16:9"
