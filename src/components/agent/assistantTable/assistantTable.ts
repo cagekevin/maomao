@@ -45,11 +45,41 @@ export interface AssistantTable {
   rows: TableRow[];
 }
 
-/** 反序列化用的宽松形态（供 normalizeAssistantTable 归一，兼容历史/脏数据） */
+/**
+ * 反序列化用的宽松形态（供 normalizeAssistantTable 归一，兼容历史/脏数据）。
+ *
+ * 【2026-09-20 · TD-09-5 去假收窄】原带 `[key: string]: unknown` 索引签名 ⇒ **任何字段名都合法**
+ * （拼错 `rows`→`rowz` 也静默通过，实测探针证伪）。现**去掉索引签名**：
+ * 反序列化时"多出来的运行时字段"**不需要**写进类型（TS 不要求穷尽），去掉后字段名才受检查。
+ */
 export interface RawAssistantTable {
   columns?: unknown[];
   rows?: unknown[];
-  [key: string]: unknown;
+}
+
+/** 原始列（未归一）—— 字段名受检查，值仍需运行时校验 */
+interface RawTableColumn {
+  id?: unknown;
+  label?: unknown;
+  width?: unknown;
+}
+
+/** 原始行（未归一的落盘/入参形态）—— 字段名受检查，值仍需运行时校验（历史脏数据） */
+interface RawTableRow {
+  id?: unknown;
+  /** 老格式：{ 列名: 值 }（列名是用户自定义的 ⇒ 内部仍是动态字典） */
+  values?: unknown;
+  /** 新格式：按下标取单元格 */
+  cells?: unknown;
+}
+
+/** 原始 tab（未归一）—— 同上：字段名受检查 */
+interface RawTableTab {
+  id?: unknown;
+  name?: unknown;
+  globalStyle?: unknown;
+  columns?: unknown[];
+  rows?: unknown[];
 }
 
 /** AI 生成整表 / 改单行的统一精简 JSON（对齐剧本盒「顶层 globalStyle + 行数组」形态，但不限定分镜） */
@@ -106,7 +136,7 @@ export function normalizeAssistantTable(raw: unknown): AssistantTable {
   if (Array.isArray(r.columns)) {
     for (const c of r.columns as unknown[]) {
       if (!c || typeof c !== 'object') continue;
-      const col = c as Record<string, unknown>;
+      const col = c as RawTableColumn;
       const label = String(col.label ?? '').trim();
       if (!label) continue;
       const width =
@@ -123,7 +153,7 @@ export function normalizeAssistantTable(raw: unknown): AssistantTable {
   if (Array.isArray(r.rows)) {
     for (const row of r.rows as unknown[]) {
       if (!row || typeof row !== 'object') continue;
-      const rw = row as Record<string, unknown>;
+      const rw = row as RawTableRow;
       const rowId = String(rw.id ?? '') || newRowId();
       const v =
         rw.values && typeof rw.values === 'object' ? (rw.values as Record<string, unknown>) : {};
@@ -769,7 +799,7 @@ export function emptyAssistantTabs(): AssistantTableTabs {
 /** 单个 tab 归一（id/name/globalStyle 补缺省；表格 columns/rows 复用 normalizeAssistantTable） */
 function normalizeTab(raw: unknown, index: number): TableTab | null {
   if (!raw || typeof raw !== 'object') return null;
-  const t = raw as Record<string, unknown>;
+  const t = raw as RawTableTab;
   const table = normalizeAssistantTable(t);
   return {
     id: String(t.id ?? '') || newTabId(),
