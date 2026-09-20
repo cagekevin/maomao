@@ -93,7 +93,16 @@ import {
 // 更新(2026-09-14)：自建 VideoEditorDock 退役，改为挂载 cutia 版 EditorShell（docs/130-cutia搬迁计划书）。
 // import VideoEditorDock from './components/videoEditor/panels/dock/VideoEditorDock.tsx';
 // 更新(2026-09-19)：改走**域门面**（域模块化 Step A 首批）—— 此后 videoEditor 域内结构重构不再波及 App。
-import { EditorShell } from './components/videoEditor/EditorShell.tsx';
+// 【2026-09-20 · 产物体积 1B】`EditorShell` 原为**静态** import ⇒ 把整个 `videoEditor` 域
+// （源码 **1,304.8 kB**，首屏静态图 552 文件里最重的一块）拖进入口 chunk。
+// 改按需的前提（均已实测）：
+//   ① 该域**域外只有本文件**真正 import（`contracts.ts` 里的 `videoEditor/…` 全是注释/字符串）；
+//   ② `EditorShell` 本就只在 `videoEditorOpen` 时挂载 ⇒ 条件渲染，懒加载无行为差异。
+// 单实例安全性：`editorInstance`（`getEditor()`）的引用方**全在 videoEditor 域内**
+// ⇒ 随域一起进同一个懒加载块，单例不会被拽断（与 `lazyNode` 处理重节点同手法）。
+const EditorShell = React.lazy(() =>
+  import('./components/videoEditor/EditorShell.tsx').then((m) => ({ default: m.EditorShell })),
+);
 import { buildNodeTypeComponents } from './components/canvas/shell/NodePalette.ts';
 import { defaultNodeData } from './components/canvas/contract/nodeDataSchema.ts';
 import LodProvider, { useLod } from './components/canvas/shell/lod.tsx';
@@ -1643,11 +1652,13 @@ function Canvas() {
           // 顶格还有个恶果：Portal 到 body 的弹层(10000)必须"比最大值还高"才盖得住它 = 不可能，
           // 于是编辑器内的下拉/菜单/对话框全体被自家面板盖住（字体下拉"根本没显示出来"的根因）。
           <div className="ve-scope dark fixed inset-0 z-modal">
-            <EditorShell
-              key={activeProjectId}
-              canvasProjectId={activeProjectId}
-              onClose={() => setEditorSessionOpen(false)}
-            />
+            <React.Suspense fallback={null}>
+              <EditorShell
+                key={activeProjectId}
+                canvasProjectId={activeProjectId}
+                onClose={() => setEditorSessionOpen(false)}
+              />
+            </React.Suspense>
           </div>
         )}
 
