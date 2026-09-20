@@ -68,12 +68,25 @@ const EXCLUSIONS = JSON.parse(
   readFileSync(new URL('./strict-src-whitelist.json', import.meta.url), 'utf8'),
 ).exclusions;
 
-// 基数自检（防「扫 0 却绿灯」——TD-02-9 同款）：
-// 翻转后「排除清单为空」是**正常态**，故自检改为：**排除清单盖住整个 src ⇒ 本闸守卫 0 个文件** ⇒ 拒绝放行。
-if (EXCLUSIONS.some((e) => String(e).replace(/\/+$/, '') === 'src')) {
-  console.error('❌ 排除清单含 src 本身 → 本闸在守卫 0 个文件（扫 0 却绿灯）→ 拒绝放行');
-  process.exit(1);
+/**
+ * 基数自检（防「扫 0 却绿灯」——TD-02-9 同款）：
+ * 翻转后「排除清单为空」是**正常态**，故自检改为：**排除清单盖住整个 src ⇒ 本闸守卫 0 个文件** ⇒ 拒绝放行。
+ *
+ * 【为什么叫 `assertScanned`】本仓收敛后的**命名约定**（`check-arch:71` 同款）——
+ * `check-gate-vitals` 靠这个名字**机器识别**「本闸真有基数自检」。
+ * 2026-09-20 实测：本函数**一直存在**，但元层闸的正则只认 `.length/.size === 0` / 裸 `x === 0`，
+ * 认不出"字符串相等判空"这第四种形态 ⇒ 误报「无集合判 0」（检测器的**第三次同类**假阴性，
+ * 它自己注释里已承认过一次）。
+ * ⇒ 正解不是**再加一条正则**（形态认不完，必漏下一种），而是**用命名约定让机器直接看见**。行为零变化。
+ */
+function assertScanned() {
+  if (EXCLUSIONS.some((e) => String(e).replace(/\/+$/, '') === 'src')) {
+    console.error('❌ 排除清单含 src 本身 → 本闸在守卫 0 个文件（扫 0 却绿灯）→ 拒绝放行');
+    process.exit(1);
+  }
 }
+
+assertScanned();
 
 let out = '';
 try {
