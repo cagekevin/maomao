@@ -31,9 +31,10 @@ const dirArg = flag('--dir');
 const fileArg = flag('--file');
 const topN = Number(flag('--top') || 15);
 
-const whitelist = JSON.parse(
+// 【★2026-09-20 翻转 · TD-25-32】原读 `.whitelist`（允许清单）⇒ 改读 `.exclusions`（排除清单）。
+const exclusions = JSON.parse(
   readFileSync(new URL('./strict-src-whitelist.json', import.meta.url), 'utf8'),
-).whitelist;
+).exclusions;
 
 /** tsc 错误行：`path(line,col): error TSxxxx: message`
  *  刻意不加行尾 `$`（与 ts-detail 一致）：错误消息可能含 `(` 等，宽松匹配更稳；续行不含 "error TS" 自然忽略。 */
@@ -79,7 +80,8 @@ if (errLineCount > 0 && errors.length < errLineCount) {
   console.error('');
 }
 
-const inWl = (f) => whitelist.some((w) => f.startsWith(w));
+// 【★2026-09-20 翻转 · TD-25-32】与 check-strict-src.mjs 同语义：全 src 默认受保护，仅 exclusions 放开。
+const inWl = (f) => f.startsWith('src/') && !exclusions.some((x) => f.startsWith(x));
 const pad = (n, w = 5) => String(n).padStart(w);
 
 // ── --file 模式 ──
@@ -135,7 +137,7 @@ for (const e of errors) byCode.set(e.code, (byCode.get(e.code) || 0) + 1);
 console.log('🔍 strict 类型收口报告（noImplicitAny · TD-09-1 选项 A）');
 console.log(`   存量总计：${errors.length} 处`);
 console.log(
-  `   白名单：${whitelist.join(' · ') || '(空)'} → ${wlErrors.length === 0 ? '✅ 已清零' : `❌ ${wlErrors.length} 处未清（门禁会红）`}`,
+  `   保护范围：全 src（排除 ${exclusions.length} 处：${exclusions.join(' · ') || '(空)'}） → ${wlErrors.length === 0 ? '✅ 已清零' : `❌ ${wlErrors.length} 处未清（门禁会红）`}`,
 );
 
 console.log('\n── 按域（白名单外，待收口）──');
@@ -148,10 +150,10 @@ console.log(`\n── TOP ${topN} 文件（错误最多）──`);
 for (const [f, n] of [...byFile].sort((a, b) => b[1] - a[1]).slice(0, topN))
   console.log(`   ${pad(n)}  ${f}`);
 
-console.log('\n── 建议下一步（白名单外 · 错误最少的文件，最易啃）──');
+console.log('\n── 建议下一步（保护范围内 · 错误最少的文件，最易啃）──');
 for (const [f, n] of [...byFile].sort((a, b) => a[1] - b[1]).slice(0, 10))
   console.log(`   ${pad(n)}  ${f}`);
 
 console.log(
-  '\n提示：`--file <path>` 看单文件明细；`--dir <path>` 看整目录；收口一个目录后把路径加进 scripts/strict-src-whitelist.json',
+  '\n提示：`--file <path>` 看单文件明细；`--dir <path>` 看整目录；【翻转后】全 src 默认受保护 —— 要**临时放开**某目录：把路径加进 `scripts/strict-src-whitelist.json` 的 `exclusions` 并**记债**（说明为何未收口）；禁止为过闸而放松。',
 );

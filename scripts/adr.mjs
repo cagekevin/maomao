@@ -49,10 +49,15 @@
  *   node scripts/adr.mjs rm <NNNN> --reason "…" [--force]
  *                                                   # **只用于误建/重复**（正常退役走 status，不删）
  *                                                   # 参与取代链的默认拒删；确认误建才 --force（会同时解开取代链）
+ * 用法（守护者 · 只读 · 2026-09-20 补）：
+ *   node scripts/adr.mjs refs <NNNN>                # 谁引用了它 —— 按「必须回改 / 不动」分三类（A7 回改的唯一入口）
+ *   node scripts/adr.mjs refs --check               # 全仓断链：引用了**已不存在**的编号 ⇒ exit 1
+ *   node scripts/adr.mjs doctor                     # Step 1 一键编排：audit + hygiene + 断链 + 弯路过期（**不是闸**）
  */
-import { readFileSync, writeFileSync, existsSync, readdirSync, rmSync } from 'node:fs';
+import { readFileSync, writeFileSync, existsSync, readdirSync, statSync, rmSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { join } from 'node:path';
+import { join, relative } from 'node:path';
+import { execFileSync } from 'node:child_process';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const ADR_DIR = join(ROOT, 'docs', 'adr');
@@ -213,17 +218,25 @@ function parseAdr(file) {
 const loadAdrs = () => adrFiles().map(parseAdr);
 
 /**
- * 索引分**两张表**：生效 / 已退出。
+ * 索引分**三张表**：生效 / 已毕业 / 已退出。
  * 【为什么分表（2026-09-18）】ADR 只增不减 ⇒ 生效集必须**默认可见**、退出集**默认折叠**，
  *   否则读者要在几十条里挑现行判据。**不搬家**（已废止/已毕业的仍留原路径）—— 搬家会断链。
+ * 【为什么把「已毕业」拆成独立一张（2026-09-20）】已毕业 = 判据升为 fitness function，
+ *   **判据仍然现行**，只是载体换成闸 / 类型层。若与「已取代 / 已弃用」同表并统一标注
+ *   "勿再引用为现行判据"，读者会把**正被闸强制**的判据读成已作废（实测反证：ADR-0046
+ *   正在引用已毕业的 ADR-0035 作同族判据；ADR-0042 引用 ADR-0030）。⇒ 分表，各自标正确口径。
  */
 function renderIndex(adrs) {
   const row = (a) =>
     `| [${a.no}](${a.file}) | ${a.title} | ${STATUS_ICON[a.status] ?? '❔'} ${a.status} | ${a.conclusion} |`;
   const HEAD = '| # | 标题 | 状态 | 结论一句话 |\n| --- | --- | --- | --- |';
   const active = adrs.filter((a) => !RETIRED.includes(a.status));
-  const retired = adrs.filter((a) => RETIRED.includes(a.status));
+  const graduated = adrs.filter((a) => a.status === '已毕业');
+  const retired = adrs.filter((a) => RETIRED.includes(a.status) && a.status !== '已毕业');
   const parts = [HEAD, ...active.map(row)];
+  if (graduated.length) {
+    parts.push('', '**🎓 已毕业**（判据**仍现行**，载体已升为自动检查 · **不是作废**）', '', HEAD, ...graduated.map(row));
+  }
   if (retired.length) {
     parts.push('', '**已退出**（保留作记录 · **勿再引用为现行判据**）', '', HEAD, ...retired.map(row));
   }
@@ -733,6 +746,205 @@ function cmdHygiene() {
   process.exit(shells.length || dupClusters.length ? 1 : 0);
 }
 
+/**
+ * 【引用面 + 断链 `refs`（2026-09-20 补 · 守护者）】
+ *
+ * ★ 为什么需要（本轮实证）：它是 A7「修正必须回改原文」的**唯一入口**。人肉 grep 必漏 ——
+ *   2026-09-20 修 ADR-0044 / ADR-0039 时漏扫了 `docs/DOMAIN-MODULES-HANDOFF.md`，
+ *   差点留下一份"照旧教人补建门面"的**活跃文档**（下一轮会照它产假债）。
+ *
+ * ★ 分类判据（= ADR守护者 §回改适用范围）：**这份文档会不会被后人当入口再查一次**。
+ *     ① 生效判据 = `docs/adr/*.md` 的其他条 ⇒ **必须回改**（后人是把它当论据查的）
+ *     ② 活跃文档 = `docs/` `spec/` `src/` `.codebuddy/` `CLAUDE.md` ⇒ **必须回改**
+ *     ③ 过程文档 = `daily/**` ⇒ **不动**（当时快照，回改反而失真）
+ *
+ * ★ 豁免（必须**同行**命中 —— 理由同 `check-doc-refs`：豁免要写成可 grep 的形态）：
+ *   历史叙述（"ADR-0043 已删号"是在讲过去）· 索引行（`](ADR-0044-` 是 README 产物）。
+ *
+ * ★ 只读；判定只写在这一处（闸侧如需接入应**调用**本命令，不另写第二份）。
+ *
+ * ★ 为什么不建闸 —— **「建闸前置评审」6 问逐条自评**（7步法 §🚧；不写这段 = 悄悄把它当闸用）：
+ *   ① **守什么**：**拿不出 `CLAUDE.md` 级红线**（断链＝描述层准确性，不是物理契约）⇒ **本问即不过**；
+ *   ② **能不能不建**：能 —— `refs <NNNN>` 已覆盖"改号时手动查"；且 ADR **只退不删**（文件仍在＝编号仍存在）本身挡掉大部分断链；
+ *   ③ **上次拦住什么**：✅ 实证 M7（ADR-0043 删号后，ADR-0044 / plan / HANDOFF 仍在引用）；
+ *   ④ **红了知道怎么修**：✅ 输出自带三条「怎么修」；
+ *   ⑤ **合法通过成本**：**不在高频动作上**（只有"删号 / 改号"时才有意义）⇒ 无"被绕"动因；
+ *   ⑥ **覆盖可机器验证**：✅ 扫描基数（文件数 / 引用数 / 有效编号数）由脚本自算并打印。
+ *   ⇒ **①不过 ⇒ 不建**（它是默认值，不是红线）；其余五项健康 ⇒ 形态不属六种坏闸。
+ *   ⇒ 故本命令**只做"手动查询 + doctor 编排"**，**不进 `gates.manifest.json`、不挂 git hook**。
+ *   将来有人要把它接进 CI ⇒ **那一刻才走评审**，并须回答"它凭什么从默认值升为闸"。
+ */
+const REFS_SKIP = new Set(['node_modules', 'dist', '.git', '.probe']);
+const REFS_EXT = /\.(md|ts|tsx|js|jsx|mjs|cjs)$/;
+const REFS_ROOTS = ['docs', 'spec', 'src', '.codebuddy', 'daily', 'CLAUDE.md'];
+const EXEMPT_REF = /已删号|已删|已退役|已移除|已改名|原名|此前|旧版|曾经|tombstone|墓碑|\]\(ADR-\d{4}-/;
+/**
+ * 编号正则的**负向先行**（2026-09-20 补 · 负例探针逼出）：
+ *   `(?!-?\d)` 排除 `ADR-2026-09-19` 这类**文件名里的日期**（实证误报：日志名
+ *   `18-跨区-判决句归位四条ADR-2026-09-19.md` 被当成"引用了 ADR-2026"）。
+ */
+const RE_ADR = /\bADR-\d{4}(?!-?\d)\b/g;
+
+function walkRefs(target, out = []) {
+  if (!existsSync(target)) return out;
+  if (statSync(target).isFile()) {
+    if (REFS_EXT.test(target)) out.push(target);
+    return out;
+  }
+  for (const name of readdirSync(target)) {
+    if (REFS_SKIP.has(name)) continue;
+    walkRefs(join(target, name), out);
+  }
+  return out;
+}
+
+/**
+ * 全仓扫 ADR 编号引用 ⇒ `[{ rel, line, text, refs }]`（已剔除豁免行）。
+ *
+ * ⚠️ `includeDaily`（默认 true）—— **两种模式必须分开**：
+ *   · `refs <NNNN>` 要**含 daily**：它要显示"过程文档（不动）"这一类，提醒你别去改它；
+ *   · `refs --check` 必须**排除 daily**：过程文档天然会提历史编号（"ADR-0022 已删号"、
+ *     体检报告里的举例 `ADR-0099`）⇒ 扫它 = **常红判据**（形态⑤：跑到没人看）。
+ */
+function scanAdrRefs({ includeDaily = true } = {}) {
+  const rows = [];
+  for (const r of REFS_ROOTS) {
+    if (!includeDaily && r === 'daily') continue;
+    for (const abs of walkRefs(join(ROOT, r))) {
+      const rel = relative(ROOT, abs).replace(/\\/g, '/');
+      readFileSync(abs, 'utf8')
+        .split('\n')
+        .forEach((line, i) => {
+          const m = line.match(RE_ADR);
+          if (!m || EXEMPT_REF.test(line)) return;
+          rows.push({ rel, line: i + 1, text: line.trim().slice(0, 110), refs: [...new Set(m)] });
+        });
+    }
+  }
+  return rows;
+}
+
+function cmdRefs() {
+  const arg = process.argv[3];
+  const known = new Set(adrFiles().map((f) => f.slice(4, 8)));
+
+  // ── 模式 A：无参 / `--check` ⇒ 全仓断链（引用了**已不存在**的编号）────────────
+  // ⚠️ 只扫"会被当入口再查"的位置（**不含 `daily/**`**）—— 理由见 scanAdrRefs 的 includeDaily 注。
+  if (!arg || arg === '--check') {
+    const rows = scanAdrRefs({ includeDaily: false });
+    const ghosts = new Map();
+    for (const r of rows) {
+      for (const id of r.refs) {
+        if (known.has(id.slice(4))) continue;
+        if (!ghosts.has(id)) ghosts.set(id, []);
+        ghosts.get(id).push(r);
+      }
+    }
+    if (flag('--json')) {
+      console.log(
+        JSON.stringify(
+          {
+            scannedRefs: rows.length,
+            knownIds: known.size,
+            ghosts: [...ghosts].map(([id, at]) => ({ id, at: at.map((x) => `${x.rel}:${x.line}`) })),
+          },
+          null,
+          2,
+        ),
+      );
+      process.exit(ghosts.size ? 1 : 0);
+    }
+    console.log(`🔗 adr refs --check（断链：编号是否还存在）｜ 扫到 ${rows.length} 处引用 · 有效编号 ${known.size} 个`);
+    console.log('   范围：docs/ spec/ src/ .codebuddy/ CLAUDE.md —— **不含 `daily/**`**（过程文档必带历史编号，扫它 = 常红）');
+    if (!ghosts.size) {
+      console.log('   ✅ 0 断链（所有引用都指向存在的 ADR）');
+      process.exit(0);
+    }
+    console.log(`   ❌ ${ghosts.size} 个编号被引用但**已不存在**：`);
+    for (const [id, at] of ghosts) {
+      console.log(`      ${id}  ← ${at.length} 处`);
+      for (const a of at.slice(0, 5)) console.log(`         ${a.rel}:${a.line}  ${a.text}`);
+      if (at.length > 5) console.log(`         …（另 ${at.length - 5} 处）`);
+    }
+    console.log(`
+   ── 怎么修 ──
+   ① 生效判据 / 活跃文档里的 ⇒ **改指现编号**（整句已作废则删该引用）；
+   ② \`daily/**\`（过程文档）里的 ⇒ **不动**（当时快照，回改反失真）；
+   ③ 是"**ADR-00xx 已删号**"这类**历史叙述** ⇒ 已豁免，无需处理。`);
+    process.exit(1);
+  }
+
+  // ── 模式 B：`refs <NNNN>` ⇒ 单条引用面，按"要不要回改"分三类 ─────────────────
+  const rows = scanAdrRefs(); // **含 daily**：要显示「③ 过程文档（不动）」这一类
+  const no = String(arg).replace(/^ADR-?/i, '').padStart(4, '0');
+  if (!known.has(no)) die(`ADR-${no} 不存在（可能是已删号）`, `现有编号：${[...known].sort().join(' ')}`);
+  const self = `docs/adr/ADR-${no}-`;
+  const mine = rows.filter((r) => r.refs.includes(`ADR-${no}`) && !r.rel.startsWith(self));
+  const g1 = mine.filter((r) => r.rel.startsWith('docs/adr/'));
+  const g3 = mine.filter((r) => r.rel.startsWith('daily/'));
+  const g2 = mine.filter((r) => !r.rel.startsWith('docs/adr/') && !r.rel.startsWith('daily/'));
+
+  console.log(`🔗 adr refs「ADR-${no}」｜ ${mine.length} 处引用（须回改 ${g1.length + g2.length} · 过程文档 ${g3.length}）`);
+  const dump = (title, list) => {
+    if (!list.length) return;
+    console.log(`\n   ${title}`);
+    for (const r of list) console.log(`      ${r.rel}:${r.line}  ${r.text}`);
+  };
+  dump('① 生效判据（其他 ADR）—— 必须回改：', g1);
+  dump('② 活跃文档 —— 必须回改：', g2);
+  dump('③ 过程文档（daily/）—— **不动**：', g3);
+  if (!mine.length) console.log('   （无引用 —— 这条还没被别处当论据用过）');
+  console.log('\n   ⇒ 回改：①② 每处都改；③ 一律不动。改完 `index --write && audit` 必须 0 问题。');
+}
+
+/**
+ * 【`doctor` —— Step 1 体检的一键编排（2026-09-20 补 · 守护者）】
+ *
+ * ★ 为什么需要：Step 1 要跑五件事（现行集 / 形式对账 / 可数体检 / **前人弯路** / 断链）。
+ *   分散跑 ⇒ **必漏** —— 本轮实证：漏了"先看弯路"那一步，把**已经翻过车的处方**
+ *   （ADR-0044 §3「纯中转必删」）当成新发现又推了一遍。
+ *
+ * ★ 只编排、不重实现：audit / hygiene 递归调用本文件；弯路复用 `extract-detours.mjs --check`
+ *   （那是"弯路"域的产物校验 —— 不在这里写第二份）。
+ *
+ * ★ 本命令**不是闸**：它只读 + 给下一步（"全绿"≠ 没问题，见 ADR守护者 §闸绿 ≠ 健康）。
+ *   它**不进 `gates.manifest.json`、不挂 git hook** —— 理由逐条写在 `cmdRefs` 的「为什么不建闸」段
+ *   （核心：① 拿不出 `CLAUDE.md` 级红线 ⇒ 属默认值，不该升为闸）。
+ */
+function cmdDoctor() {
+  const self = fileURLToPath(import.meta.url);
+  const run = (bin, args) => {
+    try {
+      const out = execFileSync(process.execPath, [bin, ...args], { encoding: 'utf8', cwd: ROOT, maxBuffer: 64 * 1024 * 1024 });
+      return { out: String(out).trim(), code: 0 };
+    } catch (e) {
+      return { out: String(e.stdout ?? '').trim(), code: e.status ?? 1 };
+    }
+  };
+  const step = (label, r) => {
+    console.log(`\n${r.code === 0 ? '✅' : '❌'} ${label}`);
+    if (r.out) console.log(r.out.split('\n').map((l) => `   ${l}`).join('\n'));
+  };
+
+  console.log('🩺 adr doctor —— Step 1 体检编排（只读 · **不是闸**）｜ 顺序：先 ADR，再弯路');
+  const a = run(self, ['audit']);
+  const h = run(self, ['hygiene']);
+  const r = run(self, ['refs', '--check']);
+  const d = run(join(ROOT, 'scripts', 'extract-detours.mjs'), ['--check']);
+  step('① 形式对账（audit）', a);
+  step('② 可数体检（hygiene）', h);
+  step('③ 跨条断链（refs --check）', r);
+  step('④ 前人弯路（extract-detours --check）', d);
+
+  console.log('\n⓿ 结论句 vs 它自己的正文（**机器查不到** —— 语义判断；硬凑 grep 是假防线）');
+  console.log('   ⇒ 人工：逐条并读 `- **结论**：` 与 §判据 / §决议 / §后果 / 头部补充（ADR守护者 §十问⓿）。');
+  console.log('\n── 下一步 ──');
+  console.log('   · 有 ❌ ⇒ 按各项自带的「怎么修」处置；');
+  console.log('   · 要动某条 ⇒ 先 `refs <NNNN>` 拿引用面：①② 回改、③ 不动；');
+  console.log('   · 改动落盘后：`index --write && audit` 必须 0 问题。');
+  process.exit(a.code || h.code || r.code || d.code ? 1 : 0);
+}
+
 const cmd = process.argv[2];
 const table = {
   list: cmdList,
@@ -745,11 +957,13 @@ const table = {
   audit: cmdAudit,
   hygiene: cmdHygiene,
   stats: cmdStats,
+  refs: cmdRefs,
+  doctor: cmdDoctor,
 };
 if (!cmd || !table[cmd]) {
   die(
     `未知命令：${cmd ?? '(空)'}`,
-    'list ／ show <NNNN> ／ search <关键词> ／ index [--write] ／ add ／ status ／ audit ／ hygiene ／ stats',
+    'list ／ show <NNNN> ／ search <关键词> ／ index [--write] ／ add ／ status ／ audit ／ hygiene ／ stats ／ refs <NNNN|--check> ／ doctor',
   );
 }
 
@@ -763,7 +977,7 @@ if (!cmd || !table[cmd]) {
  * 幂等 ⇒ 无"何时该跑"问题：`renderIndex` 纯派生，一致时**零写入**（不产生 git 噪音）。
  * `index` / `rm` 自行处理（前者就是生成器；后者会删文件），故排除。
  */
-const SELF_HEAL = new Set(['list', 'show', 'search', 'add', 'status', 'audit', 'hygiene', 'stats']);
+const SELF_HEAL = new Set(['list', 'show', 'search', 'add', 'status', 'audit', 'hygiene', 'stats', 'refs']);
 if (SELF_HEAL.has(cmd)) {
   try {
     const adrs = loadAdrs();

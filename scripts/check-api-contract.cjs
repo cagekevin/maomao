@@ -543,6 +543,13 @@ function checkEnvelope(entry, found, texts) {
 //  - 未登记 → error（unresolved 之外的真漂移：新增端点漏登记）
 // 局限：非字面量一参（变量 URL）的调用点静态不可见；该侧由登记 fn 存在性校验兜底。
 const CALL_RE = /(?:\bhttpRequest\b|\bhttpPost\b|\bhttpRequestLogged\b)\s*\(\s*`([^`]*)`/g;
+// 【★2026-09-20 修 · TD-17-32】原判据只认「点名 3 个函数 + 模板字面量」，看不见**本地包装**的调用点
+//   （实测：`localToolApi.ts` 的 `request<T>('/api/providers', …)` —— 4 处调用点全部隐身）。
+//   改为**反向判据**：不点名函数，只认「首参 = `/api/...` 字面量」的**任意**调用；
+//   并在 callee 与 `(` 之间允许**可选泛型段** `<...>`（本仓包装正是 `request<ApiEnvelope<…>>(…)`，
+//   少了这段就 0 命中 —— 2026-09-20 首版试修即栽在此，已留痕）。
+const CALL_LITERAL_RE =
+  /(?:^|[^\w$.])([A-Za-z_$][\w$]*)\s*(?:<[^()]*?>)?\s*\(\s*(?:'(\/api\/[^']*)'|"(\/api\/[^"]*)"|`(\/api\/[^`]*)`)/g;
 
 function scanFrontendCallSites(registry) {
   // 登记 path 索引（patternKey 归一 {frontTaskId}→{x}）
@@ -568,14 +575,38 @@ function scanFrontendCallSites(registry) {
 
   for (const f of files) {
     const src = fs.readFileSync(f, 'utf8');
-    for (const m of src.matchAll(CALL_RE)) {
-      const callFn = /\bhttpPost\b/.test(m[0])
+  // 【★2026-09-20】登记表**本体**不是调用点：contracts.ts 里的 `path: '/api/…'` 是登记数据，
+  //   字面量扫描上线后会被误当成调用（实测报 `Record /api/providers…（contracts.ts）` 假阳）⇒ 排除。
+  //   判据是「**登记表文件 ≠ 调用点**」，不是点名豁免。
+  const relF = path.relative(ROOT, f).replace(/\\/g, '/');
+  if (relF.endsWith('base/core/contracts.ts')) continue;
+  // 两轮命中共用同一处理：① 模板一参（原判据）② 字面量一参（新增，不点名函数）
+  const calls = [];
+  for (const m of src.matchAll(CALL_RE)) {
+    calls.push({
+      callFn: /\bhttpPost\b/.test(m[0])
         ? 'httpPost'
         : /\bhttpRequestLogged\b/.test(m[0])
           ? 'httpRequestLogged'
-          : 'httpRequest';
-      // 模板归一：${...}（含 encodeURIComponent(x)）→ {x}
-      const t = m[1].replace(/\$\{[^}]*\}/g, '{x}');
+          : 'httpRequest',
+      t: m[1].replace(/\$\{[^}]*\}/g, '{x}'), // 模板归一：${...}（含 encodeURIComponent(x)）→ {x}
+    });
+  }
+  for (const m of src.matchAll(CALL_LITERAL_RE)) {
+    // 跳过注释行：JSDoc 示例常见（如 `httpClient.ts:426` 的 `* 用法：httpPost('/api/x', …)`）
+    const ls = src.lastIndexOf('\n', m.index) + 1;
+    const le = src.indexOf('\n', m.index);
+    const line = src.slice(ls, le < 0 ? src.length : le).trim();
+    if (line.startsWith('//') || line.startsWith('*') || line.startsWith('/*')) continue;
+    // 归一成 `{x}/api/...` 形态（与模板侧同口径：{x} = API_BASE）
+    //   **模板分支也要把 ${...} 归一为 {x}**（否则 `/api/providers/${encodeURIComponent(id)}/fetch-models`
+    //   与登记的 `/api/providers/{x}/fetch-models` 对不上 ⇒ 假「未登记」）。
+    calls.push({
+      callFn: m[1],
+      t: '{x}' + (m[2] || m[3] || m[4]).replace(/\$\{[^}]*\}/g, '{x}'),
+    });
+  }
+  for (const { callFn, t } of calls) {
       const rel = path.relative(ROOT, f);
       // 非 API_BASE 业务端点：任意 URL 下载 / 变量化路径 helper
       if (!t.startsWith('{x}/')) {
@@ -599,6 +630,14 @@ function scanFrontendCallSites(registry) {
         stat.exempt++;
         continue;
       }
+      // 非业务端点 —— 与 `/files/` · `/plugin/` **同型**：按**路径**分类，不是点名豁免。
+      //   `/api/logs` = fire-and-forget 日志上报（`logger.ts` 裸 `fetch`）：无 envelope、无前端业务函数。
+      //   （2026-09-20 字面量扫描上线后才可见 —— 它此前隐身，正是本闸盲区的实证。）
+      if (p.startsWith('/api/logs')) {
+        stat.exempt++;
+        continue;
+      }
+
       if (paths.has(patternKey(p))) {
         stat.matched++;
         continue;

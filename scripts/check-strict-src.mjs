@@ -55,14 +55,23 @@
 import { execSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 
-/** 已收口目录（单一真源 = scripts/strict-src-whitelist.json，与 strict-report.mjs 共用） */
-const WHITELIST = JSON.parse(
+/**
+ * 【★2026-09-20 翻转 · TD-25-32】原「已收口目录**允许**清单」（23 项）⇒ 翻为「**未收口目录排除清单**」。
+ * 单一真源仍是 `scripts/strict-src-whitelist.json`（与 strict-report.mjs 共用），但语义反转：
+ * **全 src 默认受保护**，只有 `exclusions` 内的路径放开。
+ * 为什么翻（清单必漏母体的实证）：目录一改名/搬迁，`l.includes(w)` 就失配 ⇒ 保护范围**静默缩水**
+ * （2026-09-19 域归位 A2：canvas/nodes 11 件迁出后原 15 件掉到 4 件，须手工补三处才追回）。
+ * 翻转后：**新建/改名/搬迁的目录自动受保护**，该类漂移被结构性消除；且方向是**收窄（更严）**。
+ * 翻的前提（已实测）：全 src 在 `--noImplicitAny` 下**存量 0 处** ⇒ 扩到全 src 不会引入新红灯。
+ */
+const EXCLUSIONS = JSON.parse(
   readFileSync(new URL('./strict-src-whitelist.json', import.meta.url), 'utf8'),
-).whitelist;
+).exclusions;
 
-// 基数自检（防「扫 0 却绿灯」——TD-02-9 同款）：白名单为 0 = 本闸在守卫 0 个目录，inScope 恒为空 → 静默通过 = 最危险的失效
-if (WHITELIST.length === 0) {
-  console.error('❌ strict 白名单为空 → 本闸在守卫 0 个目录（扫 0 却绿灯）→ 拒绝放行');
+// 基数自检（防「扫 0 却绿灯」——TD-02-9 同款）：
+// 翻转后「排除清单为空」是**正常态**，故自检改为：**排除清单盖住整个 src ⇒ 本闸守卫 0 个文件** ⇒ 拒绝放行。
+if (EXCLUSIONS.some((e) => String(e).replace(/\/+$/, '') === 'src')) {
+  console.error('❌ 排除清单含 src 本身 → 本闸在守卫 0 个文件（扫 0 却绿灯）→ 拒绝放行');
   process.exit(1);
 }
 
@@ -78,16 +87,19 @@ try {
 }
 
 const allErrors = out.split(/\r?\n/).filter((l) => /error TS\d+/.test(l));
-const inScope = allErrors.filter((l) => WHITELIST.some((w) => l.includes(w)));
+// 【翻转后】全 src 默认在保护范围内，仅 `exclusions` 内的路径放开。
+const inScope = allErrors.filter((l) => !EXCLUSIONS.some((x) => l.includes(x)));
 
 console.log('🔒 strict 类型收口闸（noImplicitAny · TD-09-1 选项 A）');
-console.log(`   白名单目录（${WHITELIST.length}）：${WHITELIST.join(' · ')}`);
-console.log(`   全 src 隐式 any 存量：${allErrors.length} 处（白名单外不阻塞，属待翻新）`);
+console.log(
+  `   保护范围 = 全 src（排除 ${EXCLUSIONS.length} 处：${EXCLUSIONS.join(' · ') || '(空 = 全 src 受保护)'}）`,
+);
+console.log(`   全 src 隐式 any 存量：${allErrors.length} 处（均在保护范围内，须清零）`);
 
 if (inScope.length > 0) {
-  console.error(`\n❌ 白名单目录内出现 ${inScope.length} 处隐式 any（须清零后才能扩白名单）：`);
+  console.error(`\n❌ 保护范围内出现 ${inScope.length} 处隐式 any（须清零）：`);
   for (const l of inScope) console.error('   ' + l);
   process.exit(1);
 }
 
-console.log('   ✅ 白名单目录 0 隐式 any');
+console.log('   ✅ 保护范围内 0 隐式 any');

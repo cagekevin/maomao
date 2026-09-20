@@ -1052,6 +1052,53 @@ export const apiRegistry: Record<string, ApiRegistryEntry> = {
     status: 'ACTIVE',
     note: '扫描 uploads/sounds/{effects,music} 返回清单（替代 cutia 时代未实现的 /api/sounds/search）',
   },
+
+  // ── 供应商（providerApi · 2026-09-20 补登记）────────────────────────────────
+  // 【为什么补】`check:api` 的**字面量调用点扫描**上线后（TD-17-32），这 5 个端点才从盲区里露出来：
+  //   前端经 `localToolApi.request<T>('/api/providers…')` 本地包装调用，而旧判据只认
+  //   `httpRequest/httpPost/httpRequestLogged` 的**模板**一参 ⇒ 长期隐身。
+  //   它们在后端存在（handleProvidersGet/Put · handleProviderTest · handleProviderProbeAsync ·
+  //   handleProviderFetchModels）但**未登记** ⇒ 本次补齐（不是新端点，是漏登记）。
+  providersGet: {
+    fn: 'localToolApi.providerApi.getProviders',
+    method: 'GET',
+    path: '/api/providers',
+    envelope: 'code-data',
+    status: 'ACTIVE',
+    note: '读取供应商与模型清单（providerApi.getProviders）',
+  },
+  providersSave: {
+    fn: 'localToolApi.providerApi.saveProviders',
+    method: 'PUT',
+    path: '/api/providers',
+    envelope: 'code-data',
+    status: 'ACTIVE',
+    note: '保存供应商与模型清单（providerApi.saveProviders）',
+  },
+  providerTest: {
+    fn: 'localToolApi.providerApi.testConnection',
+    method: 'POST',
+    path: '/api/providers/test-connection',
+    envelope: 'code-data',
+    status: 'ACTIVE',
+    note: '测试供应商连通性（providerApi.testConnection）',
+  },
+  providerProbeAsync: {
+    fn: 'localToolApi.providerApi.probeAsync',
+    method: 'POST',
+    path: '/api/providers/probe-async',
+    envelope: 'code-data',
+    status: 'ACTIVE',
+    note: '异步探测供应商模型（providerApi.probeAsync）',
+  },
+  providerFetchModels: {
+    fn: 'localToolApi.providerApi.fetchModels',
+    method: 'POST',
+    path: '/api/providers/{x}/fetch-models',
+    envelope: 'code-data',
+    status: 'ACTIVE',
+    note: '拉取指定供应商的模型列表（providerApi.fetchModels；路径含 encodeURIComponent(id)）',
+  },
   iconifyProxy: {
     /* fn 形态：**裸导出符号**（非 `模块.符号`）。
        修(2026-09-15)：原写 `iconifyApi.buildIconSvgUrl` —— 而 `iconifyApi` **不是任何模块名**

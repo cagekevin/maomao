@@ -55,32 +55,24 @@ const root = resolve(__dirname, '..');
 // 节点组件【落点】唯一真源（CJS，供 .mjs/.cjs 共用）。A2 拆 canvas/nodes 后，任何
 // 「只认 canvas/nodes」的写法都会静默变瞎（见 node-file-resolver.cjs 头部）。
 const require = createRequire(import.meta.url);
-const { nodeDirs, COMPONENT_SEARCH_DIRS } = require('./node-file-resolver.cjs');
+const {
+  nodeDirs,
+  COMPONENT_SEARCH_DIRS,
+  buildIndex,
+  resolveNodeComponent,
+} = require('./node-file-resolver.cjs');
 
 /**
- * 节点类型 → 节点组件文件（相对仓库根）。
- * 显式登记而非按命名推导：type 是 camelCase、文件名是 PascalCase 且非一一对应
- * （group→GroupNode / textGenerateNode→TextGenerate），推导规则会静默错配。
- * 未登记的类型请补此表；nodes/ 下出现未登记的文件会在收尾处报出（防本表悄悄过期）。
+ * 节点类型 → 节点组件文件（相对仓库根）。**在 NODE_TYPES 载入后由落点唯一真源派生**（见下方填充处）。
+ *
+ * 【★2026-09-20 收口 · TD-25-32】原为 **16 项硬编码路径**的静态表，现改由 `node-file-resolver.cjs`
+ * （**落点唯一真源**，`check-node-handles` / `check-node-types` 已共用）**派生**。
+ * - **为什么能删**：实测 `resolveNodeComponent` 对全部 16 个登记类型 **100% 命中**（含
+ *   `group→GroupNode` · `textGenerateNode→TextGenerate` 这类 camelCase↔PascalCase 非一一对应者）
+ *   ⇒ 该表是**第二份真相**，且是漂移点（原注释自述「未登记的类型请补此表…防本表悄悄过期」）。
+ * - **收益**：节点组件改名/搬迁后**自动跟上**（原表须手工补，补漏 = 保护范围静默缩水，母体同 strict-src）。
  */
-const NODE_TYPE_TO_FILE = {
-  assetNode: 'src/components/image/nodes/AssetNode.tsx',
-  imageBoxNode: 'src/components/image/nodes/ImageBoxNode.tsx',
-  gridSplitNode: 'src/components/image/nodes/GridSplitNode.tsx',
-  gridMergeNode: 'src/components/image/nodes/GridMergeNode.tsx',
-  panoramaNode: 'src/components/image/nodes/PanoramaNode.tsx',
-  director3dNode: 'src/components/canvas/nodes/Director3DNode.tsx',
-  faceMosaicNode: 'src/components/image/nodes/FaceMosaicNode.tsx',
-  loopNode: 'src/components/image/nodes/LoopNode.tsx',
-  videoExtractNode: 'src/components/video/nodes/VideoExtractNode.tsx',
-  videoProcessNode: 'src/components/video/nodes/VideoProcessNode.tsx',
-  group: 'src/components/canvas/nodes/GroupNode.tsx',
-  scriptBoxNode: 'src/components/scriptbox/ScriptBoxNode.tsx',
-  textGenerateNode: 'src/components/text/TextGenerate.tsx',
-  imageGenerateNode: 'src/components/image/nodes/ImageGenerate.tsx',
-  videoGenerateNode: 'src/components/video/nodes/VideoGenerate.tsx',
-  ghostTarget: 'src/components/canvas/nodes/GhostTargetNode.tsx',
-};
+let NODE_TYPE_TO_FILE = {};
 
 /** nodes/ 下非节点组件文件（辅助 hook / 纯工具 / 素材），不参与 data 对账 */
 const NON_NODE_FILES = new Set(['nodeImage.ts', 'useImagePersistence.tsx', 'useImageHoverActions.tsx']);
@@ -464,6 +456,17 @@ try {
 } catch (e) {
   console.error('  ✖ 无法加载 contracts.ts 的 NODE_TYPES：', e.message);
   process.exit(1);
+}
+
+// 【★2026-09-20 · TD-25-32】由**落点唯一真源**派生「节点类型 → 文件」，替掉原 16 项硬编码表。
+{
+  const idx = buildIndex(root);
+  const toRel = (abs) => (abs ? relative(root, String(abs)).replace(/\\/g, '/') : null);
+  NODE_TYPE_TO_FILE = Object.fromEntries(
+    Object.keys(NODE_TYPES)
+      .map((t) => [t, toRel(resolveNodeComponent(root, t, idx))])
+      .filter(([, f]) => f),
+  );
 }
 
 /** 读源码并抹白注释（解析统一用这份；`blankComments` 只抹注释、**保留字符串内容**，故 `type: 'x'` 类字面量仍可解析）。 */

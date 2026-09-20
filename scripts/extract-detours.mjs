@@ -18,12 +18,13 @@
  * 【用法】
  *   node scripts/extract-detours.mjs                    # 汇总到 daily/架构日志/弯路汇编.md
  *   node scripts/extract-detours.mjs --dry              # 只看统计，不写盘
+ *   node scripts/extract-detours.mjs --check            # **产物是否过期**（比对头部统计，不写盘；过期 exit 1）
  *   node scripts/extract-detours.mjs --out <path>       # 自定义输出路径
  *   node scripts/extract-detours.mjs --kw "弯路,教训,误诊"  # 自定义关键词（逗号分隔）
  *   node scripts/extract-detours.mjs --dir <目录>        # 换扫描目录
  *   node scripts/extract-detours.mjs --require-heading  # 只要"标题里含关键词"的块（更严，噪声更少）
  */
-import { readdirSync, readFileSync, writeFileSync, statSync } from 'node:fs';
+import { readdirSync, readFileSync, writeFileSync, statSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { join, relative } from 'node:path';
 
@@ -40,6 +41,7 @@ function flag(name) {
 
 const DRY = flag('--dry');
 const STRICT = flag('--require-heading');
+const CHECK = flag('--check');
 const DIR = val('--dir', join(ROOT, 'daily', '架构日志'));
 const OUT = val('--out', join(DIR, '弯路汇编.md'));
 const KW = val('--kw', '弯路,教训,踩坑,误诊,假绿,回退,错在,差点,翻车')
@@ -147,14 +149,51 @@ for (const file of files) {
 }
 
 // ── 报表（stdout）────────────────────────────────────────────────────────────
-console.log(`📐 弯路提取（扫 ${files.length} 文件）`);
-console.log(`   关键词：${KW.join(' · ')}${STRICT ? '（严格：标题须含关键词）' : ''}`);
-console.log(`   命中：${perFile.length} 文件 / ${totalBlocks} 节块 / ${totalLines} 行\n`);
-console.log('   按命中节块数降序：');
-for (const { file, blocks } of [...perFile].sort((a, b) => b.blocks.length - a.blocks.length)) {
-  const rel = relative(ROOT, file);
-  const lines = blocks.map((b) => b.hitLines[0]).join(',');
-  console.log(`     ${String(blocks.length).padStart(2)}  ${rel}  (行 ${lines})`);
+if (!CHECK) {
+  console.log(`📐 弯路提取（扫 ${files.length} 文件）`);
+  console.log(`   关键词：${KW.join(' · ')}${STRICT ? '（严格：标题须含关键词）' : ''}`);
+  console.log(`   命中：${perFile.length} 文件 / ${totalBlocks} 节块 / ${totalLines} 行\n`);
+  console.log('   按命中节块数降序：');
+  for (const { file, blocks } of [...perFile].sort((a, b) => b.blocks.length - a.blocks.length)) {
+    const rel = relative(ROOT, file);
+    const lines = blocks.map((b) => b.hitLines[0]).join(',');
+    console.log(`     ${String(blocks.length).padStart(2)}  ${rel}  (行 ${lines})`);
+  }
+}
+
+// ── --check：产物是否过期（只读 · 不写盘 · 2026-09-20 补）────────────────────────
+// 【为什么需要】汇编过期**没人会发现** —— 实证（2026-09-20）：旧版 443 节块，当天
+//   新增的弯路（「为拆而拆」翻车全过程）**检索不到**；守护者据此会误判"前人没踩过"，
+//   把**已经翻过车的处方**当新发现重推一遍。
+// 【判据】产物头部的统计数与**本次实扫**是否一致 —— 纯派生量，可精确比对，无模糊空间。
+//
+// 【为什么不建闸 —— 「建闸前置评审」6 问自评】它**不进 `gates.manifest.json`、不挂 git hook**：
+//   ① 守什么：**拿不出 `CLAUDE.md` 级红线**（"产物新鲜度"是**默认值**）⇒ 本问即不过；
+//   ② 能不能不建：能 —— 它只服务"守护者先看弯路"这一动作（手动 / `adr.mjs doctor` 编排）；
+//   ③ 上次拦住什么：✅ 有实证（旧版 443 节块，当天弯路**检索不到**）；
+//   ④ 红了知道怎么修：✅ 输出直接给出"跑 `extract-detours.mjs`"；
+//   ⑤ 合法通过成本：不在高频动作上，但它**必然经常红**（每写一篇含"教训/弯路"的日志即过期）
+//      ⇒ 挂 CI = **常红判据**（形态⑤：跑到没人看）；
+//   ⑥ 覆盖可机器验证：✅ 基数（文件 / 节块 / 行）由脚本自算并打印。
+//   ⇒ **①不过 + ⑤会常红 ⇒ 不建闸**；只作 `doctor` 第 ④ 项与手动 `--check`。
+if (CHECK) {
+  if (!existsSync(OUT)) {
+    console.log(`\n❌ 弯路汇编不存在：${relative(ROOT, OUT)}\n   ⇒ 先跑 node scripts/extract-detours.mjs`);
+    process.exit(1);
+  }
+  const head = readFileSync(OUT, 'utf8').split('\n').find((l) => l.includes('文件，命中')) ?? '';
+  const got = (head.match(/\d+/g) ?? []).map(Number).slice(-4);
+  const now = [files.length, perFile.length, totalBlocks, totalLines];
+  const fmt = (a) => (a.length === 4 ? `${a[0]} 文件 / ${a[1]} 命中 / ${a[2]} 节块 / ${a[3]} 行` : '(读不到统计行)');
+  if (got.length === 4 && got.every((n, i) => n === now[i])) {
+    console.log(`\n✅ 弯路汇编是最新的（${fmt(now)}）`);
+    process.exit(0);
+  }
+  console.log('\n❌ 弯路汇编**已过期**（头部统计 ≠ 本次实扫）：');
+  console.log(`     产物头部：${fmt(got)}`);
+  console.log(`     本次实扫：${fmt(now)}`);
+  console.log('   ⇒ 跑 `node scripts/extract-detours.mjs` 重新生成 —— 否则新增的弯路检索不到。');
+  process.exit(1);
 }
 
 if (DRY) {
