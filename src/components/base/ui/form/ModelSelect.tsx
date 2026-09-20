@@ -1,5 +1,5 @@
-import React, { useState, useRef, type ReactNode } from 'react';
-import { Coins, LayoutGrid } from 'lucide-react';
+import React, { useState, useRef } from 'react';
+import { Coins, LayoutGrid, type LucideIcon } from 'lucide-react';
 import { useOutsideClick } from '@/components/base/core/interaction/uiHooks';
 // 【TD-19-1】面板/行 chrome 与定位收口到共用窄原语（与 Select 同一份）
 import DropdownPanel from './DropdownPanel.tsx';
@@ -52,8 +52,15 @@ interface ModelSelectProps {
    * 其余调用方（节点模型选择等）视觉零变化。
    */
   iconOnly?: boolean;
-  /** iconOnly 时的自定义图标（不传则用默认 cpu 图标） */
-  icon?: ReactNode;
+  /** iconOnly 时的自定义图标 —— **传组件引用**（如 `icon={PackageIcon}`），**不传 element**。
+      收组件引用而非 JSX 有两个硬理由（同 `NodeTitle.icon` 的契约）：
+      ① 组件引用是模块级常量 ⇒ 引用天然稳定 ⇒ 不会击穿 `memo(ModelSelect)`；
+      ② 图标尺寸/描边属**本组件**的呈现决定，不该由调用方各写一遍
+         （此前 AgentPanel 传 `icon={<PackageIcon className="w-4 h-4" strokeWidth={1.8} />}`，
+          与下方默认图标逐字同款样式 ⇒ 同一份样式两处维护）。
+      【TD-04-53】改前是 `ReactNode` ⇒ 调用方**可以**传内联 element（每帧新建）⇒ memo 恒失效。
+      收窄为 `LucideIcon` 后，传 element **`tsc` 直接不过** ⇒ 结构上不可能回潮（无需机器闸）。 */
+  icon?: LucideIcon;
   /** iconOnly 时触发器按钮的 title（模型名放这里，避免占用横向空间） */
   triggerTitle?: string;
   /** iconOnly 时触发器是否呈激活高亮（如「已选非默认模型」） */
@@ -77,6 +84,9 @@ function ModelSelect({
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement | null>(null);
   useOutsideClick(ref, open, () => setOpen(false));
+
+  // 触发图标：调用方传组件引用则用它，否则用本组件默认（尺寸/描边归本组件所有）
+  const TriggerIcon = icon ?? LayoutGrid;
 
   const badge = (id: string) => models.find((m) => m.id === id)?.badge || 'builtin';
   const selectedItem = models.find((m) => m.id === value);
@@ -130,8 +140,9 @@ function ModelSelect({
               : '选择生图模型')
           }
         >
-          {/* 图标：LayoutGrid（四宫格，更贴合"图像模型/图集"语义，替代 CPU 芯片） */}
-          {icon || <LayoutGrid className="w-4 h-4" strokeWidth={1.8} />}
+          {/* 图标：默认 LayoutGrid（四宫格，更贴合"图像模型/图集"语义，替代 CPU 芯片）；
+              尺寸/描边由本组件统一决定，调用方只说"用哪个图标" */}
+          <TriggerIcon className="w-4 h-4" strokeWidth={1.8} />
         </button>
       ) : (
         <button

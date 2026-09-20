@@ -14,18 +14,17 @@ import {
 import type { LucideIcon } from 'lucide-react';
 import { PanelSubBar, PanelPills, PanelMoreMenu } from '../base/panels/PanelBar.tsx';
 import { useLocalToolStatus } from '@/hooks/useLocalToolStatus';
-import { rescanResources, deleteResource, renameResource } from '../base/api/localToolApi.ts';
+import { rescanResources, deleteResource } from '../base/api/localToolApi.ts';
 // 分页读取的唯一实现：此前本文件 `reset` 用 `items.length < total`、`loadMore` 用 `page < totalPages`
 // **两套 hasMore 判据**（M3），现统一走 `hasMoreOf`。
 import { fetchResourcePage, hasMoreOf } from '../base/api/pagedList.ts';
 import { showToast } from '../base/core/event/toastStore.ts';
-import { textCache, useResourceCardDragProps, useTextAsset } from '@/hooks/useAssetDragToCanvas';
+import { useResourceCardDragProps, useTextAsset } from '@/hooks/useAssetDragToCanvas';
 import {
   uploadFileToLocal,
   openLocalFolder,
   openFileDir,
   relativePathFromUrl,
-  createFolder as createFolderApi,
 } from '../base/api/filesApi.ts';
 import {
   onResourceSent,
@@ -46,7 +45,7 @@ import { useCurrentProjectId } from '../base/store/projectStore.ts';
 import { logger } from '../base/core/log/logger.ts';
 import { isAudio, isVideoResource } from '../base/utils/media/assetType.ts';
 import LazyImage from '../base/ui/display/LazyImage.tsx';
-import InlineNameInput from '../base/ui/form/InlineNameInput.tsx';
+import { useInlineNameEditing } from '@/hooks/useInlineNameEditing.tsx';
 import type { ResourceItem } from '../base/api/localToolApi.ts';
 // 预览 overlay（文字/音频/图片 + 视频委托 ImageZoomDialog）的唯一实现，与生成面板共用
 import { ResourcePreviewOverlay } from './ResourcePreview.tsx';
@@ -152,10 +151,8 @@ function ResourceLibrary() {
   // 本面板当前目录**相同** —— setFolder 同值不触发上面的 effect，故需这个单调递增信号保证
   // 「同目录再发送也重拉」。两 state 各司其职（目录 / 重拉信号），React 批处理合并为一次 effect。
   const [refreshSignal, setRefreshSignal] = useState(0);
-  const [creating, setCreating] = useState(false);
-  const [newFolderName, setNewFolderName] = useState('');
-  const [renameTarget, setRenameTarget] = useState<ResourceItem | null>(null); // 正在重命名的资源
-  const [renameName, setRenameName] = useState('');
+  // 【TD-04-56】`creating` / `newFolderName` / `renameTarget` / `renameName` 四个 state
+  // 与「建目录 / 重命名」的全部逻辑，已收口到 `useInlineNameEditing`（调用点见下方 `reset` 之后）。
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
@@ -242,6 +239,23 @@ function ResourceLibrary() {
     },
     [connected, projectId, fetchArgsFor, currentFolder],
   );
+
+  // 【TD-04-56】「新建文件夹 / 重命名」统一机制：state / 未连引擎守卫 / 建目录 / 重命名 / 两段输入条
+  // 全部收口到 `useInlineNameEditing`（与 GeneratedView 同一实现）；本处只声明**域差异**。
+  // `createFolderPath` / `refreshList` 用 useCallback 包住 —— 它们是 hook 内 `createFolder` 的依赖，
+  // 不稳则 `memo(InlineNameInput)` 依旧失效（只稳一个 prop = 白做）。
+  const createFolderPath = useCallback(
+    (name: string) => `${currentFolder}/${name}`,
+    [currentFolder],
+  );
+  const refreshList = useCallback(() => void reset(true), [reset]);
+  const editing = useInlineNameEditing({
+    connected,
+    createFolderPath,
+    refresh: refreshList,
+    setItems,
+    logTag: '素材库',
+  });
 
   // 首次挂载 + 目录变化 + 项目切换 + 重拉信号 → 重置到第 1 页并 rescan
   useEffect(() => {
@@ -370,45 +384,8 @@ function ResourceLibrary() {
     openFileDir(rel).catch(() => showToast('打开所在目录失败', { type: 'error' }));
   };
 
-  // 重命名资源
-  const handleRename = async () => {
-    if (!renameTarget) return;
-    const name = renameName.trim();
-    if (!name) {
-      setRenameTarget(null);
-      return;
-    }
-    try {
-      const res = await renameResource(renameTarget.id, name);
-      const d = res?.data;
-      if (d)
-        setItems((list) =>
-          list.map((x) =>
-            x.id === renameTarget.id ? { ...x, id: d.id, url: d.url, name: d.name } : x,
-          ),
-        );
-      textCache.delete(renameTarget.url ?? '');
-      showToast('重命名成功', { type: 'success' });
-    } catch (e) {
-      showToast((e as { message?: string })?.message || '重命名失败', { type: 'error' });
-    }
-    setRenameTarget(null);
-    setRenameName('');
-  };
-
-  // 新建文件夹（对齐官方 → POST /api/files/mkdir）
-  const createFolder = async (name: string): Promise<boolean> => {
-    if (!name || !connected) return false;
-    try {
-      await createFolderApi(`${currentFolder}/${name}`);
-      reset(true);
-      return true;
-    } catch (e) {
-      // 建文件夹失败 → 返回 false 由 UI 呈现（**调用方可见**，非静默）；另留痕给开发者（2026-09-17）。
-      logger.debug('素材库', '建文件夹失败（已由返回值呈现）', e);
-      return false;
-    }
-  };
+  // 【TD-04-56】`handleRename` / `createFolder` 已收口到 `useInlineNameEditing`（见上方调用点）。
+  // 原先此处与 GeneratedView 逐字重复约 35 行，两处唯一差异只有路径表达式与日志标签。
 
   // 卡片拖拽：一套 dragstart 同时写「移动归类」+「拖到画布建节点」两套 MIME（见 useResourceCardDragProps 注释）
   const { cardDragProps, assetDragProps } = useResourceCardDragProps({
@@ -463,56 +440,15 @@ function ResourceLibrary() {
               key: 'newfolder',
               label: '新建文件夹',
               icon: FolderPlus,
-              onClick: () => {
-                if (!connected) {
-                  showToast('请先连接本地引擎', { type: 'warning' });
-                  return;
-                }
-                setCreating(true);
-                setNewFolderName('新建文件夹');
-              },
+              // 【TD-04-56】未连引擎的守卫 + 初值一并收口到 hook（原先本段与 GeneratedView 逐字重复）
+              onClick: editing.openCreate,
             },
           ]}
         />
       </PanelSubBar>
 
-      {/* 新建文件夹输入卡片（TD-19-3：走唯一实现 InlineNameInput） */}
-      {creating && (
-        <InlineNameInput
-          tone="orange"
-          value={newFolderName}
-          onChange={setNewFolderName}
-          // 回车：无条件建（含默认名）+ toast —— 与旧的 Enter 语义一致
-          onCommit={async () => {
-            const ok = await createFolder(newFolderName.trim());
-            showToast(ok ? '创建成功' : '创建失败', { type: ok ? 'success' : 'error' });
-            setCreating(false);
-          }}
-          // 失焦：仅在改了名时静默建 —— 与旧的 onBlur 语义一致
-          onBlurCommit={async () => {
-            if (newFolderName.trim() && newFolderName.trim() !== '新建文件夹') {
-              await createFolder(newFolderName.trim());
-            }
-            setCreating(false);
-          }}
-          onCancel={() => setCreating(false)}
-        />
-      )}
-
-      {/* 重命名输入条（TD-19-3：走唯一实现 InlineNameInput） */}
-      {renameTarget && (
-        <InlineNameInput
-          value={renameName}
-          onChange={setRenameName}
-          onCommit={handleRename}
-          onCancel={() => {
-            setRenameTarget(null);
-            setRenameName('');
-          }}
-          placeholder="输入新文件名"
-          onFocusSelectBody
-        />
-      )}
+      {/* 新建文件夹 / 重命名 两条输入条（TD-04-56：收口到 useInlineNameEditing，与 GeneratedView 同一实现） */}
+      {editing.renderInputs()}
 
       {/* 上传区 */}
       <div className="px-2.5 pt-2 flex-shrink-0">
@@ -679,8 +615,7 @@ function ResourceLibrary() {
                           title="重命名"
                           onClick={(e) => {
                             e.stopPropagation();
-                            setRenameTarget(a);
-                            setRenameName(a.name ?? '');
+                            editing.openRename(a);
                           }}
                         >
                           <Pencil size={10} />

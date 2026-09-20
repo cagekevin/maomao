@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { clamp } from '@/components/base/core/utils';
 import { generateId } from '@/components/base/core/idGen';
 
@@ -219,7 +219,7 @@ function loadWidth() {
   return DEFAULT_WIDTH;
 }
 
-export default function AgentPanel({
+function AgentPanel({
   agentKey = AGENT_KEY_PREFIX,
   systemPrompt = '',
   open,
@@ -307,10 +307,15 @@ export default function AgentPanel({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [genModels]);
-  const onGenModel = (id: string) => {
+  // 【TD-04-53 · 横推新命中】模型切换回调必须引用稳定 —— 它喂给 `memo(ModelSelect)`。
+  // 原为普通函数（每渲染新引用）⇒ memo 恒失效。**只稳它还不够**：同一调用点还传了
+  // `icon={<PackageIcon …/>}`（内联 element，同款第二阻塞点）⇒ 已按 TD-04-37 形态把
+  // `ModelSelect.icon` 契约收窄为组件引用（传 element 编译不过），此处改传组件引用。
+  // 依赖为稳定源：setGenParams 是模块级函数（`useCanvasAgentTools.ts:78`）。
+  const onGenModel = useCallback((id: string) => {
     setGenModel(id);
     setGenParams({ model: id });
-  };
+  }, []);
   const onGenSize = (s: string) => {
     setGenSize(s);
     setGenParams({ resolution: s });
@@ -1764,7 +1769,7 @@ export default function AgentPanel({
                   popupTo="up"
                   showDivider={false}
                   iconOnly
-                  icon={<PackageIcon className="w-4 h-4" strokeWidth={1.8} />}
+                  icon={PackageIcon}
                   active={!!genModel}
                   triggerTitle={genModel ? `生图模型：${genModel}` : '选择生图模型'}
                 />
@@ -2006,3 +2011,16 @@ function buildTableSnapshotText(
  *  现在解析方直接给出 `reason === 'parse-error'`（＝"含花括号但 JSON 非法"），**它就是真相源**，
  *  调用方不必再猜 ⇒ 上一层的消费点已删，本函数随之删除（零消费者，删前已 grep 证实）。
  *  若将来真需要"预估像不像表格"，应由解析层导出（在拥有真相的那层），不要回到展示层手抄特征。 */
+
+/**
+ * 【TD-04-46】`memo` 在这里是**结构上有效**的，不是护栏：
+ * ① 调用点 `<AgentPanel … />` **自闭合、无 children**（children 是普通 prop，每帧新建 ⇒ 带 children 的 memo 恒失效，
+ *    见 TD-04-51）⇒ 浅比较真能拦住；
+ * ② 5 个 prop 全部引用稳定：`agentKey`/`systemPrompt`/`open` 为原始值，`selectedAssetNodes` 由 App 的
+ *    「签名短路 effect」保证（`App.tsx:506-512`，拖动期间引用恒定），`onClose` 已从内联箭头改为
+ *    `App.handleCloseAgent`（`useCallback`）；
+ * ③ 它需要的重渲由**自己的订阅**驱动（`useAgentChat` 等 hook 内部 store）⇒ 不依赖父组件重渲。
+ * 【为什么值得】App 持 `useNodesState` 的 nodes ⇒ 拖拽每帧 `setNodes` ⇒ App 每帧重渲；
+ * 本面板与 `LeftPanel` 是 App 里**常驻挂载**的两块（`open` 只控 CSS 显隐），此前每帧陪跑。
+ */
+export default memo(AgentPanel);

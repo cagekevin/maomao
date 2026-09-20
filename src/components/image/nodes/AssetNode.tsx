@@ -117,6 +117,17 @@ function AssetNode({ id, data, selected }: AssetNodeProps) {
     if (w && h) setMediaRatio(`${w}:${h}`);
   }, []);
 
+  // 【TD-04-53】VideoThumbnail 是 `memo` 组件（`VideoThumbnail.tsx:187`），且**AssetNode 在画布每帧路径上**
+  // （App 持 `useNodesState`，拖拽每帧 setNodes ⇒ 节点重渲）。原先把两个箭头**内联**写进 JSX
+  // ⇒ 浅比较必失败、memo 形同虚设。两个回调提 `useCallback` 后，本组件的其余 5 个 prop
+  //（src / poster / fit / size / playable）均为原始值 ⇒ memo 可达。
+  const handleVideoMetadata = useCallback(
+    (e: React.SyntheticEvent<HTMLVideoElement>) =>
+      applyMediaRatio(e.currentTarget.videoWidth, e.currentTarget.videoHeight),
+    [applyMediaRatio],
+  );
+  const handleOpenMediaDialog = useCallback(() => dialogRef.current?.showModal(), []);
+
   // 视频首帧封面（未播放时显示首帧，避免视频 URL 当 img 破图）
   const posterUrl = useVideoPoster(url, type === 'video');
 
@@ -364,10 +375,11 @@ function AssetNode({ id, data, selected }: AssetNodeProps) {
         show: !!url,
       },
     ],
+    // 【TD-04-41】`data.label` 不需要单列：数组内容不读它，而 `handleToolbarSend` 自身 deps 已含
+    // `data.label`（label 变 → 它变 → 数组照样重建）。多列一条只会让 eslint 报 unnecessary dependency。
     [
       type,
       url,
-      data.label,
       imageButtons,
       handleDownload,
       handleToolbarUpload,
@@ -475,10 +487,8 @@ function AssetNode({ id, data, selected }: AssetNodeProps) {
                 fit="cover"
                 size="lg"
                 playable
-                onLoadedMetadata={(e) =>
-                  applyMediaRatio(e.currentTarget.videoWidth, e.currentTarget.videoHeight)
-                }
-                onContainerDoubleClick={() => dialogRef.current?.showModal()}
+                onLoadedMetadata={handleVideoMetadata}
+                onContainerDoubleClick={handleOpenMediaDialog}
               />
             )}
             {/* 音频 */}

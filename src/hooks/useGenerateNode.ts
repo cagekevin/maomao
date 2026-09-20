@@ -117,7 +117,11 @@ export function useGenerateNode({
   // ── 供应商/模型（统一选 provider / 模型下拉数据）──
   const { providers } = useProviders();
   const primary = providers?.find((p) => p.primary) || providers?.[0] || null;
-  const models = buildAllModels(providers, type);
+  // 【TD-04-53 · 根】`models` 必须**引用稳定** —— 它被 4 个节点（Text/Image/Video/Template）原样喂给
+  // `memo(ModelSelect)`。原先每次渲染都调 `buildAllModels` 产出**新数组** ⇒ 浅比较必失败、memo 恒失效
+  //（**只修各节点的 `onChange` 是白做，根在这里**）。
+  // 形态对齐本仓既有正确写法：`AgentPanel.tsx:295` 早就是 `useMemo(() => buildAllModels(providers, 'image'), [providers])`。
+  const models = useMemo(() => buildAllModels(providers, type), [providers, type]);
 
   // ── 收编 useSyncNodeData（第71行）：外部 data 变更 → 本地 state ──
   useSyncNodeData(data, sync);

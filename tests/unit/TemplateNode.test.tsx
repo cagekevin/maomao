@@ -27,6 +27,10 @@ vi.mock('@xyflow/react', () => ({
   Position: { Left: 'left', Right: 'right', Top: 'top', Bottom: 'bottom' },
   useStore: () => () => ({}),
 }));
+// 【TD-04-53】捕获 `ModelSelect` 收到的 props（原桩 `mocks.ModelSelect` 是 NullComp，同样渲染 null
+// ⇒ 行为等价，只多记一份 props 供下方「引用稳定性」断言）。
+// 用 `vi.hoisted` 是因为 `vi.mock` 工厂会被提升到文件顶部，不能引用普通顶层变量。
+const cap = vi.hoisted(() => ({ modelSelect: null as null | Record<string, unknown> }));
 vi.mock('../../src/components/canvas/parts/NodeShell.tsx', () => ({ default: mocks.NodeShell }));
 vi.mock('../../src/components/canvas/shell/HoverToolbar.tsx', () => ({
   default: mocks.HoverToolbar,
@@ -38,7 +42,10 @@ vi.mock('../../src/components/canvas/parts/GenerateButton.tsx', () => ({
   default: mocks.GenerateButton,
 }));
 vi.mock('../../src/components/base/ui/form/ModelSelect.tsx', () => ({
-  default: mocks.ModelSelect,
+  default: (props: Record<string, unknown>) => {
+    cap.modelSelect = props;
+    return null;
+  },
 }));
 vi.mock('../../src/components/canvas/shell/PromptInput.tsx', () => ({
   default: mocks.PromptInput,
@@ -180,5 +187,45 @@ describe('TemplateNode', () => {
     expect(cfg).toBeTruthy();
     act(() => cfg.onRecover({ resultUrl: 'http://127.0.0.1:18080/files/tasks/x.png' }));
     expect(nodeData()!.assetUrl).toBe('http://127.0.0.1:18080/files/tasks/x.png');
+  });
+});
+
+/**
+ * 【TD-04-53】喂给 `memo(ModelSelect)` 的 prop 必须**引用稳定**。
+ *
+ * 为什么单列一组：`ModelSelect` 是 `React.memo` 组件，其 prop 里 `onChange` / `models` / `costMap` / `icon`
+ * 四个是引用型 —— **任一不稳定**，浅比较必失败、memo 恒失效（"只修一个 prop = 白做"）。
+ * 本组只测**本节点能控制的那一个**：`onChange`（`models` 由 `useGenerateNode` 在源头 useMemo，另有断言；
+ * `costMap` 本节点不传；`icon` 只有 AgentPanel 传）。
+ *
+ * 反证（探针）：把 `TemplateNode` 的 `onChange={handleModelChange}` 换回内联箭头 ⇒ 本断言变红。
+ */
+describe('TemplateNode · ModelSelect prop 引用稳定性（TD-04-53）', () => {
+  // 刻意用**同一个 data 对象**（而不是 `data={{}}` 字面量）：本组测的是「父组件重渲**而无关入参未变**时
+  // prop 引用是否稳定」。传新字面量会让 `data` 本身变化，那就不再是"无关重渲"，测不到目标。
+  const STABLE_DATA: Record<string, unknown> = { name: '分镜模板' };
+
+  it('父组件重渲而无关 state 未变时，onChange 仍是同一引用（memo 可命中）', () => {
+    const { rerender } = setup({ data: STABLE_DATA });
+    const first = cap.modelSelect?.onChange;
+    expect(typeof first, 'ModelSelect 必须收到 onChange').toBe('function');
+
+    rerender(<TemplateNode id="t1" data={STABLE_DATA} selected={false} />);
+    expect(cap.modelSelect?.onChange, '第 2 次渲染后 onChange 引用变了 ⇒ memo 恒失效').toBe(first);
+
+    rerender(<TemplateNode id="t1" data={STABLE_DATA} selected={false} />);
+    expect(cap.modelSelect?.onChange, '第 3 次渲染后 onChange 引用变了 ⇒ memo 恒失效').toBe(first);
+  });
+
+  it('models 来自 useGenerateNode 的稳定产出（同一引用跨渲染）', () => {
+    const { rerender } = setup({ data: STABLE_DATA });
+    const firstModels = cap.modelSelect?.models;
+    expect(Array.isArray(firstModels), 'ModelSelect 必须收到 models 数组').toBe(true);
+
+    rerender(<TemplateNode id="t1" data={STABLE_DATA} selected={false} />);
+    expect(
+      cap.modelSelect?.models,
+      'models 引用变了 ⇒ memo(ModelSelect) 恒失效（根在 useGenerateNode）',
+    ).toBe(firstModels);
   });
 });

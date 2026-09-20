@@ -302,6 +302,18 @@ function TemplateNode({ id, data, selected }: TemplateNodeProps) {
   // 【TD-04-41】配置数组 + 回调必须**引用稳定**：否则 `memo(HoverToolbar)` 的浅比较必然失败。
   // 数组进 useMemo 后，其内部的 `icon={<Xxx/>}` element 也只创建一次（无需另改 HoverToolbar 契约）。
   const handleToolbarDownload = useCallback(() => showToast('下载'), []);
+
+  // ─── 7b. 模型切换（【模板】必抄的一条：喂给 `memo(ModelSelect)` 的回调必须引用稳定）───
+  // 【TD-04-53】`ModelSelect` 是 memo 组件，其 prop 有**三个**引用型：`onChange` / `models` / `costMap`。
+  // 本节点 `models` 来自 `useGenerateNode`（已在源头 useMemo）、无 costMap ⇒ 只剩 `onChange`。
+  // 依赖均为稳定源：setSelectedModel 是 useState setter、setMyPrefs 是 useNodePrefs 的 useCallback。
+  const handleModelChange = useCallback(
+    (m: string) => {
+      setSelectedModel(m);
+      setMyPrefs({ model: m });
+    },
+    [setMyPrefs],
+  );
   const toolbarButtons = useMemo(
     () => [
       {
@@ -414,14 +426,7 @@ function TemplateNode({ id, data, selected }: TemplateNodeProps) {
             <div className="flex items-center gap-1.5 overflow-visible z-dropdown">
               {/* 【模板】参数快捷入口（比例/尺寸下拉等），照 ImageGenerate 画质菜单形态 */}
               {/* 模型下拉（通用 ModelSelect） */}
-              <ModelSelect
-                value={selectedModel}
-                onChange={(m) => {
-                  setSelectedModel(m);
-                  setMyPrefs({ model: m });
-                }}
-                models={gen.models}
-              />
+              <ModelSelect value={selectedModel} onChange={handleModelChange} models={gen.models} />
             </div>
 
             {/* 生成 / 停止（通用 GenerateButton） */}

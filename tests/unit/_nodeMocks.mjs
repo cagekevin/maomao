@@ -99,7 +99,9 @@ const Passthrough = (/** @type {any} */ { children, label, titleRight, title, te
 Passthrough.displayName = 'Passthrough';
 
 // NodeShell 专属：始终暴露 data-testid="shell" 与 data-label（便于测试查询外壳标题）
-const ShellPassthrough = (/** @type {any} */ { children, label, titleRight, defaultTitle, title }) => {
+const ShellPassthrough = (
+  /** @type {any} */ { children, label, titleRight, defaultTitle, title },
+) => {
   const attrs = /** @type {Record<string, any>} */ ({ 'data-testid': 'shell' });
   attrs['data-label'] = label ?? defaultTitle ?? title ?? '';
   return React.createElement('div', attrs, children, titleRight);
@@ -142,7 +144,17 @@ const useContentHeightSync = () => {}; // 内容高度自适应 hook（jsdom 无
 const useOutsideClick = () => {};
 const useFitNodeRatio = () => ({});
 const useVideoPoster = () => ({ poster: null });
-const useNodePrefs = () => ({ prefs: {}, set: () => {} });
+/**
+ * 【2026-09-20 修复 · 与真实实现对齐 —— 同文件头 12-24 行给 `useReactFlow` 记的那条，只是漏了横推】
+ *
+ * 原实现 `() => ({ prefs: {}, set: () => {} })` 每次调用返回**新对象 + 新箭头**
+ * ⇒ 消费方 `useCallback(…, [setPrefs])` 的引用每次渲染都变 ⇒ **喂给 memo 组件的 prop 恒不稳定**。
+ * 后果不是"多跑一次"，而是**任何「prop 引用是否稳定」的断言都会因桩不忠实而假红**（本轮 TD-04-53 实测撞到）。
+ * 真实实现 `nodePrefs.ts:157`：`set` 是 `useCallback(…, [type])` ⇒ **引用稳定**。
+ * ⇒ 提到模块级单例，语义与生产一致。
+ */
+const NODE_PREFS_STUB = { prefs: {}, set: () => {} };
+const useNodePrefs = () => NODE_PREFS_STUB;
 const useSyncNodeData = () => {};
 
 // useNodeGeneration：记录最近一次 config 供测试断言/触发 onSuccess/onRecover
@@ -184,7 +196,19 @@ const uploadFileToLocal = async () => ({ ok: true, url: 'local://up' });
 // 落盘收口：File → /files/ URL（失败回退内联），与 filesApi.resolveNodeAssetUrl 同签名
 const resolveNodeAssetUrl = async () => ({ ok: true, url: 'local://up' });
 
-const useProviders = () => ({ providers: [] });
+/**
+ * 【2026-09-20 修复 · 与真实实现对齐 —— 同文件头 12-24 行给 `useReactFlow` 记的那条，只是漏了横推】
+ *
+ * 原实现 `() => ({ providers: [] })` 每次调用返回**新对象 + 新数组** ⇒
+ * `useGenerateNode` 的 `useMemo(() => buildAllModels(providers, type), [providers, type])` 每次都重算
+ * ⇒ `models` 引用不稳 ⇒ 喂给 `memo(ModelSelect)` 必失败（**桩造成的假红**，非实现问题）。
+ * 真实实现 `providerStore.ts:117`：`useSyncExternalStore(subscribe, getSnapshot)` ⇒ 未变更时快照引用稳定。
+ * ⇒ 提到模块级单例，语义与生产一致。
+ */
+/** @type {any[]} */
+const EMPTY_PROVIDERS = [];
+const PROVIDERS_STUB = { providers: EMPTY_PROVIDERS };
+const useProviders = () => PROVIDERS_STUB;
 const loadProviders = async () => {};
 const buildAllModels = () => [];
 const resolveProviderModel = () => ({ provider: {}, modelId: 'm' });

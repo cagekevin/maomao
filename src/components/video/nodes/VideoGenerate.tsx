@@ -171,6 +171,13 @@ function VideoGenerate({ id, data, selected }: VideoGenerateProps) {
     setZoomUrl(url);
     requestAnimationFrame(() => zoomRef.current?.showModal());
   }, []);
+
+  // 【TD-04-53 · 横推新命中】VideoThumbnail 是 `memo` 组件（`VideoThumbnail.tsx:187`），
+  // 且 VideoGenerate 在画布每帧路径上 ⇒ 两个回调必须引用稳定（原为 JSX 内联箭头，每帧击穿它）。
+  // 债原文只点了 `AssetNode:466` 一处，本处与 TaskCenter 同形态但未被点名。
+  // 本组件其余 prop 均为原始值（src/poster/muted/fit/size）+ 稳定 ref ⇒ memo 可达。
+  const handleVideoActivate = useCallback(() => videoRef.current?.play(), []);
+  const handleVideoOpenZoom = useCallback(() => openVideoZoom(videoUrl), [openVideoZoom, videoUrl]);
   // 单击/双击区分：单击立即切抽屉、双击看大图。
   // 用两次 click 时间间隔识别双击：双击时第一次 click 已 toggle，第二次 click 拦截不 toggle，
   // 再由 dblclick 补一次 toggle 抵消，抽屉回到原位并打开大图。单击则只 toggle 一次，无延迟。
@@ -383,8 +390,8 @@ function VideoGenerate({ id, data, selected }: VideoGenerateProps) {
               fit="contain"
               size="lg"
               className={`w-full h-full ${loading ? 'opacity-50 blur-sm' : ''}`}
-              onActivate={() => videoRef.current?.play()}
-              onDoubleClick={() => openVideoZoom(videoUrl)}
+              onActivate={handleVideoActivate}
+              onDoubleClick={handleVideoOpenZoom}
             />
           )}
           {loading && (

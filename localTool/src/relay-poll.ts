@@ -158,7 +158,10 @@ export interface DirectSubmitInput {
   prompt?: string;
   /** IMAGE：像素；VIDEO：比例（16:9） */
   size?: string;
-  /** 参考图原始 url 列表（/files/ 或外链），后台提交时经 resolveLocalImages 归一为 data:base64 */
+  /**
+   * 参考图原始 url 列表（/files/ 或外链）。**存库保留原值**（避免 base64 膨胀 DB），
+   * 真正的出站归一推迟到后台提交时由 runDirectSubmit **就地**决定（本通道走回环 URL，不是 base64）。
+   */
   images?: string[];
   /** video：清晰度 */
   resolution?: string;
@@ -241,6 +244,13 @@ export async function submitGenerateTask(
     // lovart 直连走 buildLovartDirectProfile 自取 LOVART_* 凭证，此前无条件先算一次是死调用。
 
     // ── lovart 原生直连：走 providers/lovart adapter（HMAC + chat-thread），不进声明式 preset ──
+    // 【视频 / 音频为什么在这条通道上能过、在通用通道上过不了 —— 不是形态问题，是**能力**问题】
+    //   图片能内联；视频 / 音频将来要**抽帧转图**（拆成多张图片再发）。设计留痕见
+    //   src/components/agent/runtime/agentCore.ts:56-63（「其它平台：由后端抽帧转图 … ⚠️ 目前未实现」）。
+    //   本分支把素材交给 adapter 自取字节再上传 ⇒ **全程不经 Jimp** ⇒ mp4 天然能过；
+    //   通用通道（下方非 direct 分支）今天没有抽帧 ⇒ mp4 内联必失败、只能保留原 URL
+    //   （那里的 error 是**真警**，不是噪音）。
+    //   ⚠️ 抽帧未实现前**不建抽象**（Step 3：只有"原样透传"一种实现 = 假接缝）。
     // 【根治·2026-09-04】提交即返回：不再同步 await submitLovartTask 出站（ensureProject/mode/upload/sendChat
     //  可因网络/上传参考图慢而拖慢 POST，前端 15s 曾被误掐断）。改为先落库(running)+注册「待提交」句柄即返回
     //  taskId；真正出站由句柄首轮 runOnce 在后台执行（runSubmit），失败转 failed 透传，不丢任务、不受 HTTP 超时约束。
@@ -459,6 +469,8 @@ async function runDirectSubmit(handle: PollHandle, profile: LovartDirectProfile)
   try {
     // 参考图形态按 lovart 直连（cdn）：不预压 base64，转回环可下载 URL 交给 adapter
     // resolveLovartAttachments 自取（下载→传 CDN），省掉 encode→decode 两遍。见 resolveLocalImages.ts 头。
+    // **只有这一个平台走这条，且只是为了省这一步** —— 妥协，不是架构维度：
+    // 就地决定，不设判据层、不写 ADR、不据此切文件或建"通道 / 平台"层。
     images =
       p.images && p.images.length > 0
         ? ((await resolveImagesForEgress(p.images, 'cdn')) as string[])

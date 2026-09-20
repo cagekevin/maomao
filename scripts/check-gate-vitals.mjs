@@ -135,7 +135,6 @@ const GATES = {
     selfCheck: null,
     why: '元层（本闸）：静态度量其它闸，自身不扫描代码',
   },
-  'doc-refs': { roots: ['src'], selfCheck: 'own', why: '' },
   'upload-dirs': {
     roots: ['src', 'localTool/src'],
     selfCheck: 'own',

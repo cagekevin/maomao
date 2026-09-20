@@ -12,6 +12,11 @@
  *   5. TDZ 风险扫描（扫 src 下所有源码 .jsx/.js/.ts/.tsx，防「Cannot access before initialization」；
  *      逐行跳过注释——源码注释常引用报错文案作决策留痕，整文件盲扫会误报，见 depthUrls.ts:35 案例）
  *
+ * 【2026-09-20 删除「决策渠道门禁」整节（用户裁定）】原节断言 `docs/adr/` 为空（2026-08-18 立），
+ *   该约定已于 2026-09-18 被 ADR-0017 推翻 ⇒ 该节此后**恒假红**（健康态判红）。修法不是"翻正判据"，
+ *   而是**删掉**：**文档不需要任何测试**（用户裁定 2026-09-20）—— 文档内容不属闸的管辖面，
+ *   文档写错就改文档，不靠断言守。本文件自此只做「编排既有闸 + 源码级检查」，不判任何文档内容。
+ *
  * 【★闸的申诉口 · 三问（2026-09-14 入规 → 架构师心法 §零.4.2）】
  *   Q1 守什么：**编排器（非判定闸）** —— 它自己不判红，只按既有脚本 / 清单编排全量巡检；
  *               真正的判定在各 `check:*` 闸里（判据不在此重复维护，避免第二份真相）。
@@ -231,27 +236,6 @@ console.log('\n🏛 架构校验（no-circular + base 分层）');
 if (runGate('架构校验 (check-arch)', 'node scripts/check-arch.mjs')) {
   console.log('  ✅ 架构校验通过');
 }
-
-// ── 6. 决策渠道门禁（ADR 必须为空；CLAUDE 决策铁律必须存在）──
-// 硬约束：docs/adr/ 非本项目决策渠道（见 CLAUDE.md「🔒 决策记录铁律」）。
-// 若出现 ADR 文件 → error 阻断；若决策铁律被误删 → error 阻断。不靠 AI 自觉，靠门禁拦截。
-console.log('\n🔒 决策渠道门禁');
-const adrDir = path.join(ROOT, 'docs/adr');
-const adrFiles = fs.existsSync(adrDir) ? fs.readdirSync(adrDir).filter((f) => /\.md$/.test(f)) : [];
-check(
-  'docs/adr/ 无 ADR 文件（决策渠道 = CONTEXT + 代码注释）',
-  adrFiles.length === 0,
-  adrFiles.length ? `发现: ${adrFiles.join(', ')}` : '',
-);
-
-const claude = fs.existsSync(path.join(ROOT, 'CLAUDE.md'))
-  ? fs.readFileSync(path.join(ROOT, 'CLAUDE.md'), 'utf-8')
-  : '';
-check(
-  'CLAUDE.md 含「决策记录铁律」',
-  /决策记录铁律/.test(claude),
-  '铁律被删除会破坏决策渠道一致性',
-);
 
 console.log('\n═'.repeat(54));
 console.log(

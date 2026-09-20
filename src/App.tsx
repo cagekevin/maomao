@@ -465,6 +465,28 @@ function Canvas() {
     [performanceMode],
   );
 
+  // 【TD-04-49】AI 助手开关：原为 JSX 里的**内联箭头** ⇒ `memo(TopNav)` 浅比较必失败
+  // ⇒ TopNav 跟着 App **每帧重渲**（App 持 `useNodesState` 的 nodes，拖拽每帧 setNodes）。
+  // 本处即该 memo 的**唯一**阻塞点（已核 TopNav 其余 7 个 prop 全部稳定：view/agentOpen 为原始值，
+  // onNavigate=setView、其余四个是 useCallback，setSetting 是模块级函数）。
+  // 依赖都是稳定源：setSetting 模块级、setView 是 useState setter。
+  const handleToggleAgent = React.useCallback(() => {
+    // 在非画布视图（设置/多开）点 AI 助手按钮：【阶段1C】AgentPanel 现已任意视图常驻挂载
+    //（open 控 CSS 显隐）。点按钮统一切回画布并打开面板，让用户回到画布看到面板。画布内则正常 toggle。
+    if (view !== 'canvas') {
+      setSetting('agentOpen', true);
+      setView('canvas');
+    } else {
+      setSetting('agentOpen', !agentOpen);
+    }
+  }, [view, agentOpen]);
+
+  // 【TD-04-46】AgentPanel 的关闭回调：原为 JSX 内联箭头 ⇒ `memo(AgentPanel)` 浅比较必失败
+  // ⇒ 面板跟着 App 每帧重渲（App 持 `useNodesState` 的 nodes）。本处是该 memo 的**唯一**阻塞点
+  // （其余 4 个 prop 已核：agentKey/systemPrompt/open 为原始值，selectedAssetNodes 由下方
+  // 「签名短路 effect」保证拖动期间引用恒定）。依赖稳定：setSetting 是模块级函数。
+  const handleCloseAgent = React.useCallback(() => setSetting('agentOpen', false), []);
+
   // 始终指向最新 nodes/edges（撤销/重做取快照用）
   const nodesRef = React.useRef(nodes);
   const edgesRef = React.useRef(edges);
@@ -1471,16 +1493,7 @@ function Canvas() {
           onPushToCloud={handlePushToCloud}
           onPullFromCloud={handlePullFromCloud}
           agentOpen={agentOpen}
-          onToggleAgent={() => {
-            // 在非画布视图（设置/多开）点 AI 助手按钮：【阶段1C】AgentPanel 现已任意视图常驻挂载
-            //（open 控 CSS 显隐）。点按钮统一切回画布并打开面板，让用户回到画布看到面板。画布内则正常 toggle。
-            if (view !== 'canvas') {
-              setSetting('agentOpen', true);
-              setView('canvas');
-            } else {
-              setSetting('agentOpen', !agentOpen);
-            }
-          }}
+          onToggleAgent={handleToggleAgent}
         />
 
         {/* 内容区：画布为基座，多开/设置整页覆盖（官方 visible/invisible 覆盖层形态） */}
@@ -1658,7 +1671,7 @@ function Canvas() {
             key={activeProjectId}
             agentKey={agentKeyForProject(activeProjectId)}
             open={agentOpen}
-            onClose={() => setSetting('agentOpen', false)}
+            onClose={handleCloseAgent}
             systemPrompt={''}
             selectedAssetNodes={selectedAssetNodes}
           />

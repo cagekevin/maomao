@@ -672,3 +672,42 @@ describe('AgentPanel — 设置改模型/供应商即生效（方案 B，无需�
     h.subscribeUnsubs.forEach((unsub) => expect(unsub).toHaveBeenCalled());
   });
 });
+
+/**
+ * 【TD-04-46】`memo(AgentPanel)` 必须**结构上有效**（不是护栏）。
+ *
+ * 背景：App 持 `useNodesState` 的 nodes（`App.tsx:244`）⇒ 拖拽每帧 `setNodes` ⇒ App 每帧重渲；
+ * AgentPanel 是 App 里**常驻挂载**的两块面板之一（`open` 只控 CSS 显隐）⇒ 未 memo 时每帧陪跑。
+ *
+ * 【断言方式】面板每次渲染都会调 `useAgentChat`（hook 必须无条件调用）⇒ 用它的**调用次数**
+ * 观察"面板到底重渲了没有"：宿主重渲而 props 不变时，memo 生效则次数不变。
+ * 反证（探针）：去掉 `memo(AgentPanel)` ⇒ 次数增加 ⇒ 本断言红。
+ *
+ * ⚠️ 该断言只在 props 引用稳定时才有意义 —— `OPEN_PROPS` 是**模块级常量对象**（含稳定 `vi.fn()`），
+ *    正是 App 侧的镜像（App 已把 `onClose` 从内联箭头改为 `handleCloseAgent`；其余 4 个 prop 本就稳定）。
+ */
+describe('AgentPanel · memo 结构有效性（TD-04-46）', () => {
+  it('宿主重渲而 props 不变时，面板不重渲（useAgentChat 不再被调用）', () => {
+    function Host() {
+      const [, force] = React.useState(0);
+      return (
+        <>
+          <button data-testid="bump" onClick={() => force((n) => n + 1)}>
+            bump
+          </button>
+          <AgentPanel {...OPEN_PROPS} />
+        </>
+      );
+    }
+    const { getByTestId } = render(<Host />);
+    const before = h.useAgentChat.mock.calls.length;
+    expect(before, '首次渲染应调用 useAgentChat').toBeGreaterThan(0);
+
+    fireEvent.click(getByTestId('bump'));
+    fireEvent.click(getByTestId('bump'));
+    expect(
+      h.useAgentChat.mock.calls.length,
+      '宿主重渲后 useAgentChat 又被调用 ⇒ AgentPanel 未 memo（拖拽每帧陪跑）',
+    ).toBe(before);
+  });
+});

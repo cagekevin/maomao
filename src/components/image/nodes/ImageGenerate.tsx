@@ -109,6 +109,15 @@ interface ImageGenerateProps {
   selected?: boolean;
 }
 
+/**
+ * 模型成本表 —— 常量，无依赖 ⇒ 提**模块级**（不是每次渲染新建的对象字面量）。
+ *
+ * 【TD-04-53 · 横推新命中】原为组件体内 `const costMap = { 'dall-e-3': 4 };`，
+ * 作为 `costMap` prop 喂给 `memo(ModelSelect)` ⇒ 浅比较必失败（**只稳 `onChange` 修不好**，
+ * 兄弟 prop 仍每帧新建 —— 与 `loadingIcon` 同款病）。
+ */
+const IMAGE_MODEL_COST_MAP: Record<string, number> = { 'dall-e-3': 4 };
+
 function ImageGenerate({ id, data, selected }: ImageGenerateProps) {
   const render = useRenderAssetResolver();
   // 性能模式媒体降级（通用 hook）：hideResult = isHidden('image')，即 lodLevel>=2
@@ -405,7 +414,7 @@ function ImageGenerate({ id, data, selected }: ImageGenerateProps) {
     { value: 'medium', label: '中质量' },
     { value: 'high', label: '高质量' },
   ];
-  const costMap = { 'dall-e-3': 4 };
+  const costMap = IMAGE_MODEL_COST_MAP;
 
   // 富文本素材插入：由 PromptInput 挂载后通过 onReady 上抛（在光标处插芯片）。
   // ResourceStrip 的蓝色 @按钮点击也走这里，复用同一插入能力（保持组件职责内聚）。
@@ -560,6 +569,20 @@ function ImageGenerate({ id, data, selected }: ImageGenerateProps) {
       else showToast('发送到素材库失败，请稍后重试', { type: 'error' });
     });
   }, [assetUrl, data.label]);
+
+  // 【TD-04-53】模型切换：原为 JSX 内联箭头 ⇒ 与根（`useGenerateNode.models`）、
+  // `IMAGE_MODEL_COST_MAP` 一起构成 `memo(ModelSelect)` 的**三处阻塞点**，缺一不可。
+  // 依赖均为稳定源：setSelectedModel 是 useState setter；setImgPrefs 是 useNodePrefs 的 useCallback；
+  // patchData 的稳定性见 `useNodeData.ts:99`（setNodes 与 id 稳定）。
+  const handleModelChange = useCallback(
+    (m: string) => {
+      setSelectedModel(m);
+      setImgPrefs({ model: m });
+      patchData({ selectedModel: m });
+    },
+    [setImgPrefs, patchData],
+  );
+
   // 两个分支共用同一按钮项 ⇒ 也必须引用稳定（否则外层 useMemo 每次失效）。
   const cameraStudioButton = useMemo(
     () => ({
@@ -805,11 +828,7 @@ function ImageGenerate({ id, data, selected }: ImageGenerateProps) {
                   {/* 模型选择（基座 ModelSelect；选择即记住，跨节点复用） */}
                   <ModelSelect
                     value={selectedModel}
-                    onChange={(m) => {
-                      setSelectedModel(m);
-                      setImgPrefs({ model: m });
-                      patchData({ selectedModel: m });
-                    }}
+                    onChange={handleModelChange}
                     models={models}
                     costMap={costMap}
                     placeholder="选择模型"

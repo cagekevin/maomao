@@ -11,6 +11,8 @@
  *
  * 平台 baseUrl 真源 = ai-relay 内置目录；key 只进 .env（localTool 启动 loadDotEnv 注入 process.env）。
  * 参考图归一走 resolveLocalImages（唯一出站口纪律）。不改动 ai-relay 内部引擎代码。
+ * 【2026-09-20】归一必须落在**分叉之后**（选定出站路径的那个分支里）—— 分叉之前算 = 算了不消费的那条，
+ * 既白干又出假警（详见本文件 relayGenerate 内注释）。
  *
  * 总超时：异步（image/video）若网关一直 processing，绝不能无限轮询 —— 用 AbortSignal
  * 给整个执行套硬超时（默认 10 分钟），到点 abort 抛错（失败可见，不静默挂起）。
@@ -123,36 +125,41 @@ export async function relayGenerate(input: RelayGenerateInput): Promise<RelayGen
     // key 只进 .env（localTool 启动 loadDotEnv 注入 process.env），调用方显式传时优先。
     const apiKey = resolveProviderApiKey(providerId, input.apiKey);
 
-    // 参考图归一：/files/ 磁盘图 → data: base64（唯一出站口纪律）。
-    // chat 参考图在前端经 assetUrl.normalizeAssetUrlsForSend + toImageContentBlocks 塞进 messages
-    // 的 image_url 内容块（URL 形态，base64s:0）；顶层 images 前端不传。故对 messages 也做 resolveLocalImages
-    // （深遍历就地 inline 内嵌的所有 /files/ URL），否则上游读不到本机图、链路失效。data:/公网幂等透传。
-    const resolvedImages =
-      input.images && input.images.length > 0
-        ? ((await resolveLocalImages(input.images)) as string[])
-        : undefined;
-    const resolvedMessages =
-      input.messages !== undefined ? await resolveLocalImages(input.messages) : undefined;
-    // 【排障埋点 · 2026-09-03 chat 参考图排查】已确认参考图正常，埋点随 2026-09-04 清理移除；
-    // 若再排查 /files/ 内联成 base64 是否命中，比对 resolvedMessages（inline 后）即可，勿回填 console.log。
-
-    const variables: Record<string, unknown> = { model };
-    if (input.prompt !== undefined) variables.prompt = input.prompt;
-    if (input.size !== undefined) variables.size = input.size;
-    if (resolvedMessages !== undefined) variables.messages = resolvedMessages;
-    if (input.temperature !== undefined) variables.temperature = input.temperature;
-    if (input.responseFormat !== undefined) variables.response_format = input.responseFormat;
-    if (resolvedImages !== undefined) variables.imageUrls = resolvedImages;
+    // ── 出站素材归一：**落在分叉之后**（2026-09-20 收口）──────────────────────────────
+    // 素材以 URL 形态进来（前端把 /files/ 相对或绝对自指 URL 塞进 messages 的 image_url / video_url
+    // 内容块），出站前必须变成"上游拿得到"的东西，否则上游读不到本机图、链路失效。
+    // 形态的本体只有一种：**回读 uploads/ → 压 ≤1920 → 内联 data:base64**（E 方案，/files/ 是会话唯一真值）。
+    // **所有网站都走这一条。** 唯一的例外是下面 lovart 分支的回环 URL，而它只是个妥协。
+    //
+    // 【为什么不在本函数顶部统一算（本次修的假报错就是它）】
+    //   顶部 = 分叉之前 ⇒ 还不知道会走哪条路 ⇒ 算了的那份可能没人消费。
+    //   铁证 logs 2026-09-20 13:42:45：同一张 png 先打 `[resolve:inline-img] … -> data:image (1522KB)`，
+    //   紧接着又打 `[resolve:cdn-url] …` —— 两份都算了，前一份直接丢弃。
+    //   假警：mp4 在 base64 叶子处 Jimp 必抛 → 打 error「读文件失败，保留原 URL（上游将显性失败）」，
+    //   而 lovart 这条路径**不消费**这份结果（实测 13:37:06 / 13:38:18 两次带视频提问，报错行之后请求均 200）。
+    //   该文案另属**越权**：形态实现层替生产者断言"上游将失败"这一因果结论（7 步法 Step 4 铁律③）。
+    //   真警必须留：通用路径下上游**确实**读不到本机地址，读失败留痕是真的，不许静音。
+    //
+    // 【lovart 分支给回环 URL 是**妥协**，不是架构维度】
+    //   本体只有一种：**内联 base64** —— **所有网站都走这条**（外部上游都读不到本机 /files/）。
+    //   例外只有 lovart 这一个平台：它的 adapter 跑在本机进程内、能自己去下载回环 URL ⇒
+    //   预压 base64 等于白干一趟 encode、再让 adapter decode 回来。**为了省掉这一趟**才给回环 URL。
+    //   ⚠️ 就这么简单。**不设判据层、不写 ADR、不据此切文件或建"通道 / 平台"层** ——
+    //      那些动作都是在把一个性能妥协固化成架构（2026-09-20 已翻过这个车，见轮次日志 §五 第 4 条）。
+    //
+    // 【另一件事，不在此处建抽象】"上游能不能消费这种素材"（如视频需抽帧转图）与上面的"怎么送出去"
+    //   是两个问题；抽帧今天未实现（docs/plan/00-猫猫项目架构总览.md §2.3、lovart_attachments.ts:62 一致）。
+    // 排障：若怀疑 /files/ 内联没命中，比对**分支内** inline 后的 messages 即可，勿回填 console.log。
 
     // ── chat + 画布 Agent（带 tools）分流：走 chatWithTools（OpenAI 兼容非流式）──
     // lovart 不支持流式+tools；魔搭等 OpenAI 兼容厂商无 data. 信封、一次返 tool_calls。
-    // 参考图已由 resolvedMessages 内联 base64，魔搭能读本机图。非流式，打字机留后补。
+    // 本分支就地内联 base64（默认形态），魔搭读得到本机图。非流式，打字机留后补。
     if (capability === 'chat' && input.tools !== undefined) {
       const kitOut = await chatWithTools({
         apiKey,
         baseUrl,
         model,
-        messages: (resolvedMessages ?? input.messages) as unknown[],
+        messages: (await resolveLocalImages(input.messages)) as unknown[],
         tools: input.tools,
         toolChoice: input.toolChoice,
         signal: timeout.signal,
@@ -181,7 +188,9 @@ export async function relayGenerate(input: RelayGenerateInput): Promise<RelayGen
         const profile = buildLovartDirectProfile(baseUrl, { timeoutMs });
         // 参考图形态按 lovart 直连（cdn）：不把 messages 里 /files/ 预压 base64，而是保留
         // 回环可下载 URL 交给 adapter 自取（resolveLovartAttachments 下载→传 CDN），省 encode→decode。
-        // resolvedMessages 是通用 base64 形态（给非直连通用分支用），此分支不复用它，用原消息按 cdn 归一。
+        // **只有这一个平台走这条，且只是为了省这一步** —— 妥协，不是架构维度（见上）。
+        // 本分支**就地**决定，不复用别处结果（顶部不归一，理由见上）。非图片媒体（mp4/音频）天然走
+        // 这条 —— 不经过 Jimp，故不会有那条"读文件失败"的假警。
         const cdnMessages = (await resolveImagesForEgress(input.messages, 'cdn')) as {
           role: string;
           content?: string;
@@ -202,11 +211,12 @@ export async function relayGenerate(input: RelayGenerateInput): Promise<RelayGen
           durationMs: Date.now() - startedAt,
         };
       }
+      // 本分支就地内联 base64（默认形态；此处 providerId ≠ 'lovart'）
       const text = await chat({
         apiKey,
         baseUrl,
         model,
-        messages: (resolvedMessages ?? input.messages) as unknown[],
+        messages: (await resolveLocalImages(input.messages)) as unknown[],
         signal: timeout.signal,
         timeoutMs,
       });
@@ -263,7 +273,7 @@ export async function relayChatStream(
   try {
     const baseUrl = resolveProviderBaseUrl(input.providerId, input.baseUrl);
     const apiKey = resolveProviderApiKey(input.providerId, input.apiKey);
-    // 参考图统一内联 base64（唯一出站口纪律；魔搭读得到本机图）
+    // 参考图统一内联 base64（唯一出站口纪律；魔搭读得到本机图）。
     const msgs = (await resolveLocalImages(input.messages)) as unknown[];
 
     const controller = new AbortController();

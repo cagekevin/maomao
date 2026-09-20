@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { memo, useEffect, useRef } from 'react';
 import { Clock, FolderOpen, Sparkles, Pin, PinOff, BookOpen } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import './panel-kit.css';
@@ -32,7 +32,7 @@ const TABS: PanelTab[] = [
  * 展开/活动 tab 状态存于全局（taskStore.usePanel），使「生成任务时自动弹出任务中心」
  * （reportGenerate → openTaskCenter）能控制本面板。
  */
-export default function LeftPanel() {
+function LeftPanel() {
   const { expanded, activeTab, pinned } = usePanel();
   const setActiveTab = (key: PanelTabKey) => setPanel({ activeTab: key });
   const setExpanded = (v: boolean) => setPanel({ expanded: v });
@@ -172,3 +172,14 @@ export default function LeftPanel() {
     </>
   );
 }
+
+/**
+ * 【TD-04-46】`memo` 在这里是**结构上有效**的，不是护栏：
+ * ① 本组件**零 prop**（调用点 `<LeftPanel />`）⇒ 浅比较恒相等 ⇒ 父组件（App）重渲**不会**带动它；
+ * ② 它需要的重渲由**自己的订阅**驱动：`usePanel()`（展开/tab/钉住）+ `useTaskBadge()`（角标，TD-04-47 的原子订阅）
+ *    ⇒ 不依赖父组件重渲 ⇒ **无"陈旧"风险**（本组件渲染期不读任何模块级可变态，只读上面两个 hook）。
+ * 【为什么值得】App 持 `useNodesState` 的 nodes（`App.tsx:244`）⇒ 拖拽每帧 `setNodes` ⇒ App 每帧重渲；
+ * 本面板与 `AgentPanel` 是 App 里**常驻挂载**的两块（其余常驻件 TopNav / CanvasToolbar / ContextMenu /
+ * ToastContainer / ConfirmContainer 均已 memo），此前每帧陪跑。
+ */
+export default memo(LeftPanel);

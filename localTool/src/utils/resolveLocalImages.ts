@@ -46,7 +46,11 @@ function resolveLocalPath(u: string): string | null {
   return path.join(getUploadDir(), rel);
 }
 
-/** 读 uploads 文件 → 压缩≤1920 保持原格式 → data: base64；失败返回 null（调用方保留原 URL） */
+/**
+ * 读 uploads 文件 → 压缩≤1920 保持原格式 → data: base64；失败返回 null（调用方保留原 URL）。
+ * ⚠️ 只服务**图片**：**视频 / 音频到这里必失败** —— 它到时候要**拆成多张图**再发，
+ *   详见下方 `inlineLeaf` 失败分支处的注释（此处只留指针，不写第二份）。
+ */
 async function fileToInlineBase64(filePath: string): Promise<string | null> {
   try {
     if (!fs.existsSync(filePath)) return null;
@@ -86,7 +90,7 @@ async function fileToInlineBase64(filePath: string): Promise<string | null> {
  * （M3 SSOT 第二份）。现收口为**一个遍历 + 两个叶子**：遍历结构只此一份，形态差异全部落在叶子里。
  *
  * 【分界判据（Step 3）】这是**探测重复**（怎么遍历）⇒ 必须收口；
- * **判据重复**（要不要压 base64）才分层 —— 后者已由 `refFormatOf` 单独收口，与本函数无关。
+ * **形态差异**（压 base64 还是给回环 URL）不在这层 —— 由调用方**就地**选哪个叶子，与本函数无关。
  */
 async function mapLeaves(value: unknown, leaf: (s: string) => Promise<string>): Promise<unknown> {
   if (typeof value === 'string') return leaf(value);
@@ -123,6 +127,15 @@ export async function resolveLocalImages(value: unknown): Promise<unknown> {
       );
       return inlined;
     }
+    // ══ 【**视频**：这里必然读不了 —— 它到时候会**拆成多张图**】══════════════════════════════
+    // Jimp 只读图片。视频 / 音频走到这里**必抛** ⇒ 保留原 URL ⇒ 上游拿不到本机地址。
+    // 将来的做法是**抽帧转图**：把视频拆成多张图片再发 —— 那时它就是**图片**，天然走上面这条
+    // 内联路（本函数**不需要**加任何"视频分支"）。
+    // ⇒ 所以下面这条 error 是**真警**，不是噪音：抽帧落地之前，视频在通用通道上确实送不出去，
+    //   留痕是对的（不许静音，否则参考素材就静默丢了）。
+    // 设计留痕：src/components/agent/runtime/agentCore.ts:56-63
+    //   （「其它平台：由后端抽帧转图 … ⚠️ 目前未实现」）。
+    // ⚠️ 抽帧未实现前**不建抽象**（Step 3：只有"原样透传"一种实现 = 假接缝）。
     console.error(
       `[resolve:inline-img] 读文件失败，保留原 URL（上游将显性失败）: ${v.slice(0, 120)}`,
     );
@@ -133,18 +146,37 @@ export async function resolveLocalImages(value: unknown): Promise<unknown> {
 }
 
 /* ════════════════════════════════════════════════════════════════
- * 出站形态裁决（按 provider 决定「本机 /files/ 图转成什么」）
+ * 出站形态裁决（把本机 /files/ 图变成「上游拿得到」的形态）
  * ════════════════════════════════════════════════════════════════
- * 背景（单出口纪律的延伸）：外部上游都读不到 localTool 本机 /files/，所以必须由
- * localTool 唯一出站口把本机图变成「上游可访问」形态。但具体形态因平台而异：
- *   - base64：多数 OpenAI 兼容平台只认内联 base64 → /files/ 压成 data:base64（现状）。
- *   - cdn   ：lovart 直连 adapter 在本机进程内，能自己下载回环 URL 再传 CDN → 后端
- *             不必预压 base64，直接把回环可下载 URL 交给 adapter，省掉 encode→decode 两遍。
- * 形态决策只收敛在本文件（refFormatOf + resolveImagesForEgress），数据流单向、可追溯，
- * 不在各处手写「要不要 base64」。
+ * **本体只有一种：内联 base64。** 所有网站都走这条 —— 外部上游都读不到 localTool 本机
+ * 127.0.0.1:18080 的 /files/，所以必须由唯一出站口回读 uploads/ → 压 ≤1920 → 内联 data:。
+ *
+ * **例外只有一处，且它只是个妥协**：lovart 直连 adapter 跑在本机进程内，能自己去下载回环 URL
+ * 再传 CDN ⇒ 预压 base64 等于白干一趟 encode、再让 adapter decode 回来。为了**省掉这一趟**，
+ * 才加了「给回环 URL」这条路（refFormat='cdn'）。**只有这一个平台支持，就这么简单。**
+ *
+ *   ⚠️ 它**不是**一条架构维度。不许为它设判据层、写 ADR、切文件或建「通道 / 平台」层 ——
+ *      那些动作全都是在把一个性能妥协固化成架构（2026-09-20 已翻过这个车，见
+ *      daily/架构日志/01-跨区-出站素材假报错收口-2026-09-20.md §五 第 4 条）。
+ *      「哪里用哪个」是**各出站分支自己的就地决定**，不是一份需要外部判据的知识。
+ *      🔴 **自检句**（该轮血的教训）：**「如果这个妥协明天被去掉，我盖的楼还剩什么？」**
+ *         答「什么都不剩」⇒ 那楼本来就不该盖。凡想给这条妥协"抽象 / 收口 / 建层 / 落 ADR"的，
+ *         先答这一句，并把答案写进轮次日志 —— 答不出来就别动。
+ *
+ * 数据流单向、可追溯；实现只在本文件（一个深遍历 + 两个叶子）。
  */
 
-/** provider → 出站参考图形态。出厂内置：只有 lovart（原生直连）走 cdn，其余走 base64。 */
+/**
+ * provider → 出站参考图形态。只有 lovart（原生直连）走 cdn，**其余全部走 base64**。
+ *
+ * 🔴 【**别把它接进出站分支 —— 2026-09-20 我就是这么翻的车**】
+ *   现状：**生产零调用**（lovart 分支与 relay-poll 各自就地写死 `'cdn'`）。**这是对的，别"修"它。**
+ *   它看起来像个"唯一入口没接上"的诱饵（零调用 + 有单测 + 名字正当），但接上它**就是错**：
+ *   形态不是架构维度，"哪里用哪个"由各出站分支**就地**决定即可（见本文件上方段头）。
+ *   ⇒ 若你（下一个 AI）想接上它 / 为它建层 / 为它写 ADR，**先读**：
+ *     `daily/架构日志/01-跨区-出站素材假报错收口-2026-09-20.md §五 第 3、4 条`
+ *     —— 第三版就是"接上它"、第四版就是"为它盖楼"，两版都被用户叫停并**完整回退**。
+ */
 export type RefFormat = 'base64' | 'cdn';
 export function refFormatOf(providerId: string): RefFormat {
   return providerId === 'lovart' ? 'cdn' : 'base64';

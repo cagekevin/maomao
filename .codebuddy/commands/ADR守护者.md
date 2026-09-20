@@ -209,7 +209,7 @@ node scripts/adr.mjs index --write && node scripts/adr.mjs audit   # 必须 0 �
   
 不列：「不为存量兼容」「能删 > 能收敛 > 能下沉」属改码动作；「三铁律」是 `CLAUDE.md §5.1` 红线原文，**不转述、不造类比**，要读回原文。
 
-想加检查 ⇒ 优先**并入既有 `check-doc-refs`**（描述层对账，接 `ADR-NNNN` 存在性），其次做 `hygiene` 体检项并**标明"不是闸"**；新建闸是最后手段且必须带负例探针。
+想加检查 ⇒ **先问「它判的是文档还是用户可感知契约」** —— 判文档的一律**不加**（用户裁定「文档不需要任何测试」，`docs/adr/ADR-0049`；原 `check-doc-refs` 已因此于 2026-09-20 删除）。ADR 体系自身的完整性走 `node scripts/adr.mjs audit` / `refs --check`（**维护 CLI，不是闸**）。
 
 ## Gotchas
 

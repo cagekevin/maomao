@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef, useEffect } from 'react';
+import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import {
   MoreVertical,
   Copy,
@@ -223,6 +223,12 @@ const TaskCard = React.memo(function TaskCard({
   // 禁止再写 `type==='video' ? … : <img>` 这类 fail-open 默认（那会把非媒体类型当图片请求）。
   const kind: TaskMediaKind = taskMediaKind(task.type);
 
+  // 【TD-04-53 · 横推新命中】VideoThumbnail 是 `memo` 组件（`VideoThumbnail.tsx:187`），
+  // 原先 `onActivate` 是 JSX 内联箭头 ⇒ 浅比较必失败。本组件其余 prop 均为原始值 ⇒ memo 可达。
+  const handleThumbActivate = useCallback(() => {
+    if (typeof onPreview === 'function') onPreview(task);
+  }, [onPreview, task]);
+
   // 真实下载任务结果（fetch blob → downloadUrl，可控文件名）
   const downloadResult = async (e: React.MouseEvent) => {
     if (e?.stopPropagation) e.stopPropagation();
@@ -360,9 +366,7 @@ const TaskCard = React.memo(function TaskCard({
             <VideoThumbnail
               src={task.resultUrl}
               className="w-full h-full"
-              onActivate={() => {
-                if (typeof onPreview === 'function') onPreview(task);
-              }}
+              onActivate={handleThumbActivate}
             />
           ) : (
             <img

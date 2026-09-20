@@ -68,6 +68,14 @@ interface FaceMosaicNodeProps {
   data: FaceMosaicNodeData;
   selected?: boolean;
 }
+/**
+ * 本节点暂无 hover 按钮 —— 用**模块级常量**空数组，不是每次渲染新建的 `[]`。
+ *
+ * 【TD-04-41 · 验证轮补漏】原为组件体内 `const toolbarButtons: never[] = [];`：
+ * 每帧新建 ⇒ `memo(HoverToolbar)` 浅比较必失败（同一母体「配置数组引用不稳定」的第 6 处，
+ * 前一轮横推只点了 5 处、漏了本处）。提为常量后引用恒定，且新增按钮时会自然改成 useMemo。
+ */
+const NO_TOOLBAR_BUTTONS: never[] = [];
 function FaceMosaicNode({ id, data, selected }: FaceMosaicNodeProps) {
   const { setNodes, getNodes: _getNodes, getNode } = useReactFlow();
   // data 写回唯一入口（收口）：模式参数 + 图源都走它（§5.4.9 节点样板收口 hook）
@@ -230,7 +238,7 @@ function FaceMosaicNode({ id, data, selected }: FaceMosaicNodeProps) {
 
   const count = assetUrls().length;
 
-  const toolbarButtons: never[] = [];
+  const toolbarButtons = NO_TOOLBAR_BUTTONS;
 
   return (
     <NodeShell

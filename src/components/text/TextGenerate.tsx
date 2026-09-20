@@ -41,6 +41,18 @@ import { logger } from '@/components/base/core/log/logger';
 import { reportDegrade } from '@/components/base/core/log/degrade';
 
 /**
+ * hover 操作栏的 loading 图标。
+ *
+ * 【TD-04-41 · 验证轮补漏】此前写在组件体内（`const loadingIcon = (<Loader2 …/>)`）⇒ 每次渲染都是**新 element**，
+ * 作为 prop 传给 `memo(HoverToolbar)` ⇒ 浅比较必失败。**光把 `toolbarButtons` 提进 `useMemo` 修不好**
+ * （兄弟 prop 仍每帧新建），属同一母体「memo 被内联 JSX prop 击穿」。
+ * element 不可变、无外部依赖 ⇒ 提到模块级常量（结构上不可能回潮，比 useMemo 更强）。
+ */
+const LOADING_ICON = (
+  <Loader2 size={12} className="animate-spin flex-shrink-0" style={{ color: 'rgb(210,2,7)' }} />
+);
+
+/**
  * 文本节点（复刻原 Co.jsx / textGenerateNode）
  * 已迁移到基座：NodeShell + HoverToolbar + ExpandablePanel + ModelSelect + GenerateButton + PromptInput。
  * 保留差异化：文本编辑区（双击编辑）、自动拆分、预设菜单。
@@ -292,11 +304,8 @@ function TextGenerate({ id, data, selected }: TextGenerateProps) {
     },
   });
 
-  const loadingIcon = (
-    <Loader2 size={12} className="animate-spin flex-shrink-0" style={{ color: 'rgb(210,2,7)' }} />
-  );
-
   // 【TD-04-41】配置数组 + 回调引用稳定（否则 memo(HoverToolbar) 浅比较必失败）。
+  // ⚠️ 兄弟 prop `loadingIcon` 同属这条链（见文件头 LOADING_ICON）—— 只稳数组不稳它，memo 照样不命中。
   const handleToolbarCopy = useCallback(() => {
     // 【debug】复制按钮点击时确认 text state 的实际值（排查复制空）
     logger.debug(
@@ -317,6 +326,18 @@ function TextGenerate({ id, data, selected }: TextGenerateProps) {
     // 加锁 = 合上抽屉：已展开的输入面板要一并收起
     if (next) setExpanded(false);
   }, [inputLocked]);
+
+  // 【TD-04-53 · 横推新命中】模型切换原为 JSX 内联箭头 ⇒ `memo(ModelSelect)` 失效
+  // （债原文只点了 TemplateNode / ImageGenerate 两处，本处同形态但未被点名）。
+  // 依赖均为稳定源：setSelectedModel 是 useState setter、setTextPrefs 是 useNodePrefs 的 useCallback；
+  // `models` 来自 `useGenerateNode`（已在源头 useMemo）。
+  const handleModelChange = useCallback(
+    (m: string) => {
+      setSelectedModel(m);
+      setTextPrefs({ model: m });
+    },
+    [setTextPrefs],
+  );
   const toolbarButtons = useMemo(
     () => [
       {
@@ -349,7 +370,7 @@ function TextGenerate({ id, data, selected }: TextGenerateProps) {
       onRename={rename}
     >
       {/* hover 操作栏 */}
-      <HoverToolbar buttons={toolbarButtons} loading={loading} loadingIcon={loadingIcon} />
+      <HoverToolbar buttons={toolbarButtons} loading={loading} loadingIcon={LOADING_ICON} />
 
       {/* 主容器：flex-1 填满 wrapper（wrapper 高度由 useSizeSync defaultHeight=420 同步），
           与生图/视频生成节点一致，避免 wrapper≠主框导致端口/面板位置错位。
@@ -494,14 +515,7 @@ function TextGenerate({ id, data, selected }: TextGenerateProps) {
               </label>
 
               {/* 模型选择（基座 ModelSelect；选择即记住，跨节点复用） */}
-              <ModelSelect
-                value={selectedModel}
-                onChange={(m) => {
-                  setSelectedModel(m);
-                  setTextPrefs({ model: m });
-                }}
-                models={models}
-              />
+              <ModelSelect value={selectedModel} onChange={handleModelChange} models={models} />
 
               {/* 预设：打开创作库面板（风格/滤镜/运镜/MJ码图/提示词）→ 落胶囊到当前提示词 */}
               <CreativeLibraryButton initialTab="prompt" onApply={handleCreativeApply} />

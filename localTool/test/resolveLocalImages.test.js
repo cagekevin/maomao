@@ -34,6 +34,8 @@ fs.mkdirSync(uploads, { recursive: true });
 await new Jimp(64, 64, 0xff0000ff).writeAsync(path.join(uploads, 'a.png')); // 小图（不缩放）
 await new Jimp(2048, 64, 0x00ff00ff).writeAsync(path.join(uploads, 'big.png')); // 大图（最长边 2048 > 1920）
 await new Jimp(32, 32, 0x0000ffff).writeAsync(path.join(uploads, '妹.png')); // 中文文件名（URL 编码形态）
+// 视频夹具：.mp4 扩展名 + 非图片字节（Jimp 读它必抛）—— 锁「视频走哪条形态」用。
+fs.writeFileSync(path.join(uploads, 'v.mp4'), Buffer.from('000000206674797069736f6d', 'hex'));
 
 /** 解码 data: base64 → Jimp，供尺寸/格式断言 */
 async function decodeDataUrl(dataUrl) {
@@ -75,6 +77,33 @@ test('公网 http(s) URL → 原样透传（不读盘）', async () => {
 test('文件缺失 → 保留原 URL（失败可见，不静默丢弃）', async () => {
   const out = await resolveLocalImages('/files/sub/missing.png');
   assert.equal(out, '/files/sub/missing.png');
+});
+
+test('出站形态分流：视频在 cdn 形态不打 error（假警消失）、在 base64 形态留真警（2026-09-20）', async () => {
+  const errors = [];
+  const logs = [];
+  const origError = console.error;
+  const origLog = console.log;
+  console.error = (...a) => errors.push(a.join(' '));
+  console.log = (...a) => logs.push(a.join(' '));
+  try {
+    // ① cdn（lovart 直连）：/files/ 补成回环可下载 URL 交 adapter 自取 —— 非图片媒体天然走这条，不碰 Jimp。
+    //    这里若打 error，就是 2026-09-20 那条假警（请求其实 200 成功、视频已成功转 CDN 附件）。
+    assert.equal(
+      await resolveImagesForEgress('/files/sub/v.mp4', 'cdn'),
+      'http://127.0.0.1:18080/files/sub/v.mp4',
+    );
+    assert.deepEqual(errors, []);
+    // ② base64（非直连平台）：内联不了 ⇒ 原样保留 + error 留痕。该形态下上游**确实**读不到本机地址，
+    //    所以这条是**真警**，必须保留（勿为了"消假警"把它一起静音 —— 那就变成静默丢参考图了）。
+    assert.equal(await resolveImagesForEgress('/files/sub/v.mp4', 'base64'), '/files/sub/v.mp4');
+    assert.equal(errors.length, 1);
+    assert.match(errors[0], /读文件失败/);
+  } finally {
+    console.error = origError;
+    console.log = origLog;
+  }
+  assert.match(logs.join('\n'), /resolve:cdn-url/);
 });
 
 test('嵌套结构：messages 的 image_url.url + image_urls[] + reference_images[] 全转换，非图字段原样', async () => {

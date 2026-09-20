@@ -9,11 +9,17 @@ import 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 
-import { useImageHoverActions } from '../../src/components/image/useImageHoverActions.tsx';
+// ⚠️ import 顺序是约定的一部分：`_nodeMocks.mjs` **必须排在被测模块之前**。
+//    `vi.mock` 被提升到文件顶部注册，但工厂是在**被测模块被 import 的那一刻**执行的 ——
+//    若 `mocks` 的 import 排在后面，工厂里访问 `mocks` 会命中 TDZ（ReferenceError: Cannot access before initialization）。
 import { mocks } from './_nodeMocks.mjs';
+import { useImageHoverActions } from '../../src/components/image/useImageHoverActions.tsx';
 
 // useCopyNode 内部依赖 `useReactFlow().getNode/getEdges`（**生产环境由 Provider 保证引用稳定**）。
 // 测试必须同样提供稳定的它们，否则会把「测试环境缺 Provider」误判成「实现不稳定」。
+// ⚠️ 本文件**不得**再写第二个 `vi.mock('@xyflow/react')`：同路径后注册者胜出，会静默顶掉这一行；
+//    且手写 `useReactFlow: () => ({ getNode: () => … })` 每次返回**新函数引用** ⇒ 上游 useMemo 恒失效
+//    （正是 `_nodeMocks.mjs:12-24` 已记录的挂死反模式）。统一用 `mocks.xyflow` 单例桩。
 vi.mock('@xyflow/react', () => mocks.xyflow);
 
 // 依赖 stub（hook 内部 import 的真实模块，测试中用轻量替身）
@@ -37,13 +43,6 @@ vi.mock('../../src/components/base/core/event/toastStore.ts', async (importOrigi
   showToast: () => {},
   toastError: () => {},
 }));
-// useCopyNode 内部调用 useReactFlow（需 ReactFlowProvider 上下文）；此处桩替身提供最小实现，
-// 与生产环境（节点组件天然在 ReactFlow 内）行为一致，避免测试渲染必需真实 canvas 画布。
-vi.mock('@xyflow/react', () => ({
-  ReactFlowProvider: ({ children }: any) => children,
-  useReactFlow: () => ({ getNode: () => undefined, getEdges: () => [] }),
-}));
-
 const findBtn = (btns: any, key: any) => btns.find((b: any) => b.key === key);
 
 describe('useImageHoverActions — 图片共享 hover 能力', () => {
