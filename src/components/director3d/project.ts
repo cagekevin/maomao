@@ -86,7 +86,6 @@ export interface ProjectShot {
   objectKeyframes: Record<string, ChannelTracks | ChannelKey[]>;
   paths: Record<string, unknown>;
   settings?: ProjectSettings;
-  [key: string]: unknown;
 }
 
 /** normalizeShot 的 fallback 入参：仅含「基线兜底」字段（不含镜头级 id/name 等，那些来自 shot 本身） */
@@ -118,7 +117,6 @@ export interface RawShot {
   characterKeyframes?: Record<string, ChannelTracks | ChannelKey[]>;
   paths?: Record<string, unknown>;
   settings?: Partial<ProjectSettings>;
-  [key: string]: unknown;
 }
 
 /** normalizeProjectData 的脏数据入参 */
