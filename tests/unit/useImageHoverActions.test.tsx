@@ -235,18 +235,8 @@ describe('imageButtons 引用稳定性（TD-04-41）', () => {
     );
     const first = result.current.imageButtons;
     rerender();
-    const second = result.current.imageButtons;
-    if (first !== second) {
-      // 诊断：哪一项换了引用（定位是哪个回调不稳定）
-      first.forEach((b: { key: string; onClick?: unknown }, i: number) => {
-        const nb = second[i] as { key: string; onClick?: unknown };
-        if (b !== nb || b.onClick !== nb?.onClick) {
-          console.log(
-            `[诊断] item 变了: key=${b.key} 引用同=${b === nb} onClick同=${b.onClick === nb?.onClick}`,
-          );
-        }
-      });
-    }
-    expect(second).toBe(first);
+    expect(result.current.imageButtons).toBe(first);
+    rerender();
+    expect(result.current.imageButtons).toBe(first);
   });
 });
