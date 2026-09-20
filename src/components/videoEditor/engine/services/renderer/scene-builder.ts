@@ -4,7 +4,7 @@ import type {
   ImageElement,
   VideoTrack,
 } from '@/components/videoEditor/types/timeline';
-import type { MediaAsset } from '@/components/videoEditor/types/assets';
+import type { MediaAsset } from '@/components/videoEditor/types/mediaAssets';
 import { RootNode } from './nodes/root-node';
 import { VideoNode } from './nodes/video-node';
 import { ImageNode } from './nodes/image-node';

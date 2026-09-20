@@ -5,7 +5,7 @@ import { getEditor } from '@/components/videoEditor/engine/core/editorInstance';
 import type { EditorCore } from '@/components/videoEditor/engine/core';
 import { isMainTrack, hasMediaId } from '@/components/videoEditor/engine/timeline';
 import { storageService } from '@/components/videoEditor/engine/services/storage/service';
-import type { MediaAsset } from '@/components/videoEditor/types/assets';
+import type { MediaAsset } from '@/components/videoEditor/types/mediaAssets';
 
 export class DeleteElementsCommand extends Command {
   private savedState: TimelineTrack[] | null = null;

@@ -4,7 +4,7 @@ import { videoEditorLogger } from '@/components/videoEditor/lib/videoEditorLogge
 import { useState } from 'react';
 
 // 更新(2026-09-14)：i18next 已随直写中文移除（文案已中文化）。
-import { toast } from '@/components/videoEditor/lib/toast';
+import { videoEditorToast } from '@/components/videoEditor/lib/videoEditorToast';
 import { Button } from '@/components/videoEditor/ui/ui/button';
 import { Checkbox } from '@/components/videoEditor/ui/ui/checkbox';
 import {
@@ -38,7 +38,7 @@ export function TextSpeechPanel({ elements: elementRefs }: { elements: TextEleme
     setIsGenerating(true);
     const toastId = 'tts-generate';
 
-    toast.loading('正在生成语音…', { id: toastId });
+    videoEditorToast.loading('正在生成语音…', { id: toastId });
 
     let successCount = 0;
     let failCount = 0;
@@ -68,9 +68,9 @@ export function TextSpeechPanel({ elements: elementRefs }: { elements: TextEleme
     }
 
     if (failCount === 0) {
-      toast.success('语音生成成功', { id: toastId });
+      videoEditorToast.success('语音生成成功', { id: toastId });
     } else {
-      toast.warning(`${successCount} 条成功，${failCount} 条失败`, { id: toastId });
+      videoEditorToast.warning(`${successCount} 条成功，${failCount} 条失败`, { id: toastId });
     }
 
     setIsGenerating(false);

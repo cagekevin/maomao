@@ -12,7 +12,7 @@ import {
   type TransitionPreset,
 } from '@/components/videoEditor/constants/transition-constants';
 import type { TransitionType } from '@/components/videoEditor/types/timeline';
-import { toast } from '@/components/videoEditor/lib/toast';
+import { videoEditorToast } from '@/components/videoEditor/lib/videoEditorToast';
 import { cn } from '@/components/videoEditor/utils/ui';
 import {
   Tooltip,
@@ -117,12 +117,12 @@ function TransitionPresetCard({ preset }: { preset: TransitionPreset }) {
 
     if (applied === 0) {
       // 【TD-22-49】原为英文且只说"没找到"：用户既不知道判据，也不知道怎么修。
-      toast.info(
+      videoEditorToast.info(
         '当前没有可加转场的交界：请在视频轨道上把两段片段拖到首尾相接（靠近会自动吸附贴齐）。',
       );
       return;
     }
-    toast.success(`已为 ${applied} 个片段交界应用转场（${preset.label}）`);
+    videoEditorToast.success(`已为 ${applied} 个片段交界应用转场（${preset.label}）`);
   };
 
   return (

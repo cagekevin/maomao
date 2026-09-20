@@ -385,7 +385,7 @@ V2 §4.1 原文「**跨域** hooks 放 `src/hooks/`」被实测误用成"所有 
 | --- | --- | --- |
 | **+「素材域」** | 同一个"东西"散在 **3 处**：数据真源 `base/store/resourceStore.ts`（**17 处消费**）· UI `base/panels/{ResourceLibrary,ResourceStrip,ResourcePreview}` + `ImportMediaModal` · 来源适配 `base/media/providers/librarySource` | **补立**（数据 + UI + 来源适配收成一个域） |
 | **+「生成域」** | 同样散在多处：`base/api/generate.ts`（唯一收口 4 函数）· `base/media/providers/generatedSource` · `base/panels/GeneratedView` · `base/store/{generationContract,nodeRuntimeStore}` | **补立**；**与素材域是不同数据源**（**用户 2026-09-17 已裁定**，见 `generatedSource.ts:12-18` 头注释原文） |
-| **`base/media` 名不副实** | 它只被 **3 处**消费（`App.tsx` / `ImportMediaModal` / 测试），真实职责 = **「可引用媒体源」注册表**（`mediaRefRegistry` + `mediaRefTypes` + `libraryBrowse` + `providers/*`），被素材域 / 生成域 / 画布**共同**使用 | **收窄为「媒体引用协议层」**（接近横切契约性质）；"媒体引用**域**"这个命名是**名不副实** |
+| **`base/media` 名不副实** | 它只被 **3 处**消费（`App.tsx` / `ImportMediaModal` / 测试），真实职责 = **「可引用媒体源」注册表**（`mediaRefRegistry` + `mediaRefTypes` + `providers/*`），被素材域 / 生成域 / 画布**共同**使用 | **收窄为「媒体引用协议层」** —— ✅ **2026-09-20 已达成**：整层改判为**宿主 / 适配层**（协议层 + 源适配器），见 §3.1.4 C-1 的 2026-09-20 再修正 |
 
 > 明细（各自边界与归属）**待逐个取证后重出 §3.1**（不预设合并方案）。
 
@@ -731,15 +731,19 @@ src/components/base/media/
 
 #### 3.1.3.6 第六批取证 · 🔴 **推翻我的一个粗判：`base/core` 大体是干净的横切层**
 
-判据：逐文件统计**消费方所属域集合**（≥2 域 = 横切；=1 域 = 该域专用）。实测（`base/core` 18 文件）：
+判据：逐文件统计**消费方所属域集合**（≥2 域 = 横切；=1 域 = 该域专用）。
+**口径（2026-09-20 补 · 原表是裸数字，不可复现 —— 见 §1378 A4）**：`node scripts/mv-sync-refs.mjs refs <file>` 的「① 模块引用」数（**含 tests**）。下列数字全部为该口径重测值。实测（`base/core` 18 文件）：
 
-| 判定 | 文件（消费方数） |
+| 判定 | 文件（消费方数 · `refs` 2026-09-20 复测） |
 | --- | --- |
-| ✅ **横切**（14） | `logger`(87) · `utils`(55) · `toastStore`(51) · `idGen`(45) · `contracts`(34) · `config`(33) · `uiHooks`(33) · `degrade`(31) · `contentStore`(26) · `eventBus`(14) · `confirmStore`(9) · `modalLayer`(6) · `backendLogStream`(1·启动期) · `logger` 家族 |
-| ⚠️ **域专用**（4） | `agentKeys`(6·全在 agent 侧) · **`canvasHotkeys`(1·nodes)** · **`canvasSyncBus`(3·画布侧)** · **`videoEditorKeys`(1·videoEditor)** |
-| ❓ **单消费者待判**（1） | `editorSession`(1·App.tsx) |
+| ✅ **横切**（13） | `logger`(119) · `utils`(69) · `toastStore`(77) · `idGen`(48) · `contracts`(41) · `config`(48) · `uiHooks`(54) · `degrade`(37) · `contentStore`(53) · `eventBus`(23) · `confirmStore`(11) · `modalLayer`(10) · `backendLogStream`(1·启动期) |
+| ⚠️ **域专用**（4） | `agentKeys`(7·App 装配根 + 5 agent 件 + 1 测试) · **`canvasHotkeys`(3·nodes)** · **`canvasSyncBus`(3·画布侧)** · **`videoEditorKeys`(2·videoEditor)** |
+| ❓ **待重判**（1） | `editorSession`(4·`App.tsx` + `modalLayer` + 2 测试) —— ⚠️ **原标「单消费者（1·App.tsx）」已过期**：现另有横切件 `modalLayer` 消费；按「零业务域消费」应归横切，**待裁**（不属本次"复测数字"范围） |
 
-⇒ **更正我的粗判**：我此前说"`base/core` 是垃圾桶、5 个域物" —— 实测是 **14/18 是干净的横切**，只有 **4 个域物**混入。
+> ⚠️ **原表 13 个数全部过期**（旧值一律偏低）：`logger` 87→**119** · `utils` 55→**69** · `toastStore` 51→**77** · `idGen` 45→**48** · `contracts` 34→**41** · `config` 33→**48** · `uiHooks` 33→**54** · `degrade` 31→**37** · `contentStore` 26→**53** · `eventBus` 14→**23** · `confirmStore` 9→**11** · `modalLayer` 6→**10** · `backendLogStream` 1→**1**（唯一未漂移）。
+> 另：原表把「`logger` 家族」当第 14 项计数 —— 它不是文件，故横切行由 14 改 **13**。
+
+⇒ **更正我的粗判**：我此前说"`base/core` 是垃圾桶、5 个域物" —— 实测是 **13/18 是干净的横切**（另有 1 件 `editorSession` 待重判），只有 **4 个域物**混入。
 ⇒ **对结论的影响**：`base/core` **不需要重排**，只需**迁出 4 个域物**（成本远小于我原先的估计）。
 
 **`base/canvas` 逐文件判定（18 文件）：整体是画布域实体**，不是横切
@@ -876,7 +880,7 @@ src/components/base/media/
 
 | # | DATAFLOW 的裁定（带实证） | 我的清单 | 处置 |
 | --- | --- | --- | --- |
-| **C-1** | §三′ `base/media/` = **横切地基**；红线「**禁 import 任何非 base 目录**」；两入口共用（画布导入 + 剪辑器导入） | 我 §3.1.3.4 判它是"素材能力域的范本" | **采纳 DATAFLOW**：`base/media/` = **横切媒体引用协议层**；素材域另由 §五（`filesApi` + `resourceStore`）承接 |
+| **C-1** | §三′ `base/media/` = **横切地基**；红线「**禁 import 任何非 base 目录**」；两入口共用（画布导入 + 剪辑器导入） | 我 §3.1.3.4 判它是"素材能力域的范本" | **采纳 DATAFLOW**：`base/media/` = **横切媒体引用协议层**；素材域另由 §五（`filesApi` + `resourceStore`）承接。**⚠️ 2026-09-20 再修正**：整层改判为**宿主 / 适配层**（既非横切、也非域）—— 注册表是协议层，`providers/*` 是读各域数据的适配器；「红线禁 import 非 base」**作废**（它从不在 `BASE_CROSS_CUTTING` 里 ⇒ 从来没有机器守卫，属假护栏）。见下方修订记录 2026-09-20 行。 |
 | **C-2** | §十三 hooks = **横切编排层**（"节点/画布/store 写回归口"；`useNodeData` ← 24 · `useConnectedInputs` ← 33 · `useStoreSelector` 全 store 基座） | 我 §3.1.3.5 判"22/25 是域专用" | **采纳 DATAFLOW**：hooks 保持横切；`useNodeData` 是**写回唯一真源**（`check:arch` 规则 5 在守）⇒ P3 修正应写"hooks 是横切编排层" |
 | **C-3** | §七 提示词链路 = **一条**（`prompt/*` + `creative/*` 5 分区同链） | 我拆"提示词域 + 创作库域" | 采纳 DATAFLOW 的**同一链路**；是否拆域留待 §4 裁定（不影响施工批次） |
 | **C-4** | §八 编辑/查看 = **独立链路**；且 §八 明确 `cameraParams` 与 3D 摄影棚 `cameraStudio` 是**两套独立功能** | 我先判"画布子层"、后判"图片能力专属" | 采纳 DATAFLOW：**编辑/查看是独立关注点**（`editors/*` + `imageCompress/imageUpscale/faceMosaic/previewUrl` + 查看器） |
@@ -1269,7 +1273,7 @@ grep -rn "from '.*<拟迁出的文件名>" src/components/base --include='*.ts' 
 
 | 撞名 | 分属域 | 新名 | 前提复核 |
 | --- | --- | --- | --- |
-| `logger` | 横切 · `videoEditor/lib` | `videoEditorLogger` | ✅ TD-18-42 前提成立（横切 `logger` 87 处） |
+| `logger` | 横切 · `videoEditor/lib` | `videoEditorLogger` | ✅ TD-18-42 前提成立（横切 `logger` **119** 处 · `refs` 2026-09-20 复测） |
 | `toast` | 仅 `videoEditor/lib`（实测 **1 处**） | `videoEditorToast` | ⚠️ **TD-18-43 的"撞名"前提不成立**（全仓无第二 `toast`）⇒ 按 N1 判据**不违规**；仅"名太通用" ⇒ **降级为 N7 改名（低成本可选）** |
 | `uid` | `agent/conversation` · `director3d` | `agentUid`（d3d 属例外） | 实测 2 处 |
 | `log` | `base/core` · `director3d` | 横切 `logger` 已存在 ⇒ d3d 侧属例外 | 实测 2 处 |
@@ -1324,6 +1328,7 @@ grep -rn "from '.*<拟迁出的文件名>" src/components/base --include='*.ts' 
 | 2026-09-19 | `nodes/` 是画布域的子域 | **一个目录混四种东西**：内容能力节点 11 + 画布机制节点 3 + 能力辅助 hook 1 + 独立应用入口 2 | §3.1.3.2 |
 | 2026-09-19 | 「本仓没有域清单」 | **错**：`spec/DATAFLOW.md` 的 **17 条链路就是现状域清单**（§十七 原文把"链路"当"域"用）⇒ 本文件的能力轴清单**降级为"对 DATAFLOW 的差异清单"** | §3.1.4 |
 | 2026-09-19 | `base/media/` 是"素材能力域的范本" | **采纳 DATAFLOW §三′**：它是**横切地基**（两入口共用 + 红线禁 import 非 base）；素材域由 §五 承接 | §3.1.4 C-1 |
+| **2026-09-20** | `base/media/` = **横切地基**（红线禁 import 非 base） | **改判为「宿主 / 适配层」**（与 `base/panels` 同族）。重取判据（ADR-0040「≥3 域消费 **且** 零业务语义」）：`mediaRefRegistry` 实测**零业务域直接消费**（仅本层桶 + 测试）· `providers/*` 每个读**某一个域**的数据 ⇒ **两侧都不成立**。且旧红线**从不在 `BASE_CROSS_CUTTING` 里** ⇒ 无机器守卫（假护栏），实测 `canvasSource`/`librarySource` 早已违反。处置 = 判据（`BASE_HOST_LAYER` 加 `media` + 文件头回改），**不拆代码**（`media` 本就不在该闸管辖内 ⇒ 零防护损失） | TD-03-21 · `25-跨区-搬迁后有利债结清-2026-09-20` |
 | 2026-09-19 | hooks「22/25 是域专用」 | **采纳 DATAFLOW §十三**：hooks 是**横切编排层**（写回归口；`useNodeData` ← 24） | §3.1.4 C-2 |
 | 2026-09-19 | 提示词域 + 创作库域拆两个 | DATAFLOW §七 二者**同一条链路** ⇒ 是否拆域留待裁定 | §3.1.4 C-3 |
 | 2026-09-19 | 编辑/查看 = 画布子层 | **采纳 DATAFLOW §八**：是**独立关注点/链路** | §3.1.4 C-4 |
@@ -1374,7 +1379,7 @@ grep -rn "from '.*<拟迁出的文件名>" src/components/base --include='*.ts' 
 | **A1** | 🔴 **自相矛盾** | **D12「`src/hooks/` 21 个域专用 hook 迁回域内」的统计口径错** | 实测 `useNodeData` fan-in **23**（跨 canvas/nodes/agent/scriptbox）· `useConnectedInputs` **33**；`spec/DATAFLOW.md §十三` 明确把 hooks 定位为「**横切编排层 · 节点/画布/store 写回归口**」，且 `useNodeData.patchData` 是 `node.data` **写回唯一真源**（由 `check:arch` 规则 5 守）⇒ 它们**不是域专用** | **D12 改为逐条二分**：编排机制类（`useNodeData`/`useStoreSelector`/`useCanvasSync`/`useConnectedInputs`/`useGenerateNode`）**留横切**；真域私有（`useScriptBoxEngine`→scriptbox · `useVideoPoster`→视频 · `useArrangeCanvas`→画布壳）**迁回**。⇒ **S2-6 批次按新口径重排** |
 | **A2** | 🔴 **A7 违反** | **§6 的 N8 原文未回改** —— 仍写「改名两套身份**一起改**：符号 + 字符串标识」 | 与 §4 **D19** + **ADR-0038**（生效）+ §7 修订记录**三处矛盾**（正是 A7「回改原文」要防的漂移） | **§6 N8 就地改**为「只保证**符号名 + 文件路径**两套身份一致；**运行时字符串默认不改**（ADR-0038）」 |
 | **A3** | 🔴 **裁决冲突** | §3.1.3.7 列的 **`director3d` 命名违规清单** vs §6「已裁定例外：`director3d`」+ V2 日志「`director3d` 属**已登记例外，未纳入收口**」 | V2 日志（`daily/架构日志/18-跨区-…`）§七 遗留 3 原文 | **例外优先**：`director3d` 的通用名**记录但不施工**（§3.1.3.7 就地标注"例外范围内"）；若要撤例外须**另开裁定** |
-| **A4** | 🟡 不可复现 | **fan-in 数字未标口径** —— §3.1.3 表内多有裸数字 | 同一条数：`logger` 计划写 87 / 我 grep 实测 **113**（含 tests）；`contentStore` 45 / **53**；`contracts` 34 / **38**；`useNodeData` 24 / **23** | 全表补口径：统一标 **`refs` 工具输出**（DATAFLOW §维护规矩要求"带 refs 实证"），不用自定义 grep |
+| **A4** | ✅ **已解决**（2026-09-20） | **fan-in 数字未标口径** —— §3.1.3 表内多有裸数字 | 同一条数：`logger` 计划写 87 / 我 grep 实测 **113**（含 tests）；`contentStore` 45 / **53**；`contracts` 34 / **38**；`useNodeData` 24 / **23** | **已落**：① §3.1.3 表头补**口径**（`refs` 的「① 模块引用」数，含 tests）② 全表 18 项按该口径**重测并改数**（13 处过期，见该表下方对照）③ `logger` 87→**119**（§1272 同步）④ DATAFLOW 3 处同步（`filesApi` 32→45 · `useNodeData` 24→23 · `cloudSync` 4→5） |
 | **A5** | 🟡 过期 | **§6 前缀表是"目录轴时代"产物** | 表内为 `canvas`/`node`/`edge`/`editor`/`mosaic`/`media`/`prompt`…，**无 `image`/`video`/`text`** ⇒ 与 §3.1.3 能力轴不一致 | 按**能力轴重出前缀表**（S1-1 开工前必须定，否则前缀会取错） |
 | **A6** | 🟡 落点 | **N1–N9 属"确立新约定"** ⇒ 按 `docs/adr/README` §二.2 应写 ADR | `adr search 命名` 仅命中 ADR-0038（改名**边界**）· ADR-0033（配置常量）⇒ **无"命名规范"ADR** | 落一条新 ADR（域前缀 + 门面 + `*Store`），本文件 §6 只留指针 |
 | **A7** | 🟢 文档债 | **文-3 核实成立且更重叠**：`docs/BASE-CAPABILITIES.md`(241 行) §八「**新增能力该放哪**」＝**落点判据**；§三（toast）↔ DATAFLOW §15.2、§五（图片编辑）↔ DATAFLOW §八 | 其 §八 / §三 / §五 实测 | §八 判据应进 ADR；§三/§五 与 DATAFLOW 重叠处改指针 |

@@ -21,7 +21,7 @@ import {
   validateElementTrackCompatibility,
   enforceMainTrackStart,
 } from '@/components/videoEditor/engine/timeline/track-utils';
-import type { MediaAsset } from '@/components/videoEditor/types/assets';
+import type { MediaAsset } from '@/components/videoEditor/types/mediaAssets';
 import type { TProjectSettings } from '@/components/videoEditor/types/project';
 import { TIMELINE_CONSTANTS } from '@/components/videoEditor/constants/timeline-constants';
 

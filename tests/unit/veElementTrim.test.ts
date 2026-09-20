@@ -16,7 +16,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { EditorCore } from '../../src/components/videoEditor/engine/core';
 import { getElementSourceDuration } from '../../src/components/videoEditor/engine/timeline/element-utils';
-import type { MediaAsset } from '../../src/components/videoEditor/types/assets';
+import type { MediaAsset } from '../../src/components/videoEditor/types/mediaAssets';
 import type { TProject } from '../../src/components/videoEditor/types/project';
 import type { TScene, TimelineElement } from '../../src/components/videoEditor/types/timeline';
 

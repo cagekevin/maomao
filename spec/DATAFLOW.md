@@ -272,9 +272,9 @@ kvStore.ts（re-export 壳）已删除；CANVAS_STATE_PREFIX 由 core/contracts.
 ```
 主文件：src/components/base/store/cloudSync.ts
         （CloudSyncEngine 引擎 + uploadConfig/downloadConfig + normalizeCloudPayload / diffWithLocal / decideUpload 纯函数）
-fan-in（refs 实证 4 处 import）：App.tsx（手动按钮 handlePushToCloud/handlePullFromCloud）
+fan-in（refs 实证 5 处 import）：App.tsx（手动按钮 handlePushToCloud/handlePullFromCloud）
                                   · autoSync.ts（45min 定时调度，失败告警）
-                                  · tests/unit/cloudSync.test.ts · tests/unit/autoSync.test.ts（隔离 mock）
+                                  · tests/unit/cloudSync.test.ts · tests/unit/autoSync.test.ts · tests/unit/cloudSync.rehydrate.test.ts（隔离 mock）
 
 源 collectLocalData() → { ls, skipped }
   ├─ LS_KEYS = getLocalKeys() − SYNC_EXCLUDE → contentStore 读 localStorage 全量用户键（再按 domainSwitchEnabled 过滤）
@@ -346,7 +346,7 @@ api/filesApi（全站文件域单点：upload[FormData/JSON 双模式] / move[co
 
 ### 关键边
 
-`filesApi` 模块引用 32（resourceStore/ResourceLibrary/GeneratedView/OverlayEditor/DepthVideoModal/videoEngine/d3dPersistence/ImageBoxNode/useImageHoverActions + api barrel + 21 测试）；
+`filesApi` 模块引用 45（**生产 12**：`api/index` barrel · `resource/{resourceStore,ResourceLibrary,ResourcePreview}` · `generate/GeneratedView` · `image/{editors/OverlayEditor,nodes/ImageBoxNode,useImageHoverActions}` · `video/{lib/videoEngine,depthVideo/DepthVideoModal}` · `videoEditor/engine/services/storage/service` · `director3d/d3dPersistence`；**测试 33**）；
 `sendToResourceLibrary` 全仓**仅 2 个调用点**（`AssetNode` / `ImageGenerate`）——`VideoGenerate` / `TextGenerate` **无发送按钮**（剧本盒走另一函数 `localizeAndStoreToResourceLibrary`）。
 
 ---
@@ -561,7 +561,7 @@ task/nodeRuntimeStore.ts（纯内存瞬态 map，不落盘）
 ## 十三 · hooks 编排层（横切 · 节点 / 画布 / store 写回归口）
 
 ```
-写回唯一入口：src/hooks/useNodeData.ts（patchNodeDataById/patchNodeById/computePatch*；24 fan-in）
+写回唯一入口：src/hooks/useNodeData.ts（patchNodeDataById/patchNodeById/computePatch*；23 fan-in）
 订阅基座：    src/hooks/useStoreSelector.ts（selector+shallowEqual 记忆化，防连坐重渲）
 跨窗口冲突：  src/hooks/useCanvasSync.ts（BroadcastChannel + 3s 版本轮询）
 画布快捷键：  src/hooks/useCanvasShortcuts.ts · canvas/structure/useCanvasHistory.ts（逻辑下沉纯类）

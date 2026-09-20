@@ -12,7 +12,7 @@ import { getElementsAtTime } from '@/components/videoEditor/engine/timeline';
 const generateAndInsertSpeech = async (): Promise<never> => {
   throw new Error('语音生成未移植（tts 域已移除）');
 };
-import { toast } from '@/components/videoEditor/lib/toast';
+import { videoEditorToast } from '@/components/videoEditor/lib/videoEditorToast';
 import { DEFAULT_EXPORT_OPTIONS } from '@/components/videoEditor/constants/export-constants';
 import {
   getExportMimeType,
@@ -326,7 +326,7 @@ export function useEditorActions() {
       if (element?.type !== 'video') return;
 
       const toastId = 'export-selected-clip';
-      toast.loading('正在导出所选片段…', { id: toastId });
+      videoEditorToast.loading('正在导出所选片段…', { id: toastId });
 
       (async () => {
         const result = await editor.renderer.exportSelectedClip({
@@ -337,7 +337,7 @@ export function useEditorActions() {
         // 判别联合：单判 `ok` 即可（原 `!success || !buffer` 双检已消除，TD-22-38②）。
         // 注：本调用未传 `onCancel`（DEFAULT_EXPORT_OPTIONS 无它），故 cancelled 分支实际不可达。
         if (!result.ok) {
-          toast.error('导出片段失败', {
+          videoEditorToast.error('导出片段失败', {
             id: toastId,
             description: result.reason === 'cancelled' ? undefined : result.message,
           });
@@ -361,10 +361,10 @@ export function useEditorActions() {
         link.remove();
         URL.revokeObjectURL(url);
 
-        toast.success('片段已导出', { id: toastId });
+        videoEditorToast.success('片段已导出', { id: toastId });
       })().catch((error) => {
         videoEditorLogger.error('Failed to export selected clip:', error);
-        toast.error('导出片段失败', { id: toastId });
+        videoEditorToast.error('导出片段失败', { id: toastId });
       });
     },
     undefined,
@@ -377,7 +377,7 @@ export function useEditorActions() {
 
       const sourceRef = args ?? (selectedElements.length === 1 ? selectedElements[0] : undefined);
       if (!sourceRef) {
-        toast.warning('请选中一个视频片段再冻结');
+        videoEditorToast.warning('请选中一个视频片段再冻结');
         return;
       }
 
@@ -385,7 +385,7 @@ export function useEditorActions() {
         elements: [sourceRef],
       });
       if (!source || source.element.type !== 'video' || source.track.type !== 'video') {
-        toast.warning('请选中一个视频片段再冻结');
+        videoEditorToast.warning('请选中一个视频片段再冻结');
         return;
       }
       const sourceElement = source.element;
@@ -396,7 +396,7 @@ export function useEditorActions() {
         currentTime < sourceElement.startTime ||
         currentTime >= sourceElement.startTime + sourceElement.duration
       ) {
-        toast.warning('请把播放头移到视频范围内');
+        videoEditorToast.warning('请把播放头移到视频范围内');
         return;
       }
 
@@ -404,13 +404,13 @@ export function useEditorActions() {
         .getAssets()
         .find((asset) => asset.id === sourceElement.mediaId);
       if (!sourceAsset) {
-        toast.error('源视频不可用');
+        videoEditorToast.error('源视频不可用');
         return;
       }
 
       freezeFrameInFlight.current = true;
       const toastId = 'freeze-frame';
-      toast.loading('正在创建冻结帧…', { id: toastId });
+      videoEditorToast.loading('正在创建冻结帧…', { id: toastId });
 
       (async () => {
         let assetId: string | undefined;
@@ -500,7 +500,7 @@ export function useEditorActions() {
               },
             ],
           });
-          toast.success('冻结帧已创建', { id: toastId });
+          videoEditorToast.success('冻结帧已创建', { id: toastId });
         } catch (error) {
           videoEditorLogger.error('Failed to create freeze frame:', error);
           if (commandStarted && !committed) batchCommand?.undo();
@@ -514,7 +514,7 @@ export function useEditorActions() {
             );
           }
           if (!committed && objectUrl) URL.revokeObjectURL(objectUrl);
-          toast.error('创建冻结帧失败', {
+          videoEditorToast.error('创建冻结帧失败', {
             id: toastId,
           });
         } finally {
@@ -557,7 +557,7 @@ export function useEditorActions() {
       if (textElements.length === 0) return;
 
       const toastId = 'convert-to-speech';
-      toast.loading(`正在把 ${textElements.length} 段文本转语音…`, { id: toastId });
+      videoEditorToast.loading(`正在把 ${textElements.length} 段文本转语音…`, { id: toastId });
 
       (async () => {
         let successCount = 0;
@@ -575,9 +575,11 @@ export function useEditorActions() {
         }
 
         if (failCount === 0) {
-          toast.success(`已转换 ${successCount} 段文本为语音`, { id: toastId });
+          videoEditorToast.success(`已转换 ${successCount} 段文本为语音`, { id: toastId });
         } else {
-          toast.warning(`成功 ${successCount} 段，失败 ${failCount} 段`, { id: toastId });
+          videoEditorToast.warning(`成功 ${successCount} 段，失败 ${failCount} 段`, {
+            id: toastId,
+          });
         }
       })();
     },

@@ -246,7 +246,10 @@ function ImageGenerate({ id, data, selected }: ImageGenerateProps) {
         );
         if (hit?.resultUrl) {
           setAssetUrl(hit.resultUrl);
-          patchData({ assetUrl: hit.resultUrl });
+          // 【TD-25-1】写回**不自己 patchData**，改走 hook 的唯一写回实现（ADR-0009：
+          // `data[resultKey]` 只经 `useNodeGeneration.writeBackResult` 一处写）。
+          // 触发器（冷启动查任务中心）留在节点，**写回实现只有机制那一份**。
+          writeResult(hit.resultUrl);
         }
       })
       .catch((e) => {
@@ -280,6 +283,7 @@ function ImageGenerate({ id, data, selected }: ImageGenerateProps) {
     error,
     stop: onStop,
     start: handleGenerate,
+    writeResult, // 【TD-25-1】唯一写回实现（冷启动恢复也走它，不自己 patchData）
   } = useGenerateNode({
     nodeId: id,
     type: 'image',

@@ -407,10 +407,23 @@ if (structuralCycles.size) {
 //   原判据 = `relFrom.startsWith('src/components/base/')` —— 等于假设「base/ 里全是横切层」。
 //   但本仓 `base/` 是**「横切层 + 域」的容器**（`docs/DOMAIN-MODULES.md §2.2` 实测）：
 //     · 横切：core · utils · ui · api · storage · panels
-//     · 域  ：canvas · store · editors · prompt · creative · media · depthVideo
+//     · 域  ：canvas · store · editors · prompt · creative · depthVideo（**`media` 已于 2026-09-20 移出**，见下）
+//     · 宿主/适配：panels · media（装配体，可依赖域 —— 见 `BASE_HOST_LAYER`）
 //   ⇒ 拿「横切不许依赖域」去管 `base/canvas`（**它本身就是域**）= 把「稳定性层级」与「目录位置」混为一谈。
 //   实证（2026-09-19）：全仓 `base/` 出向依赖**仅 1 处来源** = `base/canvas → nodes`（12 条，域→域，本该允许）；
 //   其余 13 个子目录**零出向依赖** ⇒ 收窄后纯度仍 100%，且 `BASE_ALLOWLIST`（2 条清单式例外）**整个删除**。
+//
+// 【🔴 2026-09-20 第三次修正：`media` 从「域」改判为「**宿主 / 适配层**」（与 `panels` 同族）】
+//   触发：`base/media/index.ts` 文件头写着红线「**禁** import 任何非 base 目录」，而实测
+//   `providers/canvasSource.ts`（→ canvas/resource）与 `providers/librarySource.ts`（→ resource）
+//   **正是这么干的** —— 红线在注释里、却不在 `BASE_CROSS_CUTTING` 里 ⇒ **无机器守卫的假护栏**；
+//   且 `docs/DOMAIN-MODULES.md:1326` 记「`base/media` = 横切地基」与上方「域」列表**同日相反**（SSOT 冲突）。
+//   重取判据（ADR-0040「≥3 域消费 **且** 零业务语义」）：`mediaRefRegistry` 实测**零业务域直接消费**
+//   （仅被本层桶 + 测试引用）· `providers/*` 每个都读**某一个域**的数据（带业务语义）⇒ **两侧都不成立**
+//   ⇒ 它既不是横切、也不是域，而是**装配体**：把各域的媒体数据适配进统一协议。
+//   **处置**：判据（不是代码）—— 加进 `BASE_HOST_LAYER`；`base/media/index.ts` 的旧红线已回改作废；
+//   判据全文落 `docs/adr/`（层籍：横切 / 域 / 宿主）。
+//   **代价核算**：`media` 本来就不在 `BASE_CROSS_CUTTING` 里 ⇒ 本次**不损失任何既有防护**（0 变化）。
 //
 // 【为什么"横切子目录登记表"不是母体】原作者弃用域名清单的理由是「每来一个业务域就要记得加一次」。
 //   但**会增殖的是「域」，不会增殖的是「横切子目录」** —— 横切是稳定集合，域由本规则**自动覆盖**（无需登记）。
@@ -433,7 +446,7 @@ if (structuralCycles.size) {
 //   据此作废，见 `docs/DOMAIN-MODULES.md §7` 修订记录）。
 console.log('\n🏗 分层边界：base/ 的横切子目录禁止反向依赖业务域');
 const BASE_CROSS_CUTTING = new Set(['core', 'utils', 'ui', 'api', 'storage']);
-const BASE_HOST_LAYER = new Set(['panels']); // 宿主 / 挂载层（app-shell · 面板层）· 可依赖域，见上注
+const BASE_HOST_LAYER = new Set(['panels', 'media']); // 宿主 / 适配层（app-shell · 面板层 · 媒体源装配体）· 可依赖域，见上注
 const BASE_PREFIX = 'src/components/base/';
 let baseViol = 0;
 for (const [from, deps] of graph) {

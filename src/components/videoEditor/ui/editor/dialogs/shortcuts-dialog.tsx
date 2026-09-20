@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 
-import { toast } from '@/components/videoEditor/lib/toast';
+import { videoEditorToast } from '@/components/videoEditor/lib/videoEditorToast';
 import {
   type KeyboardShortcut,
   useKeyboardShortcutsHelp,
@@ -53,7 +53,9 @@ export function ShortcutsDialog({
       if (keyString) {
         const conflict = validateKeybinding(keyString, recordingShortcut.action);
         if (conflict) {
-          toast.error(`Key "${keyString}" is already bound to "${conflict.existingAction}"`);
+          videoEditorToast.error(
+            `Key "${keyString}" is already bound to "${conflict.existingAction}"`,
+          );
           setRecordingShortcut(null);
           return;
         }

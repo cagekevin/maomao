@@ -78,20 +78,29 @@ function buildModuleIndex() {
   const byName = new Map();
   const bySymbol = new Map();
   const seed = (relFile) => {
-    const base = relFile
+    // 【★2026-09-20 修 · Windows 盲区】`relFile` 来自 `path.relative()`，Windows 下是**反斜杠**，
+    //   而下面 `split('/')` 拿不到文件名 ⇒ base = **整条路径** ⇒ `byName` 的键全错
+    //   ⇒ 「2) 全仓 src 兜底」这一整条索引**形同虚设**（只有「1) base/api/*.ts」用正斜杠拼接、仍然有效）。
+    //   后果：任何**搬出 `base/api/` 的模块**都报「fn 模块未映射」并**静默降级为 info**
+    //   ⇒ 那几条端点的契约检查（fn 存在性 / 信封形态）**不再被执行**（假绿）。
+    //   实证：`relayProxy` 随域归位迁到 `generate/lib/` 后，`relaySubmit/relayPoll/relayCancel` 三条
+    //   稳定报「未映射」；同族还有 `consumer 模块未映射` 噪音（本文件 §234 曾按"噪音"处置）。
+    //   修法 = 统一转正斜杠（与 `mv-sync-refs` / `check-arch` 同口径）。
+    const norm = String(relFile).replace(/\\/g, '/');
+    const base = norm
       .split('/')
       .pop()
       .replace(/\.(ts|tsx)$/, '');
-    if (!byName.has(base)) byName.set(base, relFile);
+    if (!byName.has(base)) byName.set(base, norm);
     let src;
     try {
-      src = fs.readFileSync(path.join(ROOT, relFile), 'utf8');
+      src = fs.readFileSync(path.join(ROOT, norm), 'utf8');
     } catch {
       return;
     }
     for (const m of src.matchAll(EXPORT_RE)) {
       const sym = m[1] || m[2];
-      if (sym && !bySymbol.has(sym)) bySymbol.set(sym, relFile);
+      if (sym && !bySymbol.has(sym)) bySymbol.set(sym, norm);
     }
   };
   // 1) base/api/*.ts 优先（薄入口真源，避免被同文件名的测试/别名抢占）

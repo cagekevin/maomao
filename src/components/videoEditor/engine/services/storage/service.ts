@@ -1,6 +1,6 @@
 import type { TProject, TProjectMetadata } from '@/components/videoEditor/types/project';
 import { getProjectDurationFromScenes } from '@/components/videoEditor/engine/lib/scenes';
-import type { MediaAsset } from '@/components/videoEditor/types/assets';
+import type { MediaAsset } from '@/components/videoEditor/types/mediaAssets';
 import type { MediaAssetData, SerializedProject, SerializedScene } from './types';
 // 音效域类型（2026-09-14 恢复：原误判为 AI 相关而删，实测零 AI 依赖 —— docs/133 §〇.4）。
 import type {

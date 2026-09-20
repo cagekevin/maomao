@@ -10,9 +10,10 @@
  * 【边界】filesApi 是本项目【全站文件域单点】（落盘 + move/mkdir/open/open-dir + 纯函数），
  *   候选 C（2026-09-04）已把本模块散落的文件域成员全部迁往 filesApi；本模块不再持有文件域
  *   （只剩 fileOpResult 这类返回类型已随迁），保证「文件域只在 filesApi」属实。
- *  kvStore.js 已折叠为纯 re-export 壳（2026-09-04）：storageGet/Set/Delete 分流外壳已收口进
- *  contentStore 的 writeKvWithFallback/readKvWithFallback/deleteKvWithFallback，不再存于 kvStore。
- *  本文件仍是 kv 三层件（kvGet/kvSet/kvDelete）的唯一实现来源，contentStore 直接 import 它们。
+ *  kv 三层件（kvGet/kvSet/kvDelete）的**唯一实现来源是本文件**，contentStore 直接 import 它们；
+ *  storageGet/Set/Delete 的分流外壳已收口进 contentStore 的 writeKvWithFallback/
+ *  readKvWithFallback/deleteKvWithFallback（2026-09-04）。承载这些的 `storage/kvStore.ts` 浅壳
+ *  已于 2026-09-19 删除（TD-18-36：`CANVAS_STATE_PREFIX` 归 `core/contracts.ts` 后无存在必要）。
  *  本模块只收口「纯 /api/* 透传」的 CRUD + kv 底层。
  *
  * 【传输】一律经 httpClient.httpRequest，继承超时 / 取消 / 错误分类 / 受限重试。

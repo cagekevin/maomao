@@ -15,7 +15,7 @@ import {
   LINK_MAX_BYTES,
 } from '../../src/components/videoEditor/ui/editor/panels/assets/link-media-refs';
 import type { MediaRef } from '../../src/components/base/media/mediaRefTypes';
-import type { MediaAsset } from '../../src/components/videoEditor/types/assets';
+import type { MediaAsset } from '../../src/components/videoEditor/types/mediaAssets';
 
 const mkRef = (over: Partial<MediaRef> = {}): MediaRef => ({
   ref: 'canvas:n1',

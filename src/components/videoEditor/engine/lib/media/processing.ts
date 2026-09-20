@@ -1,6 +1,6 @@
 import { videoEditorLogger } from '@/components/videoEditor/lib/videoEditorLogger';
-import { toast } from '@/components/videoEditor/lib/toast';
-import type { MediaAsset } from '@/components/videoEditor/types/assets';
+import { videoEditorToast } from '@/components/videoEditor/lib/videoEditorToast';
+import type { MediaAsset } from '@/components/videoEditor/types/mediaAssets';
 import { getMediaTypeFromFile } from '@/components/videoEditor/engine/lib/media/media-utils';
 import { detectFileType } from '@/components/base/utils/media/assetType';
 import { canvasToBlob, canvasToImageDataUrl } from '@/components/base/core/utils';
@@ -177,7 +177,7 @@ export async function processMediaAssets({
     const fileType = getMediaTypeFromFile({ file });
 
     if (!fileType) {
-      toast.error(`Unsupported file type: ${file.name}`);
+      videoEditorToast.error(`Unsupported file type: ${file.name}`);
       continue;
     }
 
@@ -243,7 +243,7 @@ export async function processMediaAssets({
       }
     } catch (error) {
       videoEditorLogger.error('Error processing file:', file.name, error);
-      toast.error(`Failed to process ${file.name}`);
+      videoEditorToast.error(`Failed to process ${file.name}`);
       URL.revokeObjectURL(url); // Clean up on error
     }
   }

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import type { MediaAsset } from '../../src/components/videoEditor/types/assets';
+import type { MediaAsset } from '../../src/components/videoEditor/types/mediaAssets';
 import type { TimelineTrack, VideoElement } from '../../src/components/videoEditor/types/timeline';
 import {
   collectAudioClips,

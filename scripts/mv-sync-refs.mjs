@@ -13,9 +13,38 @@
  *   → 物理失败时改动自动丢弃，绝不产生「import 已改、文件却没搬」的脏写中间态。
  *
  * ═══════════════════════════════════════════════════════════════════════════
+ * 【★改：扫描集必须含「仓库根级件」（2026-09-20 · TD-17-23 真因）】
+ * 原扫描集 = `src/**` + `tests/**` ⇒ **仓库根级配置件不在引用图里**，两种害处：
+ *   ① `refs` 系统性**少报 fan-in**（ADR-0030 的删码判据就是 fan-in ⇒ 报 0 会诱导删活代码；
+ *      与 2026-09-19 修掉的「`@/` 别名 import 被静默丢弃」同害）；
+ *   ② `rename`/`move`/`move-dir` **静默漏改**这些件里的 import，只在构建期暴露。
+ * 实证：`tailwind.config.ts:3` 引 `src/components/videoEditor/videoEditorTailwindColors.ts`，
+ * 而 `--dry rename` 该件时输出「ℹ 无其他文件引用需同步」（实际有 1 处）。
+ * 现改为：`allSources()` 追加 `rootLevelSources()`（**按扩展名反向判据**取根这一层，
+ * **非递归** —— 把 `root` 塞进 `SCAN_ROOTS` 会让 `collectFiles` 递归扫进 node_modules）。
+ * ⚠️ 注：`TD-17-23` 原描述归因于「不改写**无扩展名** import」—— **该归因已证伪**（实测
+ * `rename` 会改写无扩展名说明符：`@/…/toastStore` → `@/…/toastStoreProbe`，77 处全改）。
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * 【★改：修 `move-dir` 的三处损坏（2026-09-20 · TD-17-27）—— **修，不删**】
+ * 背景（留痕）：曾按「删 > 改」把 `move-dir` 整条删掉 —— **那是错的**。删掉它 = 用户少了一条
+ *   「一条命令搬整目录 + 一键回退」= **砍功能**；而「删 > 改」的前提是**用户能做的事没变少**
+ *   （见 `docs/adr/ADR-0047` 与 7 步法 Step 6 顶部红线）。**命令已恢复，并改为修对。**
+ * 三处损坏与修法 —— 根因是同一条没被建模：**整目录搬动时「目标也一起搬」**。
+ *   ① **目标写成旧目录别名** → `planOutgoingRewrites` 新增第 4 参 `mapTarget`（默认恒等，单文件 move
+ *      零改动）；`move-dir` 传入 `srcDir→dstDir` 平移，**目标位置先平移再算说明符**。
+ *   ② **按旧路径回写造残留副本** → `planDirMoveRewrites` **跳过 `oldDir` 内的文件**（它们自己也要搬，
+ *      由「自身出向」一遍处理，回写主键 = **新路径** `newAbs`）。
+ *   ③ **不搬非源码文件**（`.css`/`.json`/`data`）→ 新增 `collectAllFilesUnder`：物理搬移收**全部**文件，
+ *      只有源码参与引用改写（非源码件没有 import 说明符）。旧 `collectSourceFilesUnder` 零消费者
+ *      ⇒ 删（**死代码**，ADR-0047 允许）。
+ * **保留的正确设计**：入向改写仍是「一次扫全库」（`planDirMoveRewrites`），**不**退化成逐文件 O(n²)。
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
  * 全局选项（放在命令前，可多次/组合）：
  *   --root <dir>            追加扫描根（默认 src/ 与 tests/）。后端/子项目常用，
  *                           例：--root download/ai-relay/src  --root localTool/src
+ *                           （**仓库根这一层**的代码/配置件恒在扫描集内，见上方【★改】）
  *   --alias <from>:<to>     追加自定义 import 别名，如 --alias '@proto/:/src/protocol/'
  *                           （from 须以 / 结尾，to 相对扫描根，可多次）
  *   --suffix keep|auto|ts|js  import 产物后缀策略（**默认 keep**）：
@@ -216,7 +245,10 @@ function getAliasRoot(fileAbs) {
   for (const r of SCAN_ROOTS) {
     if (fileAbs.startsWith(r) && (!best || r.length > best.length)) best = r;
   }
-  return best || join(root, 'src');
+  if (best) return best;
+  // 【2026-09-20】根级件（`tailwind.config.ts` 等，其 dir 就是仓库根）的归属根 = **仓库根**。
+  // 原实现一律回退 `root/src` ⇒ 这类件里 `/` 开头的说明符会被解析到 `src/` 下（错位）。
+  return dirname(fileAbs) === root ? root : join(root, 'src');
 }
 
 /** 找命中文件 spec 前缀的别名项；无则返回 null。返回该别名 to 的目标（不含前缀后的剩余段）。 */
@@ -273,12 +305,41 @@ function detectExt(code, toFlag) {
   return hasJsx(code) ? '.tsx' : '.ts';
 }
 
+/**
+ * 仓库**根级**代码/配置件（只取根这一层，**非递归**）：tailwind.config.ts · vite.config.ts ·
+ * postcss.config.js · vitest*.config.ts · playwright.config.ts 等。
+ *
+ * 【为什么必须有（TD-17-23 真因）】这些件**会 import `src/` 的东西**，是引用图的合法「引用方」；
+ * 而 `SCAN_ROOTS` 只有 `src/` + `tests/` ⇒ 它们既不进图（`refs` 系统性少报 fan-in —— 与
+ * 2026-09-19 修掉的「别名 import 被静默丢弃」同害：ADR-0030 的删码判据就是 fan-in，报 0 = 诱导删活代码），
+ * 也不会被 `rename`/`move`/`move-dir` 改写（**静默漏改**，只在构建期暴露。实证：
+ * `tailwind.config.ts:3` 引 `videoEditorTailwindColors.ts`，而 `--dry rename` 该件时输出
+ * 「ℹ 无其他文件引用需同步」）。
+ * 【为什么不写成文件名清单】清单必漏（本仓母体 M）：按**扩展名反向判据**取，新增根级配置件自动纳入。
+ * 【为什么不直接把 `root` 加进 `SCAN_ROOTS`】`SCAN_ROOTS` 会被 `collectFiles` **递归**遍历 ⇒
+ * 加 root 会把 node_modules/dist/localTool 全扫进来。故本函数只取一层。
+ */
+function rootLevelSources() {
+  const out = [];
+  for (const name of readdirSync(root)) {
+    if (!SCAN_EXTS.includes(extname(name))) continue;
+    const full = join(root, name);
+    try {
+      if (statSync(full).isFile()) out.push(full);
+    } catch {
+      /* 读不到即跳过（与 collectFiles 同口径） */
+    }
+  }
+  return out;
+}
+
 function allSources() {
   const set = new Set();
   for (const dir of SCAN_ROOTS) {
     if (!existsSync(dir)) continue;
     collectFiles(dir, []).forEach((f) => set.add(f));
   }
+  rootLevelSources().forEach((f) => set.add(f));
   return [...set];
 }
 
@@ -598,7 +659,15 @@ function rewriteImportsForMove(oldAbs, newAbs) {
 }
 
 /** 递归收集 srcDir 下所有源码文件绝对路径（稳定排序：目录序 + 文件名序）。 */
-function collectSourceFilesUnder(srcDir, acc = []) {
+/**
+ * 【2026-09-20 新增】收集目录下**全部**文件（不限源码扩展名）。
+ * 【为什么必须有（缺陷③「不搬非源码文件」）】`move-dir` 原实现只收源码文件（旧 `collectSourceFilesUnder`，
+ * 已随本修复删除 —— 换成"全收 + 按 `SOURCE_EXTS` 分流"，旧函数零消费者 = 死代码）
+ * ⇒ `.css` / `.json` / `data/*` 被**落在旧目录**：曾随 `rm -rf` 被误删 27 行 CSS（靠
+ * `git show HEAD:<路径>` 恢复），手册 §3.3③ 那条"手工补搬"就是给它擦屁股。
+ * 现改为：**物理搬移收全部文件**；只有**源码**文件参与引用改写（非源码件没有 import 说明符）。
+ */
+function collectAllFilesUnder(srcDir, acc = []) {
   for (const name of readdirSync(srcDir)) {
     const full = join(srcDir, name);
     let st;
@@ -607,8 +676,8 @@ function collectSourceFilesUnder(srcDir, acc = []) {
     } catch {
       continue;
     }
-    if (st.isDirectory()) collectSourceFilesUnder(full, acc);
-    else if (SOURCE_EXTS.includes(extname(name))) acc.push(full);
+    if (st.isDirectory()) collectAllFilesUnder(full, acc);
+    else acc.push(full);
   }
   return acc;
 }
@@ -625,6 +694,12 @@ function planDirMoveRewrites(oldDir, newDir) {
   const pendingWrites = new Map();
   const diffLogs = [];
   for (const file of allSources()) {
+    // 【2026-09-20 修 · 缺陷②「残留副本」】**跳过 oldDir 内的文件** —— 它们自己也要搬，
+    //   其出向 import 由 move-dir 的「自身出向」一遍处理（回写主键 = **新路径** newAbs）。
+    //   不跳的后果（原实现在此出错）：① 用**旧文件**当生成锚点 ⇒ 算出 `../<新目录名>/X` 这类错路径；
+    //   ② 回写主键 = **旧路径** ⇒ 物理移动后仍按旧路径写回，**造出残留副本**
+    //      （实证：`base/panels/sections/{ApiSettings,AgentChatSettings}.tsx`，零 import 的孤儿副本）。
+    if (!toPosix(relative(oldDir, file)).startsWith('..')) continue;
     let src;
     try {
       src = readFileSync(file, 'utf8');
@@ -681,8 +756,10 @@ function planDirMoveRewrites(oldDir, newDir) {
  *                    为基准算嵌套 ../，pendingWrites 也以此为主键回写）
  * @param baseDirForResolve 用于解析其相对 import 的基准目录（= 旧目录），
  *                          内容按移动前位置写，须用旧目录解析才命中目标；Node relative() 会自动算嵌套 ../。
+ * @param mapTarget 【2026-09-20 新增 · 可选】把「解析出的目标绝对路径」平移成**移动后的目标位置**。
+ *                  单文件 move 不传（目标不动）；**整目录搬动**必须传（目标也一起搬，见缺陷①说明）。
  */
-function planOutgoingRewrites(readFromAbs, writeToAbs, baseDirForResolve) {
+function planOutgoingRewrites(readFromAbs, writeToAbs, baseDirForResolve, mapTarget = (p) => p) {
   let src;
   try {
     src = readFileSync(readFromAbs, 'utf8');
@@ -706,7 +783,11 @@ function planOutgoingRewrites(readFromAbs, writeToAbs, baseDirForResolve) {
       const abs = resolveSpec(spec, join(baseDirForResolve, '_self_placeholder.ts'));
       if (abs === null) return;
 
-      const newSpec = computeNewSpec(writeToAbs, abs, spec);
+      // 【2026-09-20 修 · 缺陷①「目标写成旧目录别名」】单文件 move 时只有**自己**搬、目标不动；
+      //   但**整目录搬动**时目标也一起搬 ⇒ 目标位置必须先经 mapTarget 平移，否则
+      //   `computeNewSpec` 会按目标的**旧位置**生成说明符 ⇒ 写成指向**旧目录**的别名
+      //   （实证症状：`@/components/nodes/…` 这类指向已搬空目录的断链）。
+      const newSpec = computeNewSpec(writeToAbs, mapTarget(abs), spec);
       if (newSpec !== spec) {
         hit = true;
         diffs.push({ old: spec, new: newSpec });
@@ -1275,23 +1356,36 @@ if (cmd === 'move-dir') {
   if (dry && !existsSync(dstDir)) mkdirSync(dstDir, { recursive: true }); // dry 也建出以便正常 resolve
 
   // 收集待搬文件（稳定顺序）
-  const toMove = collectSourceFilesUnder(srcDir, []);
-  if (toMove.length === 0) {
-    console.error(`源目录下无源码文件可搬：${fileArg}`);
+  // 【2026-09-20 修 · 缺陷③】物理搬移收**全部**文件（含 `.css`/`.json`/`data`）；只有源码文件参与引用改写。
+  const allFilesUnder = collectAllFilesUnder(srcDir, []);
+  const toMove = allFilesUnder.filter((f) => SOURCE_EXTS.includes(extname(f)));
+  if (allFilesUnder.length === 0) {
+    console.error(`源目录下无文件可搬：${fileArg}`);
     process.exit(1);
   }
-  console.log(`\n计划将 ${srcDir} 下 ${toMove.length} 个源码文件搬到 ${dstDir}`);
+  console.log(
+    `\n计划将 ${srcDir} 下 ${allFilesUnder.length} 个文件（源码 ${toMove.length} + 非源码 ${allFilesUnder.length - toMove.length}）搬到 ${dstDir}`,
+  );
+
+  // 【2026-09-20 修 · 缺陷①】整目录搬动时**目标也一起搬** ⇒ 自身出向的目标须按 srcDir→dstDir 平移。
+  const mapDirMoveTarget = (p) => {
+    const rel = toPosix(relative(srcDir, p));
+    return rel !== '' && !rel.startsWith('..') ? join(dstDir, rel) : p;
+  };
 
   // Phase 1 — Plan：先规划所有外部引用改写（旧目录→新目录），并逐文件规划自身出向
   const { pendingWrites: incoming, diffLogs: incomingDiffs } = planDirMoveRewrites(srcDir, dstDir);
-  const pairs = []; // { oldAbs, newAbs }
+  const pairs = []; // { oldAbs, newAbs } —— **全部文件**（含非源码）：物理搬移与 undo 都按它走
   const selfLogs = [];
-  for (const oldAbs of toMove) {
+  for (const oldAbs of allFilesUnder) {
     const relUnder = toPosix(relative(srcDir, oldAbs));
     const newAbs = join(dstDir, relUnder);
     pairs.push({ oldAbs, newAbs });
-    // 自身出向：内容按旧位置写 → 以 dirname(oldAbs) 解析基准；改写后指向目标 → 生成基准用 newAbs。
-    const selfPlan = planOutgoingRewrites(oldAbs, newAbs, dirname(oldAbs));
+    // 非源码件（.css/.json/data）没有 import 说明符 ⇒ 不参与出向改写
+    if (!SOURCE_EXTS.includes(extname(oldAbs))) continue;
+    // 自身出向：内容按旧位置写 → 以 dirname(oldAbs) 解析基准；改写后指向目标 → 生成基准用 newAbs，
+    // 且目标位置须经 mapDirMoveTarget 平移（整目录搬动时目标也一起搬，见缺陷①）。
+    const selfPlan = planOutgoingRewrites(oldAbs, newAbs, dirname(oldAbs), mapDirMoveTarget);
     if (selfPlan.diffLogs.length)
       selfLogs.push({ file: relOf(oldAbs), diffs: selfPlan.diffLogs, plan: selfPlan });
   }

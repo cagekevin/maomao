@@ -26,7 +26,7 @@ import { EditorCore } from '../../src/components/videoEditor/engine/core';
 import { Command } from '../../src/components/videoEditor/engine/commands/base-command.ts';
 import type { TProject } from '../../src/components/videoEditor/types/project';
 import type { TimelineTrack, TScene } from '../../src/components/videoEditor/types/timeline';
-import type { MediaAsset } from '../../src/components/videoEditor/types/assets';
+import type { MediaAsset } from '../../src/components/videoEditor/types/mediaAssets';
 
 /** 记录调用次数的探针命令（不碰任何真实状态，只证明「栈里有没有它」）。 */
 class SpyCommand extends Command {

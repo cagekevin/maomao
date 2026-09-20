@@ -1,5 +1,5 @@
 import type { TimelineElement, Transform } from '@/components/videoEditor/types/timeline';
-import type { MediaAsset } from '@/components/videoEditor/types/assets';
+import type { MediaAsset } from '@/components/videoEditor/types/mediaAssets';
 import type { TCanvasSize } from '@/components/videoEditor/types/project';
 import { FONT_SIZE_SCALE_REFERENCE } from '@/components/videoEditor/constants/text-constants';
 import { isBottomAlignedSubtitleText } from '@/components/videoEditor/engine/timeline/text-utils';

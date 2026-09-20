@@ -2,7 +2,7 @@ import { videoEditorLogger } from '@/components/videoEditor/lib/videoEditorLogge
 import { reportDegrade } from '@/components/base/core/log/degrade';
 import { Command } from '@/components/videoEditor/engine/commands/base-command';
 import { getEditor } from '@/components/videoEditor/engine/core/editorInstance';
-import type { MediaAsset } from '@/components/videoEditor/types/assets';
+import type { MediaAsset } from '@/components/videoEditor/types/mediaAssets';
 import { storageService } from '@/components/videoEditor/engine/services/storage/service';
 import { videoCache } from '@/components/videoEditor/engine/services/video-cache/service';
 import { collectElementsByMediaId } from '@/components/videoEditor/engine/timeline/element-utils';

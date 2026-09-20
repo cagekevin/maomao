@@ -13,7 +13,7 @@ import { useVideoPoster } from '@/hooks/useVideoPoster.ts';
 import { formatDuration } from '@/components/base/core/utils.ts';
 
 import { useMemo, useState } from 'react';
-import { toast } from '@/components/videoEditor/lib/toast';
+import { videoEditorToast } from '@/components/videoEditor/lib/videoEditorToast';
 import { MediaDragOverlay } from '@/components/videoEditor/ui/editor/panels/assets/drag-overlay';
 import { DraggableItem } from '@/components/videoEditor/ui/editor/panels/assets/draggable-item';
 import {
@@ -60,7 +60,7 @@ import ImportMediaModalHost from '@/components/videoEditor/ImportMediaModalHost'
 import type { ImportPickOutcome } from '@/components/videoEditor/ImportMediaModalHost';
 import { linkMediaRefsToProject } from '@/components/videoEditor/ui/editor/panels/assets/link-media-refs';
 import type { MediaRef } from '@/components/base/media/mediaRefTypes.ts';
-import type { MediaAsset } from '@/components/videoEditor/types/assets';
+import type { MediaAsset } from '@/components/videoEditor/types/mediaAssets';
 import type { CreateTimelineElement } from '@/components/videoEditor/types/timeline';
 import { cn } from '@/components/videoEditor/utils/ui';
 import {
@@ -95,7 +95,7 @@ export function MediaView() {
   const processFiles = async ({ files }: { files: FileList | File[] }) => {
     if (!files || files.length === 0) return;
     if (!activeProject) {
-      toast.error('没有活跃项目');
+      videoEditorToast.error('没有活跃项目');
       return;
     }
 
@@ -115,7 +115,7 @@ export function MediaView() {
       }
     } catch (error) {
       videoEditorLogger.error('Error processing files:', error);
-      toast.error('处理文件失败');
+      videoEditorToast.error('处理文件失败');
     } finally {
       setIsProcessing(false);
       setProgress(0);
@@ -179,7 +179,7 @@ export function MediaView() {
     event.stopPropagation();
 
     if (!activeProject) {
-      toast.error('没有活跃项目');
+      videoEditorToast.error('没有活跃项目');
       return;
     }
 
@@ -198,10 +198,10 @@ export function MediaView() {
       linkElement.click();
       linkElement.remove();
       setTimeout(() => URL.revokeObjectURL(downloadUrl), 0);
-      toast.success('片段已下载');
+      videoEditorToast.success('片段已下载');
     } catch (error) {
       videoEditorLogger.error('Failed to export clip:', error);
-      toast.error('下载片段失败');
+      videoEditorToast.error('下载片段失败');
     }
   };
 
@@ -543,10 +543,10 @@ function MediaItemWithContextMenu({
             // 【2026-09-17 TD-16-27】原实现不 `await` 也不 `catch`，且**无条件**报成功（假成功）。
             // 现委托 copyText（判别联合），成功/失败均如实转发，不再产生 unhandled rejection。
             const r = await copyText(item.id);
-            if (r.ok) toast.success('素材 ID 已复制');
+            if (r.ok) videoEditorToast.success('素材 ID 已复制');
             else {
               videoEditorLogger.warn('剪辑器', '复制素材 ID 失败', r.msg);
-              toast.error(r.msg);
+              videoEditorToast.error(r.msg);
             }
           }}
         >

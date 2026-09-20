@@ -46,36 +46,34 @@ vi.mock('../../src/hooks/useNodeGeneration.ts', async (importOriginal) => ({
   ...((await importOriginal()) as Record<string, unknown>),
   useNodeGeneration: (config: GenConfigLike) => {
     genConfig = config;
+    // 【TD-25-1】镜像真实 hook 的**唯一写回实现**（`writeBackResult`）：声明 resultKey 时由它写回 node.data。
+    //   广播 handler / start / 节点主动调 `writeResult` **三处共用这一份** —— 对齐 ADR-0009
+    //   「`data[resultKey]` 只经一处写」。mock 必须镜像真实 API，否则节点调 `writeResult` 会静默失败。
+    const writeResult = (url?: string) => {
+      if (config.resultKey && url) {
+        mockSetNodes((ns: TestNode[]) =>
+          ns.map((n: TestNode) =>
+            n.id === config.nodeId ? { ...n, data: { ...n.data, [config.resultKey!]: url } } : n,
+          ),
+        );
+      }
+    };
     // 复刻真实 hook 的广播 handler：声明 resultKey 时自动写回（先于 onRecover），
     // 以对齐 P0-2-b 声明式写回 / TD-01-21 唯一写回路径（节点不再手写 patchData）。先保存原 onRecover 避免覆盖造成递归。
     const originalOnRecover = config.onRecover;
     genConfig.onRecover = (d: { resultUrl: string }) => {
-      if (config.resultKey && d?.resultUrl) {
-        mockSetNodes((ns: TestNode[]) =>
-          ns.map((n: TestNode) =>
-            n.id === config.nodeId
-              ? { ...n, data: { ...n.data, [config.resultKey!]: d.resultUrl } }
-              : n,
-          ),
-        );
-      }
+      writeResult(d?.resultUrl);
       originalOnRecover?.(d);
     };
     return {
       loading: false,
       error: null,
       stop: vi.fn(),
+      writeResult,
       // 复刻真实 start：跑 run → resultKey 自动写回 → 回调 onSuccess（便于测试回填）
       start: vi.fn(async () => {
         const r = await config.run?.({ progress: () => {}, signal: { aborted: false } });
-        if (config.resultKey && (r?.url || r?.doneUrl)) {
-          const url = r.url || r.doneUrl;
-          mockSetNodes((ns: TestNode[]) =>
-            ns.map((n: TestNode) =>
-              n.id === config.nodeId ? { ...n, data: { ...n.data, [config.resultKey!]: url } } : n,
-            ),
-          );
-        }
+        writeResult(r?.url || r?.doneUrl);
         config.onSuccess?.(r);
         return r;
       }),

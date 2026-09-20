@@ -4,12 +4,12 @@ import type {
   AddMediaAssetOutcome,
   LoadProjectMediaOutcome,
   MediaAsset,
-} from '@/components/videoEditor/types/assets';
+} from '@/components/videoEditor/types/mediaAssets';
 import { storageService } from '@/components/videoEditor/engine/services/storage/service';
 import { generateUUID } from '@/components/base/core/idGen.ts';
 import { videoCache } from '@/components/videoEditor/engine/services/video-cache/service';
 import { collectElementsByMediaId } from '@/components/videoEditor/engine/timeline/element-utils';
-import { toast } from '@/components/videoEditor/lib/toast';
+import { videoEditorToast } from '@/components/videoEditor/lib/videoEditorToast';
 import { reportDegrade } from '@/components/base/core/log/degrade';
 
 /**
@@ -68,7 +68,7 @@ export class MediaManager {
       this.notify();
       videoEditorLogger.error('Failed to save media asset:', error);
       const message = error instanceof Error ? error.message : '本地服务可能未启动，素材未能落盘。';
-      toast.error('素材保存失败', {
+      videoEditorToast.error('素材保存失败', {
         description: message,
         duration: 8000,
       });
@@ -103,7 +103,7 @@ export class MediaManager {
       // ── 失败可见性(2026-09-15 · 同母体「结果契约/失败读者」)：原本只记 logger ——
       // 内存与 UI 已移除、持久层还在 → 刷新后素材"复活"（用户看到的是**假删除**，且零提示）。
       videoEditorLogger.error('Failed to delete media asset:', error);
-      toast.error('素材删除失败', {
+      videoEditorToast.error('素材删除失败', {
         description: error instanceof Error ? error.message : '本地服务可能未启动，素材未能删除。',
         duration: 8000,
       });

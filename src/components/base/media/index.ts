@@ -4,8 +4,14 @@
  * 【消费方唯一入口】业务代码**只 import 本文件** —— 它保证内置 provider
  * （画布 / 素材库 / 生成）**已自注册**（漏 import = 静默少一个来源）。
  *
- * ⚠️ 分层（check-arch 规则 2）：`base/media/` **禁** import 任何非 base 目录。
- * `videoEditor/`（业务）→ `base/media/`（地基）✅；反向 ❌。
+ * ⚠️ 【层籍（2026-09-20 裁定 · 与 `check-arch.mjs` 规则 2 判据对齐）】`base/media/` 是
+ * **宿主 / 适配层**（与 `base/panels` 同族），**既不是横切地基、也不是业务域** ——
+ * 它装配「媒体源注册表（零业务语义的协议层）+ 各域的源适配器（`providers/*`）」。
+ * ⇒ 原红线「**禁** import 任何非 base 目录」**已作废**：它与 `media` 的层籍判定冲突，
+ *   且本层从不在 `BASE_CROSS_CUTTING` 里 ⇒ **从来就没有机器守卫**（假护栏）。
+ *   实测：`providers/canvasSource.ts`（→ canvas/resource）与 `librarySource.ts`（→ resource）
+ *   正是靠读**各域**数据才能把来源接进协议。
+ * ⇒ 仍须单向的只有一条：**业务域 → 本层**（反向仍是倒置）。判据全文见 `docs/adr/`（层籍三类）。
  *
  * ⚠️ 本层**只回答"有什么"**，不回答"怎么用"（`linkMediaRefsToProject` 那类
  * 依赖 `editor.media` 的适配器属业务，住在剪辑器改造区，**不在这里**）。

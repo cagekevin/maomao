@@ -21,7 +21,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { EditorCore } from '../../src/components/videoEditor/engine/core';
 import { RemoveMediaAssetCommand } from '../../src/components/videoEditor/engine/commands/media/remove-media-asset.ts';
 import type { TProject } from '../../src/components/videoEditor/types/project';
-import type { MediaAsset } from '../../src/components/videoEditor/types/assets';
+import type { MediaAsset } from '../../src/components/videoEditor/types/mediaAssets';
 import type { TimelineTrack, TScene } from '../../src/components/videoEditor/types/timeline';
 
 function makeProject(id: string): TProject {

@@ -32,7 +32,7 @@ import type {
   ElementDragState,
   VideoElement,
 } from '@/components/videoEditor/types/timeline';
-import type { MediaAsset } from '@/components/videoEditor/types/assets';
+import type { MediaAsset } from '@/components/videoEditor/types/mediaAssets';
 import { mediaSupportsAudio } from '@/components/videoEditor/engine/lib/media/media-utils';
 import {
   getActionDefinition,

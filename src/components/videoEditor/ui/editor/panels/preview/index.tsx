@@ -25,12 +25,12 @@ import {
   handleMediaPreviewKeyDown,
   useMediaPreviewStore,
 } from '@/components/videoEditor/stores/media-preview-store';
-import type { MediaAsset } from '@/components/videoEditor/types/assets';
+import type { MediaAsset } from '@/components/videoEditor/types/mediaAssets';
 import { cn } from '@/components/videoEditor/utils/ui';
 import { useMediaLoadFailed } from '@/components/base/utils/media/useMediaLoadFailed';
 // 【TD-06-14】canvas 异步产出走唯一出口；失败必须**可见**（原 `if (!blob) return;` = 点了导出什么都没发生）。
 import { canvasToBlob } from '@/components/base/core/utils';
-import { toast } from '@/components/videoEditor/lib/toast';
+import { videoEditorToast } from '@/components/videoEditor/lib/videoEditorToast';
 import { MissingMediaIndicator } from '@/components/videoEditor/ui/editor/panels/timeline/missing-media-indicator';
 
 function usePreviewSize() {
@@ -244,7 +244,9 @@ function exportCurrentFrame({ editor }: { editor: ReturnType<typeof useEditor> }
     .catch((e: unknown) => {
       // 【TD-06-14】失败必须诚实可见：原实现是 `if (!blob) return;` —— 用户点了"导出当前帧"，
       //   什么都没发生、零提示零留痕（最难排查的一类假成功）。文案由本动作（所有方）给全。
-      toast.error('导出当前帧失败', { description: (e as { message?: string })?.message });
+      videoEditorToast.error('导出当前帧失败', {
+        description: (e as { message?: string })?.message,
+      });
     });
 }
 

@@ -5,7 +5,7 @@ import type {
   TimelineElement,
   TimelineTrack,
 } from '@/components/videoEditor/types/timeline';
-import type { MediaAsset } from '@/components/videoEditor/types/assets';
+import type { MediaAsset } from '@/components/videoEditor/types/mediaAssets';
 import {
   canElementHaveAudio,
   getElementPlaybackRate,

@@ -1,6 +1,10 @@
 /**
  * 视频编辑器（cutia 外部接入）toast 兼容壳。
  *
+ * 【导出名 = `videoEditorToast`（2026-09-20 · TD-18-43）】原导出名 `toast` 是**域专用物却不带域前缀**，
+ * 违反用户 2026-09-19 裁定的第一原则（「域专用物必须带该域前缀（强制非可选）」）；文件同名一并改为
+ * `videoEditorToast.ts`。与 `videoEditorLogger`（TD-18-42）同批同型。
+ *
  * 【为什么存在】
  * cutia 原用第三方 `sonner` 的 `toast` API（toast.error/success/warning/info/loading + { description, id }）。
  * 接入后不应自带一套 toast 实现，统一走 `base/core/toastStore`（ToastContainer 顶部统一渲染、
@@ -34,7 +38,7 @@ function emit(type: ToastType, message: string, opts?: ToastOptions): number {
   return id;
 }
 
-export const toast = {
+export const videoEditorToast = {
   error: (message: string, opts?: ToastOptions) => emit('error', message, opts),
   success: (message: string, opts?: ToastOptions) => emit('success', message, opts),
   warning: (message: string, opts?: ToastOptions) => emit('warning', message, opts),

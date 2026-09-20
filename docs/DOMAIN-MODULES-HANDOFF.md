@@ -74,7 +74,7 @@
 
 **搬迁/改名类**
 
-1. `mv-sync-refs` 三处工具缺口（TD-17-22/23 未修）：`rename` 对 `.css` 丢扩展名 · 不改写无扩展名 import · **`move-dir` 不搬 CSS，且被搬文件的兄弟导入会写成指向旧目录的别名路径**。
+1. `mv-sync-refs` 工具缺口（**2026-09-20 复核**）：~~`rename` 对 `.css` 丢扩展名~~ 已修（`RESOURCE_EXTS` 表，`mv-sync-refs.mjs:171`）· ~~不改写无扩展名 import~~ **归因证伪**（实测 `rename` 会改写无扩展名说明符；真因是**仓库根级件未进扫描根**，已修：`rootLevelSources()`）· `move-dir` 的三处损坏（不搬 `.css`/`.json`/`data` · 被搬文件的兄弟导入写成**旧目录**别名 · 按旧路径回写造**残留副本**）**已修**（`mapTarget` 目标平移 + 跳过 `oldDir` 内文件 + `collectAllFilesUnder`，TD-17-27），`move-dir --undo` 保留可用。
 2. `rename-symbol` **不动 `vi.mock` 的对象键** ⇒ 改名后 mock 静默失效。每批改名后必 `grep -rn "vi.mock.*<被改模块>" tests`。
 3. **CSS 副作用 import 指向旧目录，`tsc` 查不出，只有 `vite build` 会炸** ⇒ 碰 CSS 的批次必跑 build。
 4. **测试写死目录** ⇒ `nodePrefsRegression.test.ts` 已两次因搬迁变红。凡"测试自己写死目录"一律改多候选目录扫描（本轮 `_smoke_checks.cjs`/`mockPartialSpread` 同款）。

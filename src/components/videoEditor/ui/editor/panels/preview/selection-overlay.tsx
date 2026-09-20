@@ -9,7 +9,7 @@ import type {
   StickerElement,
   ElementType,
 } from '@/components/videoEditor/types/timeline';
-import type { MediaAsset } from '@/components/videoEditor/types/assets';
+import type { MediaAsset } from '@/components/videoEditor/types/mediaAssets';
 import { FONT_SIZE_SCALE_REFERENCE } from '@/components/videoEditor/constants/text-constants';
 import { isBottomAlignedSubtitleText } from '@/components/videoEditor/engine/timeline/text-utils';
 // 字体族栈（**已有实现，不自己拼**）：与画布 `ctx.font` 用同一份，否则量出的宽高与渲染不一致。

@@ -47,6 +47,14 @@
  * 现改为：**当前存在"基线外新增"（= 回归）时拒绝写盘**（exit 1），除非显式 `--allow-new`
  * （仅供"整体重生成确实必要"的场合，如 knip 版本跃迁；届时打印新增清单供 review）。
  *
+ * 【★改：`--update-baseline` 不再抹掉手写的 `_comment`（2026-09-20）】
+ * 原实现**硬编码** `_comment` 并覆盖写盘 ⇒ 每次重生成都**静默抹掉人手写的留痕**
+ * （实证：2026-09-19 那次的「手改留痕（≠塞新债）—— 同步 5 条改名键 / 删 3 条 kvStore 键」
+ *  与「用 `--update-baseline` 把新增塞进基线 = 把闸弄瞎」这条禁令提醒，被 2026-09-20 的一次
+ *  正当重生成整段删除）。**判据**：`_comment` 是人写的**留痕**，不是生成物 —— 工具不替调用方
+ *  写叙事，也不许销毁它（A7「修正必须回改原文」/「消费者不越权」同族）。
+ * 现改为：**原样继承**既有 `_comment`；仅当文件里没有时才落默认文本。基线内容（`items`）照旧重生成。
+ *
  * 【★闸的申诉口 · 三问（2026-09-14 入规 → 架构师心法 §零.4.2）】
  *   Q1 守什么：**结构偏好闸** —— 死代码是"待清偿债务"，不是物理契约。
  *   Q2 何时该改：① 清偿/改名后跑 `--update-baseline` **移除已消失项**（正途）；
@@ -74,6 +82,9 @@ const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const BASELINE_PATH = fileURLToPath(new URL('./dead-code-baseline.json', import.meta.url));
 /** 显式放行"基线外新增"（默认禁止 —— 见文件头【★改：不许涨】） */
 const ALLOW_NEW = process.argv.includes('--allow-new');
+/** 基线文件**首次生成**时用的 `_comment`；已存在则原样继承（见文件头【★改：不再抹掉手写的 `_comment`】） */
+const DEFAULT_COMMENT =
+  '死代码闸基线（scripts/check-dead-code.mjs 消费）。基线内=存量（不阻塞，可逐步清偿）；基线外新增=闸红。重生成：node scripts/check-dead-code.mjs --update-baseline';
 /** 与 knip 输出对齐的 issue 类别（knip --reporter json 的 issues[].{files,exports,...}） */
 const KINDS = [
   'files',
@@ -268,9 +279,10 @@ if (pub.violations.length) {
 
 if (UPDATE) {
   // ── 「闸的成本守恒」守卫（2026-09-14）：有"基线外新增"= 回归 → 拒绝写盘，把绕行成本抬回正道之上 ──
-  const prior = existsSync(BASELINE_PATH)
-    ? (JSON.parse(readFileSync(BASELINE_PATH, 'utf8')).items ?? [])
-    : [];
+  const priorRaw = existsSync(BASELINE_PATH)
+    ? JSON.parse(readFileSync(BASELINE_PATH, 'utf8'))
+    : {};
+  const prior = priorRaw.items ?? [];
   const priorSet = new Set(prior);
   const newOnes = current.filter((x) => !priorSet.has(x));
   if (newOnes.length && !ALLOW_NEW) {
@@ -288,8 +300,9 @@ if (UPDATE) {
   if (newOnes.length)
     console.log(`⚠️  --allow-new 已放行 ${newOnes.length} 条基线外新增（请确认它们不是回归）`);
   const out = {
-    _comment:
-      '死代码闸基线（scripts/check-dead-code.mjs 消费）。基线内=存量（不阻塞，可逐步清偿）；基线外新增=闸红。重生成：node scripts/check-dead-code.mjs --update-baseline',
+    // `_comment` 是**人手写的留痕**（手改理由 / 禁令提醒），不是生成物 ⇒ 原样继承；
+    // 仅当文件里没有时才落默认文本（见文件头【★改：不再抹掉手写的 `_comment`】）。
+    _comment: priorRaw._comment || DEFAULT_COMMENT,
     knipVersion,
     count: current.length,
     items: current,

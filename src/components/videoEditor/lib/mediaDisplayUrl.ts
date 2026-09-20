@@ -1,4 +1,4 @@
-import type { MediaAsset } from '@/components/videoEditor/types/assets';
+import type { MediaAsset } from '@/components/videoEditor/types/mediaAssets';
 import { videoEditorLogger } from '@/components/videoEditor/lib/videoEditorLogger';
 
 /** `useRenderAssetResolver()` 的返回形态（只取本模块需要的那一维，避免反向依赖 base 的 hook 类型）。 */

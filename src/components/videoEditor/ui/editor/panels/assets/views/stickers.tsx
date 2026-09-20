@@ -3,7 +3,7 @@ import { videoEditorLogger } from '@/components/videoEditor/lib/videoEditorLogge
 
 import type { CSSProperties } from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { toast } from '@/components/videoEditor/lib/toast';
+import { videoEditorToast } from '@/components/videoEditor/lib/videoEditorToast';
 import { DraggableItem } from '@/components/videoEditor/ui/editor/panels/assets/draggable-item';
 import {
   PanelBaseView as BaseView,
@@ -266,7 +266,7 @@ function StickersContentView({
       await addStickerToTimeline({ iconName });
     } catch (error) {
       videoEditorLogger.error('Failed to add sticker:', error);
-      toast.error('贴纸添加到时间轴失败');
+      videoEditorToast.error('贴纸添加到时间轴失败');
     }
   };
 

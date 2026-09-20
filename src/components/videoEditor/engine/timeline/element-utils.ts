@@ -1,6 +1,6 @@
 import { DEFAULT_TEXT_ELEMENT } from '@/components/videoEditor/constants/text-constants';
 import { TIMELINE_CONSTANTS } from '@/components/videoEditor/constants/timeline-constants';
-import type { MediaAsset } from '@/components/videoEditor/types/assets';
+import type { MediaAsset } from '@/components/videoEditor/types/mediaAssets';
 import type {
   CreateTextElement,
   CreateTimelineElement,

@@ -14,7 +14,7 @@ import type { ExportOptions, ExportResult } from '@/components/videoEditor/types
 import { storageService } from '@/components/videoEditor/engine/services/storage/service';
 // 409 判别（T3 验收②）：版本冲突必须如实分类（saveCurrentProject 的 catch）。
 import { HttpError } from '../../../../base/api/httpClient.ts';
-import { toast } from '@/components/videoEditor/lib/toast';
+import { videoEditorToast } from '@/components/videoEditor/lib/videoEditorToast';
 import { generateUUID } from '@/components/base/core/idGen.ts';
 import { canvasToImageDataUrl } from '../../../../base/core/utils.ts';
 import { UpdateProjectSettingsCommand } from '@/components/videoEditor/engine/commands/project';
@@ -102,7 +102,7 @@ export class ProjectManager {
 
       return newProject.metadata.id;
     } catch (error) {
-      toast.error('Failed to save new project');
+      videoEditorToast.error('Failed to save new project');
       throw error;
     }
   }
@@ -304,7 +304,7 @@ export class ProjectManager {
     try {
       const result = await storageService.loadProject({ id });
       if (!result) {
-        toast.error('Project not found', {
+        videoEditorToast.error('Project not found', {
           description: 'Please try again',
         });
         return;
@@ -329,7 +329,7 @@ export class ProjectManager {
       this.updateMetadata(updatedProject);
     } catch (error) {
       videoEditorLogger.error('Failed to rename project:', error);
-      toast.error('Failed to rename project', {
+      videoEditorToast.error('Failed to rename project', {
         description: error instanceof Error ? error.message : 'Please try again',
       });
     }
@@ -359,12 +359,15 @@ export class ProjectManager {
         .map((result) => result.projectId);
 
       if (missingProjectIds.length > 0) {
-        toast.error(missingProjectIds.length === 1 ? 'Project not found' : 'Projects not found', {
-          description:
-            missingProjectIds.length === 1
-              ? 'Please try again'
-              : 'Some projects could not be found',
-        });
+        videoEditorToast.error(
+          missingProjectIds.length === 1 ? 'Project not found' : 'Projects not found',
+          {
+            description:
+              missingProjectIds.length === 1
+                ? 'Please try again'
+                : 'Some projects could not be found',
+          },
+        );
         throw new Error(`Projects not found: ${missingProjectIds.join(', ')}`);
       }
 
@@ -461,7 +464,7 @@ export class ProjectManager {
       return duplicationPlans.map((plan) => plan.newProjectId);
     } catch (error) {
       videoEditorLogger.error('Failed to duplicate projects:', error);
-      toast.error('Failed to duplicate projects', {
+      videoEditorToast.error('Failed to duplicate projects', {
         description: error instanceof Error ? error.message : 'Please try again',
       });
       throw error;

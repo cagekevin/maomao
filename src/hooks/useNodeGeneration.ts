@@ -90,6 +90,12 @@ export interface NodeGenerationApi {
   /** 【TD-01-6】`false` = 未触发（loading 忙 / 校验不过）；对象 = 已触发结果。两者勿混。 */
   start: () => Promise<NodeGenerationStartResult | false>;
   stop: () => void;
+  /**
+   * 【TD-25-1 · ADR-0009】**`data[resultKey]` 的唯一写回实现**（`writeBackResult` 本身）。
+   * 节点若自己拿到结果（如挂载时从任务中心冷启动恢复）**必须调它**，不许自己 `patchData({ [resultKey]: … })`。
+   * 语义：**触发器可以在节点，写回实现只有机制这一份**。
+   */
+  writeResult: (url: string | undefined) => void;
 }
 
 // 日志里的提示词只保留前 80 字：剧本盒子等场景的镜头提示词动辄上千字，
@@ -315,5 +321,8 @@ export function useNodeGeneration({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [nodeId]);
 
-  return { loading, error, start, stop };
+  // 【TD-25-1】把**唯一写回实现**露给节点用：节点若自己拿到结果（如挂载时从任务中心冷启动恢复），
+  //   必须**问机制要写回**，不许自己 `patchData({ [resultKey]: … })`（ADR-0009：`data[resultKey]`
+  //   只经 `writeBackResult` 一处写）。触发器可以在节点，**写回实现只有这一份**。
+  return { loading, error, start, stop, writeResult: writeBackResult };
 }

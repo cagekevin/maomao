@@ -2,7 +2,7 @@ import { videoEditorLogger } from '@/components/videoEditor/lib/videoEditorLogge
 import { useState, useCallback, type RefObject } from 'react';
 import { useEditor } from '@/components/videoEditor/hooks-cutia/use-editor';
 import { processMediaAssets } from '@/components/videoEditor/engine/lib/media/processing';
-import { toast } from '@/components/videoEditor/lib/toast';
+import { videoEditorToast } from '@/components/videoEditor/lib/videoEditorToast';
 import { TIMELINE_CONSTANTS } from '@/components/videoEditor/constants/timeline-constants';
 import { snapTimeToFrame } from '@/components/videoEditor/engine/lib/time';
 import {
@@ -418,7 +418,7 @@ export function useTimelineDragDrop({
         }
       } catch (err) {
         videoEditorLogger.error('Failed to process drop:', err);
-        toast.error('Failed to process drop');
+        videoEditorToast.error('Failed to process drop');
       }
     },
     [

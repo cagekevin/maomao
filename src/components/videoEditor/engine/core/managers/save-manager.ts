@@ -1,7 +1,7 @@
 import { videoEditorLogger } from '@/components/videoEditor/lib/videoEditorLogger';
 import type { EditorCore } from '@/components/videoEditor/engine/core';
 import type { SaveFailure, SaveOutcome } from '@/components/videoEditor/types/project';
-import { toast } from '@/components/videoEditor/lib/toast';
+import { videoEditorToast } from '@/components/videoEditor/lib/videoEditorToast';
 // 更新(2026-09-14)：agent-store 已随 AI 域删除。
 
 type SaveManagerOptions = {
@@ -184,13 +184,13 @@ export class SaveManager {
     this.failureReported = true;
 
     if (outcome.reason === 'conflict') {
-      toast.error('作品已在别处被修改', {
+      videoEditorToast.error('作品已在别处被修改', {
         description: '本次改动未保存。请刷新后重试，避免覆盖他人修改。',
         duration: 8000,
       });
       return;
     }
-    toast.error('作品保存失败', {
+    videoEditorToast.error('作品保存失败', {
       description: outcome.message ?? '本地服务可能未启动，改动未能落盘。',
       duration: 8000,
     });

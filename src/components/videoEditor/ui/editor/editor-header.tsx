@@ -5,7 +5,7 @@ import { RenameProjectDialog } from './dialogs/rename-project-dialog';
 import { DeleteProjectDialog } from './dialogs/delete-project-dialog';
 import { ExportButton } from './export-button';
 import { DEFAULT_LOGO_URL } from '@/components/videoEditor/constants/site-constants';
-import { toast } from '@/components/videoEditor/lib/toast';
+import { videoEditorToast } from '@/components/videoEditor/lib/videoEditorToast';
 import { useEditor } from '@/components/videoEditor/hooks-cutia/use-editor';
 import { ShortcutsDialog } from './dialogs/shortcuts-dialog';
 import { cn } from '@/components/videoEditor/utils/ui';
@@ -69,7 +69,7 @@ function ProjectDropdown({ onExit }: { onExit?: () => void }) {
       await editor.project.loadProject({ id: editorId });
       await editor.project.loadAllProjects();
     } catch (error) {
-      toast.error('切换作品失败', {
+      videoEditorToast.error('切换作品失败', {
         description: error instanceof Error ? error.message : '请重试',
       });
     } finally {
@@ -88,7 +88,7 @@ function ProjectDropdown({ onExit }: { onExit?: () => void }) {
       await storageService.saveActiveEditorId({ editorId: newId });
       await editor.project.loadAllProjects();
     } catch (error) {
-      toast.error('新建作品失败', {
+      videoEditorToast.error('新建作品失败', {
         description: error instanceof Error ? error.message : '请重试',
       });
     } finally {
@@ -107,7 +107,7 @@ function ProjectDropdown({ onExit }: { onExit?: () => void }) {
           name: newName.trim(),
         });
       } catch (error) {
-        toast.error('重命名项目失败', {
+        videoEditorToast.error('重命名项目失败', {
           description: error instanceof Error ? error.message : '请重试',
         });
       } finally {
@@ -124,7 +124,7 @@ function ProjectDropdown({ onExit }: { onExit?: () => void }) {
         });
         // 退出目标由宿主控制（原为 next router.push("/projects")）
       } catch (error) {
-        toast.error('删除项目失败', {
+        videoEditorToast.error('删除项目失败', {
           description: error instanceof Error ? error.message : '请重试',
         });
       } finally {

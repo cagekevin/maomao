@@ -7,6 +7,10 @@
  *    ⇒ **改名/重构只动符号名与文件路径，禁止"顺手统一"这些字符串** —— 改键＝存量数据失联。
  *    ⇒ 若发现符号名与键名不一致（如符号 `videoEditorXxx`、键仍 `cutia-xxx`），那是**故意的**，不要改。
  *    ⇒ 确需改键：单独成批 + 用户显式接受数据重置（判据全文见 `docs/adr/ADR-0038-*.md`）。
+ *    ⇒ **不做逐行标注**（TD-25-12 改判 2026-09-20）：把同一条判据复制到 800 个登记行 = **装饰化**
+ *      （本仓 `// catch-ok:` 实证：99 处标记里 7 处贴错 —— "一句话即可伪装成已评审"），且与
+ *      ADR-0046「判据要么机器可判、要么字段不可达」冲突。本表的**正确落点 = 唯一入口**（键名只在此定义）
+ *      + **本节**；三处表声明各带**一行指针**（不是复制）。
  * 彼此形态相同（静态声明表 + 派生/校验），与 settingRegistry.js 同族（兄弟）。
  * 新增同族登记表先归本文件或既有表，禁止另起新表。
  *
@@ -76,6 +80,7 @@ export interface EventRegistryEntry {
   note: string;
 }
 
+// 🔒 键名冻结（ADR-0038）：本表**键名**属对外契约，禁随手改名 —— 见文件头【键名冻结】段。
 export const EVENTS: Record<string, EventRegistryEntry> = {
   'agent:task-completed': {
     from: ['taskCompletionBus.ts:30'],
@@ -321,6 +326,7 @@ export const DIRECTOR3D_PROJECT_PREFIX = 'director3d-project';
 /** 3D 导演台工程默认键（无 nodeId 独立运行场景）= 前缀本身 */
 export const KEY_DIRECTOR3D_PROJECT = DIRECTOR3D_PROJECT_PREFIX;
 
+// 🔒 键名冻结（ADR-0038）：本表**键名**属对外契约，禁随手改名 —— 见文件头【键名冻结】段。
 export const STORAGE_KEYS: Record<string, StorageKeyMeta> = {
   // ── 项目（projectStore）────────────────────────────────────────────
   projects: {
@@ -779,6 +785,7 @@ export const GEN_ERRORS = {
  * 注：值为画布 node.type / useNodePrefs 首参的命名空间字符串；
  *   director3dNode 依赖 WebGL 无法 SSR、ghostTarget 为连线占位，均一并登记。
  */
+// 🔒 键名冻结（ADR-0038）：本表**键名**属对外契约，禁随手改名 —— 见文件头【键名冻结】段。
 export const NODE_TYPES = {
   assetNode: 'assetNode',
   imageBoxNode: 'imageBoxNode',

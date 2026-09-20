@@ -16,7 +16,7 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { EditorCore } from '../../src/components/videoEditor/engine/core';
-import type { MediaAsset } from '../../src/components/videoEditor/types/assets';
+import type { MediaAsset } from '../../src/components/videoEditor/types/mediaAssets';
 import type { TProject } from '../../src/components/videoEditor/types/project';
 
 const storageMock = vi.hoisted(() => ({
@@ -34,8 +34,8 @@ vi.mock('../../src/components/videoEditor/engine/services/storage/service', () =
 // 【2026-09-16 · TD-02-35 已删】原 `migrations` 模块替身（jsdom 无 IndexedDB 故桩掉执行入口）——
 // 迁移器整层已删除，本测试不再需要该桩。
 
-vi.mock('../../src/components/videoEditor/lib/toast', () => ({
-  toast: {
+vi.mock('../../src/components/videoEditor/lib/videoEditorToast', () => ({
+  videoEditorToast: {
     error: vi.fn(),
     success: vi.fn(),
     warning: vi.fn(),

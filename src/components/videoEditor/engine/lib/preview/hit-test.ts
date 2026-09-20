@@ -3,7 +3,7 @@ import type {
   TimelineElement,
   Transform,
 } from '@/components/videoEditor/types/timeline';
-import type { MediaAsset } from '@/components/videoEditor/types/assets';
+import type { MediaAsset } from '@/components/videoEditor/types/mediaAssets';
 import type { TCanvasSize } from '@/components/videoEditor/types/project';
 import { isMainTrack } from '@/components/videoEditor/engine/timeline';
 import { getElementHalfSize, getElementCenterInCanvas } from './element-bounds';

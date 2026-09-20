@@ -8,10 +8,10 @@ import type { TScene } from '@/components/videoEditor/types/timeline';
 // （IndexedDBAdapter / OPFSAdapter）已随载体收口删除，接口随之零消费者。
 
 /**
- * `MediaAssetData` 已**下沉到 `@/components/videoEditor/types/assets`**（TD-22-31：斩断 types→engine 反向边）。
+ * `MediaAssetData` 已**下沉到 `@/components/videoEditor/types/mediaAssets`**（TD-22-31：斩断 types→engine 反向边）。
  * 此处 re-export 是为让既有消费方（`engine/services/storage/*` 等）**零改动**。
  */
-export type { MediaAssetData } from '@/components/videoEditor/types/assets';
+export type { MediaAssetData } from '@/components/videoEditor/types/mediaAssets';
 
 export type SerializedScene = Omit<TScene, 'createdAt' | 'updatedAt'> & {
   createdAt: string;

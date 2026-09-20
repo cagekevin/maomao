@@ -9,7 +9,7 @@
  *      **不上传、不落盘**（`saveMediaAsset` 见 `persistentUrl` 即跳过上传，见其"引用分支"）；
  *   ② 在**当前剪辑工程**里登记一条指向它的元数据（经既有 `editor.media.addMediaAsset`）。
  *
- * 【为什么"取 File"是路线 A 的已知代价】`MediaAsset.file` 是必填（`types/assets.ts:34`），
+ * 【为什么"取 File"是路线 A 的已知代价】`MediaAsset.file` 是必填（`types/mediaAssets.ts:34`），
  * 而 `MediaRef` 只有 URL。`fetch` 会让**选中文件全量进内存**（大视频有压力）。
  * 本轮按 `docs/136` P1-1 短期方案加**大小上限**兜底；长期若要改 `MediaAsset.file` 为惰性取
  * （路线 B）需实测证明痛点后再动公共类型（不预先为假设付成本）。
@@ -21,7 +21,7 @@
  * ════════════════════════════════════════════════════════════════
  */
 import { videoEditorLogger } from '@/components/videoEditor/lib/videoEditorLogger';
-import type { MediaAsset } from '@/components/videoEditor/types/assets';
+import type { MediaAsset } from '@/components/videoEditor/types/mediaAssets';
 // 落地判据（唯一实现）住在 ref 契约层：画布入口消费同一份，**禁止在此另写一份判据**。
 import { mediaRefFactsOf } from '@/components/base/media/mediaRefTypes.ts';
 import type { MediaRef, MediaRefFacts } from '@/components/base/media/mediaRefTypes.ts';
