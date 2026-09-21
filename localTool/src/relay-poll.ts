@@ -231,6 +231,16 @@ interface RelayPollSnapshot {
     pendingSubmit?: DirectSubmitInput;
     startedAt: number;
   };
+  /** 段①（发送 Lovart 成功前）子步骤耗时（毫秒），仅观测用、不影响行为。 */
+  submitTiming?: {
+    queueMs: number; // 进队 -> 真正开始提交（含轮询首跳延迟）
+    egressMs: number; // resolveImagesForEgress（cdn 形态：仅改 URL，几乎为 0）
+    modeMs: number; // setLovartMode
+    attachmentsMs: number; // 下载本机回环参考图 + 传 Lovart CDN（重灾区候选）
+    sendChatMs: number; // sendLovartChatWithProject
+    imageCount: number; // 参考图张数
+    totalMs: number; // 段① 总长 = submit_ack_at − startedAt
+  };
 }
 
 /**
@@ -476,17 +486,23 @@ export async function submitGenerateTask(
 async function runDirectSubmit(handle: PollHandle, profile: LovartDirectProfile): Promise<boolean> {
   const p = handle.pendingDirectSubmit;
   if (!p) return true;
+  // 段① 观测：进队 -> 真正开始提交 的排队耗时（含轮询首跳延迟）。
+  const qStart = Date.now();
+  let submitTiming: RelayPollSnapshot['submitTiming'];
   // ① 前置阶段（纯本机，未出站）：失败 ⇒ 确定没跑 ⇒ failed。
   let images: string[] | undefined;
+  let egressMs = 0;
   try {
     // 参考图形态按 lovart 直连（cdn）：不预压 base64，转回环可下载 URL 交给 adapter
     // resolveLovartAttachments 自取（下载→传 CDN），省掉 encode→decode 两遍。见 resolveLocalImages.ts 头。
     // **只有这一个平台走这条，且只是为了省这一步** —— 妥协，不是架构维度：
     // 就地决定，不设判据层、不写 ADR、不据此切文件或建"通道 / 平台"层。
+    const tEg0 = Date.now();
     images =
       p.images && p.images.length > 0
         ? ((await resolveImagesForEgress(p.images, 'cdn')) as string[])
         : undefined;
+    egressMs = Date.now() - tEg0;
   } catch (e) {
     stopHandle(handle);
     await upsertFailed(handle, e instanceof Error ? e.message : String(e));
@@ -505,6 +521,22 @@ async function runDirectSubmit(handle: PollHandle, profile: LovartDirectProfile)
       capability: p.capability,
     });
     threadId = out.threadId;
+    const t = out.timing;
+    const queueMs = qStart - handle.startedAt;
+    submitTiming = {
+      queueMs,
+      egressMs,
+      modeMs: t?.modeMs ?? -1,
+      attachmentsMs: t?.attachmentsMs ?? -1,
+      sendChatMs: t?.sendChatMs ?? -1,
+      imageCount: t?.imageCount ?? 0,
+      totalMs: Date.now() - handle.startedAt,
+    };
+    console.log(
+      `[relay:段①] ${handle.frontTaskId} 发送前 ${submitTiming.totalMs}ms ` +
+        `(queue=${queueMs} egress=${egressMs} mode=${submitTiming.modeMs} ` +
+        `attach=${submitTiming.attachmentsMs} send=${submitTiming.sendChatMs} imgs=${submitTiming.imageCount})`,
+    );
   } catch (e) {
     stopHandle(handle);
     // 消息里带「可能已提交」+ 原文（上游返回什么就透传什么，不翻译不静默）。
@@ -541,6 +573,7 @@ async function runDirectSubmit(handle: PollHandle, profile: LovartDirectProfile)
           direct: true,
           startedAt: handle.startedAt,
         } satisfies RelayPollSnapshot['_relayPoll'],
+        ...(submitTiming ? { submitTiming } : {}),
       } satisfies RelayPollSnapshot),
     });
     // 【TD-08-39】**本处是重复计费窗口的正门**：上面已写 `thread_id` + 清 `pendingSubmit` 快照，

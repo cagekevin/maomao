@@ -220,6 +220,17 @@ export interface LovartTaskHandle {
   /** 原生上游任务 id（thread_id）；可序列化，凭证不入内 */
   threadId: string;
   projectId: string;
+  /** 提交各子步骤耗时（毫秒），仅用于观测段①慢在哪一环，不影响任何行为。 */
+  timing?: {
+    /** setLovartMode（锁 fast 配额轴） */
+    modeMs: number;
+    /** resolveLovartAttachments（下载本机回环参考图 + 传 Lovart CDN，段① 重灾区候选） */
+    attachmentsMs: number;
+    /** sendLovartChatWithProject（发 prompt + attachments） */
+    sendChatMs: number;
+    /** 实际送出的参考图张数 */
+    imageCount: number;
+  };
 }
 
 /** 提交一次 image/video 任务（project→set_mode→attachments→send），返回可持久化句柄，不等终态。 */
@@ -229,8 +240,12 @@ export async function submitLovartTask(
 ): Promise<LovartTaskHandle> {
   const deps = toDeps(profile, profile.signal, profile.timeoutMs);
   assertCategory(opts.model, opts.capability);
+  const tMode0 = Date.now();
   await setLovartMode(deps, false); // 锁 fast 配额轴（B4）
+  const modeMs = Date.now() - tMode0;
+  const tAtt0 = Date.now();
   const attachments = await resolveLovartAttachments(deps, opts.images);
+  const attachmentsMs = Date.now() - tAtt0;
   // 视频比例/清晰度/时长拼进 gen_prefix，对齐 main.py:1237-1247（aspect_ratio / duration / resolution）。
   // 前端 video 的 size 语义是比例（如 16:9），故对 VIDEO 将其作为 aspect_ratio，而非常量 extraParams。
   const extraParams = [...(opts.extraParams ?? [])];
@@ -246,12 +261,23 @@ export async function submitLovartTask(
     extraParams,
   );
   const toolConfig = buildLovartToolConfig(opts.model); // 结构化路选模型（B5）
+  const tSend0 = Date.now();
   const { threadId, projectId } = await sendLovartChatWithProject(deps, {
     prompt,
     attachments,
     toolConfig,
   });
-  return { threadId, projectId };
+  const sendChatMs = Date.now() - tSend0;
+  return {
+    threadId,
+    projectId,
+    timing: {
+      modeMs,
+      attachmentsMs,
+      sendChatMs,
+      imageCount: attachments?.length ?? 0,
+    },
+  };
 }
 
 /**
