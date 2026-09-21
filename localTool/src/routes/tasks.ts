@@ -163,6 +163,49 @@ const EXECUTION_OWNED_COLUMNS = new Set([
   'response_data',
 ]);
 
+/** 终态集合（与前端 TaskStatus 的终态一致：unknown 也是终态，勿合并进 running） */
+const TERMINAL_STATUSES = new Set(['completed', 'failed', 'unknown']);
+
+/**
+ * 会改变「真相」的两列 —— **告警 vs 调试**的分界线（2026-09-21）。
+ *
+ * 【为什么只认这两列】被拦下的写**从不改变行为**（执行态列照旧丢弃），本判据只决定**日志级别**。
+ *   · `status`     —— 前端那条 running 快照晚到，会把 completed/failed/unknown 改回 running（TD-08-38 原案）；
+ *   · `result_url` —— 同一快照会把结果地址抹成空串（前端 `Task.resultUrl` 初值就是 `''`）。
+ * 其余执行态列（progress / error_msg / …）即便被覆盖也不改变"成没成、结果在哪" ⇒ 只算冗余。
+ */
+const CLOBBER_CRITICAL_COLUMNS = ['status', 'result_url'] as const;
+
+/** 值比较：null/undefined 归一到空串（与 SQL NULL / 前端空串在"有没有结果"上语义等价） */
+function differs(a: unknown, b: unknown): boolean {
+  return (a ?? '') !== (b ?? '');
+}
+
+/**
+ * 这次拦截**是否真的避免了破坏** —— warn 与 debug 的分界线。
+ *
+ * 【为什么需要它】此前只要拦下执行态列就 warn。但前端 `taskStore.persist()` 发的是**整行快照**
+ * （只剥了 stageLabel）⇒ 只要该行被后端持有句柄，**前端每一次落库都会 warn**：实测 2026-09-21
+ * 一天 **134 条**，同一个 task 每 2~3 秒一条（01:51:17.804 / .054 / 21.024…），节奏正好等于前端
+ * 200ms 防抖的进度落库。于是这条日志丧失了它自己声明的职责（「罕见 = 某条链路缺执行方」）——
+ * 134 条里 0 条是真信号，**真危险会被常态噪音淹掉**。
+ *
+ * 【判据】库里的行**已是终态**，且被拦下的写会改动上面那两列（值不同）。
+ *   · 行还在跑 ⇒ 拦下的 progress 等不可能破坏终态真相 ⇒ 冗余，debug；
+ *   · 已终态但值相同（正常成功路径：前端从后端 attach 拿到的 url 原样回写）⇒ 无破坏，debug；
+ *   · 已终态且值不同（晚到 running 快照 / 空串抹 url）⇒ **真危险，warn**。
+ */
+function blocksRealDamage(
+  stored: Record<string, unknown>,
+  incoming: Record<string, unknown>,
+  blocked: string[],
+): boolean {
+  if (!TERMINAL_STATUSES.has(String(stored.status ?? ''))) return false;
+  return CLOBBER_CRITICAL_COLUMNS.some(
+    (k) => blocked.includes(k) && differs(stored[k], incoming[k]),
+  );
+}
+
 /**
  * 真 UPSERT（先取现有行合并，避免 DELETE+INSERT 抹掉已落库的诊断字段）。
  *
@@ -212,12 +255,25 @@ export function upsertTask(
       else incoming[k] = v;
     }
     if (blocked.length) {
-      // 失败必须可见（不是静默忽略）：若这条日志频繁出现，说明**某条链路缺执行方**（该由后端写却没写），
-      // 要去补后端的终态写，而不是放开这里的判据（放开 = 回到"后写者赢"）。
-      console.warn('[upsertTask:client-blocked] 前端来路越权写执行态列，已忽略', {
-        task_id: row.task_id,
-        cols: blocked,
-      });
+      if (blocksRealDamage(existing, row, blocked)) {
+        // 真危险：这次拦截**改掉了结果**（库里的终态真相差点被前端快照覆盖）—— 唯一该惊动人的情形。
+        // 出现即说明：有前端/旧版本/竞态在拿 running 快照回写终态行，去查那条链路，**不要**放开本判据
+        //（放开 = 回到"后写者赢"，图已在磁盘却显示卡在生成中）。
+        console.warn(
+          '[upsertTask:client-blocked] 前端来路想覆盖终态真相（status/result_url 会被改掉），已忽略',
+          { task_id: row.task_id, cols: blocked },
+        );
+      } else {
+        // 冗余写：前端发的是整行快照，必然带执行态列；库里真相一致（或该行尚未终态）⇒ 拦下不改变任何东西。
+        // 走 debug 而不是 warn：此形态每天上百条，占 warn 会把上面那条真信号淹掉（见 blocksRealDamage 注释）。
+        console.debug(
+          '[upsertTask:client-redundant] 已忽略前端快照中的执行态列（冗余，不影响真相）',
+          {
+            task_id: row.task_id,
+            cols: blocked,
+          },
+        );
+      }
     }
   }
   const merged = existing ? { ...existing, ...incoming } : row;

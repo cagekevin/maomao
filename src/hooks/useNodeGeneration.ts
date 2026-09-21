@@ -47,6 +47,12 @@ export interface NodeGenerationStartResult {
   error?: string;
   aborted?: boolean;
   inFlight?: boolean;
+  /**
+   * 【2026-09-21】前端等待预算用尽、**只是停止等待**（任务仍 running，终态归后端。
+   * 见 `GenerationResult.pending` / `GenerationOrchestrationOutcome.pending`）。
+   * 调用方**不得**当失败处理：不弹红、不引导重提（图会在后台跑完后经任务中心广播回填本节点）。
+   */
+  pending?: boolean;
 }
 
 /** onRecover 收到的广播详情（agent:task-completed 载荷子集） */
@@ -161,6 +167,8 @@ function promptPreview(p: string | undefined): string {
  *   { ok: true, url?, content? }            → 成功（url/content 给 onSuccess 回写与 node.data
  *                                              任务中心 resultUrl；doneUrl 悬空契约已删，统一用 r.url（B2））
  *   { ok: false, error: '原因' }            → 失败（自动 setError + taskCtl.fail）
+ *   { ok: false, pending: true, error? }    → 【2026-09-21】前端停止等待（任务仍 running）：**不** setError、
+ *                                              不 taskCtl.fail，交恢复轮询续 read 终态（见 start 的 pending 透传）
  *
  * 【中止说明】
  *   stop() 目前只清 loading/error，不中断网络请求（真 API 的中断需 AbortController，

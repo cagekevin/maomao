@@ -283,6 +283,11 @@
   top: 100%;
   right: 0;
   margin-top: 6px;
+  /* ⚠️ 这是**下限**，不是实际宽度：绝对定位盒（left:auto/right:0）的宽度按内容 shrink-to-fit 算，
+     而它的包含块只是那个 24px 宽的「⋯」包裹层 ⇒ 结果恒等于这个下限（永远长不到内容宽）。
+     故「文案比 160-字符空间长」时会折行（2026-09-21：「清理失败/未知任务 (12)」需要约 117px，
+     而此处只剩 110px → 两行）。修法见下方 .pk-pop-row 的 nowrap（让 min-content = 整行文字宽，
+     shrink-to-fit 才会跟着内容长）；设计稿原值是固定 width:172px，本处保持下限语义不改宽度值。 */
   min-width: 160px;
 }
 .pk-pop-row {
@@ -298,6 +303,11 @@
   font-size: 12px;
   text-align: left;
   cursor: pointer;
+  /* 【2026-09-21】禁止折行：本行文字是**动作名**（「清理失败/未知任务 (12)」），折成两行既难看
+     又让浮层宽度依赖文案长度。nowrap 让本行的 min-content = 整行文字宽 ⇒ 浮层的 shrink-to-fit
+     跟着内容长大（那才是「按内容取宽」），文案再长也不折行、也不用手工调宽度数字。
+     短菜单不受影响：内容比 160px 窄时仍取 min-width=160px（与改动前一致）。 */
+  white-space: nowrap;
   transition:
     background 0.15s,
     color 0.15s;

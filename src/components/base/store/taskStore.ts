@@ -558,6 +558,8 @@ export interface NodeGenerationRunResult {
   ok: boolean;
   resultUrl?: string;
   error?: string;
+  /** 【2026-09-21】只是前端停止等待（任务仍 running，终态归后端）—— 消费方**不得**当失败处理。 */
+  pending?: boolean;
 }
 
 /**

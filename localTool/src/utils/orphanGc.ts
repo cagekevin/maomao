@@ -15,7 +15,14 @@
  *   - dryRun 模式只统计不删除，先验证再执行。
  *
  * 更新(2026-09-12 · docs/122 增量④)：引用收集在「/files/ url」基础上，补充 **Content 维度 contentId 引用**
- * （画布 asset 现持 `sha1:<hex>`；经 resources.sha1 反查物理 url 并入 referenced），防 contentId-only 引用被误判孤儿。
+ * （画布 asset 持 `sha1:<hex>`），防 contentId-only 引用被误判孤儿。
+ *
+ * ⚠️ 更新(2026-09-21 · 判据形态依赖缺陷修复)：contentId 的解析**不得只有"反查登记行"一条路**。
+ * 删素材/任务入口的顺序是「先删行 → 再 runReferenceGc」，而 `resources.sha1 → url` 那行正是反查的
+ * 唯一来源 ⇒ 同一次调用里判据自我失明：节点持 `assetUrl + contentId` 的文件被 `/files/` 文本保住，
+ * 而**只持 contentId** 的文件被当孤儿真删（同一用户动作、同一语义，结果取决于节点字段形态 = 缺陷）。
+ * 现补第二条**顺序无关**的路：磁盘文件名本身携带内容身份（`contentHashName`，见 `isContentAddressedBy`）。
+ * 两条路查的是**同一条语义**（这个身份在磁盘上有没有对应文件），不是两份真相：索引快、物理身份兜底。
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -39,7 +46,7 @@ type Db = Awaited<ReturnType<typeof getDb>>;
  * 完整 `/files/` URL → uploads 相对路径（`canvas/x.png`）；非 /files/ 形态返回 null。
  *
  * 【TD-02-6 收口】此前「URL → 相对路径」的转换在 `runOrphanGc`（extraRefs）与
- * `collectReferencedRelPaths`（resources/tasks）各写一份（连 decodeURIComponent 容错都重复），
+ * `collectReferences`（resources/tasks）各写一份（连 decodeURIComponent 容错都重复），
  * 是同一知识的两处实现 → 抽此唯一实现，三处共用。
  *
  * 【TD-08-16 收口 2026-09-16】原实现用正则 `/\/files\/(.+)$/` **不剥 `?`/`#`** ——
@@ -75,11 +82,18 @@ export function toUploadRelPath(url: unknown): string | null {
  * 这三类必须全覆盖、缺一不可（漏一类 → 误删仍在用的文件）：
  *   resources 表 = 存进素材库但没放画布的图；tasks 表 = AI 任务结果；kv 表 = 画布节点引用。
  *
- * `collectReferencedRelPaths`（存储健康报表 / 重复文件安全删除）与 `runReferenceGc`
+ * `collectReferences`（存储健康报表 / 重复文件安全删除）与 `runReferenceGc`
  * （孤儿回收）**必须**共用本函数——此前两处各写一份同构 SQL（注释自承"完全同口径"），
  * 口径一旦漂移就是误删或漏回收（TD-02-6）。
+ *
+ * `contentIds` 是**未解析的内容身份**（40 位 sha1，来自 KV 里的 `sha1:<hex>`）：单靠本函数内的
+ * SQL 索引解析不了"行已被删"的情形（见文件头 2026-09-21 注），故一并交给调用方走内容身份判定。
  */
-function queryReferenceSources(db: Db): { refUrls: Set<string>; kvValues: string[] } {
+function queryReferenceSources(db: Db): {
+  refUrls: Set<string>;
+  kvValues: string[];
+  contentIds: Set<string>;
+} {
   const refUrls = new Set<string>();
   const resRows = queryAll(db, 'SELECT url FROM resources') as Array<{ url?: string }>;
   for (const r of resRows) if (r.url) refUrls.add(r.url);
@@ -95,16 +109,19 @@ function queryReferenceSources(db: Db): { refUrls: Set<string>; kvValues: string
   const kvValues = kvRows
     .map((r) => r.value)
     .filter((v): v is string => typeof v === 'string' && v.length > 0);
-  // 【docs/122 增量④】Content 维度反向引用：画布 asset 存稳定 contentId（`sha1:<hex>`，非 /files/ url），
-  // extractFilesUrls 取不到其 url 引用 —— 若不补该 contentId 引用 → 这些文件会被误判孤儿真删。
-  // 故把 KV 值里的 contentId 解析成物理 url 并入 refUrls（经 resources.sha1 反查；物理文件仍由 rescan 建行）。
-  const contentIdRe = /sha1:[0-9a-f]{40}/gi;
+  // 【docs/122 增量④】Content 维度引用：画布 asset 存稳定 contentId（`sha1:<hex>`，非 /files/ url），
+  // extractFilesUrls 取不到它 —— 不补该引用则这些文件会被误判孤儿真删。
+  // 收集为**纯身份（40 位 sha1）**：解析有两条路（同一条语义 = "这个身份在磁盘上有没有文件"）：
+  //   ① 索引（快）：resources.sha1 反查 url —— 覆盖"文件名不含 sha1"的存量命名；
+  //   ② 内容身份（顺序无关）：文件名携带 sha1（isContentAddressedBy）—— **行已被删**时唯一还成立的路，
+  //      而"删行 → 立刻 GC"正是本仓删除入口的固定顺序，故 ② 不是可选项。
+  const contentIdRe = /sha1:([0-9a-f]{40})/gi;
   const contentIds = new Set<string>();
   for (const v of kvValues) {
-    for (const m of v.matchAll(contentIdRe)) contentIds.add(m[0]);
+    for (const m of v.matchAll(contentIdRe)) contentIds.add(m[1].toLowerCase());
   }
   if (contentIds.size > 0) {
-    const ids = [...contentIds];
+    const ids = [...contentIds].map((hex) => `sha1:${hex}`);
     const sha1Rows = queryAll(
       db,
       `SELECT url FROM resources WHERE sha1 IN (${ids.map(() => '?').join(',')})`,
@@ -112,12 +129,12 @@ function queryReferenceSources(db: Db): { refUrls: Set<string>; kvValues: string
     ) as Array<{ url?: string }>;
     for (const r of sha1Rows) if (r.url) refUrls.add(r.url);
   }
-  return { refUrls, kvValues };
+  return { refUrls, kvValues, contentIds };
 }
 
 /**
  * 把「完整 /files/ URL 集合」并入 referenced（相对路径形态）——`runOrphanGc` 的 extraRefs
- * 与 `collectReferencedRelPaths` 共用，转换走 `toUploadRelPath` 唯一实现。
+ * 与 `collectReferences` 共用，转换走 `toUploadRelPath` 唯一实现。
  */
 function addUrlRefs(referenced: Set<string>, urls: Iterable<string>): void {
   for (const url of urls) {
@@ -133,18 +150,74 @@ function addKvRefs(referenced: Set<string>, kvValues: readonly string[]): void {
   }
 }
 
+/** 空身份集单例（`runOrphanGc` 的 contentIds 缺省值；避免每次调用新建集合）。 */
+const NO_CONTENT_IDS: ReadonlySet<string> = new Set();
+
+/**
+ * 磁盘文件是否**就是**某个被引用的内容身份 —— 唯一判据（走文件名，不依赖任何登记行）。
+ *
+ * 【为什么必须有它（2026-09-21 缺陷修复）】`contentId → 物理文件` 原先只有一条路：
+ * `SELECT url FROM resources WHERE sha1 IN (...)`。而删素材/任务入口的顺序是「**先删行 → 再 GC**」，
+ * 那行正是这条反查的唯一来源 ⇒ 同一次调用里判据自己失明：
+ *   · 节点持 `assetUrl + contentId`（多数）→ `/files/` 文本引用保住文件 ✅
+ *   · 节点**只持 contentId**（存量形态）→ 反查落空 → 文件被当孤儿**真删**，且不可逆 ❌
+ * 同一个用户动作、同一个语义，结果取决于节点字段形态 = **判据形态依赖**，是缺陷不是因果。
+ *
+ * 【为什么按文件名扫是对的】内容身份的真源是**磁盘字节**（后端 `sha1(字节)`），落盘名由
+ * `contentHashName(hash, ext)` 产出 ⇒ **文件名自己就携带身份**（实测两种形态并存：
+ * `<sha1>.png` 与 `<时间戳>-<sha1>.png`）。故 `resources.sha1 → url` 只是**加速索引**
+ * （它另外覆盖"文件名不含 sha1"的存量命名）；物理身份才是**顺序无关**的那条路。
+ *
+ * 【与 TD-02-31 的边界】TD-02-31 裁定的是「引用藏在**不可见**载体（浏览器 IndexedDB）⇒ 不该要求
+ * 上报/副本/禁删约束」。本处引用**明确可见**（就在本服务的 KV 里），修的是"解析实现绕了一张会消失的行"
+ * —— 不新增任何防御、不约束任何调用方。
+ *
+ * @param relPath uploads 相对路径（正斜杠），如 `migrated/1786...-<sha1>.png`
+ * @param contentIds 被引用的内容身份集合（**40 位十六进制**，无 `sha1:` 前缀）
+ */
+export function isContentAddressedBy(relPath: string, contentIds: ReadonlySet<string>): boolean {
+  if (contentIds.size === 0) return false;
+  const base = relPath.slice(relPath.lastIndexOf('/') + 1);
+  // 必须**完整 40 位**命中：不做前缀/子串近似，防"名字里带串十六进制就保住"的假判据（有过期孤儿回收不动）。
+  const hits = base.match(/[0-9a-f]{40}/g);
+  if (!hits) return false;
+  return hits.some((hex) => contentIds.has(hex));
+}
+
+/**
+ * 单个磁盘文件**是否被全库引用** —— 唯一判定入口（消费方只传参，不许自己拼两条判据）。
+ *
+ * 两条路查的是同一条语义（"这份内容还有没有人用"）：
+ *   ① `referencedPaths.has(rel)`：`/files/` 文本引用（resources/tasks 的 url + KV 内嵌路径）；
+ *   ② `isContentAddressedBy(rel, contentIds)`：文件名携带的内容身份（登记行已被删时唯一成立的路）。
+ *
+ * 【为什么必须收成一处】这个判定有三个消费点（孤儿回收 walk · 存储健康报表的孤儿/重复 ·
+ * `admin/delete-file` 的删前守卫）。任一处只写 ① 就会在"删行 → 立刻 GC"的时序里得出"无引用"，
+ * 从而**误删/误报**（2026-09-21 实证：删素材库一行 → 画布只持 contentId 的文件被真删）。
+ */
+export function isUploadReferenced(
+  relPath: string,
+  referencedPaths: ReadonlySet<string>,
+  contentIds: ReadonlySet<string>,
+): boolean {
+  return referencedPaths.has(relPath) || isContentAddressedBy(relPath, contentIds);
+}
+
 /**
  * 执行孤儿文件 GC。
  * @param kvValues KV 表所有 value 字符串（调用方负责查库提取）
  * @param uploadDir uploads 绝对路径
  * @param extraRefs 额外被引用集合（如 resources/tasks 里的 URL），合并进引用集合
  * @param dryRun 为 true 时只统计不删除
+ * @param contentIds 被引用的内容身份集合（40 位 sha1）—— 由文件名判定（`isContentAddressedBy`），
+ *   覆盖"登记行已被删"的情形（删除入口是「先删行再 GC」，索引此刻已失明）
  */
 export function runOrphanGc(
   kvValues: string[],
   uploadDir: string,
   extraRefs: ReadonlySet<string> = new Set(),
   dryRun = false,
+  contentIds: ReadonlySet<string> = NO_CONTENT_IDS,
 ): GcResult {
   const result: GcResult = {
     scanned: 0,
@@ -186,7 +259,8 @@ export function runOrphanGc(
         result.scanned++;
         // 相对路径（正斜杠），与 extractFilesUrls 产出对齐
         const rel = path.relative(uploadDir, full).replace(/\\/g, '/');
-        if (!referenced.has(rel)) {
+        // 单文件判定唯一入口（文本引用 or 内容身份两半，后者行删了也成立）
+        if (!isUploadReferenced(rel, referenced, contentIds)) {
           if (!dryRun) {
             try {
               fs.unlinkSync(full);
@@ -209,20 +283,30 @@ export function runOrphanGc(
 }
 
 /**
- * 收集全库「被引用的 uploads 相对路径」集合（只读，不删）。
+ * 全库引用集合（只读，不删）——「这个文件/这份内容还有没有人用」的**唯一查询入口**。
  *
  * 引用来源三类（resources 表 / tasks 表 / KV 表全部 value）由 `queryReferenceSources` 统一查询，
  * 与 `runReferenceGc` **同一实现**（TD-02-6 收口：此前是同构两份、口径靠注释保证一致）。
  *
- * 返回形如 "canvas/xxx.png" 的 uploads 相对路径集合。未引用的文件 = 可安全删除。
+ * ⚠️ 单路径判定**必须同时问两件事**（两者是同一条语义的两半，缺一即误删）：
+ *   ① `paths.has(rel)` —— `/files/` 文本引用（resources/tasks 的 url + KV 内嵌路径）；
+ *   ② `isContentAddressedBy(rel, contentIds)` —— 文件名携带的内容身份（登记行已删时唯一成立的路）。
+ * 只判 ① 就是本文件头 2026-09-21 记录的那个缺陷（`admin/delete-file` 曾据此误判"无引用"）。
  */
-export async function collectReferencedRelPaths(): Promise<Set<string>> {
+export interface CollectedReferences {
+  /** 被引用的 uploads 相对路径（形如 `canvas/xxx.png`） */
+  paths: Set<string>;
+  /** 被引用的内容身份（40 位 sha1，来自 KV 的 `sha1:<hex>`）；判定走 `isContentAddressedBy` */
+  contentIds: Set<string>;
+}
+
+export async function collectReferences(): Promise<CollectedReferences> {
   const db = await getDb();
-  const { refUrls, kvValues } = queryReferenceSources(db);
-  const referenced = new Set<string>();
-  addUrlRefs(referenced, refUrls); // ① resources + tasks 的完整 /files/ URL（画布外引用）
-  addKvRefs(referenced, kvValues); // ② KV 全部 value 内嵌的 /files/ 相对路径（画布引用）
-  return referenced;
+  const { refUrls, kvValues, contentIds } = queryReferenceSources(db);
+  const paths = new Set<string>();
+  addUrlRefs(paths, refUrls); // ① resources + tasks 的完整 /files/ URL（画布外引用）
+  addKvRefs(paths, kvValues); // ② KV 全部 value 内嵌的 /files/ 相对路径（画布引用）
+  return { paths, contentIds };
 }
 
 /**
@@ -230,8 +314,7 @@ export async function collectReferencedRelPaths(): Promise<Set<string>> {
  *
  * 设计背景（docs/13 §3.5）：删除接口「只删记录、绝不删盘」，删盘统一交给本函数裁决。
  * 引用来源的查询与转换全部复用 `queryReferenceSources` / `addUrlRefs` / `addKvRefs`
- * （**与 `collectReferencedRelPaths` 同一实现**，TD-02-6 收口；漏一类引用即误删仍在用的文件）。
- *
+ * （**与 `collectReferences` 同一实现**，TD-02-6 收口；漏一类引用即误删仍在用的文件）。
  * 由删除入口（tasks/resources 删除/清空）尾部调用，让"引用消失 → 文件回收"窗口趋近于零；
  * 也供 /api/admin/cleanup 手动触发复用，保证引用收集口径只有一处。
  *
@@ -240,6 +323,6 @@ export async function collectReferencedRelPaths(): Promise<Set<string>> {
 export async function runReferenceGc(dryRun = false): Promise<GcResult> {
   const db = await getDb();
   const uploadDir = getUploadDir();
-  const { refUrls, kvValues } = queryReferenceSources(db);
-  return runOrphanGc(kvValues, uploadDir, refUrls, dryRun);
+  const { refUrls, kvValues, contentIds } = queryReferenceSources(db);
+  return runOrphanGc(kvValues, uploadDir, refUrls, dryRun, contentIds);
 }

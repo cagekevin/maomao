@@ -37,4 +37,17 @@ export interface GenerationResult {
   content?: string;
   error?: string;
   aborted?: boolean;
+  /**
+   * 【2026-09-21 · 停止等待 ≠ 失败】本次**只是前端不再等**，任务终态仍未确定（**≠ failed**）。
+   *
+   * 【为什么必须有这个判别字段】异步 relay（image/video）的前端等待预算（GEN_TIMEOUT/VIDEO_TIMEOUT）
+   * 用尽时，曾直接返回 `{ok:false, error:'生成超时'}` —— 那是**消费者替生产者下终态结论**（越权）：
+   * 任务可能仍在上游跑、后端句柄还在（`localTool` 写终态，见其 `tasks.ts` 的 `EXECUTION_OWNED_COLUMNS`），
+   * 于是「任务中心显示失败」与「后端其实成功落盘」两处真相分叉，用户还容易被引导去重提（重复计费）。
+   *
+   * 【消费方义务】看到 `pending:true` **不得**判失败/清任务行：保持任务 `running`，由既有的恢复轮询
+   * （`pollTask`，职责就是"重 attach 读终态"）继续读到后端写的终态为止。`error` 此时只是**排障文案**，
+   * 不是结论。
+   */
+  pending?: boolean;
 }

@@ -6,7 +6,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { getDb, getUploadDir, saveDb, queryAll, queryOne, run } from '../db/database.js';
 import { json, parseJsonBody, sendError } from '../utils/helpers.js';
-import { runReferenceGc, collectReferencedRelPaths } from '../utils/orphanGc.js';
+import { runReferenceGc, collectReferences, isUploadReferenced } from '../utils/orphanGc.js';
 import { extractFilesUrls } from '../utils/base64Externalize.js';
 import { extToCategoryLabel } from '../utils/mime.js';
 
@@ -302,7 +302,10 @@ export async function handleAdminStorageHealth(
   const db = await getDb();
   const uploadDir = getUploadDir();
   const files = walkUploadFiles(uploadDir);
-  const referenced = await collectReferencedRelPaths();
+  // 全库引用（含内容身份那一半）—— 单文件判定统一走 isUploadReferenced，本文件不自己拼判据。
+  const refs = await collectReferences();
+  const isReferenced = (rel: string): boolean =>
+    isUploadReferenced(rel, refs.paths, refs.contentIds);
 
   // ── ① 按文件类别总占用（文件只算一次）──
   const byCategory: Record<string, { count: number; size: number }> = {};
@@ -342,7 +345,7 @@ export async function handleAdminStorageHealth(
 
   // ── ③ 孤儿文件（磁盘有、全库无引用）──
   const orphans = files
-    .filter((f) => !referenced.has(f.rel))
+    .filter((f) => !isReferenced(f.rel))
     .map((f) => ({ path: f.rel, name: f.name, size: f.size, category: categoryOf(f.name) }));
   const orphanBytes = orphans.reduce((s, o) => s + o.size, 0);
 
@@ -360,7 +363,7 @@ export async function handleAdminStorageHealth(
         path: f.rel,
         name: f.name,
         size: f.size,
-        referenced: referenced.has(f.rel),
+        referenced: isReferenced(f.rel),
       }));
       // 只统计未引用副本的可释放量（被画布/任务/素材引用的副本绝不能删）
       const reclaimable = members.filter((m) => !m.referenced).reduce((s, m) => s + m.size, 0);
@@ -417,8 +420,10 @@ export async function handleAdminDeleteFile(
     return json(res, { code: 0, data: { ok: false, skipped: 'missing' } });
   }
 
-  const referenced = await collectReferencedRelPaths();
-  if (referenced.has(relSlashes)) {
+  // 被引用 → 拒绝删除。判定走唯一入口 isUploadReferenced（文本引用 or 内容身份两半；
+  // 只判前者会在"删行 → 立刻 GC"的时序里误判 —— 见 orphanGc.ts 文件头 2026-09-21 注）。
+  const refs = await collectReferences();
+  if (isUploadReferenced(relSlashes, refs.paths, refs.contentIds)) {
     return json(res, { code: 0, data: { ok: false, skipped: 'referenced' } });
   }
 

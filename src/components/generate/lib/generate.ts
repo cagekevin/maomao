@@ -208,7 +208,9 @@ async function generate(
     onProgress,
   });
   if (r.ok && r.url) return { ok: true, url: r.url };
-  return { ok: false, error: r.error || '生成失败', aborted: r.aborted };
+  // 【生产者给全】pending 原样透传（等待预算用尽 ≠ 失败）：本层是纯转发，**不做**终态判定
+  // （判在哪一处，见 generationOrchestration 的 pending 分支）；漏字段会被下游读成「真失败」。
+  return { ok: false, error: r.error || '生成失败', aborted: r.aborted, pending: r.pending };
 }
 
 /**

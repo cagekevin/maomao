@@ -384,7 +384,10 @@ function cmdAdd() {
   if (supersedes && !adrs.some((a) => a.no === supersedes))
     die(`--supersedes ${supersedes} 不存在`, '先确认被取代的编号（`list`）');
 
-  const no = String(Math.max(0, ...adrs.map((a) => Number(a.no))) + 1).padStart(4, '0');
+  // 取号 = 高水位线（现存 ∪ 已删号）—— 见 REFS 区 `retiredNos()` 的注：**不能只看现存文件**，
+  // 否则 `rm` 掉"当前最大号"后会被重新发出去（2026-09-20 → 2026-09-21 ADR-0050 被复用即此因）。
+  const highWater = Math.max(0, ...adrs.map((a) => Number(a.no)), ...retiredNos());
+  const no = String(highWater + 1).padStart(4, '0');
   const date = val('--date', new Date().toISOString().slice(0, 10));
   const decider = val('--decider', '架构师（取证后自定）');
   const trigger = val('--trigger', '—');
@@ -821,6 +824,29 @@ const EXEMPT_REF = /已删号|已删|已退役|已移除|已改名|原名|此前
  *   `18-跨区-判决句归位四条ADR-2026-09-19.md` 被当成"引用了 ADR-2026"）。
  */
 const RE_ADR = /\bADR-\d{4}(?!-?\d)\b/g;
+
+/**
+ * 取号用的「已删号」线索（2026-09-21 修 —— 实证：`rm` 掉**当前最大号**后，`max(现存)+1` 会把它重新发出去，ADR-0050 就是这样被复用的）。
+ *
+ * 判据：**编号一旦出现即永不复用**（先例 `ADR-0043` —— 删号后至今空缺）。
+ * 为什么从"删号留痕"反推、不另立墓碑文件：**删号必须留痕**本就是本仓既定规程
+ *   （`daily/架构日志/跨区-ADR-0043-删号留痕-2026-09-20.md`：写清"曾是什么 / 判据去了哪" + `grep` 扫引用面）；
+ *   再维护一份墓碑 = **第二份真相**（ADR-0001）。
+ * ⚠️ 只认「与删号语义同行」的号 —— **不能收全部引用**：文档里的举例号（如体检报告的 `ADR-0099`）会白抬号。
+ */
+const RETIRED_HINT = /已删号|已删|已撤|误建|撤回|作废|退役/;
+function retiredNos() {
+  const out = new Set();
+  for (const root of REFS_ROOTS) {
+    for (const abs of walkRefs(join(ROOT, root))) {
+      for (const line of readFileSync(abs, 'utf8').split('\n')) {
+        if (!RETIRED_HINT.test(line)) continue;
+        for (const id of line.match(RE_ADR) || []) out.add(Number(id.slice(4)));
+      }
+    }
+  }
+  return out;
+}
 
 function walkRefs(target, out = []) {
   if (!existsSync(target)) return out;

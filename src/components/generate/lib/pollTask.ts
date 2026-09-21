@@ -98,6 +98,20 @@ async function pollOneTaskAttach(task: PollableTask): Promise<boolean> {
     );
     return true;
   }
+  // 【停止等待 ≠ 失败 · 2026-09-21】本轮 attach 的等待预算用尽（`pending`）只表示「这一轮没等到」，
+  // 不是终态判据（终态归后端）。故**不 failTask**：任务行保持 running + 本函数返回 false →
+  // 占位在 finally 释放 → 5s 补扫的下一轮继续 attach，直到后端写出真终态（completed/failed/unknown）。
+  // 副作用（有意）：后端句柄彻底丢失且永不写终态时，任务行会一直 running —— 这是**后端的事**
+  // （其 relay 句柄自带预算，到点必写终态），前端不再越权替它判死。
+  if (st.pending) {
+    logger.debug(
+      '任务',
+      '[恢复轮询] 本轮未等到终态，下轮续 attach',
+      { taskId: task.id, nodeId: task.nodeId, error: st.error },
+      { module: 'image' },
+    );
+    return false;
+  }
   if (!st.ok && st.error) {
     const msg = st.error || '任务失败';
     failTask(task.id, msg);

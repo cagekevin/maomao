@@ -591,6 +591,75 @@ test('【TD-08-38】写方分层：后端终态不被前端晚到的 running 快
   assert.equal(t2.status, 'completed', '写归属列时执行态仍不受影响');
 });
 
+/** 捕获一次调用期间 console.warn 的输出（护栏日志分级的判据取证） */
+async function captureWarn(fn) {
+  const out = [];
+  const orig = console.warn;
+  console.warn = (...a) => out.push(a.map((x) => String(x)).join(' '));
+  try {
+    await fn();
+  } finally {
+    console.warn = orig;
+  }
+  return out;
+}
+const blockedWarns = (lines) => lines.filter((l) => l.includes('upsertTask:client-blocked'));
+
+test('【TD-08-38 · 2026-09-21】护栏日志分级：只有「真会改掉终态真相」才告警，冗余写降 debug', async () => {
+  const db = await dbMod.getDb();
+  const id = 'wf_warn';
+  tasksMod.upsertTask(db, {
+    task_id: id,
+    node_id: 'n1',
+    type: 'IMAGE',
+    status: 'running',
+    progress: 0,
+    request_data: JSON.stringify({ _relayPoll: { taskId: 'th1' } }),
+  });
+
+  // ① 行仍在跑：前端防抖进度落库（整行快照，必带执行态列）被拦 —— 无破坏 ⇒ 不得进告警通道。
+  //    （此前这一形态每天上百条 warn，把真信号淹掉；本断言锁住"噪音不再走 warn"。）
+  const w1 = await captureWarn(() =>
+    tasksMod.handleTasksSave(
+      makeJsonReq({ taskId: id, nodeId: 'n1', status: 'running', progress: 30, resultUrl: '' }),
+      makeRes(),
+    ),
+  );
+  assert.equal(blockedWarns(w1).length, 0, '运行中行的冗余写不得告警');
+
+  // ② 后端已落终态 + 前端晚到的 running 快照（会改 status、抹 result_url）⇒ 真危险，必须告警
+  tasksMod.upsertTask(db, {
+    task_id: id,
+    status: 'completed',
+    progress: 100,
+    result_url: '/files/a.png',
+  });
+  const w2 = await captureWarn(() =>
+    tasksMod.handleTasksSave(
+      makeJsonReq({ taskId: id, nodeId: 'n1', status: 'running', progress: 30, resultUrl: '' }),
+      makeRes(),
+    ),
+  );
+  assert.equal(blockedWarns(w2).length, 1, '会改掉终态真相的写入必须留告警（这是唯一的真信号）');
+
+  // ③ 正常成功路径：前端把从后端 attach 拿到的 url 原样回写（值与真相一致）⇒ 无破坏、不告警
+  const w3 = await captureWarn(() =>
+    tasksMod.handleTasksSave(
+      makeJsonReq({ taskId: id, status: 'completed', progress: 100, resultUrl: '/files/a.png' }),
+      makeRes(),
+    ),
+  );
+  assert.equal(blockedWarns(w3).length, 0, '同值终态快照不得告警（每个成功任务一条 = 新噪音源）');
+
+  // 行为不变：三种情形下库里的真相都没被前端改动
+  const res = makeRes();
+  await tasksMod.handleTasksGet(makeGetReq(), res, new URL('http://x/api/tasks'));
+  const t = data(res).items.find((x) => x.taskId === id);
+  assert.equal(t.status, 'completed', '终态仍归后端');
+  assert.equal(t.resultUrl, '/files/a.png', 'result_url 仍归后端');
+  assert.equal(t.progress, 100, 'progress 仍归后端');
+});
+
 test('【TD-08-38】分层不误伤：无后端句柄的行（文本/chat 链路）前端仍是执行方，可写终态', async () => {
   // 文本/chat 链路后端无句柄、不建任务行（routes/generate.ts chat 分支）⇒ 终态只有前端知道。
   // 若按"前端一律不许写执行态"一刀切，这类任务会永远停在 running —— 本用例守这条边界。

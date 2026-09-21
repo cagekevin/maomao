@@ -4,7 +4,7 @@ import { saveResultToTasks } from '@/components/base/api/index';
 import { classifyError, getRetryableObserved } from '@/components/base/utils/genErrors';
 import { reportDegrade } from '@/components/base/core/log/degrade';
 import { logger } from '@/components/base/core/log/logger';
-import { showToast } from '@/components/base/core/event/toastStore';
+import { showToast, toastInfo } from '@/components/base/core/event/toastStore';
 
 /* ════════════════════════════════════════════════════════════════
  * 生成编排原语（纯 TS）—— 任务中心编排序列的**唯一实现**（TD-01-8 收口）
@@ -91,6 +91,12 @@ export interface GenerationOrchestrationOutcome {
   resultUrl?: string;
   error?: string;
   aborted?: boolean;
+  /**
+   * 【2026-09-21】本次**只是前端停止等待**（`GenerationResult.pending` 的上抛形态）：任务仍是 running，
+   * 终态由后端写、由 `pollTask` 恢复轮询续读。调用方看到它**不得**当失败处理（不要弹红、不要清 loading
+   * 之外的失败态、不要引导重提）。
+   */
+  pending?: boolean;
 }
 
 /**
@@ -181,6 +187,25 @@ export async function runGenerationOrchestration({
         ...logCtx,
       });
       return { ok: true, resultUrl: finalUrl };
+    }
+
+    // 【停止等待 ≠ 失败 · 2026-09-21】生产者（relay）在等待预算用尽时只声明「我不再等」，并未拿到终态
+    // —— 本处是**唯一判据点**，必须与真失败分叉：
+    //  · 不 taskCtl.fail（任务行保持 running ⇒ pollTask 的候选集看得见它，续 attach 到后端终态）
+    //  · 不 onFail / 不弹红（节点不该显示一个它并不掌握的失败）
+    //  · 只留中性日志 + 一次中性提示（否则界面像「什么都没发生」，用户不知道前端已不再等）
+    if (r?.pending) {
+      const msg = r.error || '仍在生成中';
+      // 【为什么这里**完全不碰任务行**】`TaskController.progress` 会无条件把该行写回
+      // `status:'running'`（taskStore 的 progress 实现）+ schedule 一次落库 —— 而本分支可能
+      // 出现在「恢复轮询刚把该行落成 completed」之后（同一后端真相、两条 attach 并发，窗口数秒：
+      // 我方最后一次 poll 遇 transport 抖动折成 running，恢复侧同一时刻读到了 completed）
+      // ⇒ 一句"顺手写进度"就会**把终态覆盖回 running 并落库**。
+      // 终态原语之所以有 `progressCancels`（completeTask 取消未落进度写）就是为了防这件事；
+      // 消费者不该在可能已经终态之后再去写行。停止等待这件事由下面的日志 + 中性提示承担。
+      logger.info(logTag, 'contract·pending', { taskNodeId, type, error: msg, ...logCtx });
+      toastInfo('等待超时：已停止等待，任务仍在后台进行，完成后会自动回填');
+      return { ok: false, pending: true, error: msg };
     }
 
     // 业务失败（run 返回 ok:false）

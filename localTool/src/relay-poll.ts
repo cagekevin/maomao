@@ -186,6 +186,15 @@ interface PollHandle {
   /** direct 待提交入参：非空=尚未出站，首轮先 submit 再轮询；空/undefined=已完成提交进入轮询（根治·提交即返回） */
   pendingDirectSubmit?: DirectSubmitInput | null;
   startedAt: number;
+  /**
+   * 【段边界 · 2026-09-21】交出 thread_id / 上游 task_id 的时刻（= `submit_ack_at` 的写入点）。
+   * `undefined` = 仍在「我们段」（提交 + 素材出站）；有值 = 已交出，**上游段的预算从这里起算**。
+   *
+   * 为什么必须有它：原先**一个**总超时同时装了这两段 —— 素材出站（实测 3s↔69s：adapter 下载回环
+   * +传 CDN+建 project）的耗时被记在上游账上，超时还统一报成"生成超时"（责任与文案双错位：
+   * 上游最终成功落盘的任务，前端/后端已按"生成超时"判死）。
+   */
+  upstreamStartedAt?: number;
   timer: ReturnType<typeof setInterval> | null;
   running: boolean; // 单轮执行中防重入
   stopped: boolean;
@@ -395,6 +404,8 @@ export async function submitGenerateTask(
     // 【TD-08-38 · 2026-09-17 定契】归属已按写方分层：node_id / type / model_name / prompt 等**归属与展示列**
     // 归前端（`owner:'client'` 可写），而 status / progress / result_url / request_data 等**执行态列**归本文件
     // （`owner:'poller'`）——前端来路写不动它们（见 `routes/tasks.ts::EXECUTION_OWNED_COLUMNS`）。
+    // 【段边界】上游 task_id 已拿到 = 已交出 ⇒ 段② 从这里起算（与 submit_ack_at 同一时刻，单一来源）
+    const upstreamStartedAt = Date.now();
     await upsertTask(await getDb(), {
       task_id: frontTaskId,
       type: input.type || capability,
@@ -402,7 +413,7 @@ export async function submitGenerateTask(
       status: 'running',
       progress: 0,
       created_at: Date.now(),
-      submit_ack_at: Date.now(),
+      submit_ack_at: upstreamStartedAt,
       poll_task_id: taskId,
       request_data: JSON.stringify({
         _relayPoll: {
@@ -434,6 +445,7 @@ export async function submitGenerateTask(
         type: input.type || capability,
         baseUrl,
         startedAt: Date.now(),
+        upstreamStartedAt,
         timer: null,
         running: false,
         stopped: false,
@@ -511,10 +523,12 @@ async function runDirectSubmit(handle: PollHandle, profile: LovartDirectProfile)
     //   ⇒ 重启 `getDb` 从文件加载，读到的还是含 `pendingSubmit` 的旧快照 ⇒ 窗口照旧。故本处落库后必须
     //   `flushSaveDb()`（同步原子落盘）——「先落库」只有在**落到磁盘**之后才算数。
     // 落库回填：thread_id + submit_ack_at + 清 pendingSubmit 快照（DB 真相，供 attach/恢复读取）
+    // 【段边界】交出 thread_id 的时刻 —— 段② 起算点，与 submit_ack_at 同一时刻（单一来源）
+    const ackAt = Date.now();
     await upsertTask(await getDb(), {
       task_id: handle.frontTaskId,
       thread_id: threadId,
-      submit_ack_at: Date.now(),
+      submit_ack_at: ackAt,
       request_data: JSON.stringify({
         _relayPoll: {
           taskId: threadId,
@@ -534,8 +548,9 @@ async function runDirectSubmit(handle: PollHandle, profile: LovartDirectProfile)
     // 磁盘仍差 500ms ⇒ 重启按旧文件读到 pendingSubmit ⇒ 重提交）。改 `flushSaveDb()` 后，
     // 只有"DB 已记 thread_id 且无 pendingSubmit"才会走到下面改内存。
     flushSaveDb();
-    // 落库成功后才改内存：提交完成，转入轮询阶段
+    // 落库成功后才改内存：提交完成，转入轮询阶段（段边界与上面落库的 submit_ack_at 同刻）
     handle.taskId = threadId;
+    handle.upstreamStartedAt = ackAt;
     handle.pendingDirectSubmit = null;
     return true;
   } catch (e) {
@@ -557,10 +572,30 @@ function registerHandle(frontTaskId: string, handle: PollHandle, timeoutMs: numb
   const runOnce = async (): Promise<void> => {
     if (handle.stopped) return;
     if (handle.running) return; // 单轮进行中，跳过本轮防重入
-    // 总超时收口：到点不再续查 → 置 failed（失败可见，不静默挂起）
-    if (Date.now() - handle.startedAt > timeoutMs) {
+    // ══ 分段计时（2026-09-21 · 责任与文案归位）══════════════════════════════════════
+    // 一个总超时曾同时装「我们段」与「上游段」⇒ 素材出站（实测 3s↔69s）被记在上游账上，
+    // 超时还统一报成"生成超时"。现按**交出 thread_id 那一刻**（upstreamStartedAt）分段：
+    //   段①（我们：提交 + 素材出站）从 handle.startedAt 起算；
+    //   段②（上游：出图）从交出那一刻起算。
+    // 两段的界都沿用同一个 timeoutMs —— **不新造数字、也不比原来更紧**（原来整条 10min 够用，
+    // 现在每段各 10min ⇒ 今天能成功的改后仍能成功，只是不再互相挤占预算）。
+    if (handle.upstreamStartedAt === undefined) {
+      if (Date.now() - handle.startedAt > timeoutMs) {
+        stopHandle(handle);
+        // 段① 卡住 = 提交/素材出站未完成，而 adapter 内部步骤（mode/附件上传/ensureProject）**可能已部分出站**
+        // ⇒ 按 TD-08-24 既有铁律「宁 unknown 不 failed」（误判 failed 会诱导重提 → 重复计费）。
+        await upsertUnknown(
+          handle,
+          `提交阶段超时：参考素材出站/建任务在 ${Math.round(timeoutMs / 1000)}s 内未完成`,
+        );
+        return;
+      }
+    } else if (Date.now() - handle.upstreamStartedAt > timeoutMs) {
       stopHandle(handle);
-      await upsertFailed(handle, `生成超时（${Math.round(timeoutMs / 1000)}s）`);
+      await upsertFailed(
+        handle,
+        `上游生成超时（交出上游后 ${Math.round(timeoutMs / 1000)}s 未返回）`,
+      );
       return;
     }
     handle.running = true;
@@ -794,7 +829,7 @@ export async function initRelayPoller(opts: { timeoutMs?: number } = {}): Promis
     // 兼容待提交任务（poll_task_id 为空但快照含 _relayPoll.pendingSubmit，提交即返回后未及出站即重启）→ 一并纳入。
     const rows = queryAll(
       db,
-      `SELECT task_id, status, poll_task_id, request_data FROM tasks WHERE status IN ('running','pending')
+      `SELECT task_id, status, poll_task_id, request_data, submit_ack_at FROM tasks WHERE status IN ('running','pending')
         AND ( (poll_task_id IS NOT NULL AND poll_task_id != '') OR request_data LIKE '%_relayPoll%' )`,
     );
     for (const row of rows) {
@@ -809,7 +844,12 @@ export async function initRelayPoller(opts: { timeoutMs?: number } = {}): Promis
       }
       const core = snap?._relayPoll;
       if (!core) continue; // 无 relay 快照，跳过
-      const remaining = Math.max(0, timeoutMs - (Date.now() - core.startedAt));
+      // 【段边界恢复】已交出（taskId 非空）⇒ 段② 从 `submit_ack_at` 起算；未交出 ⇒ 段① 从 `startedAt` 起算。
+      // 传**完整** timeoutMs（不再预先扣减）：原 `remaining` 与 runOnce 的 `now - startedAt` 会把
+      // 已耗时间**扣两次** ⇒ 重启后的任务被提前判死（同一处发现的第二处缺陷，随分段一并改对）。
+      const upstreamStartedAt = core.taskId
+        ? ((row.submit_ack_at as number | null) ?? core.startedAt)
+        : undefined;
       // 【根治·2026-09-04】待提交任务（direct 提交即返回后重启、尚未出站拿到 thread_id）：
       // 重建「待提交」句柄，首轮 runOnce 会补执行 runDirectSubmit 续跑提交，不丢任务。
       if (core.direct && !core.taskId && core.pendingSubmit) {
@@ -833,7 +873,7 @@ export async function initRelayPoller(opts: { timeoutMs?: number } = {}): Promis
             stopped: false,
             consecutiveErrors: 0,
           },
-          Math.max(1000, remaining),
+          timeoutMs,
         );
         continue;
       }
@@ -855,12 +895,13 @@ export async function initRelayPoller(opts: { timeoutMs?: number } = {}): Promis
           baseUrl: core.baseUrl,
           direct: !!core.direct,
           startedAt: core.startedAt,
+          upstreamStartedAt,
           timer: null,
           running: false,
           stopped: false,
           consecutiveErrors: 0,
         },
-        Math.max(1000, remaining),
+        timeoutMs,
       );
     }
   } catch (e) {

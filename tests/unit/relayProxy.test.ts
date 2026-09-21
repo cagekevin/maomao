@@ -82,6 +82,18 @@ describe('relayProxy §R6 — relayAttachUntilDone（统一 attach 契约）', (
     expect(h.mockHttpRequest.mock.calls.length).toBeGreaterThanOrEqual(2); // 多轮查询
   });
 
+  it('等待预算用尽 → {ok:false, pending:true}（停止等待 ≠ 失败：不替后端判死）', async () => {
+    // 一直 running（永不到终态）→ 预算用尽退出
+    h.mockHttpRequest.mockResolvedValue(envResp({ status: 'running', progress: 60 }));
+    const r = await runWithTimers(relayAttachUntilDone({ frontTaskId: 'task-1', timeoutMs: 5000 }));
+    expect(r.value!.ok).toBe(false);
+    // 判别字段：消费方据此保持任务 running、交恢复轮询续 attach（而非当失败处理）
+    expect(r.value!.pending).toBe(true);
+    expect(r.value!.url).toBeUndefined();
+    // error 降级为排障文案（走 timeoutMessage 唯一出口，含真实预算秒数），不再是失败结论
+    expect(r.value!.error).toContain('5 秒');
+  });
+
   it('cancelOnAbort=true → signal abort 时通知后端 cancel 并抛 AbortError（in-flight）', async () => {
     const ctl = new AbortController();
     h.mockHttpRequest.mockImplementation(async () => envResp({ status: 'running', progress: 10 }));

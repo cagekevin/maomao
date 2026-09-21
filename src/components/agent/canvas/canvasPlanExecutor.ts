@@ -574,6 +574,16 @@ export async function executePlan({
       // 节点保持 ready（画布上就是「还没生成」的自然样子，用户可手动点触发）。
       // 【TD-01-6】返回类型已收敛为 `false | NodeGenerationRunResult`（旧 `true` 一态删除）→ 判 falsy 即可。
       if (!res) return { status: 'ready', error: '' };
+      // 【停止等待 ≠ 失败 · 2026-09-21】pending = 前端等待预算用尽，任务仍 running（终态归后端，
+      // 稍后经任务中心广播回填该节点）⇒ 本步**不判 failed**（谎报失败会把用户推向重复提交）：
+      // 按「本次没拿到结果」记 ready（与未触发同口径，属既有语义，不新造状态），并留痕说明。
+      if (res.pending) {
+        log(
+          'warn',
+          `步骤「${step.id || step.title || nodeId}」仍在后台生成（前端已停止等待），本次未拿到结果`,
+        );
+        return { status: 'ready', error: '' };
+      }
       if (res.ok === false) return { status: 'failed', error: res.error || '生成失败' };
       const resultUrl = res.resultUrl || '';
       // 【live 节点防悬空（对齐大雄 liveNodeById）】await 完成后重新查节点，

@@ -1075,6 +1075,21 @@ const triggerGenerationTool = {
     // 【TD-01-6】返回类型已收敛为 `false | NodeGenerationRunResult`（旧 `true` 一态删除）：
     // 上方 `!res` 已滤掉 `false`（未触发），此处 res 即结果对象，直接读 ok / resultUrl。
     if (res.ok === false) {
+      // 【停止等待 ≠ 失败 · 2026-09-21】pending = 前端等待预算用尽，任务仍 running（终态归后端）。
+      // 必须给 LLM「已提交、勿重复触发」的信号 —— 报失败会让它当"没做完"而重跑（重复计费）。
+      // 与下方 resultUrl 为空的分支同义（submitted/completed:false），文案共用一条口径。
+      if (res.pending) {
+        return {
+          ok: true,
+          data: {
+            id,
+            completed: false,
+            submitted: true,
+            resultUrl: '',
+            note: '已提交生成（仍在后台进行），请勿重复触发或重复建同类节点',
+          },
+        };
+      }
       return { ok: false, error: res.error || '生成失败', nodeId: id };
     }
     // res = { ok:true, resultUrl }（await 到生成完成）；resultUrl 兜底空串

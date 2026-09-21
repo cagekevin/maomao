@@ -23,6 +23,7 @@ import {
 } from '@/components/base/core/config';
 import { httpRequest } from '@/components/base/api/httpClient';
 import { logger } from '@/components/base/core/log/logger';
+import { timeoutMessage } from '@/components/base/utils/genErrors';
 
 /**
  * 连续 N 轮 attach 均报 transport 错误即 fail-loud。
@@ -270,10 +271,18 @@ export async function relayAttachUntilDone(
       opts.onProgress?.(30 + Math.min(60, Math.round(lastProgress)), '上游生成中…');
     }
   }
-  // 超时退出：优先透出最后一次真实 transport 原因，避免误报「生成超时」而丢失根因
+  // 【等待预算用尽 · 2026-09-21】前台**只是不再等**，不是任务终态 —— 故带 `pending` 判别字段返回。
+  // 依据：终态只能由后端写（localTool tasks.ts 的 EXECUTION_OWNED_COLUMNS 只许 poller 写执行态列）；
+  //   本函数是**消费者**，唯一权利是「声明我不再等」，无权替生产者判死。
+  // 消费方（generationOrchestration / pollTask / agent generate_node）据此保持任务 running，
+  //   交给既有恢复轮询续 attach 到真终态。
+  // error 文案保留（含最后一次真实 transport 原因）—— 它降级为**排障字段**，不再是失败结论。
+  // error 文案走 timeoutMessage（本仓超时文案唯一出口，禁自写「生成超时」变体）—— 它现在只是排障字段。
+  const budgetMsg = timeoutMessage(timeoutMs);
   return finish({
     ok: false,
-    error: lastTransportError ? `生成超时（最后一次错误：${lastTransportError}）` : '生成超时',
+    pending: true,
+    error: lastTransportError ? `${budgetMsg}（最后一次错误：${lastTransportError}）` : budgetMsg,
   });
 }
 

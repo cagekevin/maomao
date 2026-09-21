@@ -20,9 +20,11 @@ vi.mock('../../src/components/base/api/index.ts', () => ({
 }));
 
 const showToastMock = vi.fn();
+const toastInfoMock = vi.fn();
 vi.mock('../../src/components/base/core/event/toastStore.ts', async (importOriginal) => ({
   ...((await importOriginal()) as Record<string, unknown>),
   showToast: (...a: unknown[]) => showToastMock(...a),
+  toastInfo: (...a: unknown[]) => toastInfoMock(...a),
 }));
 
 const reportDegradeMock = vi.fn();
@@ -47,6 +49,7 @@ beforeEach(() => {
   reportGenerateMock.mockClear();
   saveResultToTasksMock.mockReset();
   showToastMock.mockClear();
+  toastInfoMock.mockClear();
   reportDegradeMock.mockClear();
   taskCtl.progress.mockReset();
   taskCtl.done.mockReset().mockImplementation(() => order.push('done'));
@@ -172,6 +175,29 @@ describe('runGenerationContract', () => {
     expect(onFail).toHaveBeenCalledWith('上游拒绝');
     expect(showToastMock).toHaveBeenCalledTimes(1);
     expect(out).toMatchObject({ ok: false, error: '上游拒绝' });
+  });
+
+  it('pending（前端停止等待，任务仍 running）→ 不 fail / 不 onFail / 不弹红，只弹一次中性提示', async () => {
+    const onFail = vi.fn();
+    const out = await runGenerationOrchestration({
+      taskNodeId: 'n1',
+      type: 'image',
+      signal: sig,
+      onFail,
+      run: async () => ({ ok: false, pending: true, error: '请求超时（超过 300 秒未返回）' }),
+    });
+    // 不替生产者下终态结论：**任务行零写入**（fail/done/progress 三个入口都不许碰）——
+    // progress 会无条件把行写回 running 并落库，可能覆盖恢复轮询刚落的 completed（见实现注释）。
+    expect(taskCtl.fail).not.toHaveBeenCalled();
+    expect(taskCtl.done).not.toHaveBeenCalled();
+    // 只保留原语开头那一次 progress(5)，pending 分支不再补写（补写会把行写回 running 并落库）
+    expect(taskCtl.progress).toHaveBeenCalledTimes(1);
+    expect(taskCtl.progress).toHaveBeenCalledWith(5, '准备中…');
+    expect(onFail).not.toHaveBeenCalled();
+    expect(showToastMock).not.toHaveBeenCalled(); // 无红色失败提示
+    // 但「前端已停止等待」这件事对用户可见（一次中性提示）
+    expect(toastInfoMock).toHaveBeenCalledTimes(1);
+    expect(out).toMatchObject({ ok: false, pending: true });
   });
 
   it('业务失败但 aborted=true → 不弹 toast（用户主动停止不打扰）', async () => {
