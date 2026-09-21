@@ -61,7 +61,7 @@ export function DraggableItem({
   const [dragPosition, setDragPosition] = useState({ x: 0, y: 0 });
   const dragRef = useRef<HTMLDivElement>(null);
   const didDragRef = useRef(false);
-  const editor = useEditor();
+  const editor = useEditor('playback');
   // mockup 口径：选中/高亮 = 仅缩略图 2px 描边（offset 1px），无底色、不套整卡
   // 视觉定义已收敛到 videoEditorTheme.css §8（.ve-card-selected）
 

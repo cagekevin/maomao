@@ -53,7 +53,7 @@ interface TextElementRef {
 export function TextProperties({ elements: elementRefs }: { elements: TextElementRef[] }) {
   const element = elementRefs[0].element;
 
-  const editor = useEditor();
+  const editor = useEditor('timeline');
   const containerRef = useRef<HTMLDivElement>(null);
 
   const buildBatchUpdates = (updates: Partial<Record<string, unknown>>) =>

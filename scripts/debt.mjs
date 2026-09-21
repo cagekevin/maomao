@@ -46,6 +46,8 @@
  *   node scripts/debt.mjs add --area 22 --summary "…" [--class 增债] [--rate 中] [--owner 结构债]
  *                              [--anchor 22-视频-横切全量-2026-09-13.md] [--refs "@见 TD-xx"]
  *   node scripts/debt.mjs resolve <TD-ID> [--status 已解决] [--note "…"] [--date YYYY-MM-DD]
+ *   node scripts/debt.mjs edit <TD-ID> --field summary｜solution｜classify｜rate --value "…"
+ *                              # 整格/文本替换：现象 · 解法（寄居状态格）· 归类 · 利息率
  *   node scripts/debt.mjs reanchor <TD-ID> --anchor 22-视频-剪辑器-M2计划审计-2026-09-14.md
  *   node scripts/debt.mjs move <TD-ID> --to <NN>          # 整体迁区（改 ID 区段 + 区名列，其余逐字保留）
  *   node scripts/debt.mjs archive [--dry]
@@ -585,18 +587,34 @@ function cmdReanchor(argv) {
  *   ① 手改表格行 = 破「唯一写入者」红线；② `resolve --note` = 把债**误标成已解决**（A8 状态不许预支）。
  *   ⇒ 补本命令，让「改描述」有**正当路径**。
  *
- * 【语义】`edit <TD-ID> --field summary|solution --value "…"`
+ * 【语义】`edit <TD-ID> --field summary|solution|classify|rate --value "…"`
  *   · `summary`  = 现象列（整格替换）
  *   · `solution` = 解法文本（寄居在状态格：`· ` 之后的文本；**状态词与日期原样保留**）
- * 【明确不改】ID / 区 / 归类 / 利率 / 状态词 / 锚点 —— 各有其命令：`move` / `resolve` / `reanchor`。
+ *   · `classify` = 归类列（整格替换；值必须是 `CLASSES` 里的规范词）
+ *   · `rate`     = 利息率列（整格替换；值必须是 `RATES` 里的规范词；MD 行无此列）
+ * 【明确不改】ID / 区 / 状态词 / 锚点 —— 各有其命令：`move` / `resolve` / `reanchor`。
+ *
+ * 【为什么补 classify / rate（2026-09-21 · 工具债）】`audit` 把「归类非规范」「利息率非规范」
+ *   算进 `AUTO_KINDS`，小结里报「**可归一/修复** N 项」；但此前这两列**没有任何写入口**
+ *   ⇒ 报得出、改不了 = **假指引**（用户照着小结走会发现无路可走，只能手改表格 = 破"唯一写入者"红线）。
+ *   补入口让小结的声明成真。**枚举列只收规范值**：别名/流转写法（如 `增债→已还`）请自行取箭头前的值 ——
+ *   写入口不替调用方归一（归一是 `normClass` 的职责，在此再做一份 = 第二份真相）。
  */
 function cmdEdit(argv) {
   const id = argv.find((a) => /^TD-\d+-\d+|^MD-\d+-\d+/.test(a));
   const field = argVal(argv, '--field');
   const value = argVal(argv, '--value');
-  if (!id || !field || !value) fail('用法：edit <TD-ID> --field summary|solution --value "…"');
-  if (!['summary', 'solution'].includes(field)) {
-    fail('--field 只支持 `summary`（现象）或 `solution`（解法）；ID/区/状态/锚点请用 move / resolve / reanchor');
+  if (!id || !field || !value) fail('用法：edit <TD-ID> --field summary|solution|classify|rate --value "…"');
+  const EDIT_FIELDS = { summary: '现象', solution: '解法', classify: '归类', rate: '利息率' };
+  if (!has(EDIT_FIELDS, field)) {
+    fail('--field 只支持 `summary`（现象）／`solution`（解法）／`classify`（归类）／`rate`（利息率）；ID/区/状态/锚点请用 move / resolve / reanchor');
+  }
+  // 枚举列只收规范值（防写入口自己长出一份归一逻辑 —— 归一归 `normClass`/`normRate`）
+  if (field === 'classify' && !CLASSES.includes(value)) {
+    fail(`归类 \`${value}\` 不在白名单 [${CLASSES.join(' / ')}]（带「→ 状态流转」的旧写法请填箭头前的那个值）`);
+  }
+  if (field === 'rate' && !RATES.includes(value)) {
+    fail(`利息率 \`${value}\` 不在白名单 [${RATES.join(' / ')}]`);
   }
   // 与 add / resolve 同口径：裸管道符会撑破表格列（本仓已有数行因此错位）
   if (/[|｜]/.test(value)) fail('value 含竖线 → 用「／」代替（裸管道符会撑破表格列）');
@@ -613,10 +631,18 @@ function cmdEdit(argv) {
     if (!hit) fail(`${id} 在${f.src}是「列错位需人工」行 → 先修列，再改文本`);
     const [r, li] = hit;
     const C = MAP[r.kind];
+    if (field === 'rate' && C.rate === undefined) fail(`${id} 是 ${r.kind} 行，没有利息率列`);
     const parts = f.lines[li].split('|');
-    const old = field === 'summary' ? r.fields.summary : String(r.fields.status || '');
+    const old = field === 'summary' ? r.fields.summary
+      : field === 'classify' ? r.fields.class
+        : field === 'rate' ? r.fields.rate
+          : String(r.fields.status || '');
     if (field === 'summary') {
       parts[1 + C.summary] = ` ${value} `;
+    } else if (field === 'classify') {
+      parts[1 + C.class] = ` ${value} `;
+    } else if (field === 'rate') {
+      parts[1 + C.rate] = ` ${value} `;
     } else {
       // 解法寄居在状态格：保留状态词与日期，只换 `· ` 之后的文本
       const cell = String(parts[1 + C.status] || '');
@@ -626,7 +652,7 @@ function cmdEdit(argv) {
     }
     f.lines[li] = parts.join('|');
     writeFileSync(f.file, f.lines.join('\n'));
-    console.log(`✅ ${id} 的${field === 'summary' ? '现象' : '解法'}已改（${f.src}）`);
+    console.log(`✅ ${id} 的${EDIT_FIELDS[field]}已改（${f.src}）`);
     console.log(`   旧：${old}`);
     console.log(`   新：${value}`);
     return;
@@ -977,7 +1003,7 @@ switch (cmd) {
   default:
     console.log('债务账本读写唯一入口（详见文件头注释）');
     console.log('  读：list [--area NN] [--status X] [--all] | area <NN> | search <关键词> | show <TD-ID>');
-    console.log('  写：add --area NN --summary "…" | resolve <TD-ID> --note "…" | edit <TD-ID> --field summary｜solution --value "…" | reanchor <TD-ID> --anchor <区域文件> | move <TD-ID> --to <NN>');
+    console.log('  写：add --area NN --summary "…" | resolve <TD-ID> --note "…" | edit <TD-ID> --field summary｜solution｜classify｜rate --value "…" | reanchor <TD-ID> --anchor <区域文件> | move <TD-ID> --to <NN>');
     console.log('  维护：archive [--dry] | audit [--liveness] | fix [--dry]（规范化历史列错位行）');
     console.log('  统计：stats（形态/解法分布 —— 供"找债捷径"与"手法排行"，见两份 SOP）');
     process.exit(cmd ? 1 : 0);

@@ -39,7 +39,7 @@ function ProjectDropdown({ onExit }: { onExit?: () => void }) {
   // 受控面板开关（替代 Radix DropdownMenu，见下方注释）。
   const [menuOpen, setMenuOpen] = useState(false);
   // 更新(2026-09-14)：Next router 已移除；退出项目改为由宿主（画布）决定。
-  const editor = useEditor();
+  const editor = useEditor('project');
   const activeProject = editor.project.getActive();
   // T5-C：本画布的片子列表（EditorProvider 挂载时已 loadAllProjects 填充）。
   const savedProjects = editor.project.getSavedProjects();

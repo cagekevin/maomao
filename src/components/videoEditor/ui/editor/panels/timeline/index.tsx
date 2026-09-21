@@ -61,7 +61,7 @@ export function VideoEditorTimeline() {
   const tracksContainerHeight = { min: 0, max: 800 };
   const { snappingEnabled } = useTimelineStore();
   const { clearElementSelection, setElementSelection } = useElementSelection();
-  const editor = useEditor();
+  const editor = useEditor('playback', 'timeline', 'project');
   const timeline = editor.timeline;
   const tracks = timeline.getTracks();
   const seek = (time: number) => editor.playback.seek({ time });

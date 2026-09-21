@@ -24,7 +24,7 @@ export function TimelinePlayhead({
   playheadRef: externalPlayheadRef,
   isSnappingToPlayhead = false,
 }: TimelinePlayheadProps) {
-  const editor = useEditor();
+  const editor = useEditor('playback', 'timeline', 'project');
   const duration = editor.timeline.getTotalDuration();
   const internalPlayheadRef = useRef<HTMLDivElement>(null);
   const playheadRef = externalPlayheadRef || internalPlayheadRef;

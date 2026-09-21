@@ -149,7 +149,7 @@ export async function runGenerationOrchestration({
       }
       // ② 写回「应显示的 URL」，并把「本地化是否真的发生」一并交出（消费方据此定状态，不靠猜）
       if (url) settle?.(url, r, taskCtl, { localized });
-      // ③ 落盘唯一出口（P0-C）：**契约内的无条件一步**，不是可选分支（ADR-0030 / 2026-09-20 深模块化）。
+      // ③ 落盘唯一出口（P0-C）：**契约内的无条件一步**，不是可选分支（ADR-0053 / 2026-09-20 深模块化）。
       //
       // 【为什么删掉原来的 `saveToTasks?: boolean`（默认 true）开关】
       //   它是**幽灵开关**：3 个调用方**零处显式传它**，全部吃默认 true ⇒ 从未被真正使用过。

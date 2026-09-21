@@ -1,5 +1,7 @@
-import { useCallback, useRef, useState, useSyncExternalStore } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { useEditor } from '@/components/videoEditor/hooks-cutia/use-editor';
+// 【TD-04-45】选中元素的 React 桥接**唯一实现**在 use-element-selection（本处原为逐字重复的内联箭头）。
+import { useSelectedElements } from '@/components/videoEditor/hooks-cutia/timeline/element/use-element-selection';
 import type {
   Transform,
   TimelineTrack,
@@ -76,7 +78,7 @@ export function usePreviewInteraction({
   canvasRef: React.RefObject<HTMLCanvasElement | null>;
   overlayRef: React.RefObject<HTMLDivElement | null>;
 }) {
-  const editor = useEditor();
+  const editor = useEditor('playback', 'timeline', 'project', 'media', 'selection');
   const [isDragging, setIsDragging] = useState(false);
   const [isScaling, setIsScaling] = useState(false);
   const [activeGuides, setActiveGuides] = useState<SnapGuide[]>([]);
@@ -86,10 +88,7 @@ export function usePreviewInteraction({
   const scalePointerIdRef = useRef<number | null>(null);
   const resizePointerIdRef = useRef<number | null>(null);
 
-  const selectedElements = useSyncExternalStore(
-    (listener) => editor.selection.subscribe(listener),
-    () => editor.selection.getSelectedElements(),
-  );
+  const selectedElements = useSelectedElements();
 
   const getCanvasCoordinates = useCallback(
     ({ clientX, clientY }: { clientX: number; clientY: number }) => {

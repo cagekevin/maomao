@@ -75,7 +75,7 @@ import {
 } from 'lucide-react';
 
 export function MediaView() {
-  const editor = useEditor();
+  const editor = useEditor('timeline', 'project', 'media');
   const mediaFiles = editor.media.getAssets();
   const activeProject = editor.project.getActive();
   // TD-22-43②：加载失败的持续状态真源（重渲染由 use-editor 对 media.subscribe 驱动）。

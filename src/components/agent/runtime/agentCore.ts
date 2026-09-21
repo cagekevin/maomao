@@ -358,7 +358,7 @@ export function parseGenerationsFromReply(content = '') {
  *        我们**没有**走 token 化 —— 见差距③：直接用 `imageCatalog` 统一编号「图N」+ `direct_refs`，
  *        由执行层反查（与大雄的 token 方案**功能等价且更简单**：不引入 token 语法，就不引入编解码漂移）。
  *        ★2026-09-18：原此处写「现新增 refToken.js（encodeRefToken / parseRefTokensFromText）对齐 token 化」——
- *        经取证该文件**从未被接线**（生产零消费，唯一 import 是它自己的单测）⇒ 已按 ADR-0030 删除。
+ *        经取证该文件**从未被接线**（生产零消费，唯一 import 是它自己的单测）⇒ 已按 ADR-0053 删除。
  * 差距③ 执行层（useCanvasAgentTools.execute_plan 解决）：大雄 agentLastUserAttachments（本轮无图回退
  *        上一轮用户图）+ agentLastResults（最近生成结果图）+ agentCurrentImageMap（统一编号图1~M+N）
  *        支撑「改上一张图」；execute_plan 用 direct_refs/「图N」反查原图。我们 execute_plan 现也实现

@@ -27,7 +27,7 @@ import { DEFAULT_EXPORT_OPTIONS } from '@/components/videoEditor/constants/expor
 
 export function ExportButton() {
   const [isExportPopoverOpen, setIsExportPopoverOpen] = useState(false);
-  const editor = useEditor();
+  const editor = useEditor('project');
 
   const handleExport = () => {
     setIsExportPopoverOpen(true);
@@ -63,7 +63,7 @@ export function ExportButton() {
 }
 
 function ExportPopover({ onOpenChange }: { onOpenChange: (open: boolean) => void }) {
-  const editor = useEditor();
+  const editor = useEditor('project');
   const activeProject = editor.project.getActive();
   const [format, setFormat] = useState<ExportFormat>(DEFAULT_EXPORT_OPTIONS.format);
   const [quality, setQuality] = useState<ExportQuality>(DEFAULT_EXPORT_OPTIONS.quality);

@@ -8,8 +8,6 @@ import {
   FolderOpen,
   FolderPlus,
   ChevronLeft,
-  Pencil,
-  Trash2,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { PanelSubBar, PanelPills, PanelMoreMenu } from '../base/panels/PanelBar.tsx';
@@ -39,6 +37,8 @@ import {
   libraryUpFolder,
   isEmptyLibraryRoot,
 } from './libraryBrowse.ts';
+// 【TD-04-57】卡片操作浮层收口为唯一实现（原为与本文件逐字重复的 40 行 JSX）。
+import { ResourceCardActions } from './ResourceCardActions.tsx';
 // 目录条目 → 自身目录路径的唯一实现（与「点目录进入」「拖入归类」共用）。
 import { folderPathOf } from '@/hooks/useResourceMoveToFolder';
 import { useCurrentProjectId } from '../base/store/projectStore.ts';
@@ -599,38 +599,12 @@ function ResourceLibrary() {
 
                     {/* 卡片操作：打开目录 / 重命名 / 删除；移动到文件夹改为「拖文件到文件夹卡片」 */}
                     {!isFolder && (
-                      <div className="absolute top-1 right-1 flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button
-                          className="w-5 h-5 rounded bg-black/60 flex items-center justify-center text-white hover:bg-black/80 cursor-pointer border-none"
-                          title="打开所在目录"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleOpenFileDir(a);
-                          }}
-                        >
-                          <FolderOpen size={10} />
-                        </button>
-                        <button
-                          className="w-5 h-5 rounded bg-black/60 flex items-center justify-center text-white hover:bg-black/80 cursor-pointer border-none"
-                          title="重命名"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            editing.openRename(a);
-                          }}
-                        >
-                          <Pencil size={10} />
-                        </button>
-                        <button
-                          className="w-5 h-5 rounded bg-black/60 flex items-center justify-center text-red-300 hover:bg-black/80 cursor-pointer border-none"
-                          title="删除"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleDelete(a);
-                          }}
-                        >
-                          <Trash2 size={10} />
-                        </button>
-                      </div>
+                      <ResourceCardActions
+                        item={a}
+                        onOpenDir={handleOpenFileDir}
+                        onRename={editing.openRename}
+                        onDelete={handleDelete}
+                      />
                     )}
 
                     {/* 底部名称 */}

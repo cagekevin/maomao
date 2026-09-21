@@ -55,3 +55,9 @@
    「背景/边框/阴影已由 NodeShell 主容器提供，这里只保留布局与点击行为」；
 3. 节点内出现原地 mutation 式写回（如 `n.data.x = v` 后同引用返回）；
 4. 节点绕过 `useConnectedInputs` 自行取上游数据。
+
+- ⚠️ **诚实边界（2026-09-21 实测）**：上列 **只有一部分有机器防线** ——
+  `scripts/check-node-handles.mjs` 守「`showHandles={false}` 时禁止裸写 `<CustomHandle>`」（即**端口渲染**必须走 NodeShell 标准路径），
+  负例会红；**判据 1（未 import NodeShell）、2（自建边框/阴影容器）、3（原地 mutation）、4（绕过 useConnectedInputs）均无闸**。
+  ⇒ **本条未毕业、不许整体判毕业**（`ADR-0052` 第 6 级：不能机器判定的部分必须写明"不能"，不许硬凑 grep）。
+- **毕业的门槛**：`check-node-handles.mjs` 覆盖到"外壳容器 / 写回方式"为止；在此之前本条**占编号但不毕业**。

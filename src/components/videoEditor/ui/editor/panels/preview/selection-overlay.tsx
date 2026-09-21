@@ -1,5 +1,7 @@
-import { useSyncExternalStore, useMemo } from 'react';
+import { useMemo } from 'react';
 import { useEditor } from '@/components/videoEditor/hooks-cutia/use-editor';
+// 【TD-04-45】选中元素的 React 桥接**唯一实现**在 use-element-selection（本处原为逐字重复的内联箭头）。
+import { useSelectedElements } from '@/components/videoEditor/hooks-cutia/timeline/element/use-element-selection';
 import { cn } from '@/components/videoEditor/utils/ui';
 import type {
   TimelineElement,
@@ -380,12 +382,9 @@ export function SelectionOverlay({
   }) => void;
   isTransforming: boolean;
 }) {
-  const editor = useEditor();
+  const editor = useEditor('playback', 'timeline', 'project', 'media');
 
-  const selectedElements = useSyncExternalStore(
-    (listener) => editor.selection.subscribe(listener),
-    () => editor.selection.getSelectedElements(),
-  );
+  const selectedElements = useSelectedElements();
 
   const currentTime = editor.playback.getCurrentTime();
   const activeProject = editor.project.getActive();

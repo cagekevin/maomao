@@ -159,7 +159,7 @@ try {
   const babelParser = await import('@babel/parser');
   parse = babelParser.parse;
 } catch (e) {
-  console.error('✖ 缺少核心依赖 @babel/parser。请运行: npm install --save-dev @babel/parser');
+  console.error('✖ 缺少核心依赖 @babel/parser（已在 package.json devDependencies 声明）。请运行: npm install');
   process.exit(1);
 }
 

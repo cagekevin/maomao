@@ -18,7 +18,7 @@ export function StickerProperties({
   _element: StickerElement;
   trackId: string;
 }) {
-  const editor = useEditor();
+  const editor = useEditor('timeline');
 
   const scalePercent = Math.round(element.transform.scale * 100);
 

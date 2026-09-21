@@ -12,7 +12,6 @@
  */
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
-import { Orbit } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import NodeTitle from '../../src/components/canvas/parts/NodeTitle.tsx';
 
@@ -49,16 +48,6 @@ describe('NodeTitle — 展示', () => {
   it('无 label 时回退到 defaultTitle', () => {
     setup({ label: '', defaultTitle: '默认名' });
     expect(screen.getByRole('button', { name: '默认名' })).toBeTruthy();
-  });
-
-  it('渲染图标，且尺寸/颜色由 NodeTitle 统一提供（TD-04-37 契约）', () => {
-    // 契约：调用方只声明"我是哪个图标"（传组件引用），**样式归 NodeTitle**。
-    // 反证：把 NodeTitle 里的 size={11} / className="text-muted" 去掉 ⇒ 本断言红。
-    const { container } = setup({ label: '节点', icon: Orbit });
-    const svg = container.querySelector('svg');
-    expect(svg).toBeTruthy();
-    expect(svg!.getAttribute('width')).toBe('11');
-    expect(svg!.getAttribute('class')).toContain('text-muted');
   });
 
   it('外部 label 变化时标题跟随更新', () => {

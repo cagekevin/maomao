@@ -85,7 +85,7 @@ export function resolveCanvasSizePresetValue({
 }
 
 function ProjectInfoView() {
-  const editor = useEditor();
+  const editor = useEditor('project');
   const activeProject = editor.project.getActive();
 
   const currentCanvasSize = activeProject.settings.canvasSize;
@@ -330,7 +330,7 @@ const BackgroundPreviews = memo(
 BackgroundPreviews.displayName = 'BackgroundPreviews';
 
 function BackgroundView() {
-  const editor = useEditor();
+  const editor = useEditor('project');
   const activeProject = editor.project.getActive();
   const blurLevels = useMemo(() => BLUR_INTENSITY_PRESETS, []);
 

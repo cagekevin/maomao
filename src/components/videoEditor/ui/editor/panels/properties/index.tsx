@@ -26,7 +26,7 @@ function groupByType(items: ElementWithTrack[]) {
 }
 
 export function PropertiesPanel() {
-  const editor = useEditor();
+  const editor = useEditor('timeline');
   const { selectedElements } = useElementSelection();
 
   const elementsWithTracks = editor.timeline.getElementsWithTracks({

@@ -6,7 +6,7 @@ import { DEFAULT_TEXT_ELEMENT } from '@/components/videoEditor/constants/text-co
 import { buildTextElement } from '@/components/videoEditor/engine/timeline/element-utils';
 
 export function TextView() {
-  const editor = useEditor();
+  const editor = useEditor('timeline', 'scenes');
 
   const handleAddDefaultText = ({ currentTime }: { currentTime: number }) => {
     const activeScene = editor.scenes.getActiveScene();

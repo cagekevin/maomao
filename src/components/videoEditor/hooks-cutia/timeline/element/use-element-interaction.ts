@@ -174,7 +174,7 @@ export function useElementInteraction({
   snappingEnabled,
   onSnapPointChange,
 }: UseElementInteractionProps) {
-  const editor = useEditor();
+  const editor = useEditor('playback', 'timeline', 'project');
   const tracks = editor.timeline.getTracks();
   const { snapElementEdge } = useTimelineSnapping();
   const {

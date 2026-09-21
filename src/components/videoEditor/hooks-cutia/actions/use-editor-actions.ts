@@ -34,7 +34,7 @@ import { storageService } from '@/components/videoEditor/engine/services/storage
 import { releaseQuietlyAsync } from '@/components/base/utils/net/asyncGuard';
 
 export function useEditorActions() {
-  const editor = useEditor();
+  const editor = useEditor('playback', 'timeline', 'scenes', 'project', 'media', 'renderer');
   const activeProject = editor.project.getActive();
   const { selectedElements, setElementSelection } = useElementSelection();
   const { clipboard, setClipboard, toggleSnapping } = useTimelineStore();

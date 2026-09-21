@@ -31,7 +31,7 @@ export function useTimelineDragDrop({
   zoomLevel,
   trackHeightScale,
 }: UseTimelineDragDropProps) {
-  const editor = useEditor();
+  const editor = useEditor('playback', 'timeline', 'project', 'media');
   const [isDragOver, setIsDragOver] = useState(false);
   const [dropTarget, setDropTarget] = useState<DropTarget | null>(null);
   const [dragElementType, setElementType] = useState<ElementType | null>(null);

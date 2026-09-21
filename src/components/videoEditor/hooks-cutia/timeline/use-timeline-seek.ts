@@ -66,7 +66,7 @@ export function useTimelineSeek({
   clearSelectedElements,
   seek,
 }: UseTimelineSeekProps) {
-  const editor = useEditor();
+  const editor = useEditor('project');
   const activeProject = editor.project.getActive();
 
   const mouseTrackingRef = useRef({

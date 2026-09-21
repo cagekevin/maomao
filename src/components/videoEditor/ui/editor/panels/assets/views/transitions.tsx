@@ -22,7 +22,7 @@ import {
 } from '@/components/videoEditor/ui/ui/tooltip';
 
 export function TransitionsView() {
-  const editor = useEditor();
+  const editor = useEditor('timeline');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
 
   const filteredPresets =
@@ -36,7 +36,7 @@ export function TransitionsView() {
    * 【TD-22-49】原先这个数**用户看不见**：点转场 → 失败 → 才知道"没有相邻片段"，
    * 而"多近才算相邻"更无从得知。现在它实时显示 ⇒ 拖片段时能看到 `0 → 1` 的跳变，
    * 那一步（吸附生效）就是"贴好了"。
-   * `useEditor()` 订阅了 `timeline`，所以轨道任何变化都会让这里重算。
+   * `useEditor('timeline')` 订阅了 `timeline`，所以轨道任何变化都会让这里重算。
    */
   const junctionCount = editor.timeline.countAdjacentJunctions();
 
@@ -104,7 +104,7 @@ function CategoryPill({
 }
 
 function TransitionPresetCard({ preset }: { preset: TransitionPreset }) {
-  const editor = useEditor();
+  const editor = useEditor('timeline');
 
   const handleApplyTransition = () => {
     // 批量应用 = **一次调用**：判据（轨道是不是 video / 元素在不在 / 是否相邻）与命令构造

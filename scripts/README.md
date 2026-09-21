@@ -33,6 +33,7 @@
 | `extract-tailwind.mjs` | 从 `src/` 抽取 Tailwind 类到 `src/index.css` 白名单 | `npm run extract:tw` |
 | `ts-tests.mjs` | 测试类型消化作战系统：`check`/`verify` 单文件、`status` 全局进度、`add/rm-nocheck`。**`status` 已修复可放心用**（批量剥 nocheck → tsc → finally 还原；早期恢复不可靠的历史问题已不再复现） | — |
 | `m1-scan.mjs` | 测试类型错误**全貌聚合**（只读）：复制到 `tmp/unit` 副本扫描，零污染。产出每个文件 × 错误数 × 错误码 | — |
+| `m1-count.mjs` | **M1「React 重渲反模式」形态计数**（只读**度量工具 · 不是闸**）：AST 口径统计 memo 决策点（裸/React.memo/带比较器）+ JSX 内联箭头·数组·对象 prop；`--json` 落基线、`--diff` 自动算净减。**口径真源 = 脚本头**（文档只许引用，禁抄数字）。**无 pass/fail、不挂 CI**（依据 `ADR-0016` 默认不建 + M1 评审 §三「不建闸」裁定）。⚠️ 与 `m1-scan.mjs` 名字撞车但**两回事**：那个是 TS 类型错误，这个是重渲形态 | — |
 | `ts-detail.mjs` | 测试类型错误**逐条明细**（只读）：跑 1 次 tsc，按文件名片段过滤出多个目标文件的逐行错误。`check` 逐文件查太慢时用它 | — |
 | `ui-geometry/measure-panel.mjs` | **真实浏览器布局测量**：自起/复用 dev server，注入表格模式+消息流+AI 预览，量指定选择器几何 + 扫「真正撑破面板右缘」的元素（自动排除 `.sb-body` 等滚动容器内被正常收纳的横向滚动内容）。定位"某内容超出去"类布局问题用，别靠猜 | 手动 |
 

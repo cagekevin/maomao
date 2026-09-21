@@ -6,7 +6,7 @@
 - **裁定人**：架构师（归位取证；规则原文见 `spec/CONTEXT.md:113`）
 - **触发**：TD-18-20 —— 该判决句长期只存在于 CONTEXT，`adr.mjs search` **0 命中**（违反 ADR-0025 判据 1）
 - **与 ADR-0018 的关系**：互补，不重叠 —— **0018 决定"能不能重试"，本条决定"这是什么类型 / 有没有超时"**
-- **补充（2026-09-20）**：**§判据 2 的 `classifyError(e) → { type, message, retryable }` 与 §违反判据 4 已过期** —— `retryable` 已被 **ADR-0046** 整体移出 `ClassifiedError`（实测 `genErrors.ts:49`，改由 `getRetryableObserved()` 显式观测）⇒ 判据 2 是过期事实、违反判据 4 从此**写不出来**。**判据本体（分类与超时的唯一入口）不变。**
+- **补充（2026-09-20）**：**§判据 2 的 `classifyError(e) → { type, message, retryable }` 与 §违反判据 4 已过期** —— `retryable` 已被 **ADR-0052** 整体移出 `ClassifiedError`（实测 `genErrors.ts:49`，改由 `getRetryableObserved()` 显式观测）⇒ 判据 2 是过期事实、违反判据 4 从此**写不出来**。**判据本体（分类与超时的唯一入口）不变。**
 
 ## 背景
 

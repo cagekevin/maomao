@@ -27,7 +27,7 @@ export function VideoProperties({
   _element: VideoElement | ImageElement;
   trackId: string;
 }) {
-  const editor = useEditor();
+  const editor = useEditor('timeline');
 
   const scalePercent = Math.round(element.transform.scale * 100);
 

@@ -63,7 +63,7 @@ export function Captions() {
   const [progressValue, setProgressValue] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const editor = useEditor();
+  const editor = useEditor('timeline', 'media');
 
   const handleProgress = (progress: TranscriptionProgress) => {
     if (progress.status === 'loading-model') {

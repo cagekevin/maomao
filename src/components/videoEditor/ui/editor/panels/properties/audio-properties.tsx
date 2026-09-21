@@ -27,7 +27,7 @@ export function AudioProperties({
   _element: AudioElement;
   trackId: string;
 }) {
-  const editor = useEditor();
+  const editor = useEditor('timeline');
 
   const volumePercent = Math.round(element.volume * 100);
 

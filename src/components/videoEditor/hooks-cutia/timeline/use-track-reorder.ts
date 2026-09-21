@@ -16,7 +16,7 @@ const INITIAL_STATE: TrackReorderState = {
 };
 
 export function useTrackReorder({ trackHeightScale }: { trackHeightScale?: number } = {}) {
-  const editor = useEditor();
+  const editor = useEditor('timeline');
   const [reorderState, setReorderState] = useState<TrackReorderState>(INITIAL_STATE);
   const startYRef = useRef(0);
   const containerRef = useRef<HTMLElement | null>(null);

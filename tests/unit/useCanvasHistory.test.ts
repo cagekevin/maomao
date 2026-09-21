@@ -2,9 +2,14 @@
 /**
  * useCanvasHistory 单测（批 1-8，hook 桥接）。
  * 覆盖：返回 canUndo/canRedo/record/undo/redo/clear；record 后 canUndo 为真；
- * undo 将历史快照应用到 apply；空历史时 undo/redo 安全不抛。
+ * undo 将历史快照应用到 apply；空历史时 undo/redo 安全不抛；
+ * record() 缺省时回退 getSnapshot()；undo/redo 的 suppress 窗口与 600ms 定时释放。
  * 策略：jsdom + @testing-library/react renderHook；HistoryStack 走真实纯类（已有独立单测），
  * 这里只验证 React 桥接层。提供 getSnapshot 与 apply 两个注入函数。
+ *
+ * 【本文件是该 hook 的唯一落点】`tests/unit/canvasHooks.test.ts` 曾重复覆盖本 hook，
+ * 已按该文件头注①「重复覆盖迁专用文件去重」的约定**并入本文件并删除**
+ * （TD-04-54 · 2026-09-21）。新断言一律写这里，不要再开第二个文件。
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
@@ -101,6 +106,50 @@ describe('useCanvasHistory — 记录与撤销', () => {
     expect(result.current.canUndo).toBe(true);
     act(() => result.current.clear());
     expect(result.current.canUndo).toBe(false);
+  });
+
+  it('record 不传 snapshot 时回退用 getSnapshot() 的当前值', () => {
+    // 契约（useCanvasHistory.ts:54-60）：不传参 ⇒ 用 getSnapshot()。
+    // 反证：把 `snapshot || getSnapshot()` 改成 `snapshot ?? {nodes:[],edges:[]}` ⇒ 本断言红。
+    const apply = vi.fn();
+    const { result } = renderHook(() => useCanvasHistory(() => snap('x'), apply));
+
+    act(() => result.current.record()); // 不传 ⇒ 回退 getSnapshot()
+    act(() => result.current.record(snap('y')));
+    act(() => result.current.undo());
+    // 入栈的确实是 getSnapshot() 给的那份（'x'），不是空快照、也不是后一条 'y'
+    const applied = apply.mock.calls.at(-1)![0] as CanvasSnapshot;
+    expect(applied.nodes.map((n) => n.id)).toEqual(['x']);
+  });
+});
+
+describe('useCanvasHistory — undo/redo 的 suppress 窗口', () => {
+  // 语义（historyStack.ts:13-15/52-74）：undo/redo 后进入 suppress（600ms），窗口内 record 被忽略 ——
+  // 否则 apply 引发的画布变化会被当成新操作入栈，undo 与 record 互相触发成环。
+  // 纯类的 suppress 由 historyStack.test.ts 覆盖；**这里只锁 hook 层的定时释放接线**
+  // （scheduleRelease → stack.releaseSuppress，600ms）。
+  it('suppress 期内 record 被忽略；600ms 后恢复可记录（截断 redo 分支）', () => {
+    vi.useFakeTimers();
+    try {
+      const apply = vi.fn();
+      const { result } = renderHook(() => useCanvasHistory(() => snap('a'), apply));
+
+      act(() => result.current.record(snap('a')));
+      act(() => result.current.record(snap('b')));
+      act(() => result.current.undo()); // 进入 suppress，并留下可 redo 的分支
+      expect(result.current.canRedo).toBe(true);
+
+      // suppress 期内 record ⇒ 被忽略：没有截断 redo 分支（canRedo 仍为 true）
+      act(() => result.current.record(snap('c')));
+      expect(result.current.canRedo).toBe(true);
+
+      // 窗口过去 ⇒ 定时释放生效，record 恢复：新操作截断 redo 分支（canRedo 变 false）
+      act(() => vi.advanceTimersByTime(600));
+      act(() => result.current.record(snap('d')));
+      expect(result.current.canRedo).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

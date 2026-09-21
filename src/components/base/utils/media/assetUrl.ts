@@ -218,7 +218,7 @@ export function useRenderAssetResolver(): (u: string, extra?: AssetResolveOption
 
 /** 【已删 · 2026-09-20】原 `normalizeAssetUrl(url)` = `toAbsoluteFileUrl(url)` 的**纯转发别名**。
  *
- * 删因（ADR-0030 幽灵预留 / ADR-0046「让 AI 不猜」）：
+ * 删因（ADR-0053 幽灵预留 / ADR-0052「让 AI 不猜」）：
  *  · 它对生产代码**零消费者**（全仓仅测试自己在断言"它等价于 toAbsoluteFileUrl"）；
  *  · 它给同一个操作造了**第二个名字** —— AI 看到 `normalizeAssetUrl` 与 `toAbsoluteFileUrl`
  *    并存，必须猜"该用哪个"（而两者逐字节等价，"选错"没有反馈）。

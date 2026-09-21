@@ -215,7 +215,7 @@ export function clearPendingGenerations() {
  *      统一编号「图1~图M+N」；useAgentChat 把它传给 buildRequestMessages 的 imageCatalog 注入 LLM，
  *      LLM 就能用「图N」+ direct_refs 精确引用。
  *      ★2026-09-18：原句尾写「token 编解码见 refToken.js」—— 该 token 化路线**从未接线**
- *      （生产零消费，唯一 import 是它自己的单测）⇒ 已按 ADR-0030 删除；**上面这条编号+反查链路就是唯一的跨轮引用机制**。
+ *      （生产零消费，唯一 import 是它自己的单测）⇒ 已按 ADR-0053 删除；**上面这条编号+反查链路就是唯一的跨轮引用机制**。
  *
  *   【内存落盘】以上 per-conversation 状态（refImages/lastResults 所在消息/memory）都走 conversationStore，
  *      切对话自动隔离、刷新不丢。不要在别处另建模块级单例，否则多对话串话。

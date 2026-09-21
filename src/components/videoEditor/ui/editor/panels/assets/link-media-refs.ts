@@ -108,7 +108,7 @@ export async function linkMediaRefsToProject({
 }: {
   items: MediaRef[];
   projectId: string;
-  /** 引擎媒体管理器（`useEditor().media`）；注入以解耦。 */
+  /** 引擎媒体管理器（`useEditor('media').media`）；注入以解耦。 */
   media: {
     getAssets: () => MediaAsset[];
     addMediaAsset: (args: {

@@ -38,7 +38,7 @@ interface EditorProviderProps {
 }
 
 export function EditorProvider({ canvasProjectId, children }: EditorProviderProps) {
-  const editor = useEditor();
+  const editor = useEditor('project');
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { disableKeybindings, enableKeybindings } = useKeybindingDisabler();
@@ -144,7 +144,7 @@ export function EditorProvider({ canvasProjectId, children }: EditorProviderProp
 }
 
 function EditorRuntimeBindings() {
-  const editor = useEditor();
+  const editor = useEditor('project');
 
   useEffect(() => {
     const handleBeforeUnload = (event: BeforeUnloadEvent) => {

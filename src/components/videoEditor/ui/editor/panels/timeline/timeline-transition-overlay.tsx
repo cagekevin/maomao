@@ -77,7 +77,7 @@ function TransitionJunctionOverlay({
   transition: TrackTransition | null;
   zoomLevel: number;
 }) {
-  const editor = useEditor();
+  const editor = useEditor('timeline');
   const [isOpen, setIsOpen] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [dragDuration, setDragDuration] = useState<number | null>(null);

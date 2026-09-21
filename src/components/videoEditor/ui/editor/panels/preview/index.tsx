@@ -34,7 +34,7 @@ import { videoEditorToast } from '@/components/videoEditor/lib/videoEditorToast'
 import { MissingMediaIndicator } from '@/components/videoEditor/ui/editor/panels/timeline/missing-media-indicator';
 
 function usePreviewSize() {
-  const editor = useEditor();
+  const editor = useEditor('playback', 'timeline', 'project', 'media', 'renderer');
   const activeProject = editor.project.getActive();
 
   return {
@@ -44,7 +44,7 @@ function usePreviewSize() {
 }
 
 function RenderTreeController() {
-  const editor = useEditor();
+  const editor = useEditor('playback', 'timeline', 'project', 'media', 'renderer');
   const tracks = editor.timeline.getTracks();
   const mediaAssets = editor.media.getAssets();
   const activeProject = editor.project.getActive();
@@ -83,7 +83,7 @@ function RenderTreeController() {
 export function PreviewPanel() {
   const containerRef = useRef<HTMLDivElement>(null);
   const { isFullscreen, toggleFullscreen } = useFullscreen({ containerRef });
-  const editor = useEditor();
+  const editor = useEditor('playback', 'timeline', 'project', 'media', 'renderer');
   const selectedMediaId = useMediaPreviewStore((state) => state.selectedMediaId);
   const clearSelection = useMediaPreviewStore((state) => state.clearSelection);
 
@@ -257,7 +257,7 @@ function PreviewToolbar({
   isFullscreen: boolean;
   onToggleFullscreen: () => void;
 }) {
-  const editor = useEditor();
+  const editor = useEditor('playback', 'timeline', 'project', 'media', 'renderer');
   const isPlaying = editor.playback.getIsPlaying();
   const currentTime = editor.playback.getCurrentTime();
   const totalDuration = editor.timeline.getTotalDuration();
@@ -337,7 +337,7 @@ function PreviewCanvas() {
   const renderingRef = useRef(false);
   const { width: nativeWidth, height: nativeHeight } = usePreviewSize();
   const containerSize = useContainerSize({ containerRef });
-  const editor = useEditor();
+  const editor = useEditor('playback', 'timeline', 'project', 'media', 'renderer');
   const activeProject = editor.project.getActive();
 
   const renderer = useMemo(() => {

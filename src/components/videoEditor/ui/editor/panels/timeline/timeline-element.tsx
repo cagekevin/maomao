@@ -107,7 +107,7 @@ export function TimelineElement({
   onElementClick,
   dragState,
 }: TimelineElementProps) {
-  const editor = useEditor();
+  const editor = useEditor('timeline', 'media');
   const { selectedElements } = useElementSelection();
   const { requestRevealMedia } = useAssetsPanelStore();
 
@@ -637,7 +637,7 @@ function DeleteMenuItem({
 }
 
 function VideoEditSubmenu({ element, trackId }: { element: VideoElement; trackId: string }) {
-  const editor = useEditor();
+  const editor = useEditor('timeline', 'media');
 
   const isMirrored = element.transform.flipX === true;
   const isReversed = element.reversed === true;

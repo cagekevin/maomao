@@ -27,7 +27,7 @@ interface TextElementRef {
 }
 
 export function TextSpeechPanel({ elements: elementRefs }: { elements: TextElementRef[] }) {
-  const editor = useEditor();
+  const editor = useEditor('timeline');
   const [selectedVoice, setSelectedVoice] = useState(DEFAULT_VOICE_PACK);
   const [alignDuration, setAlignDuration] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);

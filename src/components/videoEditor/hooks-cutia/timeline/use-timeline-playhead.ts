@@ -19,7 +19,7 @@ export function useTimelinePlayhead({
   tracksScrollRef,
   playheadRef,
 }: UseTimelinePlayheadProps) {
-  const editor = useEditor();
+  const editor = useEditor('playback', 'timeline', 'project');
   const activeProject = editor.project.getActive();
   const currentTime = editor.playback.getCurrentTime();
   const duration = editor.timeline.getTotalDuration();

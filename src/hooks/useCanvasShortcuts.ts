@@ -61,7 +61,7 @@ export function useCanvasShortcuts(handlers: CanvasShortcutHandlers = {}) {
     } catch {
       // catch-ok: BROWSER_API
       // 极老/受限环境 `getSelection` 不可用属环境预期，判「无选区」不阻断快捷键。
-      // 【TD-18-14 判非债（2026-09-18）· 判据见 ADR-0032】**探测语义**：失败与"没有选区"对调用方是同一答案
+      // 【TD-18-14 判非债（2026-09-18）· 判据见 ADR-0031】**探测语义**：失败与"没有选区"对调用方是同一答案
       // ⇒ 不留痕（留痕只会把正常路径刷成噪音，判据见 `core/degrade.ts` 头注）。
       return false;
     }

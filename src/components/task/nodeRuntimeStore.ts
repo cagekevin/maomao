@@ -1,4 +1,4 @@
-import { useSyncExternalStore } from 'react';
+import { useCallback, useSyncExternalStore } from 'react';
 
 /**
  * ════════════════════════════════════════════════════════════════
@@ -71,8 +71,13 @@ export function clearNodeRuntime(nodeId: string): void {
 /**
  * React 订阅钩子：节点组件读自身瞬态，返回 { loading, error, progress }。
  * 用 useSyncExternalStore，任何字段变更都会触发重渲（瞬态高频，量小可接受）。
+ *
+ * 【TD-04-45】`getSnapshot` 必须**引用稳定** —— 原为内联箭头 `() => getNodeRuntime(nodeId)`，
+ * 每次渲染新建引用 ⇒ `useSyncExternalStore` 每次渲染都解绑重绑订阅。按 `nodeId` 用
+ * `useCallback` 稳定（`nodeId` 变才该换）。返回值本身的引用稳定由 `getNodeRuntime` 保证
+ * （命中即返回同一对象），故不会"每次都判 changed"而无限重渲。
  */
 export function useNodeRuntime(nodeId: string): NodeRuntimeState {
-  const getSnapshot = () => getNodeRuntime(nodeId);
+  const getSnapshot = useCallback(() => getNodeRuntime(nodeId), [nodeId]);
   return useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
 }

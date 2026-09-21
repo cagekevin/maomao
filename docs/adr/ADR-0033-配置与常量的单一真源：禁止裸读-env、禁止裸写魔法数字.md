@@ -63,4 +63,9 @@
 2. 同一环境变量在两处及以上被解析，或只有一处给了缺省值；
 3. 出现含义不明的裸数字（超时 / 阈值 / 上限）且 `contracts.ts` 无对应登记；
 4. `spec/CONTEXT.md` 再次出现本条判据的**正文**（应只有一行指针）。
-- **毕业去向**：结构+闸：base/core/config.ts 为 env 唯一读取点（裸读 import.meta.env 会被 scripts/check-any-honesty.mjs 与 review 拦）
+- ⚠️ **诚实边界（2026-09-21 实测纠正）**：上列 1–4 **全是散文 grep，没有任何闸在跑**。
+  原此行曾自称「裸读 `import.meta.env` 会被 `scripts/check-any-honesty.mjs` 拦」——**实测该闸只管 `as any` / `as never` / `useRef(null)`，
+  完全不碰 `env`**（全仓 `scripts/` 内无任何脚本扫 `import.meta.env`）。该宣称已作废，**本条未毕业、不许据此判毕业**。
+  按 `ADR-0052` 第 6 级：本条**不能机器判定**，靠 review + 上列人工判据；**不许硬凑假 grep**。
+- **毕业的门槛（若将来要做）**：须先让 1 号判据变成**会红的闸**（如 `check-config-ssot.mjs`，负例：在 `config.ts` 外新增一处裸读 ⇒ 必红）。
+  在此之前，本条属 `ADR-0052` 第 6 级，**占编号但不毕业**。

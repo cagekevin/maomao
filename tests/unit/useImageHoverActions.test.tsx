@@ -1,9 +1,8 @@
 /**
  * useImageHoverActions 共享机制单测（State 2 契约细化）。
- * 验证：① 按钮含 crop/edit/compress 且带 onClick（非死按钮，对齐图片节点）
- *       ② 有图时三个按钮 show=true，无图时 show=false
- *       ③ 点击 crop/edit → setEditor 设对应 tool → renderEditor 渲染 ImageEditor
- *       ④ 压缩/裁剪写回走 onImageReplaced 回调（解耦写回方式）
+ * 验证：① 有图时 crop/edit/upscale/compress 均 show=true，无图时均 false（按钮可用性契约）
+ *       ② 点击 crop/edit → 打开就地裁剪浮层 / 全屏编辑器（「非死按钮」由点击行为断言覆盖，不另断 onClick 形状）
+ *       ③ 放大 / 压缩 / 编辑器保存 / 就地裁剪保存 → 走 onImageReplaced 写回（先 dataURL 再落盘 URL）
  */
 import 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -48,7 +47,7 @@ const findBtn = (btns: any, key: any) => btns.find((b: any) => b.key === key);
 describe('useImageHoverActions — 图片共享 hover 能力', () => {
   beforeEach(() => {});
 
-  it('有图时 crop/edit/upscale/compress 均显示且带 onClick（非死按钮）', () => {
+  it('有图时 crop/edit/upscale/compress 均显示（按钮可用性契约）', () => {
     const { result } = renderHook(() =>
       useImageHoverActions({
         id: 'n1',
@@ -60,13 +59,7 @@ describe('useImageHoverActions — 图片共享 hover 能力', () => {
     );
     const btns = result.current.imageButtons;
     for (const k of ['crop', 'edit', 'upscale', 'compress']) {
-      const b = findBtn(btns, k);
-      expect(b, `按钮 ${k} 应存在`).toBeTruthy();
-      expect(b.show, `按钮 ${k} 有图时应显示`).toBe(true);
-      expect(
-        typeof b.onClick === 'function',
-        `按钮 ${k} 必须有 onClick（此前生图节点是死按钮）`,
-      ).toBe(true);
+      expect(findBtn(btns, k).show, `按钮 ${k} 有图时应显示`).toBe(true);
     }
   });
 

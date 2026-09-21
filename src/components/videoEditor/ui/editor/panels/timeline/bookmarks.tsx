@@ -20,7 +20,7 @@ export function TimelineBookmarksRow({
   handleRulerTrackingMouseDown,
   handleRulerMouseDown,
 }: TimelineBookmarksRowProps) {
-  const editor = useEditor();
+  const editor = useEditor('playback', 'timeline', 'scenes', 'project');
   const activeScene = editor.scenes.getActiveScene();
 
   return (
@@ -48,7 +48,7 @@ export function TimelineBookmarksRow({
 }
 
 export function TimelineBookmark({ time, zoomLevel }: { time: number; zoomLevel: number }) {
-  const editor = useEditor();
+  const editor = useEditor('playback', 'timeline', 'scenes', 'project');
   const activeProject = editor.project.getActive();
   const duration = editor.timeline.getTotalDuration();
 

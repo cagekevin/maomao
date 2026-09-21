@@ -30,7 +30,7 @@ export function TimelineRuler({
   handleRulerTrackingMouseDown,
   handleRulerMouseDown,
 }: TimelineRulerProps) {
-  const editor = useEditor();
+  const editor = useEditor('timeline', 'project');
   const duration = editor.timeline.getTotalDuration();
   const pixelsPerSecond = TIMELINE_CONSTANTS.PIXELS_PER_SECOND * zoomLevel;
   const visibleDuration = dynamicTimelineWidth / pixelsPerSecond;
