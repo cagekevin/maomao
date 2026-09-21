@@ -22,6 +22,7 @@ import {
   paginatedResult,
 } from '../utils/helpers.js';
 import { runReferenceGc } from '../utils/orphanGc.js';
+import { logDebug } from '../utils/logDebug.js';
 
 const SNAKE_TO_CAMEL: Record<string, string> = {
   task_id: 'taskId',
@@ -266,13 +267,10 @@ export function upsertTask(
       } else {
         // 冗余写：前端发的是整行快照，必然带执行态列；库里真相一致（或该行尚未终态）⇒ 拦下不改变任何东西。
         // 走 debug 而不是 warn：此形态每天上百条，占 warn 会把上面那条真信号淹掉（见 blocksRealDamage 注释）。
-        console.debug(
-          '[upsertTask:client-redundant] 已忽略前端快照中的执行态列（冗余，不影响真相）',
-          {
-            task_id: row.task_id,
-            cols: blocked,
-          },
-        );
+        // 【为什么用 logDebug 而不是 console.debug】后者在 localTool 是**黑洞**：logWriter 不接管它
+        //（不落盘、不受任何开关控制）。logDebug 走 console.log 落盘 + 后端 debug 开关（LOG_DEBUG_TASK=1
+        // 才输出）⇒ 平时安静、需要时 grep 得到，见 utils/logDebug.ts 文件头。
+        logDebug('task', 'upsertTask:client-redundant', { task_id: row.task_id, cols: blocked });
       }
     }
   }

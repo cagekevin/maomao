@@ -194,6 +194,7 @@ node scripts/task-inspect.mjs --canvas-health   # 画布结构体检
 3. 拿真实日志（前端 debug / Network / 后端 `[frontend]` 三方对齐）确认根因后再改；改完保留 `debug` 级日志，删临时 `info/warn` 噪音。
 4. **修复完成确认** **`DEBUG_ASSET`** **已关闭**：默认即关，勿在 `.env` 留 `VITE_DEBUG_ASSET=1`，运行时设的 `window.__DEBUG_ASSET` 排查完清掉。开关默认安静才提交。
 
+> **后端同构（2026-09-21）**：改 `localTool/src/**` 要留"默认安静、需要时能查"的日志时，用 `logDebug(模块, 动作, 详情)`（`utils/logDebug.ts`），开关 `LOG_DEBUG_<MODULE>=1`（或 `LOG_DEBUG_ALL=1`），模块位登记在 `LOG_DEBUG_MODULES`。**禁写 `console.debug`**——`logWriter` 不接管它，既不落盘也不受开关控制（黑洞）。
 > 反例：节点「发送到素材库」不落盘曾直接改逻辑试错；正确做法是先 `logger.debug` 打印 `[SEND]/[PERSIST]/落盘路径`，一次复现即定位目录错配（materials↔migrated）。详见 `docs/10-发送到素材库不落盘-排查-2026-08-19.md`。
 
 ### 3.3 localTool 改动必测

@@ -10,6 +10,9 @@
     "forceConsistentCasingInFileNames": true,
     "skipLibCheck": true,
     "incremental": true,
+    // 增量缓存的落点显式收进 logs/（默认写在 tsconfig 同级 ⇒ 根目录会不断长出裸文件
+    // tsconfig.tsbuildinfo）。logs/ 已被 .gitignore:95 覆盖，且与 build_*.log 同属「构建期产物」。
+    "tsBuildInfoFile": "./logs/tsconfig.tsbuildinfo",
 
     "allowJs": true,
     "checkJs": true,

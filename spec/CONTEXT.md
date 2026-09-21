@@ -163,6 +163,8 @@
 > （**该子项已由闸 `check:events` / `check:keys` 强制**）。
 
 > **debug 开关（查 bug 临时日志用，已升级为通用 DEBUG）**：`config.ts` 的 `DEBUG`（`isDebugModuleOn(module)`）按模块分类控制 `logger.debug` 输出，默认全关、不上报后端。模块位集中在 `DEBUG_MODULES = ['asset','agent','image','text']`（素材库 / AI 助手 / 图片生成全链路 / 文本节点）。开启：`.env` 加 `VITE_DEBUG_ALL=1`（全开）或 `VITE_DEBUG_<MODULE>=1`（单模块），运行时 `window.__DEBUG_ALL` / `window.__DEBUG_<MODULE>`。asset 模块位的判定入口 = `isDebugModuleOn('asset')`（**运行时实时读**；不提供顶层缓存常量）。**新增模块直接在** **`DEBUG_MODULES`** **登记，禁止再起独立散开关**。详见 CLAUDE.md §3.2（改 bug 先加日志）。
+>
+> **后端同构（2026-09-21）**：`localTool/src/utils/logDebug.ts` 提供 `logDebug(模块, 动作, 详情)`，开关为 `LOG_DEBUG_ALL=1`（全开）/ `LOG_DEBUG_<MODULE>=1`（单模块），模块位集中在 `LOG_DEBUG_MODULES`（当前 `task`）——**新增模块只在此登记**。默认全关；开启后经 `console.log` **落盘**（`localtool_18080_*.log` 可 grep），是否推给前端日志面板仍由 `LOG_BROADCAST_LEVEL`（默认 warn）决定 ⇒ **留账与惊动分开**。⚠️ 后端**禁止**写 `console.debug`：`logWriter` 不接管它 ⇒ 不落盘、不受任何开关控制（黑洞）。
 
 ***
 

@@ -325,7 +325,9 @@ function TextGenerate({ id, data, selected }: TextGenerateProps) {
     setInputLocked(next);
     // 加锁 = 合上抽屉：已展开的输入面板要一并收起
     if (next) setExpanded(false);
-  }, [inputLocked]);
+    // 两个 setter 都是 useState 的稳定源（useNodeExpanded / useNodeField 各自透传 setState），
+    // 补进依赖不会破坏下方 memo(HoverToolbar) 的浅比较（TD-04-41）。
+  }, [inputLocked, setExpanded, setInputLocked]);
 
   // 【TD-04-53 · 横推新命中】模型切换原为 JSX 内联箭头 ⇒ `memo(ModelSelect)` 失效
   // （债原文只点了 TemplateNode / ImageGenerate 两处，本处同形态但未被点名）。
