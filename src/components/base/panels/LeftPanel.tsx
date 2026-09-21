@@ -1,4 +1,4 @@
-import { memo, useEffect, useRef } from 'react';
+import { memo, useEffect, useRef, useState } from 'react';
 import { Clock, FolderOpen, Sparkles, Pin, PinOff, BookOpen } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import './panel-kit.css';
@@ -7,6 +7,12 @@ import GeneratedView from '@/components/generate/GeneratedView';
 import ResourceLibrary from '@/components/resource/ResourceLibrary';
 import PromptHub from '@/components/prompt/PromptHub';
 import { useTaskBadge, usePanel, setPanel, getPanel, togglePin } from '../store/taskStore.ts';
+// 拖拽调宽原语（唯一实现；与 AI 面板 / 表格工作区共用同一份，见该 hook 文件头）
+import { usePanelResize } from '@/hooks/usePanelResize';
+import { clamp } from '../core/utils.ts';
+import { contentGet, contentSet } from '../core/contentStore.ts';
+import { confirmPersist } from '../core/log/degrade.ts';
+import { KEY_LEFT_PANEL_WIDTH } from '../core/contracts.ts';
 
 // tab 配置：任务 / 生成 / 素材 / 提示词库
 export type PanelTabKey = 'tasks' | 'generated' | 'assets' | 'prompts';
@@ -25,6 +31,29 @@ const TABS: PanelTab[] = [
 ];
 
 /**
+ * 面板宽度区间（px）—— 归本面板（各宿主自持自己的设计区间，见 `usePanelResize` 职责边界）。
+ * · 默认 = 沿用改造前的 330（观感不倒退）；
+ * · 下限 320 略低于默认值，给"想收窄一点"留余地，同时保证 3 列网格仍成立（见 `.pk-media-grid`）；
+ * · 上限 900 ≈ 2.7 倍：再宽就遮满画布，且列数收益递减。
+ */
+const MIN_PANEL_WIDTH = 320;
+const MAX_PANEL_WIDTH = 900;
+const DEFAULT_PANEL_WIDTH = 330;
+
+/**
+ * 宽面板阈值（px）：≥ 此宽度时顶栏 4 个 tab 的**文字全部展开**（窄面板仍只展开激活项）。
+ * 依据 = 4 项 ×（图标 28 + 文字 56 + 间距）≈ 390 + 顶栏其余件 ≈ 450 ⇒ 取 480 留余量。
+ */
+const WIDE_PANEL_THRESHOLD = 480;
+
+/** 读宽度记忆（非法/缺失 → 默认值；越界 → 钳到区间）。 */
+function loadPanelWidth(): number {
+  const t = contentGet(KEY_LEFT_PANEL_WIDTH);
+  const n = t ? Number(t) : NaN;
+  return Number.isFinite(n) ? clamp(n, MIN_PANEL_WIDTH, MAX_PANEL_WIDTH) : DEFAULT_PANEL_WIDTH;
+}
+
+/**
  * 左侧滑出面板：收起态是一条竖着的窄工具栏（图标 + 未读角标），
  * 点击图标滑出面板，内部用 tab 切换「任务中心 / 素材库」。
  * 点击面板外部 → 收起；点击收起箭头 → 收起。
@@ -37,6 +66,30 @@ function LeftPanel() {
   const setActiveTab = (key: PanelTabKey) => setPanel({ activeTab: key });
   const setExpanded = (v: boolean) => setPanel({ expanded: v });
   const panelRef = useRef<HTMLDivElement>(null);
+
+  /**
+   * 面板宽度（右缘「磁条」拖拽 + `left_panel_width` 记忆）。
+   * 【为什么宽度**不**进 `taskStore.PanelState`】那个模块态的存在理由是「让外部入口能遥控面板」
+   * （`openTaskCenter` / `openResourceLibrary`）；而宽度**只有本面板自己消费**（无第二消费者）
+   * ⇒ 收进共享态只会扩大对外契约面而不换来任何复用。
+   */
+  const [width, setWidth] = useState(loadPanelWidth);
+  const { dragging, handleProps: widthGripProps } = usePanelResize({
+    width,
+    onChange: setWidth,
+    anchor: 'right',
+    min: MIN_PANEL_WIDTH,
+    max: MAX_PANEL_WIDTH,
+  });
+  // 宽度落盘：**拖拽中不写** —— 鼠标每移动一像素就写一次 localStorage 是同步 IO，
+  // 会把拖拽拖成掉帧；`dragging` 回 false 时统一落一次（含首次挂载的写回，与 AI 面板同性质）。
+  useEffect(() => {
+    if (dragging) return;
+    confirmPersist(contentSet(KEY_LEFT_PANEL_WIDTH, String(width)), {
+      layer: 'leftPanel',
+      key: KEY_LEFT_PANEL_WIDTH,
+    });
+  }, [width, dragging]);
 
   // 未读角标：失败任务数 + 进行中任务数，单次遍历
   // 「进行中」口径对齐 TaskCenter（running || pending）；pending 是「已建单未开跑」，
@@ -107,7 +160,11 @@ function LeftPanel() {
       {expanded && (
         <div
           ref={panelRef}
-          className="fixed left-3 top-2 bottom-2 z-sidebar w-[330px] bg-input border border-edge-faint rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-panel-in"
+          // 宽度改由右缘「磁条」拖拽（`style.width`），默认值仍是 330 ⇒ 观感与改造前一致。
+          className={`fixed left-3 top-2 bottom-2 z-sidebar bg-input border border-edge-faint rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-panel-in${dragging ? ' select-none' : ''}`}
+          style={{ width }}
+          // 宽面板档位（≥480px）：顶栏 4 个 tab 文字全部展开（CSS 见 panel-kit.css）。
+          data-panel-wide={width >= WIDE_PANEL_THRESHOLD ? 'true' : undefined}
         >
           {/* 顶栏（48px，对齐 AI 助手 agent-header）：分段控件切 tab + 钉住
               分段控件在 330px 窄面板下的解法：未激活只留图标，激活项展开文字（见 panel-kit.css）。 */}
@@ -167,6 +224,14 @@ function LeftPanel() {
               <PromptHub />
             )}
           </div>
+
+          {/* 右缘宽度拖拽手柄（「磁条」）——平时透明不占视觉，hover/拖拽中显色。
+              原语与 AI 面板 / 表格工作区**同一份**（`usePanelResize`）。 */}
+          <div
+            {...widthGripProps}
+            className={`pk-grip${dragging ? ' is-dragging' : ''}`}
+            title="拖动调整面板宽度"
+          />
         </div>
       )}
     </>

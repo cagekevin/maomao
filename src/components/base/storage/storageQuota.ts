@@ -83,6 +83,7 @@ export const DOMAIN_LABELS: Record<string, string> = {
   asset: '素材库',
   prompthub: '提示词社区',
   pref: '节点偏好',
+  panel: '面板布局',
   account: '账号环境',
   clipboard: '剪贴板',
   director3d: '3D 导演台',

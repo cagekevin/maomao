@@ -32,6 +32,8 @@ import type { ResourceItem } from '../base/api/localToolApi.ts';
 import { ResourcePreviewOverlay } from '../resource/ResourcePreview.tsx';
 // 【TD-04-57】卡片操作浮层收口到素材域（原为与本文件逐字重复的 40 行 JSX）。
 import { ResourceCardActions } from '../resource/ResourceCardActions.tsx';
+// 底部翻页栏：**唯一实现**（2026-09-21 与素材库面板收口；此前是内联在本文件的 JSX）。
+import PagedFooter from '../resource/PagedFooter.tsx';
 
 // 类型过滤 pill（沿用素材库 ResourceLibrary 的小圆按钮形式）
 //
@@ -331,7 +333,8 @@ function GeneratedView() {
           </div>
         ) : (
           <>
-            <div className="grid grid-cols-3 gap-2">
+            {/* 列数随面板宽度自适应（`.pk-media-grid`，与「素材」tab 共用同一份规则） */}
+            <div className="pk-media-grid">
               {items.map((a) => {
                 const badge = TYPE_BADGE[a.type ?? 'image'] || TYPE_BADGE.image;
                 const BadgeIcon = badge.icon;
@@ -412,36 +415,17 @@ function GeneratedView() {
         )}
       </div>
 
-      {/* 底部固定分页栏（对齐官方 Un.jsx：生成(总数) + 上一页/页码/下一页 + 清空全部） */}
-      <div className="flex items-center justify-between px-3 py-2 border-t border-edge bg-canvas flex-shrink-0">
-        <span className="text-sm font-bold text-body">生成 ({total})</span>
-        {totalPages > 1 ? (
-          <div className="flex justify-center items-center gap-3 flex-1">
-            <button
-              disabled={page <= 1 || loading}
-              onClick={() => goPage(page - 1)}
-              className="px-3 py-1 bg-surface-hover text-secondary rounded text-xs hover:bg-surface-hover-strong disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer border-none"
-            >
-              上一页
-            </button>
-            <span className="text-xs text-muted">
-              {page} / {totalPages}
-            </span>
-            <button
-              disabled={page >= totalPages || loading}
-              onClick={() => goPage(page + 1)}
-              className="px-3 py-1 bg-surface-hover text-secondary rounded text-xs hover:bg-surface-hover-strong disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer border-none"
-            >
-              下一页
-            </button>
-          </div>
-        ) : (
-          <div className="flex-1" />
-        )}
-        {loading && (
-          <span className="text-caption text-faint whitespace-nowrap mr-1">加载中...</span>
-        )}
-      </div>
+      {/* 底部固定分页栏（对齐官方 Un.jsx：生成(总数) + 上一页/页码/下一页）。
+          【2026-09-21 收口】原为内联 JSX，现与素材库面板共用唯一实现 `PagedFooter`
+          —— 两处渲染逐字等价（本面板不呈现翻页失败态，故不传 error/onRetry）。 */}
+      <PagedFooter
+        label="生成"
+        total={total}
+        page={page}
+        totalPages={totalPages}
+        loading={loading}
+        onPage={goPage}
+      />
 
       {/* 全屏预览（文字/音频/图片 + 视频播放器）走与素材库面板共用的唯一实现 */}
       <ResourcePreviewOverlay

@@ -315,6 +315,12 @@ export const KEY_AGENT_SPLIT_WIDTH = 'agent_split_width';
 export const KEY_MULTIWINDOW_CLIPBOARD = 'mutiwindow-clipboard';
 export const KEY_CANVAS_AGENT_GEN_PARAMS = 'canvasAgentGenParams';
 /**
+ * 左侧面板宽度记忆键（`LeftPanel.tsx`）—— 用户拖右缘手柄调宽后的 px 值。
+ * 与 AI 面板的 `agent_panel_width` 同性质（UI 偏好、local、可云同步），但**宿主不同**：
+ * 那把归 AI 面板，这把归左侧面板 ⇒ 两把键，不合并。
+ */
+export const KEY_LEFT_PANEL_WIDTH = 'left_panel_width';
+/**
  * 3D 导演台工程键**前缀**（含默认键本身）· TD-13-6 收口：原在 project.ts / d3dPersistence.ts 两份裸写。
  *
  * ⚠️ **不带尾横线**，这是**既有行为契约**（`d3dPersistence.test.ts` 锁住
@@ -542,6 +548,15 @@ export const STORAGE_KEYS: Record<string, StorageKeyMeta> = {
     backend: 'local',
     sync: true,
     note: '高消耗积分确认开关：任何模式真生成图/视频前是否先确认（默认 true = 开/安全）',
+  },
+
+  // ── 左侧面板（LeftPanel.tsx）───────────────────────────────────────
+  [KEY_LEFT_PANEL_WIDTH]: {
+    domain: 'panel',
+    store: 'LeftPanel.tsx',
+    backend: 'local',
+    label: '左侧面板宽度',
+    note: '左侧面板（任务 / 生成 / 素材 / 提示词）宽度（px），由面板右缘拖拽手柄写入',
   },
 
   // ── AI 历史迁移（useAgentChat.ts）──────────────────────────────────

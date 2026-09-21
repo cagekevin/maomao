@@ -24,9 +24,12 @@ import { useCallback } from 'react';
 import {
   useTableWorkspace,
   setTableWorkspaceWidth,
+  TABLE_WIDTH_RANGE,
   confirmTablePreview,
   cancelTablePreview,
 } from '../assistantTable/tableWorkspaceState.ts';
+// 拖拽调宽原语（唯一实现；与左侧面板 / AI 面板共用，见该 hook 文件头）
+import { usePanelResize } from '@/hooks/usePanelResize';
 import { useCanvasAgentTools } from '../canvas/useCanvasAgentTools.ts';
 import AssistantTablePanel from '../assistantTable/AssistantTablePanel.tsx';
 import { agentConversationSubscribe, getState } from '../conversation/conversationState.ts';
@@ -66,25 +69,16 @@ export default function TableWorkspacePanel({ agentPanelWidth }: { agentPanelWid
     [callTool],
   );
 
-  // 左缘拖拽改宽：更新共享态 width（内部 clamp 360~1080 + 记忆 agent_split_width）。
-  // 手柄贴画布左缘（表格左边）：往左拖 → 左缘左扩 → 表格变宽；往右拖 → 变窄。
-  const startWidthDrag = useCallback(
-    (e: React.MouseEvent) => {
-      e.preventDefault();
-      const startX = e.clientX;
-      const startW = ws.width;
-      const onMove = (ev: MouseEvent) => {
-        setTableWorkspaceWidth(startW - (ev.clientX - startX));
-      };
-      const onUp = () => {
-        document.removeEventListener('mousemove', onMove);
-        document.removeEventListener('mouseup', onUp);
-      };
-      document.addEventListener('mousemove', onMove);
-      document.addEventListener('mouseup', onUp);
-    },
-    [ws.width],
-  );
+  // 左缘拖拽改宽：手柄贴画布左缘（表格左边），往左拖 → 表格变宽（`anchor:'left'`）。
+  // 拖拽生命周期与钳制走**唯一实现** `usePanelResize`（与左侧面板 / AI 面板同一份）；
+  // 宽度落点仍是共享态 `setTableWorkspaceWidth`（值域取 `TABLE_WIDTH_RANGE` 单源）。
+  const { handleProps: widthGripProps } = usePanelResize({
+    width: ws.width,
+    onChange: setTableWorkspaceWidth,
+    anchor: 'left',
+    min: TABLE_WIDTH_RANGE.min,
+    max: TABLE_WIDTH_RANGE.max,
+  });
 
   if (!ws.open) return null;
   return (
@@ -97,7 +91,7 @@ export default function TableWorkspacePanel({ agentPanelWidth }: { agentPanelWid
         onCancelPreview={cancelTablePreview}
       />
       {/* 左缘拖拽手柄（贴画布左缘 = 表格左边，拖动调表格宽度） */}
-      <div className="tw-grip" onMouseDown={startWidthDrag} title="拖动调整表格宽度" />
+      <div className="tw-grip" {...widthGripProps} title="拖动调整表格宽度" />
     </div>
   );
 }

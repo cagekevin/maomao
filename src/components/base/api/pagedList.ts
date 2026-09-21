@@ -22,7 +22,8 @@
  * （它被 cap 到更小时，`totalPages` 会相应变大，循环照样取齐）。
  *
  * 【能力与用法（两条，各自唯一）】
- *  · `fetchXPage` / `hasMoreOf` —— 读一页。消费方要自己翻页 / 无限滚动时用；`hasMoreOf` 是 hasMore 的**唯一判据**。
+ *  · `fetchXPage` —— 读一页。消费方自己持有页状态、自己翻页（"还有没有下一页"的呈现判据
+ *    归翻页控件 `resource/PagedFooter.tsx`，由 `page`/`totalPages` 直接判定，本层不另立判据）。
  *  · `fetchAllXPages` —— 取全量。调用方**语义上就要全部**时用（如导入弹窗选素材、任务中心列历史）。
  *    ⚠️ 取全量有代价（1000 条 ≈ 10 次请求）：**能按条件精确查的就别取全量**
  *      （如"某节点的任务"走 `nodeId` 精确查 —— 用全量代替查询是上一轮静默不完整的根因之一）。
@@ -50,11 +51,6 @@ export interface PagedSlice<T> {
   page: number;
   pageSize: number;
   totalPages: number;
-}
-
-/** `hasMore` 的**唯一判据**（此前在 ResourceLibrary 内被写成两套）。 */
-export function hasMoreOf<T>(slice: PagedSlice<T>): boolean {
-  return slice.page < slice.totalPages;
 }
 
 /** 每页请求量（**性能参数**：只影响往返次数，不参与"是否取齐"的判断）。 */

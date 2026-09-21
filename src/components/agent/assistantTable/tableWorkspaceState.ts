@@ -32,6 +32,7 @@
  */
 import { useSyncExternalStore } from 'react';
 import { contentGet, contentSet } from '../../base/core/contentStore.ts';
+import { clamp } from '../../base/core/utils.ts';
 import { logger } from '@/components/base/core/log/logger';
 import {
   getCurrentAssistantTabs,
@@ -60,8 +61,8 @@ import { KEY_AGENT_SPLIT_WIDTH } from '../../base/core/contracts.ts';
 
 /** 左面板宽度记忆键（沿用拆分前「左表 | 右对话」分栏键，避免旧数据丢失；值 = contracts 真源） */
 const WIDTH_KEY = KEY_AGENT_SPLIT_WIDTH;
-const WIDTH_MIN = 360;
-const WIDTH_MAX = 1080;
+/** 表格工作区宽度区间（px）—— 拖拽调宽的合法范围（**唯一真源**，拖拽侧与 setter 侧同取这一份）。 */
+export const TABLE_WIDTH_RANGE = { min: 360, max: 1080 } as const;
 const WIDTH_DEFAULT = 600;
 
 import type { TableClipboard, TableWorkspaceState } from '../contract/tableWorkspaceTypes.ts';
@@ -69,12 +70,12 @@ import type { TableClipboard, TableWorkspaceState } from '../contract/tableWorks
 /** 工作区运行态类型（定义见 ./tableWorkspaceTypes.ts，此处 re-export 维持对外兼容） */
 export type { TableClipboard, TableWorkspaceState } from '../contract/tableWorkspaceTypes.ts';
 
-/** 读宽度记忆（clamp 到合法范围；异常回退默认值，不阻断） */
+/** 读宽度记忆（钳到合法范围；异常回退默认值，不阻断） */
 function loadWidth(): number {
   try {
     const t = contentGet(WIDTH_KEY);
     const n = t ? Number(t) : NaN;
-    if (Number.isFinite(n)) return Math.min(WIDTH_MAX, Math.max(WIDTH_MIN, n));
+    if (Number.isFinite(n)) return clamp(n, TABLE_WIDTH_RANGE.min, TABLE_WIDTH_RANGE.max);
   } catch (e) {
     logger.warn('AI助手', '表格宽度记忆读取失败，用默认宽', {
       error: (e as { message?: string })?.message || String(e),
@@ -186,9 +187,13 @@ export function setTableEditingCell(cell: { rowId: string; colId: string } | nul
   setState({ ...state, editingCell: cell });
 }
 
-/** 左面板宽度（px）：clamp 360~1080 + 写 agent_split_width 记忆 */
+/** 左面板宽度（px）：钳到 `TABLE_WIDTH_RANGE` + 写 `agent_split_width` 记忆 */
 export function setTableWorkspaceWidth(px: number): void {
-  const w = Math.min(WIDTH_MAX, Math.max(WIDTH_MIN, Number.isFinite(px) ? px : state.width));
+  const w = clamp(
+    Number.isFinite(px) ? px : state.width,
+    TABLE_WIDTH_RANGE.min,
+    TABLE_WIDTH_RANGE.max,
+  );
   setState({ ...state, width: w });
   // 【2026-09-17 TD-24-4 阶段0】原 `try { contentSet } catch { logger.warn }` 的 catch 永死
   // （contentSet 从不为持久化失败抛错）⇒ 宽度记忆写失败**从来没被记录过**（"禁静默吞错"是空话）。

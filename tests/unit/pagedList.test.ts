@@ -57,13 +57,7 @@ describe('pagedList — 取全量（本次修复的核心）', () => {
   });
 });
 
-describe('pagedList — 单页读取与判据', () => {
-  it('hasMoreOf = page < totalPages（全库唯一的 hasMore 判据）', () => {
-    const base = { items: [], total: 100, pageSize: 20 };
-    expect(paged.hasMoreOf({ ...base, page: 1, totalPages: 5 })).toBe(true);
-    expect(paged.hasMoreOf({ ...base, page: 5, totalPages: 5 })).toBe(false);
-  });
-
+describe('pagedList — 单页读取（参数透传）', () => {
   it('keyword 透传为后端 search（不再是"只在已加载页内过滤"）', async () => {
     fetchMock.mockResolvedValue(
       jsonResp({ data: { items: [], total: 0, page: 1, pageSize: 100, totalPages: 1 } }),

@@ -9,9 +9,12 @@
  *   素材/提示词）与 AI 助手（agent-panel.css）共用同一套尺度与语义。
  *
  * 【适用范围】只放「多个面板共用」的外壳件：
- *   顶栏 / 分段控件 / 副工具条 / pill 组 / 图标按钮 / 浮层 / 统计行。
- *   **面板私有视觉**（任务卡片、素材网格、提示词卡片、AI 消息气泡等）不进这里，
- *   仍由各面板自行实现。
+ *   顶栏 / 分段控件 / 副工具条 / pill 组 / 图标按钮 / 浮层 / 统计行 / 宽度拖拽手柄 / 媒体网格。
+ *   **面板私有视觉**（任务卡片、提示词卡片、AI 消息气泡等）不进这里，仍由各面板自行实现。
+ *   更新(2026-09-21)：原把「素材网格」也列为面板私有 —— 该判断**已被推翻**：
+ *   「生成」与「素材」两个 tab 各自写了一份 `grid grid-cols-3 gap-2`（同一条列数规则两份，
+ *   且**写死 3 列** ⇒ 面板拉宽后网格不跟随）。既然它已是两个面板共用的一条规则，
+ *   就归本层（`.pk-media-grid`），两处只写类名。
  *
  * 【色值纪律】一律取 `:root` 的 `--mao-*` 语义令牌（tailwind.config.ts 为唯一真相，
  *   禁裸色值）。仅「强调色」两枚是本层私有（Tailwind 无对应令牌，与 agent-panel.css
@@ -120,6 +123,43 @@
 .pk-seg-item[aria-selected='true'] .pk-seg-label {
   max-width: 56px;
   margin-left: 5px;
+}
+/* 宽面板档位（LeftPanel 在宽度 ≥ 480px 时挂 `data-panel-wide`）：
+   4 个 tab 的文字**全部展开** —— 窄面板下藏文字是为了省宽，宽面板下再藏就是浪费。
+   只需覆盖未激活项（基础规则 max-width:0）；激活项上面那条已展开。 */
+[data-panel-wide='true'] .pk-seg-label {
+  max-width: 56px;
+  margin-left: 5px;
+}
+
+/* ══════════════ 宽度拖拽手柄（磁条）══════════════
+   贴面板右缘：平时透明、不占视觉，hover / 拖拽中才显色（与 .agent-grip 同一套交互语言）。
+   绝对定位在面板内 ⇒ 面板根须是定位元素且 overflow:hidden（否则会溢出圆角外）。 */
+.pk-grip {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 6px;
+  z-index: 2;
+  cursor: col-resize;
+  background: transparent;
+  transition: background 0.15s;
+}
+.pk-grip:hover,
+.pk-grip.is-dragging {
+  background: rgb(59 130 246 / 0.35);
+}
+
+/* ══════════════ 媒体网格（「生成」/「素材」两个 tab 共用）══════════════
+   **列数随可用宽度自适应**（`auto-fill`），不再写死 `grid-cols-3`：
+   面板被拉宽 → 自动加列；收窄 → 自动减列。
+   `92px` = 330px 面板（减去左右留白与滚动条）下恰好 3 列的卡片下限宽 ——
+   保证**默认宽度下仍是 3 列**（观感与改造前一致），拉宽后才增列。 */
+.pk-media-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(92px, 1fr));
+  gap: 8px;
 }
 
 /* 角标（tab 上的计数）：红=要你看（失败/进行中），绿=全部完成 */

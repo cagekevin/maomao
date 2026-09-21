@@ -1,6 +1,8 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { clamp } from '@/components/base/core/utils';
 import { generateId } from '@/components/base/core/idGen';
+// 拖拽调宽原语（唯一实现；与左侧面板 / 表格工作区共用，见该 hook 文件头）
+import { usePanelResize } from '@/hooks/usePanelResize';
 
 /** 对话面板里「已引用媒体附件」的形状（与画布资源节点一一对应）。 */
 interface AgentAttachment {
@@ -215,7 +217,7 @@ function loadWidth() {
   // `contentGet` 对已登记键不抛，该 catch 不可达；留着只会把契约违约一并吞掉。
   const t = contentGet(PANEL_WIDTH_KEY);
   const n = t ? Number(t) : NaN;
-  if (Number.isFinite(n)) return Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, n));
+  if (Number.isFinite(n)) return clamp(n, MIN_WIDTH, MAX_WIDTH);
   return DEFAULT_WIDTH;
 }
 
@@ -245,7 +247,18 @@ function AgentPanel({
   }>;
 }) {
   const [width, setWidth] = useState(loadWidth);
-  const [dragging, setDragging] = useState(false);
+  /**
+   * 宽度拖拽（左缘 `agent-grip`）—— 拖拽生命周期与钳制走**唯一实现** `usePanelResize`
+   * （与左侧面板 / 表格工作区同一份；原为内联 `startDrag` + 手写 `Math.min/Math.max`）。
+   * 值域仍是本面板自己的 `MIN_WIDTH`/`MAX_WIDTH`（各宿主自持设计区间）。
+   */
+  const { dragging, handleProps: widthGripProps } = usePanelResize({
+    width,
+    onChange: setWidth,
+    anchor: 'right',
+    min: MIN_WIDTH,
+    max: MAX_WIDTH,
+  });
   // ── 表格工作区（共享运行态 tableWorkspaceState）：本面板只读，开合/宽度/选中行/待确认预览/
   //    探测游标全部收敛到共享态，左侧 TableWorkspacePanel 与右侧对话共用同一份（spec §四.5）。 ──
   const ws = useTableWorkspace();
@@ -750,23 +763,6 @@ function AgentPanel({
     onEnabledChange?.(true);
   }, [onEnabledChange]);
 
-  // 宽度拖拽
-  const startDrag = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    setDragging(true);
-    const onMove = (ev: MouseEvent) => {
-      const w = window.innerWidth - ev.clientX;
-      setWidth(Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, w)));
-    };
-    const onUp = () => {
-      setDragging(false);
-      document.removeEventListener('mousemove', onMove);
-      document.removeEventListener('mouseup', onUp);
-    };
-    document.addEventListener('mousemove', onMove);
-    document.addEventListener('mouseup', onUp);
-  }, []);
-
   // 表格工作区开合/宽度/选中行已收敛到共享态 tableWorkspaceState：
   // 顶栏「表格」图标 → toggleTableWorkspace()；模式条/ctx-chip「取消选中」→ setTableWorkspaceRows([])。
   // 左面板宽度拖拽（360~1080 + agent_split_width 记忆）在 TableWorkspacePanel 左缘，本面板不再持有。
@@ -1185,7 +1181,7 @@ function AgentPanel({
       >
         {/* 宽度拖拽手柄（表格打开时隐藏：吸附边界已被表格右缘 tw-grip 接管，避免双手柄冲突） */}
         <div
-          onMouseDown={startDrag}
+          {...widthGripProps}
           className={`agent-grip ${dragging ? 'is-dragging' : ''} ${tableOpen ? 'is-hidden' : ''}`}
           title="拖动调整宽度"
         />

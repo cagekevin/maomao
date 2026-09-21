@@ -13,9 +13,8 @@ import type { LucideIcon } from 'lucide-react';
 import { PanelSubBar, PanelPills, PanelMoreMenu } from '../base/panels/PanelBar.tsx';
 import { useLocalToolStatus } from '@/hooks/useLocalToolStatus';
 import { rescanResources, deleteResource } from '../base/api/localToolApi.ts';
-// 分页读取的唯一实现：此前本文件 `reset` 用 `items.length < total`、`loadMore` 用 `page < totalPages`
-// **两套 hasMore 判据**（M3），现统一走 `hasMoreOf`。
-import { fetchResourcePage, hasMoreOf } from '../base/api/pagedList.ts';
+// 分页读取的唯一实现（读一页；"是否还有更多"的判据是响应里的 totalPages，本文件不抄上限数字）。
+import { fetchResourcePage } from '../base/api/pagedList.ts';
 import { showToast } from '../base/core/event/toastStore.ts';
 import { useResourceCardDragProps, useTextAsset } from '@/hooks/useAssetDragToCanvas';
 import {
@@ -39,6 +38,8 @@ import {
 } from './libraryBrowse.ts';
 // 【TD-04-57】卡片操作浮层收口为唯一实现（原为与本文件逐字重复的 40 行 JSX）。
 import { ResourceCardActions } from './ResourceCardActions.tsx';
+// 底部翻页栏：**唯一实现**（2026-09-21 与生成面板收口，替代本文件的无限滚动）。
+import PagedFooter from './PagedFooter.tsx';
 // 目录条目 → 自身目录路径的唯一实现（与「点目录进入」「拖入归类」共用）。
 import { folderPathOf } from '@/hooks/useResourceMoveToFolder';
 import { useCurrentProjectId } from '../base/store/projectStore.ts';
@@ -83,7 +84,7 @@ const TYPE_BADGE: Record<string, TypeBadge> = {
   text: { icon: FileText, cls: 'text-yellow-400 bg-yellow-500/10' },
 };
 
-const PAGE_SIZE = 20; // 每次加载 20 个，无限滚动追加
+const PAGE_SIZE = 20; // 每页 20 个（翻页控件 = 底部 `PagedFooter`，与生成面板同一实现）
 
 // 文字读取与三态统一收敛到 useAssetDragToCanvas.js 的 useTextAsset（唯一实现）；isAudio / isVideoResource 统一到 assetType.js
 // 文字素材单元格：默认展示文件内容（前几行）
@@ -111,7 +112,7 @@ const TextAssetCell = React.memo(function TextAssetCell({
 
 /**
  * 素材库 tab —— 与本地磁盘文件一一对应（从 localTool /api/resources 读取 migrated 目录，rescan 收录），
- * 目录 pill 沿用本原型小圆按钮形式，无限滚动（每次 20 个）。
+ * 目录 pill 沿用本原型小圆按钮形式，**底部翻页（每页 20 个，控件与生成面板同一实现）**。
  * 顶部「⋯」菜单含「打开本地目录」「新建文件夹」（对齐官方素材 tab）。
  * 上传文件真实落盘到后端 /api/files/upload；删除走 /api/resources/delete。预览/拖拽建节点保留。
  */
@@ -135,17 +136,19 @@ function ResourceLibrary() {
     { folder?: string | null; name?: string | null }[]
   >([]);
   const [total, setTotal] = useState(0);
+  /** 当前页 / 总页数（`totalPages` 由后端响应决定，本面板不抄任何上限数字）。 */
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
   const [loading, setLoading] = useState(false);
-  const [hasMore, setHasMore] = useState(false);
   /**
-   * 「加载下一页」的失败原因（null = 无错误）。
-   * 【为什么必须有】此前翻页失败被 `catch { /* 忽略 *\/ }` 静默吞掉 → 列表停在半路，
-   * 用户看到的是"加载完了"，与事实相反（静默不完整）。失败读者 = 用户 ⇒ 用**持续可见**的
-   * UI 状态（不是 toast，toast 逝去即失明）+ 「点击重试」入口。
+   * 「翻页」的失败原因（null = 无错误）。
+   * 【为什么必须有】翻页失败若被静默吞掉 → 列表停在旧页、用户读成"就这些"，与事实相反（静默不完整）。
+   * 失败读者 = 用户 ⇒ 用**持续可见**的 UI 状态（不是 toast，toast 逝去即失明）+ 「点击重试」入口。
+   * （2026-09-21：由无限滚动的 `loadMoreError` 改为翻页失败态 —— 触发方式变了，失败语义随之改变。）
    */
-  const [loadMoreError, setLoadMoreError] = useState<string | null>(null);
-  /** 首屏（第 1 页 / 换目录 / 重拉）加载失败的原因；与 `loadMoreError`（翻页）分开——
-   *  两者的**重试动作不同**（重试第 1 页 vs 续下一页），共用一个状态会把重试接到错的动作上。 */
+  const [pageError, setPageError] = useState<string | null>(null);
+  /** 首屏（第 1 页 / 换目录 / 重拉）加载失败的原因；与 `pageError`（翻页）分开——
+   *  两者的**重试动作不同**（重跑 `reset` vs 重跑当前页），共用一个状态会把重试接到错的动作上。 */
   const [loadError, setLoadError] = useState<string | null>(null);
   // 外部事件驱动的**重拉信号**（机制，不是兜底）：`resource:sent` 自带目标目录，而目标目录可能与
   // 本面板当前目录**相同** —— setFolder 同值不触发上面的 effect，故需这个单调递增信号保证
@@ -156,11 +159,6 @@ function ResourceLibrary() {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const pageRef = useRef(1);
-  const loadingRef = useRef(false);
-  /** 失败后阻断自动重试（防滚动无限重试 + 刷日志）；用 ref 而非 state —— 重试入口需要**同步**解除。 */
-  const loadMoreBlockedRef = useRef(false);
   const resetTokenRef = useRef(0);
 
   const currentFolder = folder || LIBRARY_ROOT; // 当前目录（用于拉取/打开本地/上传落点）
@@ -204,10 +202,9 @@ function ResourceLibrary() {
       if (!connected) return;
       const token = ++resetTokenRef.current;
       setLoading(true);
-      setLoadMoreError(null);
+      setPageError(null);
       setLoadError(null);
-      loadMoreBlockedRef.current = false;
-      pageRef.current = 1;
+      setPage(1);
       try {
         if (rescan) await rescanResources();
         // 根目录 = 精确（只看待归类）；子目录 = 前缀（含更深子目录）—— 见 fetchArgsFor 注释。
@@ -218,15 +215,16 @@ function ResourceLibrary() {
         // 【TD-03-15】浏览到素材库根时，把返回的目录行留作 pill 清单的**磁盘那一半**
         // （「全部」= folderExact:migrated ⇒ 其 items 里正好含 migrated 下所有 type:'folder'）。
         // 非根目录**不清空**（留上次的快照）—— 否则进子目录后 pill 集体消失、用户点不回去。
+        // 同理**翻页不更新它**（见 goPage）：只有"重拉第 1 页"才是 pill 清单的正确分母。
         if (currentFolder === LIBRARY_ROOT) {
           setRootFolderRows(slice.items.filter((x) => x.type === 'folder'));
         }
         setTotal(slice.total);
-        setHasMore(hasMoreOf(slice));
+        setTotalPages(slice.totalPages);
       } catch (e) {
-        // 【2026-09-17 TD-24-4 §二】读失败不得伪装成"该目录暂无素材"（同族 loadMore 已修）：
+        // 【2026-09-17 TD-24-4 §二】读失败不得伪装成"该目录暂无素材"（同族翻页失败已修）：
         // 此前这里只 `logger.warn` + `setItems([])` ⇒ 用户看到空态，读成"我的素材没了"。
-        // 现按同族形态如实留痕 + **持续可见的错误态 + 可重试**（重试 = 重跑本函数，不是续页）。
+        // 现按同族形态如实留痕 + **持续可见的错误态 + 可重试**（重试 = 重跑本函数，不是换页）。
         const message = (e as { message?: string })?.message || String(e);
         logger.warn('ResourceLibrary', '加载失败（localTool 未连？）', message);
         if (token === resetTokenRef.current) {
@@ -274,42 +272,47 @@ function ResourceLibrary() {
     });
   }, []);
 
-  // 加载下一页并追加（无限滚动）
-  const loadMore = useCallback(async () => {
-    // 失败后**不自动重试**（否则滚动会无限重试 + 刷日志）：等用户点「重试」解除阻断再走。
-    if (!connected || loadingRef.current || !hasMore || loadMoreBlockedRef.current) return;
-    loadingRef.current = true;
-    setLoading(true);
-    setLoadMoreError(null);
-    const next = pageRef.current + 1;
-    try {
-      // 与 reset 同口径（根目录精确 / 子目录前缀），否则翻页会串入已归类素材。
-      const slice = await fetchResourcePage({ ...fetchArgsFor(), projectId }, next, PAGE_SIZE);
-      setItems((prev) => {
-        const seen = new Set(prev.map((x) => x.id));
-        return [...prev, ...slice.items.filter((x) => !seen.has(x.id))];
-      });
-      pageRef.current = slice.page;
-      setTotal(slice.total);
-      setHasMore(hasMoreOf(slice));
-      mergeResourcesFromBackend(slice.items);
-    } catch (e) {
-      // 失败可见（读者 = 用户）：此前这里是静默吞 → 用户把"加载失败"读成"已经到底"。
-      const message = e instanceof Error ? e.message : String(e);
-      logger.warn('ResourceLibrary', '加载下一页失败', message);
-      loadMoreBlockedRef.current = true;
-      setLoadMoreError(message);
-    } finally {
-      loadingRef.current = false;
-      setLoading(false);
-    }
-  }, [connected, hasMore, projectId, fetchArgsFor]);
-
-  const onScroll = useCallback(() => {
-    const el = scrollRef.current;
-    if (!el) return;
-    if (el.scrollTop + el.clientHeight >= el.scrollHeight - 120) loadMore();
-  }, [loadMore]);
+  /**
+   * 翻到指定页（底部翻页栏的「上一页 / 下一页 / 重试」）。
+   *
+   * 【为什么是它、而不是"滚动到底加载更多"（2026-09-21 用户实测判定）】
+   * 原实现把"加载下一页"的唯一触发挂在容器 `onScroll` 上。而第 1 页只有 20 条，
+   * 在 330px 面板里**撑不满容器** ⇒ 不产生滚动条 ⇒ scroll 事件永不发生 ⇒ 加载永不触发
+   *（用户实测：「完全不会动」；外在表现 = 永远 20 条，新素材把最旧那个挤出第一页）。
+   * 触发条件与"内容够不够高"互为前提 = **结构死锁**，改 CSS 治不了（把 20 条拉高只是换个屏幕再犯）。
+   * 现触发改为**点击**（与内容高度无关），并复用素材库/生成共用的 `PagedFooter`。
+   *
+   * 【与 reset 的分工】reset = 换目录 / 重拉第 1 页（会刷新 pill 清单的磁盘那一半）；
+   * goPage = 只在同一目录内换页，**不碰 `rootFolderRows`**（否则翻到第 2 页 pill 会集体消失）。
+   * 读取口径与 reset 完全一致（根目录精确 / 子目录前缀），否则翻页会串入已归类素材。
+   */
+  const goPage = useCallback(
+    async (next: number) => {
+      if (!connected || loading || next < 1) return;
+      const target = Math.min(next, totalPages);
+      const token = ++resetTokenRef.current;
+      setLoading(true);
+      setPageError(null);
+      try {
+        const slice = await fetchResourcePage({ ...fetchArgsFor(), projectId }, target, PAGE_SIZE);
+        if (token !== resetTokenRef.current) return;
+        // 替换（不是追加）：翻页语义 = 换一屏，与生成面板一致。
+        setItems(slice.items);
+        mergeResourcesFromBackend(slice.items);
+        setTotal(slice.total);
+        setTotalPages(slice.totalPages);
+        setPage(slice.page);
+      } catch (e) {
+        // 失败可见（读者 = 用户）：翻页失败不得伪装成"就这些"（静默不完整）。
+        const message = e instanceof Error ? e.message : String(e);
+        logger.warn('ResourceLibrary', '翻页失败', message);
+        if (token === resetTokenRef.current) setPageError(message);
+      } finally {
+        if (token === resetTokenRef.current) setLoading(false);
+      }
+    },
+    [connected, loading, totalPages, projectId, fetchArgsFor],
+  );
 
   // 上传文件到后端（落盘当前目录 + rescan 收录）
   const handleFiles = useCallback(
@@ -471,12 +474,8 @@ function ResourceLibrary() {
         />
       </div>
 
-      {/* 素材网格（无限滚动） */}
-      <div
-        ref={scrollRef}
-        onScroll={onScroll}
-        className="flex-1 overflow-y-auto custom-scrollbar px-2.5 pb-2.5 mt-2"
-      >
+      {/* 素材网格（每页 20 条，翻页见底部 `PagedFooter`；容器仅保留正常的溢出滚动） */}
+      <div className="flex-1 overflow-y-auto custom-scrollbar px-2.5 pb-2.5 mt-2">
         {!connected ? (
           <div className="h-full flex items-center justify-center text-faint text-sm">
             请先连接本地引擎
@@ -532,7 +531,8 @@ function ResourceLibrary() {
           )
         ) : (
           <>
-            <div className="grid grid-cols-3 gap-2">
+            {/* 列数随面板宽度自适应（`.pk-media-grid`，与「生成」tab 共用同一份规则） */}
+            <div className="pk-media-grid">
               {items.map((a) => {
                 const badge = TYPE_BADGE[a.type ?? 'image'] || TYPE_BADGE.image;
                 const BadgeIcon = badge.icon;
@@ -615,32 +615,22 @@ function ResourceLibrary() {
                 );
               })}
             </div>
-
-            {/* 底部加载提示 */}
-            {loading && (
-              <div className="py-3 text-center text-caption-sm text-faint">加载中...</div>
-            )}
-            {/* 翻页失败：持续可见 + 可重试（读者 = 用户；此前这里静默吞 → 用户读成"到底了"） */}
-            {!loading && loadMoreError && (
-              <button
-                className="w-full py-3 text-center text-caption-sm text-red-400 hover:text-red-300 transition-colors cursor-pointer border-none bg-transparent"
-                title={loadMoreError}
-                onClick={() => {
-                  loadMoreBlockedRef.current = false;
-                  void loadMore();
-                }}
-              >
-                加载更多失败 · 点击重试
-              </button>
-            )}
-            {!loading && !loadMoreError && !hasMore && items.length > 0 && (
-              <div className="py-3 text-center text-caption-sm text-subtle">
-                已全部加载（共 {total} 个）
-              </div>
-            )}
           </>
         )}
       </div>
+
+      {/* 底部固定翻页栏（与生成面板**同一实现**）。
+          失败态由它承接（`pageError` + 重试 = 重跑当前页）：读者 = 用户，持续可见、可重试。 */}
+      <PagedFooter
+        label="素材"
+        total={total}
+        page={page}
+        totalPages={totalPages}
+        loading={loading}
+        error={pageError}
+        onRetry={() => void goPage(page)}
+        onPage={goPage}
+      />
 
       {/* 拖入高亮 */}
       {dragOver && (
