@@ -519,7 +519,9 @@ settings/store/settingRegistry.ts（设置声明表·app_settings 默认值/UI/�
 settings/store/accountsStore.ts（KEY=yimao_accounts, backend:kv，仍进云同步）
 settings/store/providerStore.ts（save 后回写 active_api_endpoint KV 供后端路由）
 agent/runtime/agentModelStore.ts（agent_chat_model / agent_history_turns, backend:local）
-agent/runtime/skillStore.ts（legacy 转发壳；键真源 = agent/skill/store/skillRepository.ts：agent_skills / agent_skill_enabled / agent_skill_config）
+agent/skill/store/skillRepository.ts（三个键的唯一读写口：agent_skills / agent_skill_enabled / agent_skill_config；
+  经门面 `@/components/agent/skill` 对外。**`agent/runtime/skillStore.ts` 转发壳已于 2026-09-22 删除**
+  —— 它最后只剩两个订阅键与两个便利函数，面板改走门面后"域外只走门面"这条纪律再无例外）
 task/nodeRuntimeStore.ts（纯内存瞬态 map，不落盘）
 ```
 

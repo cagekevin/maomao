@@ -22,30 +22,37 @@ Skill 的**全部**：磁盘技能包的读写、`SKILL.md` frontmatter 解析�
 > | （顶层） | **门面** 与 **类型真源**（域外 import 路径不变 = `@/components/agent/skill`） | `index.ts` · `skillTypes.ts` |
 >
 > 下表按「文件 → 职责」列；**文件名不带目录前缀**，目录见上表。
+>
+> ⚠️ **本表不写用例编号**：编号是**导出面的分类**，其唯一真源是门面 `index.ts` 的头注释
+> （ADR-0044 §8：导出面按用例定义）。此处再抄一份就是第二份真相 —— 2026-09-22 实证：
+> 同一张表里 `skillInject` 与 `skillLibraryView` **都被标成 ①**，而门面用的是另一套编号。
+> 要查"哪个文件服务哪个用例"，从门面那份清单反查即可（信息不丢）。
 
 | 文件 | 职责 |
 |---|---|
 | `skillTypes.ts` | 类型真源：`SkillBinding`（P2 冻结）· `SkillConfig` · 包数据形状 · `SkillApiResult`（`RuntimeSkill` 判别联合已按 ADR-0053 删除 —— 零消费者不许预留） |
 | `skillBuiltins.ts` | **内置 Skill 的唯一家**（代码常量）。冻结要按 id 找正文 ⇒ 内置与缓存必须**都在模块可达范围内**（它此前住 legacy 层，那正是 P4 装配断裂的根） |
+| `skillRegistry.ts` | **「当前全部可用 Skill」的唯一组合点**：缓存 ∪ 内置（缓存优先）；连**读失败**一起给（`{ok,list,error}`，TD-11-66）。内置身份由**它在哪个循环里**决定（不靠字段标记，见不变量 27） |
 | `skillManifest.ts` | `SKILL.md` frontmatter 解析/序列化（零依赖手写 · **已知字段只有 `id`/`name`/`description`/`version`**，其余一律走 `unknown` 原样保留 · 解析失败整文件当正文） |
 | `skillBudget.ts` | 纯函数：**注入预算**（`SKILL_CONTENT_LIMITS` / `SKILL_LIMIT_SUGGESTED_MAX` / `SKILL_INDEX_LIMITS`）+ 截断（`truncateSkillContent`，`limit<=0` = 一点都不给）。只管"给多少" |
 | `skillInjectText.ts` | 纯函数：**发给模型的两块文本**（块① 可用清单 / 块② 本次启用正文）+ 不可信条款（唯一一份字面文本，与「读资料」工具描述共用）。只管"怎么写" |
-| `skillResourcePath.ts` | 纯函数：**模型能读哪些文件**的唯一判据（`assertSafeSkillRelativePath`，含 `scripts/**` 整目录拒）+ `TEXT_RESOURCE_EXT`（与导入侧共用一张表）+ `extractResourcePaths` |
+| `skillResourcePath.ts` | 纯函数：**包内相对路径的准入**。`isTextPackageFile` = **读侧与导入侧共用的那一条**（段合法 + 扩展名白名单）；`assertSafeSkillRelativePath` = 它 ∧ 不危险 ∧ 非 `scripts/**`（读侧专有）；+ `TEXT_RESOURCE_EXT`（唯一扩展名表）+ `extractResourcePaths`（**"带目录才算引用"这条口径在提取侧**，见不变量 4） |
+| `skillText.ts` | 纯函数：**文本的取值与清洗** —— `asText`（`unknown` → string 的**唯一实现**，全模块共用）+ `repairMojibakeText`（外部导入的 `.md` 编码修复，含"勿加阈值"实测教训） |
 | `skillDirName.ts` | 纯函数：**磁盘目录名规则**（`slugifySkillName` 新造 / `isLegalDirSegment` 围栏 / `uniqueSlugIn` 去重）—— 与后端 `isSafeSegment` 同族，必须被它接受 |
-| `skillGroup.ts` | **分组的唯一语义家**：`UNSORTED_GROUP` · 两个伪组哨兵（**门下不转发**）· `SkillGroupKind` · `labelOfGroup`（完整措辞）· `kindOfGroup` · `categoryInputOf` · `compareSkillGroups`。列表与下拉**共用**它 |
+| `skillGroup.ts` | **分组的唯一语义家**：`UNSORTED_GROUP` · 两个伪组哨兵（**门下不转发**）· `SkillGroupKind` · `labelOfGroup`（完整措辞）· `kindOfGroup` · `categoryInputOf` · `orderOfGroup` + `compareSkillGroups`（**组序位次也在这里**，见不变量 24）。列表与下拉**共用**它 |
 | `skillApi.ts` | 技能库后端 facade 的调用层（6 端点，返回判别联合，不抛） |
 | `skillRepository.ts` | `agent_skills` / `agent_skill_enabled` / `agent_skill_config` 三个键的**唯一读写口**（`agent_skill_usage` 已于 2026-09-22 退役：读侧零显示点，见 `docs/plan/142 §3.10`） |
 | `skillHydrate.ts` | 磁盘 → 缓存的收敛（含"空目录=未决不写空"）+ 「补齐 frontmatter id」 |
 | `skillPersist.ts` | 网页保存/删除/导入/导出 → **先落盘成功才回写缓存**；换分组 = 新位置写成功后才删旧包；`packageFiles` = **整包导入**语义（提交集合即最终状态） |
 | `skillImport.ts` | 整目录导入：按「谁直接含 `SKILL.md`」切包 → 交给 `saveSkillToDisk` 的整包语义写盘（`isImportablePackageFile` = 准入唯一判据；**扩展名表与读侧共用 `TEXT_RESOURCE_EXT`**、单文件上限 = 跨栈常量 `SKILL_MAX_FILE_BYTES`，由 `check:arch` 对账） |
 | `skillMigration.ts` | localStorage → 磁盘的一次性迁移（幂等 · 不改写旧键 · 失败原样保留） |
-| `skillInject.ts` | 用例①：`getSkillIndexText`（块① 可用清单）+ `freezeSkillTurn`（块②：发送起点**冻结**，正文与留痕同源；**入参只有 id**） |
-| `skillResource.ts` | 用例⑤：`setSkillTurnBindings`（发送起点写/结束清）+ `readSkillResource`（模型按需读**本轮启用**且**正文显式引用**的文本资料） |
-| `skillCloudSync.ts` | 用例⑦：`applyCloudSkillsToDisk`（云拉取后把正文**写回磁盘**，让磁盘/缓存/云收敛；`protectIds` 保护未回灌的本地磁盘改动） |
-| `skillLibraryView.ts` | 用例①（新）：**列表视图纯函数** —— "行 = 磁盘包 ∪ 索引状态"的唯一判定中枢（行状态全集 · 组三态 · 组计数 · 可用性判据）。只管"行怎么判、组怎么摆" |
-| `skillPickerView.ts` | 用例①（新）：**选用入口（AI 面板下拉）的分组** —— 与列表同一套 `kind`/`label`（面板不再自己造官方组），判据读 `row.usable`（不另写）。只管"选得动的那些怎么摆" |
+| `skillInject.ts` | `getSkillIndexText`（块① 可用清单）+ `freezeSkillTurn`（块②：发送起点**冻结**，正文与留痕同源；**入参只有 id**） |
+| `skillResource.ts` | `setSkillTurnBindings`（发送起点写/结束清）+ `readSkillResource`（模型按需读**本轮启用**且**正文显式引用**的文本资料；拒绝时说清是哪条口径拒的） |
+| `skillCloudSync.ts` | `applyCloudSkillsToDisk`（云拉取后把正文**写回磁盘**，让磁盘/缓存/云收敛；`protectIds` 保护未回灌的本地磁盘改动） |
+| `skillLibraryView.ts` | **列表视图纯函数** —— "行 = 磁盘包 ∪ 索引状态"的唯一判定中枢（行状态全集 · 组三态 · 组计数 · 可用性判据）。只管"行怎么判、组怎么摆" |
+| `skillPickerView.ts` | **选用入口（AI 面板下拉）的分组** —— 与列表同一套 `kind`/`label`（面板不再自己造官方组）；"选得动" = `usable` × `enabled`，**两半都在它这里判**。只管"选得动的那些怎么摆" |
 | `skillEntry.ts` | 包**入口文件**（`SKILL.md`）的唯一口径：`SKILL_ENTRY_FILE`（跨栈协议名，与后端对账）+ `findSkillEntryFile` + `skillEntryRelPath`（TD-11-59） |
-| `index.ts` | **唯一门面**：按「用例」编排导出，域外只准 import 它 |
+| `index.ts` | **唯一门面**：按「用例」编排导出（**用例编号的唯一真源 = 它的头注释**），域外只准 import 它 |
 
 > 已退役：`SkillLibraryPanel.tsx`（2026-09-22 · TD-11-44）—— 它把技能画成了**第二个列表**，
 > 职责已全部并进设置页的「一个列表 + 工具条 + 右栏」（列表并进列表、按钮进工具条、每包详情进右栏）。
@@ -57,6 +64,11 @@ Skill 的**全部**：磁盘技能包的读写、`SKILL.md` frontmatter 解析�
 2. **`id` 是 UUID，与目录名解耦**：改名、换组不动 id（否则启用态/绑定会断）。
 3. **`scripts/**` 永不进模型视野**：`assertSafeSkillRelativePath` 拒它，后端 `scope=content` 也拒它（两道）。
 4. **只有正文反引号/markdown 链接里显式写出的路径才可读**，不是"包内任意文件可读"。
+   且**只收"带目录"的引用**（`references/**`，见 `docs/plan/140 §1.1/§1.4`）：包根与 `SKILL.md` 同级的
+   裸文件名**不算资料**（否则正文里随手写的 `` `foo.md` `` 会被当成引用）。这条口径**在提取侧**
+   （`extractResourcePaths`），**不在安全侧**（`assertSafeSkillRelativePath` 只管"危不危险"，
+   它必须放行 `SKILL.md` 这个入口名）—— 两道合取才是"能不能读"，拒绝时**必须说清是哪一道拒的**
+   （TD-11-77：从前一律报"正文里没有引用这个文件"，而包根资料其实是被口径拒的 ⇒ **原因说谎**）。
 5. **本轮零绑定 ⇒ 块②不出现**：模型据此判断"这次用户有没有发 skill"。块①（清单）默认关且**不含正文**。
 6. **组 = 技能库一级目录，一个 skill 只属于一个组**（一维）；组**不存自己的开关状态** ——
    组头显示态（全开/全关/部分）从成员派生，组级开关 = 批量写 `agent_skill_enabled`。
@@ -122,46 +134,77 @@ Skill 的**全部**：磁盘技能包的读写、`SKILL.md` frontmatter 解析�
    不从缓存重拼 —— 缓存只留 4 个字段，重拼会让 `unknown`（含已退役的 `when-to-use`/`allowed-tools` 等）静默消失，
    于是"导出→再导入"一轮就缺声明（而导入侧明明"原样带过"，两侧不对称）。读不到 ⇒ `null`，由调用方
    **如实说**降级（"仅正文：frontmatter 声明已丢"），不许悄悄给一份残缺 frontmatter。
+24. **组序位次只有一处**（TD-11-74）：官方段 < 普通磁盘组（本地中文序）< `_未分类` < 仅索引收纳段，
+   全在 `skillGroup.orderOfGroup`；视图层只"按位次排"。**视图层不许自己认任何哨兵的位次** ——
+   否则想改"官方组排第几"的人按 `skillGroup.ts` 头注释进去找不到，会另写一份（判据两个出生地）。
+25. **用例编号的唯一真源 = 门面 `index.ts` 的头注释**（TD-11-72/73）：**任何别处都不写编号** ——
+   `README §2`、`docs/plan/*`、以及**模块内各文件的头注释**都只写**用例名**（名字自解释；编号要查，
+   且抄一份必漂移）。实证：三处编号互不一致，README 表里同一张表把两个文件都标成 ①，
+   连模块内 `skillResource` / `skillInject` 的头注释也各挂着旧编号 ⇒ 引用失效。
+26. **"本层不判"不许用"缺省值/省略"表达**（TD-11-75）：`rowFromIndex` 的 `state` **无默认值**、
+   `buildSkillLibraryView` 的 `enabledMap` **必填**、`buildSkillPickerGroups` 的 `disk`/`enabledMap`
+   **都必填**。两条歧路都实证过、都不许走：① 传 `{}` 表达"不判" = **编值**（类型层说这是启用态）；
+   ② 改成可选参数 = **危险默认值**（漏传 ⇒ 静默"全部启用"）。正确形态 = 调用方拿**真值**，
+   或由**入口**表达（要判的那个入口才收它）。
+   推论：**"能不能选"只有一处判** —— `buildSkillPickerGroups` 里 `usable`（结构）× `enabled`（开关），
+   调用方只转发真值、不预过滤（同一条判据劈成两半住两层才是真复杂度）。
+27. **"取值原语"与"路径准入"各只有一处**（2026-09-22 收口）：`unknown → string` 一律用
+   `rules/skillText.asText`（**不许再写本地 `str`/`const x = typeof …`** —— 实测曾有两份：视图层一份、
+   `skillRegistry` 一份）；"包内路径段合法 + 扩展名白名单"一律用 `rules/skillResourcePath.isTextPackageFile`
+   （读侧与导入侧共用，**差异只在用途**：读侧另拒 `scripts/**`）。两处都是"两侧各写一份 ⇒ 改一处必漂移"。
+   推论：**内置身份不靠字段标记** —— `AllSkill.builtin` 由 `listAllSkills` 按"它在哪个循环里"产出；
+   别再给 `BuiltinSkillDef` 加 `builtin` 字段（实测那个字段**只写不读**，注释却声称 UI 靠它分组）。
 
 ## 4. 门面纪律
 
 - 域外（`settings/`、`agent/panels/` 等）**只准** `import ... from '@/components/agent/skill'`；
   禁引 `.../skill/skillManifest.ts` 之类内部件 —— 否则等于绕过用例编排。
 - `agent/index.ts`（域门面）**不做并集转发**（ADR-0044 §7），skill 的出口只在本模块门面。
-- 门面导出面**按用例定义**（取本轮要发的文本 / 管理 skill 与分组 / 云同步后重写磁盘 / 读写设置 / 模型读资料），
-  **不按"当前谁在用"挑符号**；但**未实现的用例不许预置空壳**（ADR-0053）。
-- ✅ **已收口（2026-09-21 · TD-11-19）**：`agent/runtime/skillStore.ts` **不再深引** `skillRepository` ——
-  读（列表／启用态／用量）与写（启用态）全走本门面；它就是**纯转发壳**（零业务逻辑、零键字面量）。
-  启用态写入**只剩一条**：门面 `setSkillsEnabled`（单个开关 = 批量写 1 个）——此前那个"第二个写 API"已删。
-  含义：**域外唯一出口成立**，`grep -rn "skill/skillRepository" src` 应只剩本模块内部件。
-- ✅ **域内实现搬出壳（2026-09-22 · TD-11-50/51/52）**：`isSkillEnabledIn`（默认启用判据）·
-  `listAllSkills`（组合）· `isSkillImportFile`/`skillNameFromFile`（单文件白名单）· `repairMojibakeText`
-  都住进了模块（`skillRepository` / `skillRegistry` / `skillImport` / `skillText`）并由门面导出。
-  ⇒ 壳里 `function repairMojibakeText` 的实现计数 = **0**；视图层与面板不再各抄一份判据
-  （此前 `skillLibraryView` 自己写过一份"默认启用"，注释还自认"与 `isSkillEnabled` 同口径"）。
+- 门面导出面**按用例定义**（ADR-0044 §8）—— **用例清单与编号的唯一真源 = `index.ts` 的头注释**，
+  本节不复述（复述即第二份真相，见不变量 25）；**不按"当前谁在用"挑符号**；
+  但**未实现的用例不许预置空壳**（ADR-0053）。
+- ✅ **`runtime/skillStore.ts` 转发壳已删除（2026-09-22）** —— **"域外只走门面"这条纪律从此无例外**。
+  过程：TD-11-19（2026-09-21）先让它**不再深引** `skillRepository`（读/写全走本门面，它成纯转发壳）；
+  TD-11-50/51/52 把域内实现（`isSkillEnabledIn` / `listAllSkills` / 单文件白名单 / `repairMojibakeText`）
+  全部搬进模块并由门面导出；**最后一步删壳**：唯一消费者 `AgentPanel` 的 4 个符号改走门面 ——
+  两个订阅键（`SKILLS_KEY`/`ENABLED_KEY`）门面本就转发；`isSkillEnabled(id)` → `isSkillEnabledIn(map,id)`
+  （面板**读一次** map、判 N 次，比原来每次调用各读一次更省）；`findSkill(id)` → 面板已持有的
+  `skillsRead.list.find(...)`。**能力零损失、门面零新增导出**；`legacy Skill` 形状随之消失。
+  ⚠️ `plan142` 原把这一步"排在 B 批之后"——那**只是排序**（B1–B4 动 `SkillSettings`，与面板不撞车），
+  不是依赖 ⇒ 前提并未被 B 批锁住，故本轮直接做掉（`ADR-0053` 删前四关全过）。
 
-## 5. 遗留（尚未做）
+## 5. 遗留与已结清（逐条带状态；✅ = 已结清，⚠️ = 仍未做）
 
-- ✅ **取用面与列表同源（2026-09-22 · TD-11-55）**：AI 面板下拉不再只按索引 —— 面板打开时读一次
-  **磁盘现状**（`readDiskSkillPackages`：每包只取入口文件），交给 `buildSkillPickerGroups(all, disk)`；
-  "磁盘上已删除（仅索引）"的条目因此**不进下拉**（判据仍是视图层的 `row.usable`，没有第二份）。
+- ✅ **取用面与列表同源（2026-09-22 · TD-11-55/75）**：AI 面板下拉不再只按索引 —— 面板打开时读一次
+  **磁盘现状**（`readDiskSkillPackages`：每包只取入口文件），连同**技能全集**与**真启用态**
+  （`readSkillEnabledMap()`）一起交给 `buildSkillPickerGroups(all, disk, enabledMap)`；
+  "能不能选"（`usable` × `enabled`）在**那里一处判**，面板不再预过滤（从前"启用"由面板判、
+  "可用"由 picker 判 ⇒ 同一条判据劈两半）。"磁盘上已删除（仅索引）"的条目因此**不进下拉**。
   读不到磁盘 ⇒ 快照保持**未决** ⇒ 按索引列出（**不把下拉变空**：读不到 ≠ 磁盘上没有技能）。
-- **`runtime/skillStore.ts` 的旧写路径已删除**（`upsertCustomSkill` / `deleteCustomSkill` /
-  `saveCustomSkills`）：它们只写缓存不碰磁盘，是"能绕过真相源的写入口"。现在写路径只剩本模块门面，
-  `skillStore.ts` 只保留读与运行态（启用态；用量计数已于 2026-09-22 退役，见 `docs/plan/142 §3.10`）。
+- ✅ **旧写路径已删除、壳本体也已删除（2026-09-21 / 2026-09-22）**：壳里曾有
+  `upsertCustomSkill` / `deleteCustomSkill` / `saveCustomSkills`（只写缓存不碰磁盘 = 能绕过真相源的写入口）
+  —— 那一批先删；**壳本体**（`runtime/skillStore.ts`）随后一并删除，见 §4 最后一条。
+  现在写路径只剩本模块门面，域外任何一处都不再有"第二个入口"。
 - ✅ **两个"什么都能放"的文件已按变更理由拆开（2026-09-22 · TD-11-60/68）**：
   `skillCatalog.ts`（332 行 / 五类）→ `skillBudget` · `skillInjectText` · `skillResourcePath` · `skillDirName`（+ 组那类并入 `skillGroup`）；
   `skillLibraryView.ts`（518 行 / 行机＋组语义＋选择器）→ `skillLibraryView`（行机）· `skillGroup`（组语义，**两个用例共用**）· `skillPickerView`（选择器）。
   判据 = **"它的变更理由从此与谁无关"**：调预算不再碰块文案、改读权限不再碰目录名、改下拉契约不再碰行状态机。
   ⚠️ 这是**改动半径**的减（不是行数减：逻辑 0 新增，头注释净增）—— 别把它当成"复杂度净减"来引用。
-- ⚠️ **AI 面板拖入 `.md` 的导入路径无测试**（TD-11-63）：该路径此前把正文交给 `applySkill(对象)`，
-  而本轮选中态只存 id ⇒ 正文无人接住（toast 谎报"已导入"）；已改走模块 `importSkillText` 真落盘。
-- **内置 Skill 已迁进本模块**（`skillBuiltins.ts`，2026-09-21）：它此前住 `runtime/skillStore.ts`，
+- ✅ **面板「选文件」入口已接回并锁住（2026-09-22 · TD-11-63）**：工具栏「+」→ 隐藏 input
+  （`accept` 从模块白名单 `SKILL_IMPORT_ACCEPT` 派生）→ `handleFiles`；`.md` 走模块用例
+  `importSkillText` **真落盘**后才选中它（从前把正文交给 `applySkill(对象)` ⇒ 没人接住 + 谎报"已导入"）。
+  四条判据由组件测试锁住（`tests/unit/AgentPanel.test.tsx` 的 `选文件（参考图／导入 Skill · TD-11-63）`）：
+  走模块用例 / 失败不谎报 / 跳过不静默（超限的**不读进内存**）/ 选完复位 `input.value`。
+- ✅ **内置 Skill 已迁进本模块**（`model/skillBuiltins.ts`，2026-09-21）：它此前住 `runtime/skillStore.ts`，
   而冻结（`freezeSkillTurn`）要按 id 找正文 ⇒ 模块自己看不到内置 skill，只能由 UI 把正文镜像着传进来 ——
-  这正是 P4「按需读资料」装配断裂（TD-11-16）的根。`skillStore.getBuiltinSkills` 现为**纯转发**，消费方零改动。
+  这正是 P4「按需读资料」装配断裂（TD-11-16）的根。
+  内置常量的消费者（`skillRegistry`、`SkillSettings`、测试）一律从**门面**取。
 - `BuiltinSkill` / `RuntimeSkill` / `isUserSkill`（判别联合与收窄）**仍按 ADR-0053 保持删除状态**：
-  到现在仍无消费者（UI 用 legacy `Skill`，模块内用 `BuiltinSkillDef` / `UserSkill`）
+  到现在仍无消费者（模块内用 `BuiltinSkillDef` / `UserSkill` / `AllSkill`；UI 侧见下条）
   ⇒ **与第一个真实消费者同批加回**，不预先找回。
-- 导入目前只收文本；真要保全二进制资料（图片/字体）时再做 base64 通道（ADR-0053：不提前预留）。
-- **UI 仍用 legacy `Skill` 形状**（住 `runtime/skillStore.ts` 这个转发壳里）；改用模块类型时与上一并收口
-  （那时 `RuntimeSkill` 族才有第一个真实消费者）。
+- 导入目前只收文本（`isImportablePackageFile` 只放行 `TEXT_RESOURCE_EXT`）；真要保全二进制资料（图片/字体）
+  时再做 base64 通道（ADR-0053：不提前预留。`SkillPackageFile.encoding` 里的 `base64` 是**读侧**形状，
+  用来如实标出"这个文件读不成文本"，不是导入通道）。
+- ✅ **legacy `Skill` 形状已消失（2026-09-22）**：它随壳（`runtime/skillStore.ts`）一起删掉 ——
+  面板不再经任何"legacy 形状"取数据（`skillsRead` 给的就是模块的 `AllSkill`）。
+  ⇒ 将来 UI 要改用模块类型时，`RuntimeSkill` 族的**第一个真实消费者**位置是空着的（不预先找回）。

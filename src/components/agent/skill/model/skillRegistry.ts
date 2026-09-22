@@ -15,6 +15,7 @@
  */
 import { getBuiltinSkills } from './skillBuiltins.ts';
 import { readSkillList } from '../store/skillRepository.ts';
+import { asText } from '../rules/skillText.ts';
 
 /** 「当前全部可用 Skill」的最小形状（正文与落点都在这里，UI 与注入共用） */
 export interface AllSkill {
@@ -28,8 +29,6 @@ export interface AllSkill {
   slug?: string;
   version?: string;
 }
-
-const str = (v: unknown): string => (typeof v === 'string' ? v : '');
 
 /**
  * 列出当前全部可用 Skill（缓存 ∪ 内置，缓存优先）。
@@ -62,19 +61,23 @@ export function listAllSkills(): AllSkillsResult {
     };
     if (typeof e?.id !== 'string' || !e.id || seen.has(e.id)) continue;
     seen.add(e.id);
-    const category = str(e.category);
-    const slug = str(e.slug);
+    const category = asText(e.category);
+    const slug = asText(e.slug);
     out.push({
       id: e.id,
-      name: str(e.name),
-      description: str(e.description),
-      content: str(e.content),
+      name: asText(e.name),
+      description: asText(e.description),
+      content: asText(e.content),
       builtin: false,
       category: category || undefined,
       slug: slug || undefined,
-      version: str(e.version) || undefined,
+      version: asText(e.version) || undefined,
     });
   }
+  // 【内置身份由"你在这个循环里"决定，不靠字段标记】`builtin` 是**本函数的产物**：
+  // 上面那个循环产出的都是用户 skill（`builtin:false`），这个循环产出的都是内置（`builtin:true`）。
+  // ⚠️ 别再给 `BuiltinSkillDef` 加 `builtin: true` 字段 —— 那会变成第二个出生地，且它**没人读**
+  // （2026-09-22 实测：字段只写不读，其注释却声称"UI 靠它分官方组"）。
   for (const b of getBuiltinSkills()) {
     if (seen.has(b.id)) continue;
     seen.add(b.id);

@@ -103,7 +103,7 @@ export async function migrateSkillsToDiskIfNeeded(): Promise<MigrationResult> {
       description,
       content,
       contentHash: contentFingerprint(content),
-      aliases: [oldId], // 规则②：旧 id 永久可解析，**不改写**旧 enabled / usage 键
+      aliases: [oldId], // 规则②：旧 id 永久可解析，**不改写**旧 `agent_skill_enabled` 键（按 alias 命中）
       createdAt: typeof item.createdAt === 'number' ? item.createdAt : undefined,
       updatedAt: typeof item.updatedAt === 'number' ? item.updatedAt : undefined,
     };

@@ -141,13 +141,52 @@ function persist(task: Task): void {
   );
 }
 
-// 状态 → 圆点/文字 颜色（对齐官方 An）
-export function statusDotClass(status?: string): string {
-  if (status === 'completed') return 'bg-emerald-400';
-  if (status === 'failed') return 'bg-red-400';
-  // 【TD-08-24】unknown（提交结果未知·可能已在生成）用琥珀色：既非红（确定失败）也非蓝（进行中）
-  if (status === 'unknown') return 'bg-amber-400';
-  return 'bg-blue-400';
+/**
+ * 任务状态 → 视觉表现（**唯一判据** · TD-04-61 收口）。
+ *
+ * 【为什么在这里】状态集合（`TaskStatus`）由本模块拥有 ⇒ 「每个状态长什么样」也归本模块定。
+ * 此前只有圆点走本模块（`statusDotClass`），圆点/文字/错误块底色/错误块文字色四个用途在
+ * `TaskCenter` 里各写一份同义映射 ⇒ 同一判据 4 份，改一处漏一处（判据登记表 §八 #1）。
+ *
+ * 【形态】"状态 → 语义色档"1 份 + "色档 → 各用途 class" 1 份；消费方只取值、不写判据。
+ * 【语义约束（TD-08-24）】`unknown`（提交结果未知·可能已在生成）**不得与 `completed` 同色** ——
+ * 未知被染成成功色 = 失败伪装成成功。
+ */
+export interface TaskStatusVisual {
+  /** 状态圆点底色 */
+  dot: string;
+  /** 状态文字色 */
+  text: string;
+  /** 错误块容器（底色 + 边框）；仅失败/未知态非空 */
+  box: string;
+  /** 错误块文字色；仅失败/未知态非空 */
+  boxText: string;
+}
+
+const STATUS_VISUAL: Record<'done' | 'failed' | 'unknown' | 'active', TaskStatusVisual> = {
+  done: { dot: 'bg-emerald-400', text: 'text-emerald-400', box: '', boxText: '' },
+  failed: {
+    dot: 'bg-red-400',
+    text: 'text-red-400',
+    box: 'bg-red-500/5 border border-red-500/20',
+    boxText: 'text-red-400/90',
+  },
+  // 【TD-08-24】unknown 用琥珀色：既非红（确定失败）也非蓝（进行中）
+  unknown: {
+    dot: 'bg-amber-400',
+    text: 'text-amber-400',
+    box: 'bg-amber-500/5 border border-amber-500/20',
+    boxText: 'text-amber-400/90',
+  },
+  active: { dot: 'bg-blue-400', text: 'text-blue-400', box: '', boxText: '' },
+};
+
+/** 状态 → 视觉表现（唯一实现，禁止任何渲染端再写第二份状态色判据）。表外值按「进行中」处理。 */
+export function taskStatusVisual(status?: string): TaskStatusVisual {
+  if (status === 'completed') return STATUS_VISUAL.done;
+  if (status === 'failed') return STATUS_VISUAL.failed;
+  if (status === 'unknown') return STATUS_VISUAL.unknown;
+  return STATUS_VISUAL.active;
 }
 
 // 状态 → 文案（对齐官方 On）
@@ -829,7 +868,7 @@ export function computeTaskCounts(list: Task[]): { running: number; failed: numb
   let failed = 0;
   for (const t of list) {
     if (isTaskActive(t)) running++;
-    else if (t.status === 'failed' || t.status === 'unknown') failed++;
+    else if (isTaskNeedsAttention(t)) failed++;
   }
   return { running, failed };
 }
@@ -841,6 +880,15 @@ export function computeTaskCounts(list: Task[]): { running: number; failed: numb
  *  （形态对齐同模块的 `statusLabel` / `statusDotClass`：单任务判断归 store。） */
 export function isTaskActive(t: Task): boolean {
   return t.status === 'running' || t.status === 'pending';
+}
+
+/** 单个任务是否「需用户处理」（= `failed` ∪ `unknown`）。
+ *
+ *  同一判据的**三个消费点**：`computeTaskCounts` 的 failed 档（角标/统计）·「清理失败/未知任务」
+ *  谓词 · 任务卡片错误块显示条件 —— 此前三处各写一遍（`TaskCenter` 两处靠注释同步，见 TD-04-62）。
+ *  禁止消费方再内联这条判断。 */
+export function isTaskNeedsAttention(t: Task): boolean {
+  return t.status === 'failed' || t.status === 'unknown';
 }
 
 /**

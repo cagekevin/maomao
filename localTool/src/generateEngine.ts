@@ -21,6 +21,7 @@
 import { chatWithTools, chat } from './ai-relay/index.js';
 import { chatLovartText } from './ai-relay/providers/lovart/index.js';
 import { budgetMsFor } from './budget.js';
+import type { RelayCapability } from './capability.js';
 import { resolveLocalImages, resolveImagesForEgress } from './utils/resolveLocalImages.js';
 import { fetchWithProxy } from './utils/netProxy.js';
 import { sendError } from './utils/helpers.js';
@@ -30,8 +31,6 @@ import {
   buildLovartDirectProfile,
 } from './providerConfigStore.js';
 import type { IncomingMessage, ServerResponse } from 'node:http';
-
-export type RelayCapability = 'image' | 'video' | 'chat';
 
 export interface RelayGenerateInput {
   providerId: string;
@@ -114,6 +113,10 @@ export async function relayGenerate(input: RelayGenerateInput): Promise<RelayGen
   // 【143 · S2′】原为「缺省 10 分钟」的硬编码兜底。**该值是错的**：`relayGenerate` 全仓唯一调用点
   // （`routes/generate.ts` 的 chat 分支）⇒ 它服务 **chat**，而 chat 的总预算是 180s（不是 600s）。
   // 现取预算真源，不再自持数值。
+  // ⚠️ 但仍**按 `capability` 泛化取**（不写死 `'chat'`）：`budgetMsFor` 是**共享原语** ——
+  //   `relay-poll.ts` 的多 capability 路径（提交 / 注册句柄 / 快照取数）同样消费它，且本函数入参类型
+  //   `RelayCapability` 也不允许写死 ⇒「唯一调用点 = chat」只解释**原值 600_000 为何是错的**，
+  //   不构成"泛化查表无消费者"（TD-08-62 复核：二者不互斥，是原注释没说清）。
   const timeoutMs = budgetMsFor(capability, input.timeoutMs);
   const timeout = makeTimeoutSignal(timeoutMs, input.signal);
   const base: RelayGenerateOutput = {

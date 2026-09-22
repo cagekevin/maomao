@@ -163,3 +163,85 @@ test('[TD-08-24] 句柄在内存时（attach 主路径）unknown 同样透出 �
   const st = await poll.getGenerateStatus(id);
   assert.equal(st.status, 'unknown', 'getGenerateStatus 对 unknown 行必须返回 unknown');
 });
+
+/**
+ * 【TD-08-51】恢复扫描必须校验快照 `capability` —— 它是 `JSON.parse` 直取的运行时值，
+ *   域外值会让 `budgetMsFor` 返 `undefined` ⇒ `handle.budgetMs = undefined`
+ *   ⇒ `runOnce` 的 `now - startedAt > timeoutMs` **恒 false** ⇒ 任务**永不判死**（僵尸句柄）；
+ *   且 GET 同报 `undefined` ⇒ 前端也不掐点（**双侧静默互等**）。
+ *
+ * 【观测点为什么选 `cancelGenerateTask`】它是唯一能从外部区分「句柄存在 / 不存在」的公开入口：
+ *   有句柄 ⇒ 停句柄 + 置 failed + 返 `{ok:true}`；无句柄 ⇒ 直接 `{ok:false}`。
+ *   比断言模块私有的 `handles` 稳（行为断言，不是断实现细节）。
+ */
+function snapshotWithCapability(capability) {
+  return JSON.stringify({
+    _relayPoll: {
+      taskId: 'thread-x',
+      poll: null,
+      providerId: 'lovart',
+      capability,
+      model: 'test-model',
+      type: 'image',
+      baseUrl: 'https://example.test',
+      direct: true,
+      startedAt: Date.now(),
+    },
+  });
+}
+
+test('[TD-08-51] 恢复扫描：快照 capability 域外 ⇒ 不得重建句柄（重建 = 永不判死的僵尸）', async () => {
+  const db = await getDb();
+  const id = 'task_bad_capability';
+  await upsertTask(db, {
+    task_id: id,
+    status: 'running',
+    progress: 0,
+    thread_id: 'thread-x',
+    request_data: snapshotWithCapability('text'), // 域外：快照可能来自旧版本 / 被改坏
+  });
+  await poll.initRelayPoller();
+  const r = await poll.cancelGenerateTask(id);
+  assert.equal(
+    r.ok,
+    false,
+    '域外 capability 不得被重建为句柄（重建 ⇒ budgetMs undefined ⇒ 超时比较恒 false ⇒ 永不判死）',
+  );
+});
+
+/**
+ * 【TD-08-55】`unknown` 终态必须带**上游任务号**（`threadId`）—— HTTP 层一直在消费它
+ *   （`routes/generate.ts` 的 GET 响应 `data.threadId`），而原先两个返回口都不生产它
+ *   ⇒ 消费者永远拿到 `undefined`。判据（Step 4 三铁律）：**消费者要而生产者没给 ⇒ 回生产者补契约**。
+ */
+test('[TD-08-55] unknown 行带 poll_task_id ⇒ GET 必须透出 threadId（上游任务号）', async () => {
+  const db = await getDb();
+  const id = 'task_unknown_thread';
+  await upsertTask(db, {
+    task_id: id,
+    status: 'unknown',
+    progress: 0,
+    poll_task_id: 'thread-abc', // upsertTask 入参 = 列名（snake_case），不做 camel 映射
+    error_msg: '提交结果未知（可能已开始生成）',
+  });
+  const dbRow = queryAll(db, 'SELECT status, poll_task_id FROM tasks WHERE task_id = ?', [id])[0];
+  assert.equal(dbRow.poll_task_id, 'thread-abc', '前置：上游任务号必须已落库');
+  const st = await poll.getGenerateStatus(id);
+  assert.equal(st.status, 'unknown');
+  assert.equal(st.threadId, 'thread-abc', 'unknown 态必须透出上游任务号（HTTP 层在用）');
+});
+
+test('[TD-08-51 反向] 合法 capability 的快照仍须照常重建（防加守卫后拒绝正常恢复）', async () => {
+  const db = await getDb();
+  const id = 'task_good_capability';
+  await upsertTask(db, {
+    task_id: id,
+    status: 'running',
+    progress: 0,
+    thread_id: 'thread-x',
+    request_data: snapshotWithCapability('image'),
+  });
+  await poll.initRelayPoller();
+  const r = await poll.cancelGenerateTask(id);
+  assert.equal(r.ok, true, '合法 capability 必须照常重建句柄（否则守卫变成了拒绝恢复）');
+});

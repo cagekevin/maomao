@@ -2,11 +2,12 @@
  * Skill 模块的类型真源（唯一）—— 对外只暴露 `UserSkill` / `SkillBinding` / `SkillConfig`
  * 与包读写的数据形状，其余（Manifest 等）属模块内部。
  *
- * 【关于"内置 Skill"】内置 skill 目前仍住在 `agent/runtime/skillStore.ts`（代码常量）。它的
- * `RuntimeSkill = BuiltinSkill | UserSkill` 判别联合与配套的 `isUserSkill` 收窄**曾经**在这里，
- * 但当时零消费者（UI 走的是 legacy `Skill` 形状）⇒ 已按 ADR-0053 删除（幽灵预留）。
- * **将来 UI 改用模块类型（或内置 skill 迁进本模块）时，与第一个真实消费者同批加回**，
- * 不要先把类型放回来占位。
+ * 【关于"内置 Skill"】内置 skill 已迁进**本模块**（`model/skillBuiltins.ts`，2026-09-21；此前住 legacy 壳
+ * `agent/runtime/skillStore.ts`）。`RuntimeSkill = BuiltinSkill | UserSkill` 判别联合与配套的
+ * `isUserSkill` 收窄**曾经**在这里，但当时零消费者（UI 走的是 legacy `Skill` 形状）⇒ 已按 ADR-0053 删除
+ * （幽灵预留）。**将来 UI 改用模块类型时，与第一个真实消费者同批加回**，不要先把类型放回来占位。
+ * ⚠️ 模块内现行的两个形状是 `BuiltinSkillDef`（内置，代码常量）与 `UserSkill`（磁盘包）；
+ * 组合产物是 `skillRegistry.AllSkill` —— 三者都不是判别联合（不需要，来源只有两种且各有归属）。
  *
  * 【失败契约】对外结果一律 `SkillApiResult<T>`（`{ok:true,data}` | `{ok:false,message}`）——
  * 禁 `T | null`：那让"失败"与"合法的空"长得一样，消费者只能猜（本仓红线「异常 0 猜测」）。
@@ -42,6 +43,23 @@ export interface SkillSource {
   sourceRepo?: string;
   sourceCommit?: string;
   importedAt?: number;
+}
+
+/**
+ * **内置 Skill 的形状**（代码常量的形状；产出者 = `model/skillBuiltins.ts`）。
+ *
+ * 【为什么住类型真源、而不是跟着常量文件走（2026-09-22 · ADR-0057 第 2 动作"销副本"）】
+ * 此前它定义在 `skillBuiltins.ts`，视图层又自己写了一份结构子集 `BuiltinLike`。两份在删掉
+ * `builtin` 字段后**变成完全同构** —— 而 TS 结构同构**编译不报、漂移不显**（改一边另一边静默留旧形状，
+ * 本仓 TD-08-59 同形）。现在**只有这一份**，产出者与视图层都朝类型真源取。
+ * ⚠️ 别再在别处定义"内置 skill 的最小形状"：结构子集不是理由（本仓已两次实证它会变同构）。
+ */
+export interface BuiltinSkillDef {
+  id: string;
+  name: string;
+  description: string;
+  content: string;
+  version?: string;
 }
 
 /** 用户 Skill：磁盘 `<分类>/<名称>/SKILL.md` 的镜像（`content` 是正文副本，磁盘才是真相源） */

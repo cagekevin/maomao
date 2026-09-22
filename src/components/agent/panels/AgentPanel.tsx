@@ -62,28 +62,29 @@ import {
   loadAgentChatModel,
   AGENT_CHAT_MODEL_KEY,
 } from '@/components/agent/runtime/agentModelStore';
-import {
-  findSkill,
-  isSkillEnabled,
-  SKILLS_KEY,
-  ENABLED_KEY,
-} from '@/components/agent/runtime/skillStore';
 // Skill 模块门面（域外只准走它）：块① 可用清单（块② 由 runtime 在发送起点冻结）+ 磁盘漂移侦测与重载。
 // 【为什么块① 在面板层拼】拼装要读设置态（`agent_skill_config`）与**已启用全集** —— 那是 UI 的现成事实；
 // agentCore 收字符串，保持纯函数层零业务耦合（见 buildRequestMessages 头注释）。
 import {
   buildSkillPickerGroups,
   detectSkillDrift,
+  // 【壳已删（2026-09-22）】`runtime/skillStore.ts` 的 4 个符号全部改从**门面**取：
+  // 两个订阅键本来就是 repository 的转发；`isSkillEnabled`→`isSkillEnabledIn(map,id)`（同源判据）；
+  // `findSkill`→面板自己已持有的 `skillsRead` 现查（"域外只走门面"这条纪律从此**无例外**）。
+  ENABLED_KEY,
   getSkillIndexText,
   importSkillText,
+  isSkillEnabledIn,
   isSkillImportFile,
   listAllSkills,
   readDiskSkillPackages,
+  readSkillEnabledMap,
   reloadSkillsFromDisk,
   repairMojibakeText,
   SKILL_CONFIG_KEY,
   SKILL_IMPORT_ACCEPT,
   SKILL_MAX_FILE_BYTES,
+  SKILLS_KEY,
   type SkillLibrary,
 } from '@/components/agent/skill';
 // 面板宽度键真源（TD-13-7：本面板不再自持第二份键字面量）
@@ -399,11 +400,15 @@ function AgentPanel({
    * "没有你的技能"的列表，用户以为技能全丢了（实际是**读不到**）。现在 `ok:false` 会配一条横幅如实说明。
    */
   const [skillsRead, setSkillsRead] = useState(() => listAllSkills());
-  /** 可选列表 = 已启用的那批（设置页关掉的不出现在下拉里）；读失败时它只剩内置（横幅会说明原因） */
-  const allSkills = useMemo(
-    () => skillsRead.list.filter((s) => isSkillEnabled(s.id)),
-    [skillsRead],
-  );
+  /**
+   * 块①（可用清单）的输入 = **已启用**那批（设置页关掉的不进清单）；读失败时它只剩内置（横幅会说明原因）。
+   * 【启用态读一次、判 N 次】此前走壳的 `isSkillEnabled(id)`（每次调用内部各读一次 map）；
+   * 现在在这里**读一次** map 再用 `isSkillEnabledIn(map, id)` —— 同一条判据、更少的重复读。
+   */
+  const enabledSkills = useMemo(() => {
+    const enabledMap = readSkillEnabledMap();
+    return skillsRead.list.filter((s) => isSkillEnabledIn(enabledMap, s.id));
+  }, [skillsRead]);
   /**
    * 磁盘现状（每包**只取入口文件**；`null` = 没读到 / 后端没起 ⇒ **未决**）。
    *
@@ -439,8 +444,12 @@ function AgentPanel({
     saveSkills(activeSkills);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- saveDraft 等 action 定义在本 effect 之后（TDZ 依赖数组）
   }, [activeSkills]);
-  /** 已选 id → 显示名（现查；查不到 = 该 Skill 已被删，退化为 id 本身而非空白） */
-  const skillNameOf = (id: string) => findSkill(id)?.name || id;
+  /**
+   * 已选 id → 显示名（现查；查不到 = 该 Skill 已被删，退化为 id 本身而非空白）。
+   * 【为什么从 `skillsRead` 现查，而不是走壳的 `findSkill`】面板**本来就持有**这份组合结果
+   * （`listAllSkills()` 的 `{ok,list,error}`）⇒ 再经一层转发只是多一层间接（壳已删，2026-09-22）。
+   */
+  const skillNameOf = (id: string) => skillsRead.list.find((s) => s.id === id)?.name || id;
   /**
    * 选中一个 Skill —— **只收 id**。
    * 【为什么不再收整个对象】本轮选中态存的就是 id（正文由 `freezeSkillTurn` 在发送起点按 id 现查），
@@ -457,7 +466,7 @@ function AgentPanel({
     setActiveSkills((prev) => prev.filter((a) => a !== id));
   };
   // 【联动修复】订阅 skillStore 两键：设置页新增/删除/编辑 Skill（agent_skills）、
-  // 开关启用状态（agent_skill_enabled）变更时即时重读 allSkills，避免 AI 助手 Skill 列表
+  // 开关启用状态（agent_skill_enabled）变更时即时重读 enabledSkills，避免 AI 助手 Skill 列表
   // 停留在组件挂载时的旧快照（表现为「永远只有内置默认 skill、读不到自定义 skill」）。
   // 平台 contentSet 会 notify 这两个键，故 contentSubscribe 可即时收到；卸载时取消订阅防泄漏。
   // 【关键：已选 skill 同步刷新】applySkill 选中时把 {content,...} 复制进 activeSkills（冻结快照），
@@ -465,7 +474,8 @@ function AgentPanel({
   // 故此处一并用 store 最新值回填已选条目（按 id 匹配），确保「改完设置页立刻用新 skill」。
   /**
    * 按存储重读 Skill 列表（订阅回调与「重新载入」共用**唯一实现**）：
-   *  · `allSkills` 只放**已启用**的（下拉里不该出现被关掉的）；
+   *  · `enabledSkills` = **已启用**那批，供块① 可用清单与面板的快捷入口/空态用；
+   *    （**下拉不用它** —— 下拉收全集 + 真启用态，"能不能选"由 `buildSkillPickerGroups` 一处判，TD-11-75）；
    *  · `activeSkills` 只存 id ⇒ **不需要回填内容**（正文由 `freezeSkillTurn` 在发送起点按 id 现查，
    *    "改完设置页立刻用新的"因此是天然成立的，而不是靠回填维持）；
    *    但必须剔除**已经不存在的 id**（技能被删）—— 否则 chip 会永远挂着一个查不到名字的 id。
@@ -575,12 +585,12 @@ function AgentPanel({
   const skillIndexText = useMemo(
     () =>
       getSkillIndexText(
-        allSkills.map((s) => ({ id: s.id, name: s.name, description: s.description })),
+        enabledSkills.map((s) => ({ id: s.id, name: s.name, description: s.description })),
       ),
     // `skillConfigVersion` 不是"多余依赖"：`getSkillIndexText` 内部读 `agent_skill_config`，
     // 而 eslint 看不见"闭包内部读的状态" ⇒ 版本号是让它重算的**唯一信号**（否则改了开关要重启才生效）
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [allSkills, skillConfigVersion],
+    [enabledSkills, skillConfigVersion],
   );
 
   /**
@@ -589,14 +599,19 @@ function AgentPanel({
    * 【为什么不在这里归组（TD-11-62）】此前本处**手写**了官方组（`{ name: '__official', label: '官方' }`）
    * —— 消费者自己捏造组哨兵 ⇒ 组语义有两个出生地，改哨兵值即静默失效。现在整组交给模块的
    * `buildSkillPickerGroups`（与设置页列表同一套 `kind`/`label`）；本面板不认识任何哨兵。
-   * 【输入是"选得动的"那批】`allSkills` 已经过组合（`listAllSkills`）与启用判据（`isSkillEnabled`）；
+   * 【输入是**全集 + 真启用态**（TD-11-75）】"能不能选" = `usable`（结构）× `enabled`（用户开关）
+   * 由 `buildSkillPickerGroups` **一处判**。此前这里先按启用判据预过滤，等于把同一条判据
+   * 劈成两半住两层；现在本面板只**转发真值**（`readSkillEnabledMap()` —— 与上面块① 用的是
+   * 同一个 `isSkillEnabledIn`，不存在第二份判据）。
    * 空组不出现（没有成员可选时摆空组只是挡路；磁盘上的空组由设置页如实显示）。
-   * 【第三参 `diskSnapshot`（TD-11-55）】给磁盘现状 ⇒ "磁盘上已删、索引里还在"的条目**不进下拉**；
+   * 【第二参 `diskSnapshot`（TD-11-55）】给磁盘现状 ⇒ "磁盘上已删、索引里还在"的条目**不进下拉**；
    * 没读到（`null`）⇒ 按索引列出（不把下拉变空）。
    */
   const skillPickerGroups = useMemo(
-    () => buildSkillPickerGroups(allSkills, diskSnapshot),
-    [allSkills, diskSnapshot],
+    () => buildSkillPickerGroups(skillsRead.list, diskSnapshot, readSkillEnabledMap()),
+    // `skillsRead` 在 SKILLS_KEY / ENABLED_KEY 任一变化时都会被换成新对象（见 `resyncSkills`）
+    // ⇒ 这里同时覆盖"技能变了"与"开关变了"两种失效
+    [skillsRead, diskSnapshot],
   );
 
   const handleConversationChange = useCallback((snap: SnapshotPatch) => {
@@ -1689,9 +1704,9 @@ function AgentPanel({
                   <h3>有什么可以帮你？</h3>
                   <p>创建节点、生图、改布局，一句话的事</p>
                   {/* Skill 快捷入口：最多 3 个，其余从工具栏 Skill 图标进入 */}
-                  {allSkills.length > 0 && (
+                  {enabledSkills.length > 0 && (
                     <div className="agent-chips">
-                      {allSkills.slice(0, 3).map((s) => (
+                      {enabledSkills.slice(0, 3).map((s) => (
                         <button
                           key={s.id}
                           type="button"
@@ -1933,7 +1948,7 @@ function AgentPanel({
             {skillSlashOpen && shownSkillGroups.length > 0 && (
               <div ref={skillSlashRef} className="relative">
                 <div className="agent-pop is-slash agent-mh-240">
-                  {allSkills.length === 0 ? (
+                  {enabledSkills.length === 0 ? (
                     <div className="agent-pop-empty">暂无 Skill</div>
                   ) : (
                     shownSkillGroups.map((g) => (
@@ -2167,7 +2182,7 @@ function AgentPanel({
                 </button>
                 {skillPickOpen && (
                   <div className="agent-pop is-slash agent-mh-280">
-                    {allSkills.length === 0 ? (
+                    {enabledSkills.length === 0 ? (
                       <div className="agent-pop-empty">暂无 Skill</div>
                     ) : (
                       skillPickerGroups.map((g) => (

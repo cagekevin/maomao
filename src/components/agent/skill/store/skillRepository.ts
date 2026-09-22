@@ -26,6 +26,8 @@ import {
   KEY_AGENT_SKILL_ENABLED,
   KEY_AGENT_SKILL_CONFIG,
 } from '@/components/base/core/contracts';
+// 预算取值真源（本文件只引用，不再写第二份数字 —— 见 `DEFAULT_SKILL_CONFIG` 的注释）
+import { SKILL_CONTENT_LIMITS } from '../model/skillBudget.ts';
 import type { SkillConfig } from '../skillTypes.ts';
 
 /** 键名转发（消费方订阅用；值 = contracts 真源，避免各处再写一份字面量） */
@@ -33,10 +35,17 @@ export const SKILLS_KEY: string = KEY_AGENT_SKILLS;
 export const ENABLED_KEY: string = KEY_AGENT_SKILL_ENABLED;
 export const CONFIG_KEY: string = KEY_AGENT_SKILL_CONFIG;
 
-/** 默认设置真源。`catalogToModel=false` = 「可用 Skill 清单」默认**不发**（只有手动选中才发，D8） */
+/**
+ * 默认设置（`catalogToModel=false` = 「可用 Skill 清单」默认**不发**，只有手动选中才发，D8）。
+ *
+ * 【预算的取值**不在这里**（2026-09-22 收口）】此前这里把三个数又写了一遍，而 `skillBudget.ts`
+ * 同时自称"预算唯一真源" ⇒ 同一组数两个出生地，改一处另一处静默留在旧值，且**默认预算会随路径而异**
+ * （`readSkillConfig()` 走这里那份；纯函数 `buildBoundSkillBlocks` 的缺省走 budget 那份）。
+ * 现在数值只住在 `skillBudget.SKILL_CONTENT_LIMITS`，这里**引用**它（本文件只管"键的默认值"）。
+ */
 export const DEFAULT_SKILL_CONFIG: SkillConfig = {
   catalogToModel: false,
-  contentLimits: { singleSkillChars: 12000, expansionTotalChars: 24000, maxExplicitBindings: 4 },
+  contentLimits: { ...SKILL_CONTENT_LIMITS },
 };
 
 function msgOf(e: unknown): string {
@@ -159,8 +168,12 @@ export function isSkillEnabledIn(enabledMap: Record<string, boolean>, id: string
   return id in (enabledMap || {}) ? !!enabledMap[id] : true;
 }
 
-/** 写启用态 map（偏好类：失败留痕，不阻断） */
-export function writeEnabledMap(map: Record<string, boolean>): void {
+/**
+ * 写启用态 map（偏好类：失败留痕，不阻断）。
+ * 【不导出（2026-09-22）】它是 `writeEnabledMany` 用的底层原语；门面只暴露后者（`setSkillsEnabled`），
+ * 域内也没有第二个调用方 ⇒ 导出面白多一个入口（ADR-0053：零消费者的导出不许留）。
+ */
+function writeEnabledMap(map: Record<string, boolean>): void {
   confirmPersist(contentSet(ENABLED_KEY, map), { layer: 'skillRepository', key: ENABLED_KEY });
 }
 

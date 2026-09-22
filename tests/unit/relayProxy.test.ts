@@ -163,7 +163,8 @@ describe('relayProxy §R6 — relayGenerate = submit + attach', () => {
 
   it('提交拿到 taskId → attach 到 completed → {ok:true, url}', async () => {
     h.mockHttpRequest.mockImplementation(async (url) => {
-      if (url.endsWith('/api/generate')) return envResp({ taskId: 'task-1' }); // submit
+      // 【TD-08-52】submit 响应必须带 `budgetMs`（后端契约：成功/失败两条路径都带）
+      if (url.endsWith('/api/generate')) return envResp({ taskId: 'task-1', budgetMs: 600000 }); // submit
       return envResp({ status: 'completed', url: '/files/tasks/x.png' }); // attach
     });
     const p = relayGenerate({
@@ -199,9 +200,21 @@ describe('relayProxy §R6 — relayGenerate = submit + attach', () => {
     expect(h.mockHttpRequest.mock.calls.every(([u]) => !u.includes('/api/generate/t'))).toBe(true);
   });
 
+  it('[TD-08-52] POST 响应缺 budgetMs ⇒ fail-fast（拒收，不编默认值兜底）', async () => {
+    h.mockHttpRequest.mockResolvedValue(envResp({ taskId: 'task-nobudget' }));
+    const p = relayGenerate({
+      intent: { frontTaskId: 't', type: 'image', providerId: 'p', capability: 'image', model: 'm' },
+    });
+    const r = await runWithTimers(p);
+    expect(r.value).toEqual({ ok: false, error: '提交响应缺 budgetMs（后端契约违约）' });
+    // 拒收后不得继续 attach（未出站 ⇒ 也不存在"任务在跑白等"）
+    expect(h.mockHttpRequest.mock.calls.every(([u]) => !u.includes('/api/generate/t'))).toBe(true);
+  });
+
   it('submit/attach 请求均禁用本层 HTTP 超时（timeoutMs:0，根治 15s 误报；真长等待由后端 budgetMs 兜底）', async () => {
     h.mockHttpRequest.mockImplementation(async (url) => {
-      if (url.endsWith('/api/generate')) return envResp({ taskId: 'task-1' }); // submit
+      // 【TD-08-52】submit 响应必须带 `budgetMs`（后端契约：成功/失败两条路径都带）
+      if (url.endsWith('/api/generate')) return envResp({ taskId: 'task-1', budgetMs: 600000 }); // submit
       return envResp({ status: 'completed', url: '/files/tasks/x.png' }); // attach
     });
     const p = relayGenerate({

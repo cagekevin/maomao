@@ -1,6 +1,14 @@
+/**
+ * 技能**读写路径的失败契约**（禁止静默吞错）—— 外加组合层（`listAllSkills`）与乱码修复的冒烟断言。
+ *
+ * 【为什么叫这个名字（2026-09-22）】本文件此前叫 `skillStore.test.ts`，测的是 legacy 转发壳
+ * `runtime/skillStore.ts`。**壳已删**（消费者只有面板，改走门面 ⇒ 见该轮轮次文件）⇒ 文件名不能继续
+ * 指向一个不存在的模块。改名后主体 = `skillRepository` 的读写契约（`readSkillList` / `writeSkillList`
+ * / `readUserSkills` 的三形态处置 + 落盘自确认），另有组合层与文本清洗的少数断言（一并留在这里，
+ * **不另开文件** —— 拆成三个文件是"只加不减"）。
+ */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { findSkill, type Skill } from '../../src/components/agent/runtime/skillStore.ts';
-// 白名单/乱码修复已搬进模块（TD-11-52）；组合与内置从门面取（TD-11-51）
+// 组合与内置从门面取（TD-11-51/52：白名单/乱码修复/组合都已搬进模块）
 import {
   getBuiltinSkills,
   listAllSkills,
@@ -15,14 +23,24 @@ import {
 import { contentClearCache } from '../../src/components/base/core/contentStore.ts';
 import { sGet } from '@/components/base/storage/storageAdapter.ts';
 
+/** 缓存里一条用户 skill 的最小形状（造数据用；此前借 legacy `Skill`，壳删后本文件自持） */
+interface SeedSkill {
+  id: string;
+  name: string;
+  description: string;
+  content: string;
+  category?: string;
+  slug?: string;
+}
+
 /**
  * 造一条缓存里的用户 skill。
  * 【为什么经 `writeSkillList` 而不是随便 `localStorage.setItem`】唯一写入口才有"落盘自确认 +
  * 形状归一"的语义；测试造数据也走同一条路，才不会造出现实中不可能出现的形状。
  */
-function seedSkill(over: Partial<Skill> = {}): Skill {
-  const entry: Skill = { id: 'seed-1', name: 'A', description: '', content: 'c', ...over };
-  const cur = readSkillList().list as Skill[];
+function seedSkill(over: Partial<SeedSkill> = {}): SeedSkill {
+  const entry: SeedSkill = { id: 'seed-1', name: 'A', description: '', content: 'c', ...over };
+  const cur = readSkillList().list as SeedSkill[];
   writeSkillList([...cur.filter((s) => s.id !== entry.id), entry]);
   return entry;
 }
@@ -37,8 +55,12 @@ describe('Skill 系统 §2.19', () => {
     const b = getBuiltinSkills();
     expect(Array.isArray(b)).toBe(true);
     expect(b.length).toBeGreaterThanOrEqual(1);
+    // `id` 是**稳定契约**（用户的启用态/绑定都指向它，改 id = 断启用态）⇒ 值得锁。
     expect(b[0].id).toBe('skill_ecommerce_detail');
-    expect(b[0].builtin).toBe(true);
+    // 【2026-09-22 删掉一条自证式断言】原 `expect(b[0].builtin).toBe(true)` 断的是**这个常量里
+    // 刚写下的字面量**（生产代码里零读者）—— 把常量删掉那个字段它照样绿，属"断言自己刚写进 mock 的值"
+    // （ADR-0049 形态③）。字段本身已删（只写不读）；"内置进官方组"这条**行为**由
+    // `skillLibraryView.test.ts` 的 `kind === 'official'` 断（那才是真断言）。
   });
 
   it('listAllSkills = 内置 + 自定义（组合唯一实现在模块内）', () => {
@@ -60,10 +82,12 @@ describe('Skill 系统 §2.19', () => {
     expect(mine[0].slug).toBe('G');
   });
 
-  it('findSkill 可在内置+自定义中找到', () => {
-    expect(findSkill('skill_ecommerce_detail')).toBeTruthy();
+  it('组合层按 id 查得到（面板的 `skillNameOf` 直接用它现查）', () => {
+    expect(listAllSkills().list.some((s) => s.id === 'skill_ecommerce_detail')).toBe(true);
     seedSkill({ id: 'f1', name: 'Y' });
-    expect(findSkill('f1')?.name).toBe('Y');
+    expect(listAllSkills().list.find((s) => s.id === 'f1')?.name).toBe('Y');
+    // 【原 `findSkill` 的用例已随壳删除】壳的 `findSkill` 就是 `listAllSkills().list.find(...)`
+    // 这一行的封装 ⇒ 它一删，被测对象就只剩这一行（没有第二个消费者，也没有第二份实现）。
   });
 });
 
@@ -120,7 +144,9 @@ describe('Skill 错误透传（禁止静默）', () => {
       throw new Error('QuotaExceededError');
     });
     try {
-      const bad = writeSkillList((readSkillList().list as Skill[]).filter((s) => s.id !== 'd2'));
+      const bad = writeSkillList(
+        (readSkillList().list as SeedSkill[]).filter((s) => s.id !== 'd2'),
+      );
       expect(bad.ok).toBe(false);
       // 磁盘真值：写未生效，d2 仍在（sGet 绕过 contentStore 的 cache 直读底层）
       const disk = JSON.parse(sGet('agent_skills') || '[]') as Array<{ id: string }>;

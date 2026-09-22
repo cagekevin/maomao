@@ -2155,6 +2155,14 @@ const CROSS_STACK_CONSTS = [
       '技能包入口文件名（**跨栈协议名**：前端建包/解析、后端落盘/供数都按它找文件；' +
       '单边改成 `skill.md`/别的扩展名 = 包还在但谁也读不到它，而两侧各自都"对"、无类型错 —— TD-11-59）',
   },
+  {
+    name: 'CHAT_TOTAL_TIMEOUT',
+    fe: 'src/components/base/core/config.ts',
+    be: 'localTool/src/budget.ts',
+    why:
+      'chat 任务总预算（前端=真相，写进 `body.timeoutMs`；后端=前端未声明时的**兜底**）—— ' +
+      '两值不等 ⇒ "前端传了"与"没传"拿到不同预算 = 行为分叉（TD-08-54）',
+  },
 ];
 let crossStackViol = 0;
 for (const c of CROSS_STACK_CONSTS) {
@@ -2165,10 +2173,11 @@ for (const c of CROSS_STACK_CONSTS) {
     // 跨栈契约既有"取值上限"（`MAX_SEND_DIM = 1920`），也有"协议名"（`SKILL_ENTRY_FILE = 'SKILL.md'`）。
     // 判据不变（两侧都必须**显式定义**且值相等），只是把"值"从数字扩到字面标量 ——
     // 不扩的话协议名就只能靠注释互相喊话，那正是本闸当初要消灭的东西。
-    const m = new RegExp(`\\b${c.name}\\s*=\\s*(?:['"]([^'"]*)['"]|(\\d+))`).exec(
+    // 数字支持 `_` 分隔（2026-09-22 · TD-08-54）：后端惯例写 `180_000`，归一化后比对，判据不变。
+    const m = new RegExp(`\\b${c.name}\\s*=\\s*(?:['"]([^'"]*)['"]|(\\d[\\d_]*))`).exec(
       readFileSync(abs, 'utf8'),
     );
-    return m ? (m[1] ?? m[2]) : null;
+    return m ? (m[1] ?? m[2].replace(/_/g, '')) : null;
   };
   const feVal = grab(c.fe);
   const beVal = grab(c.be);
@@ -2190,6 +2199,117 @@ for (const c of CROSS_STACK_CONSTS) {
 }
 if (crossStackViol === 0) {
   console.log(`  ✅ 跨栈契约常量对账通过（${CROSS_STACK_CONSTS.length} 项）`);
+}
+
+// ─────────────────────────────────────────────────────────────────
+// 规则 14·续（2026-09-22 · TD-08-59 / ADR-0057 毕业项）：**跨栈字面量联合类型对账**。
+//
+// 【为什么标量对账不够、还要单开这一类】上面的 `CROSS_STACK_CONSTS` 只抓**标量**（数字 · 单字符串）——
+//   而"能力枚举"是**字面量联合类型**，值以**集合**形态存在（`'a' | 'b'` 或 `['a','b']`）。
+//   实证（TD-08-59）：后端同一枚举曾有 **3 处类型副本 + 2 处运行时字面量列举**，且副本**结构同构 ⇒ 编译不报**；
+//   前端另有 1 份（跨栈必然）。不机器对账 ⇒ 加第 4 个能力时必有一处漏改，而**两端各自都"对"**。
+//
+// 【判据（两条，缺一即漏）】
+//   ① **同栈内只许 1 份定义**：`type <NAME> =` 的定义点在**同一栈**内 ≥2 ⇒ 违规。
+//      （ADR-0057 原文只写"定义点 ≥2 ⇒ 违规" —— **必须按栈分组**：跨栈两侧各 1 份是结构必然，
+//        不分栈会假红，那正是形态②过严闸。）
+//   ② **跨栈两侧成员集合必须相等**：从两侧各自声明处抽引号字符串集合，排序后比较。
+//
+// 【诚实边界】抽的是"声明语句里的引号字符串"—— 若某侧改成由别处派生（如 `= SomeType['k']`）则抓不到
+//   ⇒ 报"未找到/缺失"（逼人回来看闸并显式列举），**不会静默放过**。
+// 【申诉口】Q1 守什么：跨栈契约一致性（结构偏好闸，非 CLAUDE 级物理红线）· Q2 何时该改：新契约的成员本就不是
+//   引号字符串、或该枚举将来能跨栈共享（打通两套构建）时 · Q3 怎么改：改 `CROSS_STACK_UNIONS` 的 anchor/end，
+//   并跑负例探针证明它仍会对真实违规变红。
+// ─────────────────────────────────────────────────────────────────
+const CROSS_STACK_UNIONS = [
+  {
+    name: 'RelayCapability',
+    fe: {
+      file: 'src/components/generate/lib/relayProxy.ts',
+      anchor: /export\s+type\s+RelayCapability\s*=/,
+      end: ';',
+    },
+    be: {
+      file: 'localTool/src/capability.ts',
+      anchor: /export\s+const\s+RELAY_CAPABILITIES\s*=/,
+      end: ']',
+    },
+    why:
+      '生成能力枚举（前端提交意图 / 后端分流与预算同按它；单边加一员 ⇒ 该能力在另一端永远"非法"，' +
+      '而两端各自都编译得过 —— TD-08-59）',
+  },
+];
+
+/** 抽某栈内 `type <NAME> =` 的全部定义点（`rel:line`）—— 用于"同栈只许 1 份"判据。 */
+const unionDefinitionSites = (base, name) => {
+  const hits = [];
+  if (!existsSync(base)) return hits;
+  const re = new RegExp(`(?:^|[^\\w.])type\\s+${name}\\s*=`);
+  for (const f of collectFiles(base)) {
+    const rel = f.slice(root.length + 1).replace(/\\/g, '/');
+    if (!/\.(ts|tsx)$/.test(rel)) continue;
+    for (const [i, line] of readFileSync(f, 'utf8').split('\n').entries()) {
+      const trimmed = line.trim();
+      if (trimmed.startsWith('//') || trimmed.startsWith('*') || trimmed.startsWith('/*')) continue;
+      if (re.test(line)) hits.push(`${rel}:${i + 1}`);
+    }
+  }
+  return hits;
+};
+
+/** 抽某侧声明的成员集合（引号字符串去重排序后 join）—— 抽不到返 null（= 缺失，判违规）。 */
+const unionMembers = (side) => {
+  const abs = join(root, side.file);
+  if (!existsSync(abs)) return null;
+  const code = readFileSync(abs, 'utf8');
+  const m = side.anchor.exec(code);
+  if (!m) return null;
+  const rest = code.slice(m.index);
+  const endIdx = rest.indexOf(side.end, m[0].length);
+  const decl = rest.slice(0, endIdx > 0 ? endIdx : m[0].length + 300);
+  const lits = decl.match(/['"`]([^'"`]+)['"`]/g);
+  if (!lits || lits.length === 0) return null;
+  return [...new Set(lits.map((s) => s.slice(1, -1)))].sort().join(' · ');
+};
+
+let crossStackUnionViol = 0;
+for (const u of CROSS_STACK_UNIONS) {
+  for (const [label, base] of [
+    ['前端', SRC],
+    ['后端', BACKEND_SRC],
+  ]) {
+    const sites = unionDefinitionSites(base, u.name);
+    if (sites.length === 0) {
+      crossStackUnionViol++;
+      fail(`跨栈契约类型 ${u.name} 在${label}无定义点（${u.why}）`);
+    } else if (sites.length > 1) {
+      crossStackUnionViol++;
+      fail(
+        `跨栈契约类型 ${u.name} 在${label}内有 ${sites.length} 份定义: ${sites.join(' · ')}` +
+          `（应只留 1 份真源、其余 import：副本结构同构 ⇒ 编译不报、漂移不显。${u.why}）`,
+      );
+    }
+  }
+  const feVal = unionMembers(u.fe);
+  const beVal = unionMembers(u.be);
+  if (feVal === null || beVal === null) {
+    crossStackUnionViol++;
+    fail(
+      `跨栈契约类型 ${u.name} 成员读取失败: 前端 ${u.fe.file} = ${feVal ?? '未找到'}` +
+        ` · 后端 ${u.be.file} = ${beVal ?? '未找到'}（${u.why}；两侧都必须显式列举成员）`,
+    );
+  } else if (feVal !== beVal) {
+    crossStackUnionViol++;
+    fail(
+      `跨栈契约类型 ${u.name} 成员已漂移: 前端 = [${feVal}] · 后端 = [${beVal}]` +
+        `（${u.why}；两侧成员集合必须相等 —— 改一侧必须同步另一侧）`,
+    );
+  } else {
+    console.log(`  ✅ ${u.name} = {${feVal}}（前端/后端成员一致 · 同栈各 1 份定义）`);
+  }
+}
+if (crossStackUnionViol === 0) {
+  console.log(`  ✅ 跨栈契约类型对账通过（${CROSS_STACK_UNIONS.length} 项）`);
 }
 
 // 规则（2026-09-22 · TD-11-59）：**技能包入口文件名**（`SKILL.md`）只许住在两侧的定义文件里。

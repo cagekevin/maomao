@@ -151,8 +151,13 @@ export const CHAT_TIMEOUT = 120000;
  * ⇒ **前端先放弃、上游还在跑 = 上游白跑**（用户重发 ⇒ 重复消耗）。
  * 现把两段预算收敛成一份真源，并由前端**把实际预算写进请求体**、后端**原样转发**给上游
  *（三铁律：生产者给全 · 消费者只转发）⇒ 前后端口径**天然一致**，不再靠"两边各记一个数"。
+ *
+ * ⚠️ **跨栈对账项**（2026-09-22 · TD-08-54）：后端 `localTool/src/budget.ts` 的 `DEFAULT_BUDGET_MS.chat`
+ * （前端未在 `body.timeoutMs` 声明时的**兜底**）与本值**必须相等** —— `check:arch` 规则 14 逐字比对
+ * （`CROSS_STACK_CONSTS`）。**故此处必须写裸数字**（写成表达式会被闸判「缺失」）；「= 段值 + 宽限」的
+ * 构成写在本注释里，不写进代码。改一侧必须同步另一侧，否则 `check:arch` 红。
  */
-export const CHAT_TOTAL_TIMEOUT = CHAT_TIMEOUT + 60000;
+export const CHAT_TOTAL_TIMEOUT = 180000;
 /** KV / 本地存储读写总超时（contentStore / conversationState / d3dPersistence / projectMemoryStore 共用） */
 export const KV_TIMEOUT = 8000;
 

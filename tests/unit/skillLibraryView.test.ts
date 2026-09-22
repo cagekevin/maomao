@@ -344,12 +344,16 @@ describe('buildSkillPickerGroups（AI 面板下拉：与列表同语义，消费
   });
 
   it('官方组（内置）恒在最前，用户技能按分组摆好；组头只有 `kind` / `label`（**没有**哨兵 name）', () => {
-    const groups = buildSkillPickerGroups([
-      { ...BUILTIN, builtin: true },
-      mine('id-a', 'A', '营销文案'),
-      mine('id-b', 'B', '图片类'),
-      mine('id-c', 'C'),
-    ]);
+    const groups = buildSkillPickerGroups(
+      [
+        { ...BUILTIN, builtin: true },
+        mine('id-a', 'A', '营销文案'),
+        mine('id-b', 'B', '图片类'),
+        mine('id-c', 'C'),
+      ],
+      null,
+      {},
+    );
 
     expect(groups.map((g) => g.kind)).toEqual(['official', 'normal', 'normal', 'normal']);
     expect(groups.map((g) => g.label)).toEqual(['官方', '图片类', '营销文案', '未分组']);
@@ -358,19 +362,20 @@ describe('buildSkillPickerGroups（AI 面板下拉：与列表同语义，消费
   });
 
   it('行只带 `id` + `name`（选定只传 id；正文由冻结层按 id 现查）', () => {
-    const groups = buildSkillPickerGroups([{ ...BUILTIN, builtin: true }]);
+    const groups = buildSkillPickerGroups([{ ...BUILTIN, builtin: true }], null, {});
 
     expect(groups[0].items).toEqual([{ id: BUILTIN.id, name: BUILTIN.name }]);
   });
 
   it('没有成员的组不出现（选用入口摆空组只是挡路）', () => {
-    expect(buildSkillPickerGroups([])).toEqual([]);
+    expect(buildSkillPickerGroups([], null, {})).toEqual([]);
   });
 
   it('给磁盘现状 ⇒ 「磁盘上已删、索引里还在」的条目**不进下拉**（TD-11-55）', () => {
     const groups = buildSkillPickerGroups(
       [mine('id-a', 'A', '图片类'), mine('gone', '旧技能', '图片类')],
       lib(['图片类'], [pkg('图片类', 'a', fm({ id: 'id-a', name: 'A', description: 'd' }))]),
+      {},
     );
 
     // 判据来自视图层的 `row.usable`（磁盘有 + 有 id + 已在索引）—— 不是这里另写一份
@@ -378,9 +383,27 @@ describe('buildSkillPickerGroups（AI 面板下拉：与列表同语义，消费
   });
 
   it('磁盘读不到（`null`）⇒ 按索引列出，**不把下拉变空**（"读不到"≠"磁盘上没有"）', () => {
-    const groups = buildSkillPickerGroups([mine('id-a', 'A', '图片类')], null);
+    const groups = buildSkillPickerGroups([mine('id-a', 'A', '图片类')], null, {});
 
     expect(groups.flatMap((g) => g.items).map((i) => i.id)).toEqual(['id-a']);
+  });
+
+  it('"选得动" = `usable` × `enabled`，**两半都在本函数判**（TD-11-75）：关掉的技能不进下拉', () => {
+    const all = [mine('id-a', 'A', '图片类'), mine('id-b', 'B', '图片类')];
+    const disk = lib(
+      ['图片类'],
+      [
+        pkg('图片类', 'a', fm({ id: 'id-a', name: 'A', description: 'd' })),
+        pkg('图片类', 'b', fm({ id: 'id-b', name: 'B', description: 'd' })),
+      ],
+    );
+
+    // 输入是**全集 + 真启用态**（不是"调用方先过滤好的那批"）⇒ 关掉的那个由本函数剔掉
+    const groups = buildSkillPickerGroups(all, disk, { 'id-b': false });
+
+    expect(groups.flatMap((g) => g.items).map((i) => i.id)).toEqual(['id-a']);
+    // 一个都不剩 ⇒ 空组也不出现（不是"摆一个空组"）
+    expect(buildSkillPickerGroups(all, disk, { 'id-a': false, 'id-b': false })).toEqual([]);
   });
 });
 

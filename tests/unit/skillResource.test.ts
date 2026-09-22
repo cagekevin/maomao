@@ -80,6 +80,21 @@ describe('readSkillResource（按需读附属资料）', () => {
     expect(api.read).not.toHaveBeenCalled();
   });
 
+  it('包根裸文件名：**原因要说对**（"不被收" ≠ "正文没写"）—— TD-11-77', async () => {
+    // 正文**确实**写了 `style.md`，但它不带目录 ⇒ 不在"附属资料"口径内（附属资料只收 references/**）。
+    // 旧实现在这里报「正文里没有引用这个文件」—— 模型据此会以为自己路径写错，永远纠不对。
+    setSkillTurnBindings([binding({ content: '先读 `references/风格.md`，再看 `style.md`。' })]);
+
+    const r = await readSkillResource('style.md');
+
+    expect(r.ok).toBe(false);
+    expect(r.error).not.toContain('正文里没有引用'); // 旧口径的**原因说谎**，本断言就是它的探针
+    expect(r.error).toContain('带目录');
+    expect(r.error).toContain('style.md'); // 要说清是哪条路径被拒（可据以纠正）
+    expect(r.error).toContain('references/风格.md'); // 可读清单照样给
+    expect(api.read).not.toHaveBeenCalled();
+  });
+
   it('路径准入：scripts/** 与上跳一律拒（连盘都不碰）', async () => {
     setSkillTurnBindings([
       binding({ content: '看 `scripts/run.sh` 与 `../x.md` 与 `references/a.png`' }),

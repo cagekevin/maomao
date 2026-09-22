@@ -2,9 +2,12 @@
  * Skill 能力片 · **门面**（域外只准 `import { … } from '@/components/agent/skill'`，
  * 禁引模块内其他文件 —— 否则等于绕过用例编排，见 `README.md` §4）。
  *
- * 【导出面按用例定义】（ADR-0044 §8）当前承载五类用例：
- *   ① **渲染技能库**（一个列表：**行 = 磁盘包 ∪ 索引状态** + 工具条 + 右栏编辑）→
- *      `buildSkillLibraryView`（唯一判定中枢）· `readSkillLibrary`（读盘）· `SkillRow` 等类型
+ * 【导出面按用例定义】（ADR-0044 §8）当前承载七类用例 ——
+ * ⚠️ **用例编号的唯一真源就是下面这份清单**（`README.md §2` 与 `docs/plan/140 §2.2` 只写指针、
+ * 不各抄一份编号：抄了就是第二份真相，改一处必漂移 —— TD-11-73）：
+ *   ① **渲染技能库与选用入口**（列表：**行 = 磁盘包 ∪ 索引状态** + 工具条 + 右栏编辑；下拉：选得动的那些）→
+ *      `buildSkillLibraryView`（唯一判定中枢）· `buildSkillPickerGroups`（同一套组语义的另一入口）·
+ *      `readSkillLibrary`（读盘）· `SkillRow` / `SkillLibrary` 等类型
  *   ② **管理 skill 与分组**（列表 / 存 / 删 / 恢复 / 丢弃 / 导入导出 / 换组 / 从磁盘重载 / 补齐 id）→
  *      `saveSkillToDisk` / `deleteSkillEverywhere` / `restoreSkillFromIndex` / `discardSkillFromIndex` /
  *      `importSkillText` / `importSkillPackages` / `isImportablePackageFile` / `skillMarkdownForExport` /
@@ -18,8 +21,10 @@
  *      `setSkillTurnBindings`（发送起点写/结束清）· `readSkillResource(path, skill?)`
  *   ⑦ **云同步拉取后把正文写回磁盘**（D6：不让磁盘永久遮蔽云端更新）→ `applyCloudSkillsToDisk`
  *
- * 其余用例（云同步后重写磁盘 / 模型读资料）**在实现它们的那一期**加入本文件，
- * **不在此预置空壳**（ADR-0053：零生产消费的实现不许预留）。
+ * ⑥⑦ 的实现已落地（导出就在本文件 :42/:43）⇒ 它们**是本清单的一部分**，不再有"等那一期再加入"的说法。
+ * **未实现的用例仍然不许预置空壳**（ADR-0053）—— 那是"不预留"，不是"实现了也不写进清单"。
+ * 另有两个**机制性**导出不属任何用例（如实留痕，不硬凑归类）：`migrateSkillsToDiskIfNeeded`
+ * （技能设置页调的一次性迁移：旧 localStorage → 磁盘）· `repairMojibakeText`（导入侧的文本修复原语）。
  */
 export {
   saveSkillToDisk,
@@ -69,7 +74,7 @@ export {
   readSkillConfig as getSkillConfig,
   writeSkillConfig as setSkillConfig,
   writeEnabledMany as setSkillsEnabled,
-  // 读侧（用例②「列表」/④「启用态」）：域外要读缓存与启用态 —— 从前它们只能深引 repository
+  // 读侧（「列表」与「启用态」两个用例）：域外要读缓存与启用态 —— 从前它们只能深引 repository
   isSkillEnabledIn,
   readSkillList as readUserSkills,
   readEnabledMap as readSkillEnabledMap,

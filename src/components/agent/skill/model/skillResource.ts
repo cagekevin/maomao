@@ -1,11 +1,16 @@
 /**
- * 用例⑤「模型按需读附属资料」= 渐进披露**第三层**（元数据常驻 → 正文按需 → 附属文件按需）。
+ * 「模型按需读附属资料」= 渐进披露**第三层**（元数据常驻 → 正文按需 → 附属文件按需）。
+ * （用例编号见门面 `index.ts` 头注释 —— 本文件不复述编号，抄了就是第二份，TD-11-73。）
  *
  * 【安全边界：只读「本轮启用」的 Skill 的、「正文里显式写过」的文本文件】两道判据缺一不可：
  *  ① 该 Skill 必须在本轮**冻结绑定**里（用户明确启用了它）⇒ 模型翻不了整个技能库；
  *  ② 相对路径必须在该 Skill **正文**里以反引号 / markdown 链接写出（`extractResourcePaths`），
  *     并过 `assertSafeSkillRelativePath`（禁 `scripts/**`、禁上跳、只收文本）⇒ 不是"包内任意可读"。
  * 少了 ① 就是"模型能读用户没启用的技能"，少了 ② 就是"能枚举包内所有文件"——两条都是真攻击面。
+ * 【② 的完整口径】附属资料 = **带目录**的引用（`references/**`，见 `docs/plan/140 §1.1/§1.4`）；
+ * 包根与 `SKILL.md` 同级的裸文件名**不算**资料（否则正文里任意一句 `` `foo.md` `` 都会被当成引用）。
+ * ⇒ 这条口径由 `extractResourcePaths` 判、由 `assertSafeSkillRelativePath` **不**判（后者只管"危不危险"，
+ * 它必须放行 `SKILL.md` 这个入口名）—— 两个函数射程不同，**拒绝时必须说清是哪一条拒的**（TD-11-77）。
  *
  * 【绑定从哪来】`setSkillTurnBindings` 由 `useAgentChat.send` 在**发送起点**写入（与冻结同源，
  * 见 `freezeSkillTurn`）、发送结束清空。与 `setCurrentReferenceImages` 同一形态：
@@ -83,9 +88,16 @@ export async function readSkillResource(
   }
   const allowed = extractResourcePaths(b.content);
   if (!allowed.includes(path)) {
+    // 【TD-11-77】"不在清单里"有**两种**原因，此前一律报成前者 ⇒ 后者是**原因说谎**：
+    //  ① 正文压根没写它 ⇒ 模型该换一个路径；
+    //  ② 写了、但口径不收（包根裸文件名 —— 附属资料只收带目录的引用）⇒ 模型按①自纠**永远纠不对**
+    //     （它会以为自己路径写错，实际是这条路径本就不在"可读资料"口径内）。
+    const why = path.includes('/')
+      ? '正文里没有引用这个文件'
+      : `附属资料只收**带目录**的引用（如 references/x.md）；包根的同级文件（${path}）不算可读资料`;
     return {
       ok: false,
-      error: `「${b.name}」正文里没有引用这个文件。可读的是：${allowed.length ? allowed.join('、') : '（正文里没有引用任何资料）'}`,
+      error: `「${b.name}」${why}。可读的是：${allowed.length ? allowed.join('、') : '（正文里没有引用任何资料）'}`,
     };
   }
   if (!b.category || !b.slug) {

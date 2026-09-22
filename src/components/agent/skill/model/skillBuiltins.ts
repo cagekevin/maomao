@@ -9,21 +9,7 @@
  * `skill_read_file` 读它的附属文件必然失败，且话术说的是同一件事（"没有磁盘落点"）。
  * 【id 是稳定手写常量】内置 skill 没有 frontmatter 可写，id 由本文件钉死；改 id = 断启用态与留痕。
  */
-
-/** 内置 Skill 的形状（不依赖 legacy `Skill`：本模块的类型真源在 `skillTypes.ts`） */
-export interface BuiltinSkillDef {
-  id: string;
-  name: string;
-  description: string;
-  content: string;
-  version?: string;
-  /**
-   * 字面量 `true`：内置身份标记 —— **UI 靠它分「官方」组**（`AgentPanel` 的 Skill 下拉）。
-   * 冻结层的 `origin` 不读它（`freezeSkillTurn` 在缓存里查不到、在这里查到 ⇒ 就是内置），
-   * 那张标记是"给界面认的"，别让它再兼任第二个判据。
-   */
-  builtin: true;
-}
+import type { BuiltinSkillDef } from '../skillTypes.ts';
 
 /* ── 内置 Skill（改写自大雄 universal-detail-pages.json，适配我们的 generations 执行契约）── */
 const BUILTIN_SKILLS: BuiltinSkillDef[] = [
@@ -31,7 +17,6 @@ const BUILTIN_SKILLS: BuiltinSkillDef[] = [
     id: 'skill_ecommerce_detail',
     name: '电商详情页套图',
     description: '根据产品信息与产品图，生成电商主图 + 详情页套图（数量靠你说：如「5主图+8详情」）',
-    builtin: true,
     content: `你是一位顶级的电商视觉设计大师。你的任务是根据用户提供的产品信息、产品图和参考图，策划一套电商主图+详情页视觉方案，并严格以 JSON 格式输出。
 
 【工作流铁律】

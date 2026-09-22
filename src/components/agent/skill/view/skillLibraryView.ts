@@ -24,6 +24,7 @@ import { parseSkillMarkdown } from '../rules/skillManifest.ts';
 import { findSkillEntryFile, skillEntryRelPath } from '../rules/skillEntry.ts';
 import { isSkillEnabledIn } from '../store/skillRepository.ts';
 import { extractResourcePaths } from '../rules/skillResourcePath.ts';
+import { asText } from '../rules/skillText.ts';
 import {
   INDEX_ONLY_GROUP,
   OFFICIAL_GROUP,
@@ -34,7 +35,9 @@ import {
   labelOfGroup,
 } from '../rules/skillGroup.ts';
 import type { SkillGroupKind } from '../rules/skillGroup.ts';
-import type { SkillLibrary } from '../skillTypes.ts';
+// 内置技能的形状 = 类型真源里的**那一份**（本文件此前自己写了一份结构子集 `BuiltinLike`，
+// 删掉产出者的 `builtin` 字段后两份完全同构 ⇒ 按 ADR-0057 第 2 动作"销副本"删掉）
+import type { BuiltinSkillDef, SkillLibrary } from '../skillTypes.ts';
 
 /** 行状态（**状态在行上**，不需要第二个列表来告诉你"磁盘上没有这个"） */
 export type SkillRowState =
@@ -176,21 +179,12 @@ export interface IndexRow {
 
 const num = (v: unknown): number | undefined => (typeof v === 'number' ? v : undefined);
 
-/** 内置技能的最小形状（`skillBuiltins.ts` 的 `BuiltinSkillDef` 结构子集） */
-export interface BuiltinLike {
-  id: string;
-  name: string;
-  description: string;
-  content: string;
-  version?: string;
-}
-
 /**
  * 索引条目是 `unknown` 形状 ⇒ 逐字段安全取值（形状不全按兜底，不抛）。
- * 【为什么导出】选用入口（`skillPickerView`）读的是**同一个** `IndexRow` 形状 ⇒
- * 这一行取值口径只留一份（模块内共享，门面不转发）。
+ * 【取值口径的唯一实现在 `rules/skillText.asText`】它此前**住在本文件**（视图层），是落点错：
+ * 它是通用取值原语，不属于"界面形状"；且 `model/skillRegistry` 因不愿依赖视图层而另抄了一份 `str`
+ * ⇒ 同一条口径两个名字（2026-09-22 收口）。现在本文件与 registry 都朝 `rules/` 依赖（方向正确）。
  */
-export const asText = (v: unknown, fallback = ''): string => (typeof v === 'string' ? v : fallback);
 
 /**
  * 索引条目 → 行（两个来源：**未决时按索引显示** / **仅索引（磁盘上已删除）**）。
@@ -198,13 +192,10 @@ export const asText = (v: unknown, fallback = ''): string => (typeof v === 'stri
  * 【为什么 `state` 必须由调用方给】`usable`/`editable` 都由 `state` 派生（能编辑 ⇒ 磁盘必存在，见不变量 18）。
  * 若这里先写死 `ok/usable/editable=true` 再由调用点改三个字段，**漏改一个就回归成"仅索引的行可用可编辑"**
  * —— 那是"先造错再覆盖"，本仓典型形态（TD-11-56）。
+ * ⚠️ **所以它没有默认值**（TD-11-75）：默认值 = 漏传即静默拿到 `usable:true` + `editable:true`，
+ * 与本条注释自相矛盾 —— 约束要落在**类型层**，不是落在注释里。
  */
-function rowFromIndex(
-  id: string,
-  raw: IndexRow,
-  enabled: boolean,
-  state: SkillRowState = 'ok',
-): SkillRow {
+function rowFromIndex(id: string, raw: IndexRow, enabled: boolean, state: SkillRowState): SkillRow {
   const group = asText(raw?.category).trim() || UNSORTED_GROUP;
   const content = asText(raw?.content);
   const usable = isUsableState(state);
@@ -238,14 +229,27 @@ function rowFromIndex(
  * 造视图。**入参一句话**：磁盘清单（`null` = 未决）+ 索引条目 + 启用态 + 内置常量。
  *
  * 【行从哪来】磁盘包（含 `SKILL.md` 正文）+ 内置常量 + "索引里有、磁盘没有"的条目。
- * 【谁排前】官方（内置）恒在最前；磁盘分组按 `compareSkillGroups`（`_未分类` 恒排最后）；
- * 「磁盘上已删除」收纳组恒在最后 —— 它是"待处置"，不是用户建的分组。
+ * 【谁排前】**组序全在 `skillGroup.orderOfGroup`**（官方恒最前 · 普通磁盘组本地中文序 ·
+ * `_未分类` 恒在其后 · 「磁盘上已删除」收纳段恒最后）—— 本文件只负责"按位次排"（TD-11-74）；
+ * 组内行按名字本地中文序。
  */
 export function buildSkillLibraryView(input: {
   disk: SkillLibrary | null;
   indexRows: unknown[];
+  /**
+   * 启用态（`agent_skill_enabled` 的映射）—— **必填，且必须是真值**。
+   *
+   * 【为什么必填、且不许"编一个"（TD-11-75）】启用态折入（`row.enabled` / 组三态 / `counts.enabled`）
+   * 是本视图的产出之一 ⇒ 它的输入就必须是真的。两条歧路都试过、都不许走：
+   *  · 传 `{}` 表达"本层不判" ⇒ **编值**：类型层说这是启用态，实际给的是占位符；
+   *  · 改成可选参数 ⇒ **危险默认值**：漏传即静默"全部启用"（与 `rowFromIndex` 那个被删掉的
+   *    `state = 'ok'` 默认值同形）。
+   * 正确形态 = **调用方拿真值**：设置页读 `readSkillEnabledMap()`；选用入口由面板把同一张映射
+   * 传进来（它本来就拿着这个真源，`skillStore.isSkillEnabled` 转发的是同一个 `isSkillEnabledIn`）。
+   * 读不到映射 = `{}` 是**合法的世界状态**（"没有任何关掉的记录" ⇒ 缺省启用），不是"编值"。
+   */
   enabledMap: Record<string, boolean>;
-  builtins: BuiltinLike[];
+  builtins: BuiltinSkillDef[];
 }): SkillLibraryView {
   // 「默认启用」的判据**不在这里**：它跟着 `agent_skill_enabled` 键走（`skillRepository.isSkillEnabledIn`）
   const enabledOf = (id: string) => isSkillEnabledIn(input.enabledMap, id);
@@ -260,8 +264,9 @@ export function buildSkillLibraryView(input: {
   const diskIds = new Set<string>();
 
   if (input.disk === null) {
-    // 【未决】按索引显示（顶部横幅说明"这不代表磁盘上没有别的技能"）
-    for (const [id, raw] of indexById) rows.push(rowFromIndex(id, raw, enabledOf(id)));
+    // 【未决】按索引显示（顶部横幅说明"这不代表磁盘上没有别的技能"）。
+    // `state` 显式给 `'ok'`：未决时"磁盘上有没有"无从判断，按索引的行即可用可编辑（TD-11-75 去掉了默认值）
+    for (const [id, raw] of indexById) rows.push(rowFromIndex(id, raw, enabledOf(id), 'ok'));
   } else {
     for (const pkg of input.disk.packages || []) {
       const relPath = skillEntryRelPath(pkg.category, pkg.slug);
@@ -373,6 +378,9 @@ export function buildSkillLibraryView(input: {
     if (r.state === 'index-only') continue; // 它归"已删除"收纳组，不进任何磁盘分组
     ensure(r.group).push(r);
   }
+  // 仅索引（磁盘上已删除）的行收进收纳组 —— 它是"待处置"，不是磁盘上的分组
+  const indexOnlyRows = rows.filter((r) => r.state === 'index-only');
+  if (indexOnlyRows.length) ensure(INDEX_ONLY_GROUP).push(...indexOnlyRows);
 
   const toGroup = (name: string, bucket: SkillRow[]): SkillGroupView => {
     const toggleable = bucket.filter((r) => r.state === 'ok');
@@ -391,22 +399,15 @@ export function buildSkillLibraryView(input: {
     };
   };
 
-  const ordered: SkillGroupView[] = [];
-  const names = [...groups.keys()].sort((a, b) => {
-    if (a === OFFICIAL_GROUP) return -1;
-    if (b === OFFICIAL_GROUP) return 1;
-    return compareSkillGroups(a, b);
-  });
-  for (const name of names) {
-    const bucket = groups.get(name)!;
-    bucket.sort((a, b) => a.name.localeCompare(b.name, 'zh-Hans-CN'));
-    ordered.push(toGroup(name, bucket));
-  }
-  const indexOnlyRows = rows.filter((r) => r.state === 'index-only');
-  if (indexOnlyRows.length) {
-    indexOnlyRows.sort((a, b) => a.name.localeCompare(b.name, 'zh-Hans-CN'));
-    ordered.push(toGroup(INDEX_ONLY_GROUP, indexOnlyRows));
-  }
+  const ordered: SkillGroupView[] = [...groups.keys()]
+    // 组顺序**只由 `skillGroup.compareSkillGroups` 定**（官方段 / 普通组 / `_未分类` / 仅索引收纳段
+    // 的位次全在 `orderOfGroup` 里 —— 视图层不认任何哨兵的位次，TD-11-74）
+    .sort(compareSkillGroups)
+    .map((name) => {
+      const bucket = groups.get(name)!;
+      bucket.sort((a, b) => a.name.localeCompare(b.name, 'zh-Hans-CN'));
+      return toGroup(name, bucket);
+    });
 
   return {
     groups: ordered,

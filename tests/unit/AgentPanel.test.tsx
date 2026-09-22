@@ -126,6 +126,14 @@ const h = vi.hoisted(() => {
   let providers: any = [];
   // 订阅键常量：与 mock 的 AGENT_CHAT_MODEL_KEY 同源，避免 fireAgentModelChange 硬编码漂移
   const AGENT_CHAT_MODEL_KEY = 'agent_chat_model';
+  /**
+   * 启用态键（`agent_skill_enabled`）—— 供桩**模拟"落盘成功后面板重读技能全集"**用（2026-09-22）。
+   * 【为什么是它、不是 SKILLS_KEY】面板对 SKILLS_KEY 注册了**两次**（skill resync + 磁盘快照重读），
+   * 而本文件的桩是 `subscribeCbs[key] = cb`（后者覆盖前者）⇒ 打 SKILLS_KEY 会落到"磁盘快照"那个回调；
+   * **ENABLED_KEY 直达 `resyncSkills`**（同键只有一次注册）⇒ 用它能忠实模拟"重读技能全集"这一步。
+   * 真 `contentSubscribe` 支持同键多监听 ⇒ 这是**桩的损失**，不是面板的缺陷。
+   */
+  const ENABLED_KEY = 'agent_skill_enabled';
 
   return {
     useAgentChat,
@@ -147,6 +155,7 @@ const h = vi.hoisted(() => {
     saveAttachments,
     closeAwaitingConfirm,
     contentSubscribe,
+    ENABLED_KEY,
     // ⚠️ 必须走 **getter**：写成属性就是"快照"，而 `beforeEach` 里 `setSubscribeCbs({})` 会**重新赋值**
     // 那个 `let`（mock 闭包写的是新对象）⇒ 属性永远指向旧对象，读到的永远是空（同族坑见 beforeEach 注释）。
     get subscribeCbs() {
@@ -234,17 +243,11 @@ vi.mock('../../src/components/base/utils/providerModels.ts', () => ({ buildAllMo
 vi.mock('../../src/components/base/core/interaction/uiHooks.ts', () => ({
   useOutsideClick: () => {},
 }));
-vi.mock('../../src/components/agent/runtime/skillStore.ts', async (importOriginal) => ({
-  ...((await importOriginal()) as Record<string, unknown>),
-  // 【装配契约】选中态只存 id ⇒ 显示名要现查。桩必须给 findSkill，
-  // 否则 chip 标题退化成裸 id（测试会因此变红 —— 那正是"现查"这条链的存在感）。
-  findSkill: (id: string) => h.skills.find((s: { id: string }) => s.id === id) ?? null,
-  isSkillEnabled: () => true,
-  repairMojibakeText: (t: any) => t,
-  // AgentPanel 订阅「设置页改 Skill/开关启用态」用的两键（resync 里 contentSubscribe 用）。
-  SKILLS_KEY: 'agent_skills',
-  ENABLED_KEY: 'agent_skill_enabled',
-}));
+// 【壳的 mock 已删（2026-09-22）】此前这里 `vi.mock('.../runtime/skillStore.ts')` 桩了 4 个符号
+// （`findSkill` / `isSkillEnabled` / `repairMojibakeText` / 两个键）。壳已删 ⇒ 面板全走门面：
+//  · 两个订阅键与 `repairMojibakeText` 由下面那个门面 mock 的 `...importOriginal()` 提供（真值）；
+//  · 「选中态只存 id ⇒ 显示名要现查」这条**装配契约**仍在，只是现查改走面板已持有的
+//    `skillsRead`（= 门面 mock 的 `listAllSkills()` 给的 `h.skills`）⇒ 桩照样能给它名字。
 // 展开真模块再覆盖（TD-17-15：模块**新增导出**时桩不再脱钩 —— 判据见 tests/unit/mockPartialSpread.test.ts）
 // 【桩跟契约走（TD-11-55）】面板打开时会读一次**磁盘现状**（选用入口的可用性判据）。单测不连后端：
 // 桩成"读不到" ⇒ 快照保持**未决** ⇒ 下拉按索引列出（= 既有行为基线，各用例的断言不受影响）。
@@ -268,6 +271,14 @@ vi.mock('../../src/components/agent/skill/index.ts', async (importOriginal) => (
     h.importCalls.push([name, text]);
     if (h.importResult.ok && h.importResult.skill) {
       h.setSkills([...h.skills, { id: h.importResult.skill.id, name: h.importResult.skill.name }]);
+      // 【必须补这一步：模拟"落盘成功 ⇒ 面板重读技能全集"（2026-09-22）】真实现走
+      // `writeSkillList → contentSet(SKILLS_KEY, …)`，`contentSet` **通知所有订阅者** ⇒ 面板的
+      // `resyncSkills` 重读 `listAllSkills()` ⇒ chip 的显示名（现查 `skillsRead`）当场查得到。
+      // ⚠️ **桩只能打到 ENABLED_KEY，不能打 SKILLS_KEY**：面板对 SKILLS_KEY 注册了**两次**
+      // （skill resync + 磁盘快照重读），而本文件的桩是 `subscribeCbs[key] = cb`（**后者覆盖前者**）
+      // ⇒ 打 SKILLS_KEY 会落到"磁盘快照"那个回调上（它不重读技能全集）。
+      // 真 `contentSubscribe` 支持同键多监听 ⇒ **这是桩的损失，不是面板的缺陷**（同族坑见 :782 注释）。
+      h.subscribeCbs[h.ENABLED_KEY]?.();
     }
     return Promise.resolve(h.importResult);
   },
@@ -792,8 +803,14 @@ describe('AgentPanel — 技能索引读不到（TD-11-66：降级允许，静�
     });
 
     // 【剔 id 的前提是"我确实读到了索引"】读失败时 `list` 只剩内置 ⇒ 若照旧按 known 剔，
-    // 用户已选的技能会被静默抹掉（且原因不显）
-    expect(screen.getByTitle(/当前带的 Skill：分镜脚本/)).toBeTruthy();
+    // 用户已选的技能会被静默抹掉（且原因不显）⇒ 本用例锁的是「**chip 还在**」（id 没被剔）。
+    // ⚠️ 名字会**退化成 id**，这是诚实的必然：显示名是**现查**的（面板只存 id、不镜像字段 —— TD-11-16），
+    //    而现查的来源（`skillsRead` ← `listAllSkills()`）此刻正是坏的那份 ⇒ 查不到就只能显示 id。
+    //    （横幅会说明原因 ⇒ 不是静默。）
+    // ⚠️ 2026-09-22 更正：这条断言此前写的是"名字还在（分镜脚本）"—— 那是**旧桩给的假象**：
+    //    旧 mock 的 `findSkill` 直读 `h.skills`，绕过了 `listAllSkills()` 的降级；而生产里
+    //    `findSkill` 走的就是 `listAllSkills()` ⇒ 读失败时同样查不到名字。面板改走门面后桩不再掩盖它。
+    expect(screen.getByTitle(/当前带的 Skill：s2/)).toBeTruthy(); // 还在（退化为 id，未被剔）
     expect(document.querySelector('.agent-drift-bar')?.textContent).toContain('技能列表读不到');
   });
 });

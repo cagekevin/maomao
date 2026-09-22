@@ -1,11 +1,22 @@
 /**
- * 技能文本的**清洗**（域内实现，此前住 legacy 壳 `agent/runtime/skillStore.ts` —— TD-11-52）。
+ * 技能文本的**取值与清洗**（域内实现，清洗那段此前住 legacy 壳 `agent/runtime/skillStore.ts` —— TD-11-52）。
  *
  * 【为什么搬进来】那段 40 行启发式（含 5 行"勿加阈值"的实测教训）住在"纯转发壳"里，
  * 最容易被当成随手可改的胶水；而它是**域内实现细节**（外部导入的 `.md` 编码修复）。
  * 搬进来后，壳里不再有业务逻辑，"域外唯一出口 = 门面"这条纪律才在实况上成立。
+ *
+ * 【`asText` 为什么也住这里（2026-09-22）】"把一个 `unknown` 字段安全取成 string"是**取值原语**，
+ * 此前有两份实现（`view/skillLibraryView.asText` 与 `model/skillRegistry` 里那个本地 `str`）——
+ * 同一条口径两个名字，且它住在**视图层**（视图层的职责是"事实 → 界面形状"，不是"取值"）。
+ * 归到本文件（纯规则层）后：**只有一处**，且 `view`/`model` 都朝它依赖（方向正确：两者 → rules）。
  */
 import { logger } from '@/components/base/core/log/logger';
+
+/**
+ * `unknown` → string 的**安全取值**（唯一实现）：非 string（含 `undefined`/`null`/数字/对象）⇒ `fallback`。
+ * 用途：索引/缓存里的条目形状不受我们控制（用户改过存储、跨版本结构变更）⇒ 逐字段取用时不许抛、不许猜。
+ */
+export const asText = (v: unknown, fallback = ''): string => (typeof v === 'string' ? v : fallback);
 
 /**
  * mojibake 乱码修复（对齐大雄 `backend.py` 的 `_repair_mojibake_text`）。

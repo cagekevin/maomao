@@ -110,7 +110,16 @@ export async function relaySubmit(
     })) as CodeData<{ taskId?: string; budgetMs?: number }>;
     // 【143 · S4′】`budgetMs` = 后端**实际生效**的任务预算（生产者给全）⇒ 前端据此设等待上限，
     // 不再自持 `GEN_TIMEOUT`/`VIDEO_TIMEOUT`（消费者不许替生产者定真相）。
+    // ⚠️ **它是必给字段**（143 §2.2）：POST 返回时任务**尚未出站**（后端"提交即返回"，出站由句柄首轮
+    //   后台执行）⇒ 缺了就是**契约违约**，此处 fail-fast **不会**撞"重复计费"红线（上游还没收到）。
+    //   **不编默认值**（编一个数 = 默认值兜底，形态④）—— 拒收并留痕（TD-08-52）。
     if (env?.data?.taskId) {
+      if (typeof env.data.budgetMs !== 'number') {
+        logger.warn('relayProxy', '[relay] 提交响应缺 budgetMs（后端契约违约）⇒ 拒收', {
+          frontTaskId: intent.frontTaskId,
+        });
+        return { ok: false, error: '提交响应缺 budgetMs（后端契约违约）' };
+      }
       return { ok: true, taskId: env.data.taskId, budgetMs: env.data.budgetMs };
     }
     const msg = (env?.data as { error?: string } | undefined)?.error || `提交失败 (HTTP 200)`;
@@ -335,8 +344,8 @@ export async function relayGenerate(opts: RelayGenerateOptions): Promise<RelayGe
       frontTaskId: sub.taskId,
       // 【143 · S4′】等待上限 = **后端在 POST 响应里告知的预算**（生产者给全）。
       // 前端不再自持 `GEN_TIMEOUT`/`VIDEO_TIMEOUT`：那正是"消费者替生产者定真相"。
-      // POST 恒带 `budgetMs`（S3′）⇒ 此处理论上不会 undefined；真缺了也只是"不掐点"，
-      // 由后端终态 + `MAX_CONSECUTIVE_POLL_ERRORS` 两道既有防线兜住（不编数字）。
+      // `sub.budgetMs` 在此**必然有值** —— `relaySubmit` 已对缺失 fail-fast（TD-08-52），
+      // 故本字段不再存在"缺了就是不掐点"的隐式分支。
       timeoutMs: sub.budgetMs,
       signal,
       onProgress: opts.onProgress,

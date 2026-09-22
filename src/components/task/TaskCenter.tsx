@@ -23,7 +23,8 @@ import {
   useTasks,
   computeTaskCounts,
   isTaskActive,
-  statusDotClass,
+  isTaskNeedsAttention,
+  taskStatusVisual,
 } from '../base/store/taskStore.ts';
 import { logger } from '../base/core/log/logger.ts';
 import { downloadUrl, copyText } from '../base/utils/net/clipboard.ts';
@@ -92,7 +93,8 @@ function TaskCenter() {
               icon: Trash2,
               danger: true,
               disabled: failedCount === 0,
-              onClick: () => clearTasksBy((t) => t.status === 'failed' || t.status === 'unknown'),
+              // 【TD-04-62】谓词收口到 store 的 isTaskNeedsAttention（与计数同源，不再手抄 failed∪unknown）
+              onClick: () => clearTasksBy(isTaskNeedsAttention),
             },
             {
               key: 'clean-all',
@@ -214,7 +216,8 @@ const TaskCard = React.memo(function TaskCard({
   const menuRef = useRef<HTMLDivElement | null>(null); // 任务卡片「⋮」更多菜单容器 ref，点击外部自动关闭
   useOutsideClick(menuRef, moreOpen, () => onCloseMore?.());
   const TypeIcon = TYPE_ICON[task.type] || ImageIcon;
-  const dot = statusDotClass(task.status);
+  // 【TD-04-61】状态视觉（圆点/文字/错误块底/错误块文字）统一派生自 store 唯一判据。
+  const visual = taskStatusVisual(task.status);
   const statusText = statusLabel(task.status, task.progress);
   // 【TD-04-47】「进行中」判据收口到 store 的 isTaskActive（此前本处内联一份同义判断）。
   const isActive = isTaskActive(task);
@@ -255,12 +258,8 @@ const TaskCard = React.memo(function TaskCard({
     >
       {/* 第一行：状态圆点+文案 · 类型+模型 | 操作 */}
       <div className="flex items-center gap-1.5 min-w-0">
-        <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${dot}`} />
-        <span
-          className={`text-caption-sm flex-shrink-0 ${task.status === 'failed' ? 'text-red-400' : task.status === 'unknown' ? 'text-amber-400' : isActive ? 'text-blue-400' : 'text-emerald-400'}`}
-        >
-          {statusText}
-        </span>
+        <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${visual.dot}`} />
+        <span className={`text-caption-sm flex-shrink-0 ${visual.text}`}>{statusText}</span>
         <span className="text-subtle">·</span>
         <span className="flex items-center gap-1 text-caption-sm text-body flex-shrink-0">
           <TypeIcon size={11} /> {typeLabel(task.type)}
@@ -339,14 +338,10 @@ const TaskCard = React.memo(function TaskCard({
       )}
 
       {/* 错误块 ·【TD-08-24】unknown 必须同样显示文案 —— 它承载「可能已生成，勿直接重提」这一关键指引 */}
-      {(task.status === 'failed' || task.status === 'unknown') && task.errorMsg && (
-        <div
-          className={`flex items-center gap-2 rounded-lg px-2 py-1.5 ${task.status === 'unknown' ? 'bg-amber-500/5 border border-amber-500/20' : 'bg-red-500/5 border border-red-500/20'}`}
-        >
+      {isTaskNeedsAttention(task) && task.errorMsg && (
+        <div className={`flex items-center gap-2 rounded-lg px-2 py-1.5 ${visual.box}`}>
           <span className="text-body-xs">⚠️</span>
-          <span
-            className={`text-caption-sm truncate flex-1 ${task.status === 'unknown' ? 'text-amber-400/90' : 'text-red-400/90'}`}
-          >
+          <span className={`text-caption-sm truncate flex-1 ${visual.boxText}`}>
             {task.errorMsg}
           </span>
         </div>

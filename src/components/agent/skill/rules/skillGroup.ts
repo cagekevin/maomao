@@ -68,9 +68,25 @@ export function skillGroupLabel(name: string): string {
   return name === UNSORTED_GROUP ? '未分组' : name;
 }
 
-/** 组排序：`_未分类` 恒排最后（它是"还没归组"的兜底，不是用户有意建的分组），其余按本地中文序 */
+/**
+ * 组的**排序位次**（唯一家）—— 段序：**官方恒最前**（内置是代码常量，不属于任何磁盘目录）
+ * < **普通磁盘组**（本地中文序） < **`_未分类`**（兜底组是"还没归组"，不是用户有意建的分组）
+ * < **仅索引收纳段**（磁盘上已删除的"待处置"，不是用户建的分组）。
+ *
+ * 【为什么这条规则住在这里（TD-11-74）】本文件头自称"分组的**全部**语义（唯一家）：…排序…"，
+ * 但此前只有 `_未分类` 那一条住在这里，"官方恒最前"与"仅索引恒最后"却写在视图文件里
+ * ⇒ 想改"官方组排第几"的人按头注释进本文件**找不到**，会以为没有这条规则而另写一份
+ * （正是本仓"判据两个出生地"的形态）。现在**位次只在这里定**，视图层只剩"按位次排"。
+ */
+export function orderOfGroup(name: string): number {
+  if (name === OFFICIAL_GROUP) return 0;
+  if (name === INDEX_ONLY_GROUP) return 3;
+  if (name === UNSORTED_GROUP) return 2;
+  return 1;
+}
+
+/** 组排序：先按 `orderOfGroup` 位次（段序），同位次按本地中文序 */
 export function compareSkillGroups(a: string, b: string): number {
-  if (a === UNSORTED_GROUP) return b === UNSORTED_GROUP ? 0 : 1;
-  if (b === UNSORTED_GROUP) return -1;
-  return a.localeCompare(b, 'zh-Hans-CN');
+  const byOrder = orderOfGroup(a) - orderOfGroup(b);
+  return byOrder !== 0 ? byOrder : a.localeCompare(b, 'zh-Hans-CN');
 }

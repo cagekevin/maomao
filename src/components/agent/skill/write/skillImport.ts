@@ -17,7 +17,7 @@
  * 让包变大且永远读不到。等真有"必须保全二进制"的用例再做 base64 通道（ADR-0053：不提前预留）。
  */
 import { parseSkillMarkdown } from '../rules/skillManifest.ts';
-import { TEXT_RESOURCE_EXT } from '../rules/skillResourcePath.ts';
+import { isTextPackageFile } from '../rules/skillResourcePath.ts';
 import { saveSkillToDisk } from './skillPersist.ts';
 import type { SaveSkillResult } from './skillPersist.ts';
 import { SKILL_ENTRY_FILE } from '../rules/skillEntry.ts';
@@ -110,24 +110,17 @@ export interface ImportPackagesResult {
   error?: string;
 }
 
-/** 取小写扩展名（无扩展名 / 前导点 ⇒ `''`） */
-function extOf(fileName: string): string {
-  const dot = fileName.lastIndexOf('.');
-  return dot <= 0 ? '' : fileName.slice(dot + 1).toLowerCase();
-}
-
 /**
  * 这个路径是否值得导入。
- * 拒绝隐藏段（`.DS_Store`、`.git/` 等）：它们既不是内容，又会被后端 `isSafeRelPath` 判 400 ——
+ *
+ * 【判据的**唯一实现**在 `rules/skillResourcePath.isTextPackageFile`（2026-09-22 收口）】本函数
+ * 只是它在**导入侧的域名**：此前这里另有一个本地 `extOf` + 一份"隐藏段"检查，与读侧各写一遍
+ * ⇒ 同一条口径两个出生地。现在两侧共用同一处（差异只在用途：读侧另拒 `scripts/**`，导入侧收）。
+ * 【为什么拒隐藏段】`.DS_Store` / `.git/` 既不是内容，又会被后端 `isSafeRelPath` 判 400 ——
  * 一个 `.DS_Store` 会让**整个包**写失败，所以必须在**提交前**就剔掉（而不是等后端报错）。
- * 【扩展名判据 = 读侧同一张表】`TEXT_RESOURCE_EXT`（唯一真源）——此前本文件另写一份正则、
- * 且取值少 `tsv`/`html`/`htm` ⇒ 读得到却导不进（TD-11-34）。差异只在用途：读侧另禁 `scripts/**`，
- * 导入侧收（脚本随包保全在磁盘上）。
  */
 export function isImportablePackageFile(relPath: string): boolean {
-  const segs = String(relPath || '').split('/');
-  if (segs.some((s) => !s || s.startsWith('.'))) return false;
-  return TEXT_RESOURCE_EXT.has(extOf(segs[segs.length - 1]));
+  return isTextPackageFile(relPath);
 }
 
 function dirOf(relPath: string): string {

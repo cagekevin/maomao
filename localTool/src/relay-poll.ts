@@ -37,6 +37,7 @@ import type {
 } from './ai-relay/types.js';
 import { submitLovartTask, pollLovartTaskOnce } from './ai-relay/providers/lovart/index.js';
 import { budgetMsFor } from './budget.js';
+import { isRelayCapability, type RelayCapability } from './capability.js';
 import { resolveLocalImages, resolveImagesForEgress } from './utils/resolveLocalImages.js';
 import { saveRemoteUrl } from './routes/files.js';
 import { upsertTask } from './routes/tasks.js';
@@ -47,8 +48,6 @@ import {
   buildLovartDirectProfile,
 } from './providerConfigStore.js';
 import { getDb, queryAll, debouncedSaveDb, flushSaveDb } from './db/database.js';
-
-export type RelayCapability = 'image' | 'video' | 'chat';
 
 /** /api/generate 提交意图（与 /api/relay body 同源 + frontTaskId/nodeId/type 关联） */
 export interface RelaySubmitInput {
@@ -89,6 +88,12 @@ export type RelayTaskStatus =
    * 【与 failed 的差别（务必区分，勿合并）】`failed` = 确定没跑（本地前置失败/上游明确报错/已取消）；
    *   `unknown` = **可能已在跑**，判 failed 会诱导重复付费。前端据此给「需确认」语义而非「红失败」。
    */
+  // 【TD-08-55】**保留** `threadId?`，并把缺的**生产者**补上（原先是"消费方在、生产者缺"）：
+  //   · `threadId` = lovart 上游任务号（`sendLovartChat` 返回 → 落 `tasks.poll_task_id` / 写句柄 `handle.taskId`）；
+  //   · **消费方一直在**：`routes/generate.ts` 的 GET 响应把它透给前端（`data.threadId`）；
+  //   · 原先两个返回口都不填它 ⇒ 消费者永远拿到 `undefined`。
+  //   ⇒ 按 Step 4：**消费者要而生产者没给 ⇒ 回生产者补契约**（禁止改消费端/删字段）。
+  //   可选是因为它**本就可能未知**（sendChat 失败时拿不到 threadId，见 `upsertUnknown` 注释）。
   | { status: 'unknown'; error: string; threadId?: string }
   | { status: 'not-found' };
 
@@ -621,16 +626,15 @@ function registerHandle(frontTaskId: string, handle: PollHandle, overrideMs?: nu
   handles.set(frontTaskId, handle);
   const interval = Math.max(
     500,
-    // 【S0 · `poll.*` 的消费点清单（143 · 2026-09-22 勘误后）】
+    // 【S0 · `poll.*` 的消费点清单（2026-09-22 二次复核修正）】
     //   · **本行**：句柄侧只读 `poll.intervalMs`（单轮间隔）。
-    //   · **本文件另一处**：`runOnce` 里 `pollModelProtocolOnce(handle.poll!, …)` 把整个 `poll` 交给
-    //     协议执行器 ⇒ 那里的 `poll.maxDurationMs` **是会被消费的**（`ai-relay/protocol/poll.ts` 内
-    //     把它作为 `pollTask` 的 `maxDuration`）。
-    //   · **sync 链**：`pollResolvedModelProtocol` 的多轮循环也消费它。
-    //   ⇒ **两条链都消费 `maxDurationMs`**（不是"只有 sync 链"）。本路径的总预算另由上一行
-    //     的 `budgetMsFor` 管 —— 两者**不同判据，不冲突**。
-    //   ⚠️ **勘误留痕**：本条初版写"本路径不被消费"是**错的** —— 根因是"另一条链的代码里没搜到就直接下否定结论"，
-    //     没去看**它被传进去的那个对象**有没有在更深处被读。见 `daily/架构日志/08-跨区-143规划文档勘误-2026-09-22.md`。
+    //   · **本文件另一处**：`runOnce` 把整个 `poll` 交给 `pollModelProtocolOnce`，但该函数是**单轮打点**，
+    //     **不消费 `maxDurationMs`**（`ai-relay/protocol/poll.ts:114-178` 体内**无 `pollTask` 调用**）⇒
+    //     **本路径的任务超时只由上一行的 `budgetMsFor` 管**。
+    //   · `maxDurationMs` 真正的消费者 = sync 链（`pollResolvedModelProtocol` ← `executeModelProtocol`），
+    //     那是**协议执行层**超时，与任务预算**不同判据、作用域不相交**。
+    //   ⚠️ 本轮曾误改成"两条链都消费"——根因是**行号归属误判**（`maxDuration:` 在 `pollResolvedModelProtocol` 内）；
+    //     教训：**"搜到一行"也要确认那行属于哪个函数**。留痕：`daily/架构日志/08-跨区-TD-08-60改判-2026-09-22.md`。
     handle.direct ? DEFAULT_POLL_INTERVAL_MS : handle.poll?.intervalMs || DEFAULT_POLL_INTERVAL_MS,
   );
   const runOnce = async (): Promise<void> => {
@@ -641,8 +645,8 @@ function registerHandle(frontTaskId: string, handle: PollHandle, overrideMs?: nu
     // 超时还统一报成"生成超时"。现按**交出 thread_id 那一刻**（upstreamStartedAt）分段：
     //   段①（我们：提交 + 素材出站）从 handle.startedAt 起算；
     //   段②（上游：出图）从交出那一刻起算。
-    // 两段的界都沿用同一个 timeoutMs —— **不新造数字、也不比原来更紧**（原来整条 10min 够用，
-    // 现在每段各 10min ⇒ 今天能成功的改后仍能成功，只是不再互相挤占预算）。
+    // 两段的界都沿用同一个 `timeoutMs`（取值见**预算真源** `budgetMsFor` —— **本文件不复述数值**，
+    // 见 TD-08-49「禁复述已移出的数值」）⇒ 今天能成功的改后仍能成功，只是两段不再互相挤占预算。
     if (handle.upstreamStartedAt === undefined) {
       if (Date.now() - handle.startedAt > timeoutMs) {
         stopHandle(handle);
@@ -830,7 +834,7 @@ function capabilityFromRow(row: { request_data?: unknown }): RelayCapability | u
       typeof row.request_data === 'string' ? JSON.parse(row.request_data) : row.request_data;
     const cap = (snap as { _relayPoll?: { capability?: unknown } } | undefined)?._relayPoll
       ?.capability;
-    return cap === 'image' || cap === 'video' || cap === 'chat' ? cap : undefined;
+    return isRelayCapability(cap) ? cap : undefined;
   } catch {
     return undefined; // 快照损坏：不给预算（前端据此保持 running，不判失败）
   }
@@ -852,7 +856,12 @@ export async function getGenerateStatus(frontTaskId: string): Promise<RelayTaskS
     // 【TD-08-24】unknown 是终态（句柄已 stopHandle 移除，此处为兜底），必须原样透出 ——
     // 若折成 running，前端会一直等到超时才报错，把「可能已生成」误导成「还在生成」。
     if (row && row.status === 'unknown') {
-      return { status: 'unknown', error: row.error_msg || '提交结果未知' };
+      // 【TD-08-55】补生产者：上游任务号（句柄内存里是最近的真源；pendingSubmit 阶段为空串 ⇒ 归一为 undefined）
+      return {
+        status: 'unknown',
+        error: row.error_msg || '提交结果未知',
+        threadId: h.taskId || undefined,
+      };
     }
     return {
       status: 'running',
@@ -883,7 +892,13 @@ export async function getGenerateStatus(frontTaskId: string): Promise<RelayTaskS
     return { status: 'failed', error: row.error_msg || '生成失败', budgetMs: rowBudgetMs };
   }
   if (row.status === 'unknown') {
-    return { status: 'unknown', error: row.error_msg || '提交结果未知' };
+    // 【TD-08-55】补生产者：回库分支的真源 = `poll_task_id`（= 上游 task_id / lovart thread_id）
+    return {
+      status: 'unknown',
+      error: row.error_msg || '提交结果未知',
+      threadId:
+        typeof row.poll_task_id === 'string' && row.poll_task_id ? row.poll_task_id : undefined,
+    };
   }
   if (row.status === 'running' && row.poll_task_id) {
     // 在途且句柄不在内存 → 交给扫描（若启动扫描还没跑则提示 running）
@@ -942,6 +957,17 @@ export async function initRelayPoller(opts: { overrideMs?: number } = {}): Promi
       }
       const core = snap?._relayPoll;
       if (!core) continue; // 无 relay 快照，跳过
+      // 【TD-08-51】快照 `capability` 必须过守卫才能进 `registerHandle` —— 它来自 `JSON.parse`，
+      //   类型层（`RelayPollSnapshot`）管不到运行时。域外值会让 `budgetMsFor` 返 `undefined`
+      //   ⇒ `handle.budgetMs = undefined` ⇒ `runOnce` 的 `now - startedAt > timeoutMs` **恒 false**
+      //   ⇒ 任务**永不判死**（且 GET 同报 undefined ⇒ 前端也不掐点 = 双侧静默互等）。
+      //   处置：**留痕跳过**（不重建 —— 重建出来就是个空转的僵尸句柄）。下方两条重建路径都经本处。
+      if (!isRelayCapability(core.capability)) {
+        console.warn(
+          `[relay-poll] 恢复跳过 ${frontTaskId}：快照 capability 非法（${String(core.capability)}）—— 重建也只会得到一个永不判死的句柄`,
+        );
+        continue;
+      }
       // 【段边界恢复】已交出（taskId 非空）⇒ 段② 从 `submit_ack_at` 起算；未交出 ⇒ 段① 从 `startedAt` 起算。
       // 传**完整** timeoutMs（不再预先扣减）：原 `remaining` 与 runOnce 的 `now - startedAt` 会把
       // 已耗时间**扣两次** ⇒ 重启后的任务被提前判死（同一处发现的第二处缺陷，随分段一并改对）。

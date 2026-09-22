@@ -16,7 +16,8 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { json, parseJsonBody, sendError } from '../utils/helpers.js';
 import { submitGenerateTask, getGenerateStatus, cancelGenerateTask } from '../relay-poll.js';
-import type { RelayCapability } from '../relay-poll.js';
+import { normalizeOverrideMs } from '../budget.js';
+import { isRelayCapability, type RelayCapability } from '../capability.js';
 import { relayGenerate, relayChatStream } from '../generateEngine.js';
 
 /** POST /api/generate —— 统一生成入口：按 capability 分流到聊天/图片/视频数据流。 */
@@ -28,10 +29,9 @@ export async function handleGenerateSubmit(
   if (!body) return sendError(res, 'Missing body', 400);
 
   const providerId = typeof body.providerId === 'string' ? body.providerId : 'lovart';
-  const capability: RelayCapability | undefined =
-    body.capability === 'image' || body.capability === 'video' || body.capability === 'chat'
-      ? body.capability
-      : undefined;
+  const capability: RelayCapability | undefined = isRelayCapability(body.capability)
+    ? body.capability
+    : undefined;
   const model = typeof body.model === 'string' ? body.model : '';
   if (!capability) return sendError(res, 'Invalid or missing capability', 400);
   if (!model) return sendError(res, 'Missing model', 400);
@@ -39,11 +39,13 @@ export async function handleGenerateSubmit(
   // 【143 · S3′ · 提级】`body.timeoutMs` 是**全能力通用**的 override（"调用方本次耐心"），
   // 原先只在 chat 分支里读 ⇒ **image/video 的 override 通道是死的**（`RelaySubmitInput.timeoutMs`
   // 明明被 `submitGenerateTask` 消费，却没人转发）。现提到能力分叉**之前**算一次，两处共用。
-  // 非法 / 缺失 → undefined，交给真源默认；**不在这里自己编一个数**（编了就是第二份真相）。
-  const clientTimeoutMs =
-    typeof body.timeoutMs === 'number' && Number.isFinite(body.timeoutMs) && body.timeoutMs > 0
-      ? body.timeoutMs
-      : undefined;
+  // 合法性判据**不在本层**：调真源原语 `normalizeOverrideMs`（TD-08-63 收口）；非法 / 缺失 → undefined，
+  // 交给真源默认；**不在这里自己编一个数**（编了就是第二份真相）。
+  // ⚠️ **通道可达性（TD-08-53 复核）**：本层已把 override 转给两条分支，但**当前只有 chat 有消费方**
+  //   （前端 `relayChat`/`relayChatStream` 写 `CHAT_TOTAL_TIMEOUT`）。image/video 的前端（`RelayIntent`）
+  //   **有意不传** —— S4′ 已定「等待上限由后端 `budgetMs` 告知」。⇒ 那不是半态，是**对调用方开放的可选
+  //   通道、当前暂无消费方**（不为它预建前端字段 —— 那才是 ADR-0030 说的幽灵预留）。
+  const clientTimeoutMs = normalizeOverrideMs(body.timeoutMs);
 
   // ── 聊天数据流（前端 frontTaskId 有则透传，后端不消费——聊天无句柄、不建任务行）──
   if (capability === 'chat') {

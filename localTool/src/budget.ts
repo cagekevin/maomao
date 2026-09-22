@@ -27,25 +27,48 @@
  *   两个消费方都是根级模块，零新增依赖边、也不污染库的边界）。
  */
 
-export const DEFAULT_BUDGET_MS = {
-  chat: 180_000,
-  image: 300_000,
-  video: 600_000,
-} as const;
-
-export type BudgetCapability = keyof typeof DEFAULT_BUDGET_MS;
+import type { RelayCapability } from './capability.js';
 
 /**
- * 预算**唯一入口**：`override`（调用方本次耐心）优先于后端默认。
+ * chat 任务总预算的**后端兜底默认** —— 只在调用方**没在** `body.timeoutMs` 里声明时才用。
  *
- * 【为什么 override 要过校验，不能只写 `override ?? DEFAULT`】
+ * 【它为什么不是"第二份真相"】143 规划 §2.3「谁等，谁就是生产者」：chat 是**同步链**（无句柄、
+ *   响应即终态），等的是**前端** ⇒ **预算真相归前端**（它把值写进 `body.timeoutMs`，后端原样转发）；
+ *   本常量只是"前端没声明时别无限等"的**兜底**。
+ * 【但两者必须相等（TD-08-54）】不等就意味着"前端传了"与"没传"得到不同预算 ⇒ 行为分叉。
+ *   故登记为**跨栈对账项**：`check:arch` 规则 14 逐字比对前端 `config.ts` 的 `CHAT_TOTAL_TIMEOUT`
+ *   （`CROSS_STACK_CONSTS`）⇒ 改一侧必须同步另一侧，否则闸红。
+ */
+export const CHAT_TOTAL_TIMEOUT = 180_000;
+
+/**
+ * 预算表：`capability → ms`。
+ * 键集合 = **能力枚举真源** `capability.ts`（`Record<RelayCapability, …>` ⇒ 加一个能力而不加预算，
+ * 编译期即报错 —— 这是"能力 ↔ 预算必须同步"的**结构保证**，不是注释约定）。
+ */
+export const DEFAULT_BUDGET_MS: Record<RelayCapability, number> = {
+  chat: CHAT_TOTAL_TIMEOUT,
+  image: 300_000,
+  video: 600_000,
+};
+
+/**
+ * `override` 合法性判据 —— **唯一实现**（`budgetMsFor` 与路由层共用）：只有**正的有限数**
+ * 才算「调用方表达了本次耐心」；否则一律视为**没表达**（返 `undefined`）。
+ *
+ * 【为什么不能只写 `override ?? DEFAULT`】
  *   `??` 只挡 `null`/`undefined` —— 实证 `0 ?? 5 === 0`、`NaN ?? 5 === NaN`。
  *   而 `0` 在本仓语义是「**不掐点**」（见 `httpClient` 契约），`NaN` 会让 `setTimeout` 立即触发
- *   ⇒ 两者都会把「有预算」变成「没预算/秒超时」。故与路由层 `body.timeoutMs` 的校验同口径
- *   （`Number.isFinite && > 0`）再兜一道。
+ *   ⇒ 两者都会把「有预算」变成「没预算/秒超时」。
+ * 【为什么收口成原语而不两处各写一遍】
+ *   原为 `budget.ts` 与 `routes/generate.ts` 各持一份同口径判断（TD-08-63：生产路径上第二道
+ *   **恒不触发** = 假守卫）⇒ 收口到本函数，两侧都改为**调用**它。
  */
-export function budgetMsFor(capability: BudgetCapability, override?: number): number {
-  return typeof override === 'number' && Number.isFinite(override) && override > 0
-    ? override
-    : DEFAULT_BUDGET_MS[capability];
+export function normalizeOverrideMs(v: unknown): number | undefined {
+  return typeof v === 'number' && Number.isFinite(v) && v > 0 ? v : undefined;
+}
+
+/** 预算**唯一入口**：`override`（调用方本次耐心）优先于后端默认。 */
+export function budgetMsFor(capability: RelayCapability, override?: number): number {
+  return normalizeOverrideMs(override) ?? DEFAULT_BUDGET_MS[capability];
 }
