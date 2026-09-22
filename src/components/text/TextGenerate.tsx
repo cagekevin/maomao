@@ -128,14 +128,15 @@ function TextGenerate({ id, data, selected }: TextGenerateProps) {
     setExpanded((v) => !v);
   }, [inputLocked, setExpanded]);
   const [editingText, setEditingText] = useState(false);
-  // 记住上次选择的模型（跨节点/跨会话）；初始用记忆值，无记忆回退 gpt-4o-mini
+  // 记住上次选择的模型（跨节点/跨会话）；新建时由 injectNodePrefs 注入记忆值（真源 = PREFS_DEFAULTS）。
+  // 存量缺字段回退**空串**（= 未选，与图片/视频节点同形态）。TD-04-64 用户裁定：文本节点不再预填 gpt-4o-mini。
   // TD-04-23：默认值改引单一真源（原为就地字面量第二份）
   const { prefs: textPrefs, set: setTextPrefs } = useNodePrefs(
     'textGenerateNode',
     PREFS_DEFAULTS.textGenerateNode,
   );
   // 记忆只影响新建（见 App.addNode 注入）；存量初始化只读 data，缺字段用纯常量。
-  const [selectedModel, setSelectedModel] = useState(data.selectedModel ?? 'gpt-4o-mini');
+  const [selectedModel, setSelectedModel] = useState(data.selectedModel ?? '');
   // 参考图来源：上游连线（useConnectedInputs 实时读）。
   // 【memo 优化】用 useMemo 稳定 refImages 引用：否则每次 render 新建数组，传给 memo 子组件
   // （ResourceStrip/PromptInput）会失效导致每次重渲染。

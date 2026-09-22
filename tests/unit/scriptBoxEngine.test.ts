@@ -58,6 +58,7 @@ import {
   defaultShotFields,
   defaultAssetFields,
 } from '@/components/scriptbox/scriptBoxSchema.ts';
+import type { ScriptAsset } from '@/components/scriptbox/scriptBoxPrompts.ts';
 
 const { parseJsonText, useJsonObject, dialogueLines, assembleShotUser, createScriptBoxEngine } =
   await import('@/components/scriptbox/scriptBoxEngine.ts');
@@ -222,7 +223,8 @@ describe('scriptBoxEngine · 纯导出函数', () => {
       expect(out).toContain('通用负面（prompt + videoPrompt 同时遵守）');
     });
     it('对齐官方：出场分工按 class 拆核心/压迫位/背景位 + 场景 + 道具', () => {
-      const refs = [
+      // 【§五 #5／§七 #6】资产类别已收窄为联合类型 ⇒ 夹具标注类型（否则字面量被拓宽成 string 而报错）
+      const refs: ScriptAsset[] = [
         { category: 'character', name: '小红帽' },
         { category: 'character', name: '大灰狼' },
         { category: 'scene', name: '森林' },

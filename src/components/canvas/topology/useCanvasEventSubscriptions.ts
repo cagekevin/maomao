@@ -14,6 +14,7 @@
  */
 import { useEffect } from 'react';
 import { subscribe } from '@/components/base/core/event/eventBus';
+import { PROJECT_IMPORT_EVENT, PROJECT_EXPORT_EVENT } from '@/components/base/core/contracts';
 
 import { showToast } from '@/components/base/core/event/toastStore';
 import { logger } from '@/components/base/core/log/logger';
@@ -75,8 +76,8 @@ export function useProjectBackupIO(): void {
       };
       input.click();
     };
-    const offImport = subscribe('project:import', handleImport);
-    const offExport = subscribe('project:export', handleExport);
+    const offImport = subscribe(PROJECT_IMPORT_EVENT, handleImport);
+    const offExport = subscribe(PROJECT_EXPORT_EVENT, handleExport);
     return () => {
       offImport();
       offExport();

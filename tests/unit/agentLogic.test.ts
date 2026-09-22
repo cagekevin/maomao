@@ -9,7 +9,7 @@ import {
 // 测试构造的消息需按该类型标注，避免字面量被宽化成 string。
 import type { agentChatMessage, SSEAccumulator } from '@/components/agent/runtime/agentCore.ts';
 // 生产者发布的失败文案（TD-16-50）：消费者只转发，测试据此断言"文案来自生产者"而非消费层自造。
-import { SSE_MALFORMED_MESSAGE } from '@/components/agent/runtime/agentCore.ts';
+import { SSE_MALFORMED_MESSAGE, toChatMessages } from '@/components/agent/runtime/agentCore.ts';
 // Skill 两段文本的纯函数真源（措辞与预算的唯一实现；agentCore 只收拼好的字符串）
 import {
   buildBoundSkillBlocks,
@@ -428,5 +428,27 @@ describe('AI 助手 buildRequestMessages（发 LLM 消息组装）§2.15', () =>
     const out = buildRequestMessages(msgs, '外部准则', true, '', null, [], 3);
     expect(out.some((m) => m.role === 'system' && m.content === '旧系统注入')).toBe(false); // 历史 system 不回传
     expect(out.some((m) => m.role === 'system' && m.content === '外部准则')).toBe(true); // 前置注入保留
+  });
+});
+
+/**
+ * 【TD-11-82】宽松态（会话存储）→ 协议态的唯一转换入口。
+ * 反证：把守卫改回"整个数组 `as` 透传" ⇒ 第一条断言红（非法 role 会原样保留并发给上游）。
+ */
+describe('toChatMessages（TD-11-82 · 宽松态 → 协议态唯一转换）', () => {
+  it('role 非法的消息被丢弃（不发给上游），合法的照常保留', () => {
+    const out = toChatMessages([
+      { role: 'user', content: 'hi' },
+      { role: 'bot', content: '非法 role' },
+      { role: 123, content: '非法 role 类型' },
+      { role: 'assistant', content: 'ok' },
+    ]);
+    expect(out.map((m) => m.role)).toEqual(['user', 'assistant']);
+  });
+
+  it('字段形状不符 ⇒ 该字段缺席（不把脏值透传给上游）', () => {
+    const [m] = toChatMessages([{ role: 'user', content: { bad: true }, tool_call_id: 42 }]);
+    expect(m.content).toBeUndefined();
+    expect(m.tool_call_id).toBeUndefined();
   });
 });

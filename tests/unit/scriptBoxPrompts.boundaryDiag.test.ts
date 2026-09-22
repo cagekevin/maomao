@@ -18,6 +18,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import { matchAsset, collectAssets } from '@/components/scriptbox/scriptBoxPrompts.ts';
+import type { ScriptAsset } from '@/components/scriptbox/scriptBoxPrompts.ts';
 
 // ═══════════════════════════════════════════════════════════════════
 // matchAsset 的边界语义（仍被 stripAtRef / hlAt 等复用，需锁住）
@@ -69,7 +70,8 @@ describe('隐藏 bug 探索：collectAssets 的已知边界', () => {
 
   it('已知②：collectAssets 返回对象不含 category，下游无法区分场景/角色/道具（契约空白）', () => {
     const shotDesc = { description: '@卧室, @骷髅A, @HKH精华瓶' };
-    const multi = [
+    // 【§五 #5／§七 #6】资产类别已收窄为联合类型 ⇒ 夹具标注类型
+    const multi: ScriptAsset[] = [
       { id: 'a1', name: '卧室', category: 'scene', assetUrl: '/files/room.png' },
       { id: 'a2', name: '骷髅A', category: 'character', assetUrl: '/files/ka.png' },
       { id: 'a4', name: 'HKH精华瓶', category: 'prop', assetUrl: '/files/bottle.png' },

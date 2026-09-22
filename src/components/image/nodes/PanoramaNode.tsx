@@ -40,6 +40,7 @@ import {
   toastWarning,
 } from '@/components/base/core/event/toastStore';
 import FullscreenShell from '@/components/base/panels/FullscreenShell';
+import { IMG_MAX_DIM } from '@/components/image/lib/imageLimits';
 
 /**
  * 720 全景图节点（复刻官方 Zl.jsx / panoramaNode）。
@@ -54,7 +55,7 @@ import FullscreenShell from '@/components/base/panels/FullscreenShell';
  *
  * 更新(2026-09-09) 全景图 bug 审计修复（对照注释语义逐项对齐）：
  *  - 主图 object-contain：2:1 全景在 16:9 节点内完整显示（原 object-cover 裁掉左右首尾相接区域）。
- *  - 球体贴图：走大尺寸按需出图端点（maxDim 4096，非本地回原图）+ PanoViewer 内部 URL 归一化
+ *  - 球体贴图：走大尺寸按需出图端点（maxDim = `IMG_MAX_DIM`，非本地回原图）+ PanoViewer 内部 URL 归一化
  *    （治相对 /files/ 黑屏 与 全分辨率大图卡顿）。
  *  - 漫游加载/错误态：R3F Canvas 挂起抛 promise → 外层 Suspense 显示「全景加载中…」；
  *    纹理失败抛 error → 外层 SphereErrorBoundary 显示占位（不再黑屏）。
@@ -306,10 +307,10 @@ function PanoramaNode({ id, data, selected }: PanoramaNodeProps) {
     return data.assetUrl || null;
   })();
 
-  // 球体贴图专用地址：本地文件走大尺寸按需出图（4096 上限），非本地（data:/blob:/公网）回原图。
+  // 球体贴图专用地址：本地文件走大尺寸按需出图（`IMG_MAX_DIM` 上限），非本地（data:/blob:/公网）回原图。
   // 与主图 thumbResolve（默认 640）不同——球体内表面需要更高分辨率才不糊；
   // 但仍优于直接加载全分辨率原图（全景图常 8192 宽，显存/解码压力大）。
-  const sphereTextureUrl = panoUrl ? thumbResolve(panoUrl, { maxDim: 4096 }) : '';
+  const sphereTextureUrl = panoUrl ? thumbResolve(panoUrl, { maxDim: IMG_MAX_DIM }) : '';
 
   // 节点 data 写回（不可变更新：P0-B 红线，禁止原地 mutation，否则下游窄订阅静默不更新）。
   // 收口到 useNodeData（docs/118 §7.3 ④：内联 patchData 样板 → 复用 base hook）。

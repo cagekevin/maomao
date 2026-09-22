@@ -1,5 +1,6 @@
 import { videoEditorLogger } from '@/components/videoEditor/lib/videoEditorLogger';
 import { subscribe } from '@/components/base/core/event/eventBus';
+import { VIDEOEDITOR_SEEK_EVENT } from '@/components/base/core/contracts';
 import { releaseQuietly } from '@/components/base/utils/net/asyncGuard';
 import type { EditorCore } from '@/components/videoEditor/engine/core';
 import type { AudioClipSource } from '@/components/videoEditor/engine/lib/media/audio';
@@ -33,7 +34,7 @@ export class AudioManager {
       this.editor.media.subscribe(this.handleTimelineChange),
       // 播放头跳转 → 按新位置重排音频。走 eventBus 唯一通道（`EVENTS['videoeditor:seek']`，TD-22-23）：
       // 原实现是 `window.addEventListener('playback-seek')`，属 eventBus 红线禁止的"第二套广播"。
-      subscribe('videoeditor:seek', this.handleSeek),
+      subscribe(VIDEOEDITOR_SEEK_EVENT, this.handleSeek),
     );
   }
 

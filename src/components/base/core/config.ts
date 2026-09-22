@@ -137,12 +137,6 @@ export const VIDEO_DOWNLOAD_TIMEOUT = 60000;
 /** 文件上传（filesApi.js） */
 export const UPLOAD_TIMEOUT = 30000;
 /**
- * chat 的「**等上游响应**」段预算（120s）—— **不是**任务总预算，别拿它当 `relayChat` 的总超时
- *（143 · S5′ 实证：曾被写进 `body.timeoutMs` 当总预算传给后端，导致后端按段值掐上游）。
- * 总预算见 `CHAT_TOTAL_TIMEOUT`（= 本值 + 宽限）。
- */
-export const CHAT_TIMEOUT = 120000;
-/**
  * chat **任务总预算**（外层总闸）= 「等上游响应」+「响应体读取 / 解析 / 落盘」两段之和。
  *
  * 【为什么要提成常量（2026-09-18 · TD-01-24）】此前这个「+60s 宽限」被**内联**在两处
@@ -154,8 +148,8 @@ export const CHAT_TIMEOUT = 120000;
  *
  * ⚠️ **跨栈对账项**（2026-09-22 · TD-08-54）：后端 `localTool/src/budget.ts` 的 `DEFAULT_BUDGET_MS.chat`
  * （前端未在 `body.timeoutMs` 声明时的**兜底**）与本值**必须相等** —— `check:arch` 规则 14 逐字比对
- * （`CROSS_STACK_CONSTS`）。**故此处必须写裸数字**（写成表达式会被闸判「缺失」）；「= 段值 + 宽限」的
- * 构成写在本注释里，不写进代码。改一侧必须同步另一侧，否则 `check:arch` 红。
+ * （`CROSS_STACK_CONSTS`）。**故此处必须写裸数字**（写成表达式会被闸判「缺失」）；「= 段值 120s + 宽限 60s」
+ * 的构成写在本注释里，不写进代码。改一侧必须同步另一侧，否则 `check:arch` 红。
  */
 export const CHAT_TOTAL_TIMEOUT = 180000;
 /** KV / 本地存储读写总超时（contentStore / conversationState / d3dPersistence / projectMemoryStore 共用） */
@@ -172,7 +166,7 @@ export const THROTTLE_MS = 5000;
 // ⇒ 前端**不再有** image/video 的上游预算常量；要改预算改后端那一处。
 
 // ── 剧本盒引擎任务总耗时兜底 ────────────────────────────────────
-// 内层超时（`CHAT_TIMEOUT`）只覆盖「等上游响应」阶段；卡在响应体读取、发图前图片归一、结果落盘
+// 内层段超时（chat 的 120s 段值）只覆盖「等上游响应」阶段；卡在响应体读取、发图前图片归一、结果落盘
 // 等阶段时无人管 → loading 永不结束。故在 runAbortable 任务边界再加一道总闸。
 // ⚠️ 这一组是**前端自己环节的总闸**（不是上游预算）：上游预算由后端 `budgetMs` 给，前端不复制它。
 // 宽限 60s 供内层超时之外的环节（图片归一/解析/落盘）使用，不会误杀正常生成。

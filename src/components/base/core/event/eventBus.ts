@@ -26,10 +26,11 @@
  * `agent:credit-gate`），手写清单 = 同一真相的第二份（母体 M3）。
  * 新增事件统一用「领域:动作」命名，并登记进 EVENTS。另见 docs/实时总线-Event-Bus-全解-2026-08-16.md。
  *
- * 【用法】
+ * 【用法】（事件名**一律引用 `contracts` 的常量**，禁止裸写字符串 —— TD-08-69）
  *   import { publish, subscribe } from './eventBus.ts'
- *   const off = subscribe('agent:task-completed', (payload) => {...})
- *   publish('agent:task-completed', { taskId, nodeId, resultUrl })
+ *   import { TASK_COMPLETED_EVENT } from '../contracts.ts'
+ *   const off = subscribe(TASK_COMPLETED_EVENT, (payload) => {...})
+ *   publish(TASK_COMPLETED_EVENT, { taskId, nodeId, resultUrl })
  */
 import { logger } from '../log/logger.ts';
 

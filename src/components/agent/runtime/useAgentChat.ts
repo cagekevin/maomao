@@ -753,7 +753,9 @@ export function useAgentChat({
           // 意图预判提示随每轮重建（msgs 每轮都是新数组，不会跨轮重复累积）
           const makeContextMessages = () => {
             const msgs = buildRequestMessages(
-              getCurrentSnapshot().messages as agentChatMessage[],
+              // 【TD-11-82】不再 `as agentChatMessage[]` —— buildRequestMessages 入参已如实为宽松态，
+              // 转换由它入口的 `toChatMessages` 唯一承担（role 非法即丢弃并留痕）。
+              getCurrentSnapshot().messages,
               systemRef.current,
               true,
               turn.docs, // 块②（发送起点冻结；空串 ⇒ 本轮没发 skill）

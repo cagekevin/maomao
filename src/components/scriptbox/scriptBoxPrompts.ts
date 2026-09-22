@@ -13,6 +13,9 @@
  */
 
 import { SCRIPT_BOX_WORKFLOWS } from './scriptBoxWorkflows.ts';
+// 资产类别真源在 `@/types` 的 `ASSET_CATEGORY_META`（§五 #5／§七 #6 收口）；原 `export type AssetCategory = string`
+// 的放宽已收窄为联合，边界一律走 `isAssetCategory` 守卫。本文件**不 re-export** 该类型（消费方从 `@/types` 取，免多头入口）。
+import { isAssetCategory, type AssetCategory } from '../../types';
 
 /**
  * 【边界】scriptBoxWorkflows 仍是 .js（真相源，暂不转），其结构按下游实际消费的字段
@@ -34,9 +37,6 @@ export interface ImageGenTemplate {
 
 const WF = SCRIPT_BOX_WORKFLOWS as Record<string, WorkflowLike>;
 const MANGA = WF.manga as WorkflowLike;
-
-/** 资产类别：character=角色 / scene=场景 / prop=道具（消费方可能传任意字符串，转字符串处理） */
-export type AssetCategory = string;
 
 /** 单条对白（kind 存任意字符串，运行时按 '台词'/'旁白' 展示；如实标注避免过度收窄） */
 export interface Dialogue {
@@ -66,7 +66,10 @@ export interface Shot {
 export interface ScriptAsset {
   id?: string | number;
   name?: string;
-  category?: AssetCategory;
+  /** 资产类别：**有意放宽为 `string`** —— 本结构承载**外部数据**（LLM 生成的 JSON / 用户导入 / 存量快照），
+   *  类型层无法保证其合法。边界一律经 `isAssetCategory` 归一后再当 `AssetCategory` 用（§五 #5／§七 #6）。
+   *  ⇒ 需要"精确类别"处（UI 渲染、`Record<AssetCategory,…>`）请用归一后的值，**不要直接信本字段**。 */
+  category?: string;
   description?: string;
   assetUrl?: string;
   thumbnailUrl?: string;
@@ -147,9 +150,8 @@ export function ZgPrompt(
   style?: string,
   customTemplates?: Record<string, string> | null,
 ): string {
-  const cat = ['character', 'scene', 'prop'].includes(category ?? '')
-    ? (category ?? 'character')
-    : 'character';
+  // 【§五 #5／§七 #6 收口】类别校验走唯一守卫（原手抄 `['character','scene','prop'].includes`）
+  const cat: AssetCategory = isAssetCategory(category) ? category : 'character';
   const d = (desc || '').trim();
   const tpl = (customTemplates && customTemplates[cat]) || ASSET_TEMPLATES[cat];
   const body = `${d}${d && !/[。.!!？?]$/.test(d) ? '。' : ''}${tpl}`;

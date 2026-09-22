@@ -5,8 +5,8 @@
  * `creative/` · `videoEditor/` 同级）。按 `docs/DOMAIN-MODULES.md §3.1.1 / §3.1.3.5`：
  *   · 已入驻：`depthVideo/`（深度视频子域 · 5 件：`DepthVideoModal` · `spawn` · `engine` ·
  *     `loader` · `depthUrls`）
- *   · 已入驻：`lib/`（3 件：`videoEngine` · `sourceTime` · `timeScale`，2026-09-19 域归位迁入 ——
- *     均 video 单域消费，ADR-0040 L4）
+ *   · 已入驻：`lib/`（4 件：`videoEngine` · `sourceTime` · `timeScale`，2026-09-19 域归位迁入；
+ *     `resolutionPresets`，2026-09-22 TD-22-71 收口新建 —— 均 video 单域消费，ADR-0040 L4）
  *   · 已入驻：`nodes/`（3 件：`VideoGenerate` · `VideoExtractNode` · `VideoProcessNode`）
  *   · **已裁定留原处（不得重审）**：`base/utils/captureFrame`（跨 scriptbox+video，真横切）·
  *     `base/ui/VideoThumbnail`（真横切）· `base/core/videoEditorKeys`（键构造 SSOT，TD-25-7 非债）·

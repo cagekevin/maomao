@@ -34,6 +34,7 @@ import { uploadFileToLocal } from '../base/api/index.ts';
 import { runGenerationOrchestration } from '../generate/lib/generationOrchestration.ts';
 import { toAbsoluteFileUrl } from '../base/utils/media/assetUrl.ts';
 import { detectFileType } from '../base/utils/media/assetType.ts';
+import { isAssetCategory, type AssetCategory } from '../../types';
 import { fileNameFromUrl, canvasToImageDataUrl, clamp } from '../base/core/utils.ts';
 import { toastError, toastSuccess } from '../base/core/event/toastStore.ts';
 import { logger } from '../base/core/log/logger.ts';
@@ -294,7 +295,7 @@ export function createScriptBoxEngine({
     const ac = new AbortController();
     abortMap.set(key, ac);
     try {
-      // 【总耗时兜底】内层超时（chat 的 `CHAT_TIMEOUT`）只覆盖「等上游响应」阶段，
+      // 【总耗时兜底】内层段超时（chat 的 120s 段值）只覆盖「等上游响应」阶段，
       // 卡在响应体读取（res.json / SSE 累积）、发图前图片归一、结果落盘等阶段时无人管 → 动画永不结束。
       // 故在任务边界加一道总闸：到点 abort 同一个 signal（真正掐断底层请求，不留悬挂请求）并复位 loading。
       // withTimeout 内部会 catch task 的后续 rejection，超时后不会冒泡成 unhandled rejection。
@@ -460,8 +461,10 @@ export function createScriptBoxEngine({
         const assets = (Array.isArray(m.assets) ? (m.assets as Record<string, unknown>[]) : [])
           .filter((e) => e && e.name)
           .map((t, n) => {
-            const category = ['character', 'scene', 'prop'].includes(String(t.category))
-              ? String(t.category)
+            // 【§五 #5／§七 #6 收口】类别校验走唯一守卫（原手抄 `['character','scene','prop'].includes`）
+            const rawCategory = t.category;
+            const category: AssetCategory = isAssetCategory(rawCategory)
+              ? rawCategory
               : 'character';
             const desc = String(t.description || '');
             return {

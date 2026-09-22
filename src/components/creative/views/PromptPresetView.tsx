@@ -25,6 +25,7 @@ import {
 import type { Preset } from '../promptManager';
 import { isPresetId } from '../creativePresets';
 import { subscribe } from '@/components/base/core/event/eventBus';
+import { PRESETS_CHANGED_EVENT } from '@/components/base/core/contracts';
 import { useOutsideClick } from '@/components/base/core/interaction/uiHooks';
 
 /** 「我的提示词」胶囊 id 命名空间：`cp_prompt-<id>`（§一.2.1） */
@@ -79,7 +80,7 @@ export default function PromptPresetView({
 
   // 复用既有 presets-changed 事件同步
   useEffect(() => {
-    return subscribe('presets-changed', (next) => {
+    return subscribe(PRESETS_CHANGED_EVENT, (next) => {
       setPresets((next as Preset[] | null) || loadPresets());
     });
   }, []);

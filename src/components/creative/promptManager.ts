@@ -14,6 +14,7 @@ import { contentGet, contentSet } from '../base/core/contentStore.ts';
 import { KEY_YIMAO_PRESET_PROMPTS, KEY_YIMAO_PRESET_RECENT } from '../base/core/contracts.ts';
 import { confirmPersist } from '../base/core/log/degrade.ts';
 import { publish } from '../base/core/event/eventBus.ts';
+import { PRESETS_CHANGED_EVENT } from '../base/core/contracts.ts';
 import { generateId } from '../base/core/idGen.ts';
 
 /** 提示词预设（本地存储形状，id 可能缺失由 ensureIds 补齐） */
@@ -103,7 +104,7 @@ export function createPreset(): Preset {
 export function saveAndNotify(presets: Preset[]): void {
   savePresets(presets);
   // 广播预设变化（经 eventBus，解耦 window）：PromptPresetView 等订阅同步
-  publish('presets-changed', presets);
+  publish(PRESETS_CHANGED_EVENT, presets);
 }
 
 // 最近使用 id 列表（去重 + 上限 50）

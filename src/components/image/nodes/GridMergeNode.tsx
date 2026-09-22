@@ -23,6 +23,7 @@ import { generateId } from '@/components/base/core/idGen';
 // 图片加载统一走 asyncGuard：带超时 + crossOrigin（失败去 crossOrigin 重试一级）+ 坏图降级 null。
 // 替代本文件原有的无超时私有实现（图片挂起会让宫格合成永久卡住）。
 import { loadImageOrNull, releaseQuietly } from '@/components/base/utils/net/asyncGuard';
+import { IMG_MIN_DIM, IMG_MAX_DIM } from '@/components/image/lib/imageLimits';
 
 /* ════════════════════════════════════════════════════════════════
  * 图片拼图节点（复刻官方 Yo.jsx / gridMergeNode）
@@ -900,12 +901,16 @@ function GridMergeNode({ id, data, selected }: GridMergeNodeProps) {
                   <span>{longDirection === 'vertical' ? '宽度' : '高度'}</span>
                   <input
                     type="number"
-                    min={64}
-                    max={4096}
+                    min={IMG_MIN_DIM}
+                    max={IMG_MAX_DIM}
                     value={longTargetSize}
                     onChange={(e) =>
                       setLongTargetSize(
-                        clamp(parseInt(e.target.value || '1024', 10) || 1024, 64, 4096),
+                        clamp(
+                          parseInt(e.target.value || '1024', 10) || 1024,
+                          IMG_MIN_DIM,
+                          IMG_MAX_DIM,
+                        ),
                       )
                     }
                     disabled={longAutoSize}

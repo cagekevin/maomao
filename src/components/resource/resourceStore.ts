@@ -38,9 +38,11 @@ import type { PersistOutcome } from '../base/api/filesApi.ts';
 import { UPLOAD_DIRS } from '../base/utils/uploadDirs.ts';
 import { fileNameFromUrl } from '../base/core/utils.ts';
 import { detectFileType } from '../base/utils/media/assetType.ts';
+import { ASSET_CATEGORIES, ASSET_CATEGORY_META } from '../../types';
 import { logger } from '../base/core/log/logger.ts';
 import { confirmPersist } from '../base/core/log/degrade.ts';
 import { publish, subscribe } from '../base/core/event/eventBus.ts';
+import { RESOURCE_SENT_EVENT } from '../base/core/contracts.ts';
 import { getCurrentProject } from '../base/store/projectStore.ts';
 import type { AssetType } from '@/types';
 
@@ -168,9 +170,14 @@ let resources = load();
 export const FOLDERS: FolderPill[] = [
   { key: 'all', label: '全部', folder: null },
   { key: 'generated', label: 'AI生成', folder: UPLOAD_DIRS.tasks },
-  { key: 'character', label: '人物', folder: `${UPLOAD_DIRS.migrated}/人物` },
-  { key: 'scene', label: '场景', folder: `${UPLOAD_DIRS.migrated}/场景` },
-  { key: 'prop', label: '道具', folder: `${UPLOAD_DIRS.migrated}/道具` },
+  // 【§五 #5／§七 #6 收口】资产类别三项**派生自唯一真源** `ASSET_CATEGORY_META`（`@/types`）。
+  // 此前 key／label／磁盘目录名三项在本文件手写，剧本盒另写一份且中文名分叉（那边「角色」、这里「人物」）。
+  // 现中文名取真源的「人物」—— 与磁盘目录名一致，避免「label 叫角色、目录叫人物」的名实不符。
+  ...ASSET_CATEGORIES.map((key) => ({
+    key,
+    label: ASSET_CATEGORY_META[key].label,
+    folder: `${UPLOAD_DIRS.migrated}/${ASSET_CATEGORY_META[key].dir}`,
+  })),
   { key: 'migrated', label: '素材库', folder: UPLOAD_DIRS.migrated },
 ];
 
@@ -640,8 +647,8 @@ export function resetResourceStoreForTest(): Resource[] {
 // （用户体感「点别处才刷新」）。现经 eventBus 发布 resource:sent（EVENTS 已登记），面板订阅后主动刷新。
 // onResourceSent/emitResourceSent 保留为薄封装（调用方不变），底层走 eventBus，无平行回调桥。
 export function onResourceSent(cb: (folder: string) => void): () => void {
-  return subscribe('resource:sent', cb as (payload: unknown) => void);
+  return subscribe(RESOURCE_SENT_EVENT, cb as (payload: unknown) => void);
 }
 export function emitResourceSent(folder: string): void {
-  publish('resource:sent', folder);
+  publish(RESOURCE_SENT_EVENT, folder);
 }

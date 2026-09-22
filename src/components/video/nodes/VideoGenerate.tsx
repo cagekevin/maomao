@@ -20,6 +20,7 @@ import GeneratingOverlay from '@/components/canvas/parts/GeneratingOverlay';
 import { NODE_AREA_FIXED_BASE_SIZE } from '@/components/base/core/config';
 import { useCanvasEdges } from '@/components/canvas/structure/CanvasEdgesContext';
 import { DepthVideoModal, spawnDepthVideoNode } from '@/components/video';
+import { VIDEO_RESOLUTIONS } from '@/components/video/lib/resolutionPresets';
 
 import { downloadUrl, resolveDownloadFilename } from '@/components/base/utils/net/clipboard';
 import { CreativeLibraryButton } from '@/components/creative';
@@ -196,7 +197,8 @@ function VideoGenerate({ id, data, selected }: VideoGenerateProps) {
     { value: '4:3', label: '4:3' },
     { value: '3:4', label: '3:4' },
   ];
-  const resOptions = ['480p', '720p', '1080p'];
+  // 【TD-22-71】档位清单收口到共享真源（不再手写第二份；改前是裸数组）
+  const resOptions = VIDEO_RESOLUTIONS;
   // 时长改为滑块（4~15s 自由选择，替代原来写死的 6 个预设按钮）。
   // 说明：视频 API 的 duration 原样透传不设上限，模型超过 4s 即可生成；合并生成视频时
   // 滑块初始值 = 选中镜头时长累加（selectedSeconds）。滑块值取整秒，超出预设直接可滑。

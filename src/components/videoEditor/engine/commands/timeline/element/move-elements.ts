@@ -39,8 +39,9 @@ export class MoveElementCommand extends Command {
     // ① 源轨/元素缺失：drop 目标由 `computeDropTarget`（drop-utils）在 mousemove 时从同一 tracks
     //    快照算出，且 mouseup 侧 hook（use-element-interaction）先做存在性检查才调用本命令；
     //    能走到这里 = 拖拽期间状态被并发改掉（如拖拽中撤销删轨）—— 非用户可达的正常路径。
-    // ② 类型不兼容：`computeDropTarget` 内置 `isCompatible` 过滤 + `findBestCompatibleTrack`
-    //    回退 + 新建同型轨道，UI 给不出不兼容目标；`validateElementTrackCompatibility` 是第二道闸。
+    // ② 类型不兼容：`computeDropTarget` 内置 `canElementGoOnTrack`（`track-utils`，TD-22-70 起为
+    //    **唯一实现**）过滤 + `findBestCompatibleTrack` 回退 + 新建同型轨道，UI 给不出不兼容目标；
+    //    `validateElementTrackCompatibility` 是第二道闸。
     // ⇒ 失败若发生是**内部状态漂移的 bug**，读者是开发者（logger.error）；对用户弹 toast
     //   无可行动作（"重试拖拽"解决不了状态漂移），且拖拽是高频操作 —— 弹窗即噪音。保留 logger。
     if (!sourceTrack || !element) {

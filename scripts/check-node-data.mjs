@@ -249,7 +249,10 @@ function keysOfObjectAfter(src, re) {
 function stringLiteralsIn(src, re) {
   const m = re.exec(src);
   if (!m) return [];
-  const open = src.indexOf('[', m.index);
+  // 从**匹配串末尾**找数组开括号（而非 `m.index`）：声明带 `[]` 类型标注时（如
+  // `const X: readonly string[] = [...]`），`m.index` 起找会先命中**类型标注里的 `string[]`**，
+  // 在其 `]` 处配对 ⇒ 抽到空集（TD-04-59 实测踩过）。原写法对 `= new Set([...])` 恰好不暴露该缺陷。
+  const open = src.indexOf('[', m.index + m[0].length - 1);
   if (open < 0) return [];
   const close = matchPair(src, open);
   if (close < 0) return [];
@@ -515,8 +518,11 @@ const declaredOutputTypes =
 const specialTypes = stringLiteralsIn(outputsSrc, /const SPECIAL_OUTPUT_TYPES\s*(?::[^=]*)?=\s*new Set\(/);
 const noOutputTypes = stringLiteralsIn(outputsSrc, /const NO_OUTPUT_NODE_TYPES\s*(?::[^=]*)?=\s*new Set\(/);
 const singleOutputFields = parseSingleOutputFields(outputsSrc);
-// 安全网字段（仅未登记类型走；真源 = useConnectedInputs 的 SAFETY_NET_FIELDS）
-const SAFETY_NET_FIELDS = ['assetUrl', 'videoUrl', 'resultUrl'];
+// 安全网字段（仅未登记类型走）—— **从真源解析，禁止手抄**（TD-04-59）。
+// 真源 = `useConnectedInputs.ts` 的 `SAFETY_NET_FIELDS`。手抄的害处：改真源漏改此处 ⇒ 本闸基于
+// **过时字段集**放行/拦截（假绿/假红），而它守的正是整张 node.data 读侧契约。
+// 解析不到 ⇒ 由下方 `parserBlind` 自检拦下（不会静默退回空集）。
+const SAFETY_NET_FIELDS = stringLiteralsIn(outputsSrc, /const SAFETY_NET_FIELDS\s*(?::[^=]*)?=\s*\[/);
 const readSideFields = [...new Set([...SAFETY_NET_FIELDS, ...singleOutputFields])];
 // NODE_OUTPUTS 内实际读的 data 字段（声明式产出，如 extractedImages / images / shots）
 const declaredDataFields = [...new Set([...outputsSrc.matchAll(/\bd\.(\w+)\b/g)].map((m) => m[1]))];
@@ -774,6 +780,7 @@ const parserBlind = [];
 if (!dataDefaultsByType.size) parserBlind.push('nodeDataSchema.NODE_DATA_DEFAULTS');
 if (!declaredOutputTypes.length) parserBlind.push('NODE_OUTPUTS 声明式产出');
 if (!singleOutputFields.length) parserBlind.push('SINGLE_OUTPUT_FIELDS 单 URL 产出声明字段');
+if (!SAFETY_NET_FIELDS.length) parserBlind.push('SAFETY_NET_FIELDS 安全网字段（TD-04-59）');
 if (!rows.some((r) => r.iface.size)) parserBlind.push('节点 data interface');
 if (parserBlind.length) {
   line('');

@@ -13,6 +13,7 @@ import {
 } from './scriptBoxPlaybookStore.ts';
 import type { Playbook } from './scriptBoxPlaybookIO.ts';
 import { DEFAULT_WORKFLOW } from './scriptBoxWorkflows.ts';
+import { ASSET_CATEGORIES, assetCategoryLabel } from '../../types';
 import type { ScriptBoxData, ScriptBoxUpdateData } from './scriptBoxSchema.ts';
 import type { ModelOption } from '../base/utils/providerModels.ts';
 
@@ -367,13 +368,10 @@ export default function GearSettings({ data, updateData, onClose }: GearSettings
 
           {tab === 'asset' && (
             <div className="flex flex-col gap-4">
-              <div className="text-caption-sm text-muted">资产参考图模板（角色 / 场景 / 道具）</div>
-              {[
-                ['character', '角色'],
-                ['scene', '场景'],
-                ['prop', '道具'],
-              ].map(([k, n]) => (
-                <Field key={k} label={n}>
+              <div className="text-caption-sm text-muted">资产参考图模板（按类别）</div>
+              {/* 【§五 #5／§七 #6 收口】类别与中文名派生自 `ASSET_CATEGORY_META`（`@/types`），原手写二维数组已删 */}
+              {ASSET_CATEGORIES.map((k) => (
+                <Field key={k} label={assetCategoryLabel(k)}>
                   <EditableTextarea
                     heightClass="h-28"
                     value={String(editing.assetTemplates[k] ?? '')}

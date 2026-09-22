@@ -49,6 +49,26 @@
 /** 多轮工具循环硬上限（复刻官方 shared.js ur=8，防 AI 死循环） */
 export const MAX_TOOL_ROUNDS = 8;
 
+/**
+ * AI（agent）**可创建的节点类型白名单** —— **唯一真源**（TD-11-83）。
+ *
+ * 【为什么必须单点】同一份 5 项清单此前被**手抄 4 处**：`useCanvasAgentTools` 的运行时守卫 ＋
+ * `create_node` schema `enum` ＋ `batch_create_nodes` schema `enum` ＋ 本文件 `CANVAS_RULES` 提示词。
+ * 任一处漏改即两种静默故障之一：**「模型看不到新类型」**（提示词/schema 未跟）或
+ * **「运行时 400」**（守卫拒绝模型传来的合法类型）。现全部派生自本常量 ⇒ 加类型只改这里一处。
+ *
+ * 【与 `NODE_TYPES`（全集 16）不同 ⇒ **有意设计，不是分叉**】白名单**故意**不含剧本盒等复合节点
+ * （见 `useCanvasAgentTools.buildCreateNode` 注释：「用白名单而非 getPaletteNode：即使调色板里
+ * 新增了剧本盒等类型，agent 也不会被允许创建」）。
+ */
+export const CREATABLE_NODE_TYPES: readonly string[] = [
+  'textGenerateNode',
+  'imageGenerateNode',
+  'assetNode',
+  'videoGenerateNode',
+  'group',
+];
+
 /** 非流式模型工具调用开关：true=非流式也传 tools 并解析 tool_calls；false=非流式仅纯对话（默认）。
  *  一键切换，改这一处即可。 */
 export const ENABLE_TOOLS_ON_NON_STREAM = false;
@@ -128,7 +148,7 @@ export const AGENT_PROMPTS = Object.freeze({
 
 3. 创建与生成（建 & 生）
 
-建节点： 用 create_node（类型必须是：textGenerateNode / imageGenerateNode / videoGenerateNode / assetNode / group，内容填 prompt 或 label；同类节点建 1 个即可）。批量建用 batch_create_nodes；批量连线用 batch_connect_nodes。
+建节点： 用 create_node（类型必须是：${CREATABLE_NODE_TYPES.join(' / ')}，内容填 prompt 或 label；同类节点建 1 个即可）。批量建用 batch_create_nodes；批量连线用 batch_connect_nodes。
 
 生成： 用 generate_node。生成是异步后台任务，提交成功即回复“已在画布开始生成喵”，严禁反复触发或谎称已完成。
 

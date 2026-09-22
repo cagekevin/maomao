@@ -41,7 +41,8 @@ import {
   isTimeoutError,
   releaseQuietly,
 } from '@/components/base/utils/net/asyncGuard';
-import type { ProcessVideoOptions } from '@/components/video/lib/videoEngine';
+import type { AudioFormat, ProcessVideoOptions } from '@/components/video/lib/videoEngine';
+import { VIDEO_RESOLUTIONS, type VideoResolution } from '@/components/video/lib/resolutionPresets';
 import {
   readVideoMetadata,
   processVideo,
@@ -81,23 +82,40 @@ import { captureFrame } from '@/components/base/utils/captureFrame';
  * 端口：target(左) + source main-output(右)。
  * ════════════════════════════════════════════════════════════════ */
 
-const MODES = [
+/**
+ * 视频处理模式（**唯一真源** · TD-09-6）：本节点支持的 5 种处理能力。
+ *
+ * 【为什么必须是类型（而非散落的字符串）】此前本集合在类型层**不存在**：`normalizeMode` 返回 `string`、
+ * `MODES` 表是裸数组 ⇒ ① 新增模式时编译器不提醒任何分支；② 末分支只能用 `as` 压过类型，
+ * 未知模式会被**静默按 `sizeFrameRate` 处理**（行为错、无留痕）。
+ * 【与 `ProcessVideoOptions.mode` 的区别】**非同一判据**：那是引擎 `processVideo` 的能力边界
+ * （只 3 种：trim/extractAudio/sizeFrameRate），concat/toGif 各有自己的引擎函数与选项类型 —— 故不合并。
+ */
+type VideoProcessMode = 'trim' | 'extractAudio' | 'sizeFrameRate' | 'concat' | 'toGif';
+
+const MODES: { value: VideoProcessMode; label: string }[] = [
   { value: 'trim', label: '视频截取' },
   { value: 'extractAudio', label: '提取音频' },
   { value: 'sizeFrameRate', label: '尺寸帧率' },
   { value: 'concat', label: '视频拼接' },
   { value: 'toGif', label: '视频转GIF' },
 ];
-const AUDIO_FORMATS = [
+/** 音频格式 UI 列表（值集受引擎契约 `AudioFormat` 约束 · TD-09-7）。
+ *  `label`/`hint` 是 UI 附加信息；格式**集合本身**的真源在 `videoEngine.AudioFormat`。
+ *  新增一种格式而漏改这里 ⇒ 值不在联合内 ⇒ **编译报错**（改前是裸 `string` ⇒ 静默通过）。 */
+const AUDIO_FORMATS: { value: AudioFormat; label: string; hint: string }[] = [
   { value: 'm4a', label: 'M4A', hint: '体积小' },
   { value: 'wav', label: 'WAV', hint: '无损' },
   { value: 'mp3', label: 'MP3', hint: '通用' },
 ];
-const SIZE_PRESETS = [
-  { label: '480p', width: 854, height: 480 },
-  { label: '720p', width: 1280, height: 720 },
-  { label: '1080p', width: 1920, height: 1080 },
-];
+/** 档位 → 本地缩放像素（处理节点**独有**需求）。用 `Record<VideoResolution, …>` 而非裸数组
+ *  ⇒ 真源新增档位而此处漏补像素 ⇒ **编译报错**（TD-22-71）；`SIZE_PRESETS` 再由清单派生（顺序单一来源）。 */
+const SIZE_PIXELS: Record<VideoResolution, { width: number; height: number }> = {
+  '480p': { width: 854, height: 480 },
+  '720p': { width: 1280, height: 720 },
+  '1080p': { width: 1920, height: 1080 },
+};
+const SIZE_PRESETS = VIDEO_RESOLUTIONS.map((label) => ({ label, ...SIZE_PIXELS[label] }));
 const FPS_OPTIONS = [24, 25, 30, 60];
 const GIF_SIZES = [240, 360, 480, 640, 720]; // 清晰度（复刻官方 oc）
 const GIF_FPS = [0.5, 1, 2, 3, 5, 8, 10, 12, 15, 20]; // 帧率（复刻官方 sc）
@@ -116,7 +134,7 @@ const GIF_COLORS = [
 
 const PX_PER_SEC = 36; // 时间线像素比例
 
-const normalizeMode = (m: string): string => {
+const normalizeMode = (m: string): VideoProcessMode => {
   if (m === 'resize' || m === 'frameRate') return 'sizeFrameRate';
   if (
     m === 'trim' ||
@@ -127,6 +145,13 @@ const normalizeMode = (m: string): string => {
   )
     return m;
   return 'trim';
+};
+/** 音频格式归一（TD-09-7）：存量 `data.audioFormat` 是宽松 `string`（旧快照可能为任意值）⇒ 读入时
+ *  收窄到 `AudioFormat`，不认识的值兜底 `'m4a'`（与改前裸 `|| 'm4a'` **行为等价**）。
+ *  与 `normalizeMode` 同形态 —— **存储态宽松、使用态精确**，取代原先的 `as` 断言。 */
+const normalizeAudioFormat = (v: unknown): AudioFormat => {
+  if (v === 'm4a' || v === 'wav' || v === 'mp3') return v;
+  return 'm4a';
 };
 const stripExt = (name: string): string => (name || '').replace(/\.[^.]+$/, '') || 'video';
 const evenRound = (v: number): number => Math.max(2, Math.round(v / 2) * 2);
@@ -294,7 +319,9 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
 
   /* ---------- 状态（复刻官方 1-41 行） ---------- */
   const [mode, setMode] = useState(() => normalizeMode(data.mode ?? ''));
-  const [audioFormat, setAudioFormat] = useState(data.audioFormat || 'm4a');
+  const [audioFormat, setAudioFormat] = useState<AudioFormat>(() =>
+    normalizeAudioFormat(data.audioFormat),
+  );
   const [resizeWidth, setResizeWidth] = useState(data.resizeWidth ?? 1280);
   const [resizeHeight, setResizeHeight] = useState(data.resizeHeight ?? 720);
   const [targetFps, setTargetFps] = useState(data.targetFps ?? 30);
@@ -1020,12 +1047,13 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
   );
 
   const handleProcess = useCallback(async () => {
-    const isConcat = mode === 'concat';
+    // 【TD-09-6】不再用布尔标志（`isConcat`）—— 那会让 TS 在后续分支丢失 `mode` 的字面量收窄，
+    // 于是末分支只能靠 `as` 压过类型。直接用 `mode === 'concat'` 比较，收窄自然生效。
     const clips =
       mode === 'trim'
         ? exportClips.filter((c) => c.sourceId === currentClip?.sourceId)
         : exportClips;
-    if (isConcat && clips.length < 2) {
+    if (mode === 'concat' && clips.length < 2) {
       fail('视频拼接至少需要 2 个可见视频片段');
       return;
     }
@@ -1113,7 +1141,7 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
         spawnGifNode(up.url, outputName);
         showToast('GIF 生成完成');
         return;
-      } else if (isConcat) {
+      } else if (mode === 'concat') {
         const blobs = [];
         for (let i = 0; i < clips.length; i++) {
           const clip = clips[i];
@@ -1162,16 +1190,23 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
         let opts: ProcessVideoOptions;
         if (mode === 'trim')
           opts = { mode, start: clip!.sourceStart, end: clip!.sourceEnd, ...baseOpts };
-        else if (mode === 'extractAudio')
-          opts = { mode, format: audioFormat as ProcessVideoOptions['format'], ...baseOpts };
-        else
+        else if (mode === 'extractAudio') opts = { mode, format: audioFormat, ...baseOpts };
+        else if (mode === 'sizeFrameRate')
           opts = {
-            mode: mode as ProcessVideoOptions['mode'],
+            mode,
             width: outW,
             height: outH,
             fps: targetFps,
             ...baseOpts,
           };
+        else {
+          // 【TD-09-6 · 穷尽性守卫】新增处理模式而漏写分支 ⇒ 此处 `mode` **不是 `never`** ⇒ **编译报错**。
+          // （原先的 `else` + `as` 会把未知模式**静默按 sizeFrameRate 处理**：行为错、无留痕、且编译器不提醒。）
+          // 运行时不可达（`normalizeMode` 已把未知值兜成 'trim'），故不留运行时文案分支。
+          const _exhaustive: never = mode;
+          fail(`不支持的处理模式：${String(_exhaustive)}`);
+          return;
+        }
         // 【R2 视频治理】processVideo 包总超时（5min），防 conversion.execute 编码卡死（TASK-028 #6-14）
         result = await withTimeout(
           processVideo(blob, opts),

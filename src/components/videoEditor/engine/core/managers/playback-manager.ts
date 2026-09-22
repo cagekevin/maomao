@@ -1,5 +1,6 @@
 import type { EditorCore } from '@/components/videoEditor/engine/core';
 import { publish } from '@/components/base/core/event/eventBus';
+import { VIDEOEDITOR_SEEK_EVENT } from '@/components/base/core/contracts';
 
 export class PlaybackManager {
   private isPlaying = false;
@@ -206,6 +207,6 @@ export class PlaybackManager {
    * 由 `notify()` 独家承担，不需要第二条。
    */
   private notifySeek(): void {
-    publish('videoeditor:seek', { time: this.currentTime });
+    publish(VIDEOEDITOR_SEEK_EVENT, { time: this.currentTime });
   }
 }

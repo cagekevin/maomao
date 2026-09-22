@@ -60,10 +60,17 @@ export interface RelayIntent {
   duration?: number | string;
 }
 
+/**
+ * 任务句柄状态取值（**跨栈契约**）：与后端 `localTool/src/relay-poll.ts` 的 `RelayTaskStatusValue`
+ * 同集合（那侧真源 = `RELAY_TASK_STATUSES` 常量表）。两栈无共享模块 ⇒ 两侧各 1 份是结构必然，
+ * 由 `check:arch` 的 `CROSS_STACK_UNIONS` 逐字对账 —— **单边加状态必红**（TD-01-29 · ADR-0057）。
+ */
+export type RelayTaskStatusValue = 'running' | 'completed' | 'failed' | 'unknown' | 'not-found';
+
 /** relay GET attach 返回（/api/generate/:id 的 data 子集） */
 export interface RelayPollData {
   /** 【TD-08-24】`unknown` = 提交结果未知（**可能已在跑**），与 `failed`（确定没跑）区分 —— 勿合并。 */
-  status: 'running' | 'completed' | 'failed' | 'unknown' | 'not-found';
+  status: RelayTaskStatusValue;
   progress?: number;
   url?: string;
   error?: string;
@@ -379,7 +386,7 @@ export async function relayChat(
   const { signal } = opts;
   // 【143 · S5′ · 修语义错位】此前**一个** `timeoutMs` 同时当两件事用：① 写进 `body.timeoutMs`
   // （后端按**任务总预算**用）② 掐本层 `httpRequest`（前端等这次 POST 返回）。而它取的是
-  // `CHAT_TIMEOUT`（120s）= 「等上游响应」**段**的值 ⇒ **段值被当成总预算传给了后端**。
+  // 段值超时（120s）= 「等上游响应」**段**的值 ⇒ **段值被当成总预算传给了后端**。
   // 现按判据分层（ADR-0031：判据不同不合并）：
   //   · `totalBudgetMs` = **任务总预算**（`CHAT_TOTAL_TIMEOUT`）→ 进 `body.timeoutMs`（后端据此掐上游）；
   //   · 本层 `httpRequest` 也等满**同一总预算** —— 同步 chat 的响应只在**整件事做完**才回来，

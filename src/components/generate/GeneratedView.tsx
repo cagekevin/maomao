@@ -21,6 +21,7 @@ import { PanelSubBar, PanelPills, PanelMoreMenu } from '../base/panels/PanelBar.
 import { useCurrentProjectId } from '../base/store/projectStore.ts';
 import { logger } from '../base/core/log/logger.ts';
 import { subscribe } from '../base/core/event/eventBus.ts';
+import { TASK_COMPLETED_EVENT } from '../base/core/contracts.ts';
 import { isAudio, isVideoResource } from '../base/utils/media/assetType.ts';
 // 类型显示名取资产类型目录（唯一真源），本面板不再自持一份中文名
 import { ASSET_TYPE_META } from '@/types';
@@ -215,7 +216,7 @@ function GeneratedView() {
   const resetRef = useRef(reset);
   resetRef.current = reset;
   useEffect(() => {
-    return subscribe('agent:task-completed', () => {
+    return subscribe(TASK_COMPLETED_EVENT, () => {
       resetRef.current(true);
     });
   }, []);

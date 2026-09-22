@@ -15,6 +15,7 @@ import {
 import { ZgPrompt, scriptBoxRemoveResource, renameAssetRefs } from './scriptBoxPrompts.ts';
 import { resolveAssetTemplates } from './scriptBoxPromptResolver.ts';
 import { resourceFolderOf } from '../resource/resourceStore.ts';
+import { ASSET_CATEGORIES, assetCategoryLabel, type AssetCategory } from '../../types';
 import { useOutsideClick } from '../base/core/interaction/uiHooks.ts';
 import { useRenderAssetResolver, toAbsoluteFileUrl } from '../base/utils/media/assetUrl.ts';
 import ImageZoomDialog from '../base/ui/display/ImageZoomDialog.tsx';
@@ -57,11 +58,18 @@ export default function StepAssets({ data, updateData, callbacks }: StepAssetsPr
   // 缩略图显示复用系统统一按需出图出口（与 AssetNode 一致），不再各自落盘独立缩略图文件
   const render = useRenderAssetResolver();
 
-  const CATS = [
-    { k: 'character', n: '角色', icon: <User size={12} /> },
-    { k: 'scene', n: '场景', icon: <ImageIcon size={12} /> },
-    { k: 'prop', n: '道具', icon: <Package size={12} /> },
-  ];
+  // 【§五 #5／§七 #6 收口】类别清单与中文名派生自唯一真源 `ASSET_CATEGORY_META`（`@/types`）；
+  // 只有"图标"是 UI 本地资产 ⇒ 用 `Record<AssetCategory, …>` 保证**新增类别漏配图标即编译红**。
+  const CAT_ICON: Record<AssetCategory, React.ReactNode> = {
+    character: <User size={12} />,
+    scene: <ImageIcon size={12} />,
+    prop: <Package size={12} />,
+  };
+  const CATS = ASSET_CATEGORIES.map((k) => ({
+    k,
+    n: assetCategoryLabel(k),
+    icon: CAT_ICON[k],
+  }));
 
   // 切换选中
   const togglePick = (id: string) => {
@@ -212,7 +220,7 @@ export default function StepAssets({ data, updateData, callbacks }: StepAssetsPr
 
 /** 新增资产（按当前风格生成 prompt），返回新资产的 index（数组末尾） */
 function addAsset(updateData: ScriptBoxUpdateData, cat: string, assets: ScriptBoxData['assets']) {
-  const name = `${cat === 'character' ? '角色' : cat === 'scene' ? '场景' : '道具'}${assets.length + 1}`;
+  const name = `${assetCategoryLabel(cat)}${assets.length + 1}`;
   const newAsset = {
     // 资产 id 走 idGen 唯一入口（TD-18-18）：原 `${cat}-${Date.now()}` 零随机段，同毫秒连加两个资产即撞 id
     id: generateId(cat),

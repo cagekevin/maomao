@@ -1,4 +1,4 @@
-import 'react';
+import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { mocks } from './_nodeMocks.mjs';
@@ -15,7 +15,9 @@ vi.mock('../../src/components/canvas/parts/GenerateButton.tsx', () => ({
   default: mocks.GenerateButton,
 }));
 vi.mock('../../src/components/base/ui/form/ModelSelect.tsx', () => ({
-  default: mocks.ModelSelect,
+  // 记录当前选中模型（`data-value`）——供断言「未选模型时的默认值」（TD-04-64 裁定：不再预填 gpt-4o-mini）
+  default: ({ value }: { value?: string }) =>
+    React.createElement('div', { 'data-testid': 'model-select', 'data-value': value ?? '' }),
 }));
 vi.mock('../../src/components/canvas/shell/PromptInput.tsx', () => ({
   default: mocks.PromptInput,
@@ -97,5 +99,12 @@ describe('TextGenerate', () => {
     setup({ data: { prompt: '写一句诗', name: '文案' } });
     fireEvent.click(screen.getByText('生成'));
     await waitFor(() => expect(mocks.chatCompletionsCalls.n).toBeGreaterThan(0));
+  });
+
+  // 【TD-04-64 · 用户裁定】默认模型 = 空串（= 未选，与图片/视频节点同形态），不再预填 gpt-4o-mini。
+  // 反证：把实现改回 `?? 'gpt-4o-mini'` ⇒ 本断言红。
+  it('未选模型时默认为空串（不预填 gpt-4o-mini）', () => {
+    setup({ data: {} });
+    expect(screen.getByTestId('model-select').getAttribute('data-value')).toBe('');
   });
 });

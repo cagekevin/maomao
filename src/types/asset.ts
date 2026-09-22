@@ -67,3 +67,38 @@ export interface AssetLoadOptions {
   /** null = 去掉 crossOrigin（跨域图无 CORS 头时的兜底，canvas 会被污染） */
   crossOrigin?: string | null;
 }
+
+/**
+ * 资产**类别**目录（唯一真源）——「剧本/素材库的资产分几类、各自中文名、落哪个磁盘目录」只在这里写一次。
+ *
+ * 【为什么收口（判据登记表 §五 #5／§七 #6）】此前同一事实散在 **6 处**且已漂移：
+ *   · **值集合**：`StepAssets.tsx` 的 CATS 表 · `GearSettings.tsx` 的二维数组 ·
+ *     `scriptBoxPrompts.ts` 与 `scriptBoxEngine.ts` **各写一份** `['character','scene','prop'].includes(…)` 校验数组；
+ *   · **中文名分叉**：剧本盒三处写「角色」，素材库 `FOLDERS` 写「人物」—— 同物两名；
+ *   · **类型**：`AssetCategory = string`（放宽）⇒ 校验只能手抄数组，收口后既无单一真源也无守卫。
+ * 【为什么中文名统一取「人物」】`FOLDERS.folder` 是**磁盘目录名**（`migrated/人物`）⇒ 改名会破坏存量数据，
+ *   只能改 label；取「人物」则 label 与磁盘目录名天然一致，不产生「名实不符」的注释负担。
+ * 【与 `ASSET_TYPE_META` 的区别】**不同判据**：那是**文件媒体类型**（image/video/audio/text，判「能否被引用」），
+ *   本目录是**剧本资产类别**（character/scene/prop，判「属剧情里的哪一类」）⇒ 不合并（ADR-0031）。
+ */
+export const ASSET_CATEGORY_META = {
+  character: { label: '人物', dir: '人物' },
+  scene: { label: '场景', dir: '场景' },
+  prop: { label: '道具', dir: '道具' },
+} as const;
+
+/** 资产类别（由目录派生，勿另写联合）。 */
+export type AssetCategory = keyof typeof ASSET_CATEGORY_META;
+
+/** 资产类别清单（由目录派生；顺序 = 声明顺序，供 UI 渲染）。 */
+export const ASSET_CATEGORIES = Object.keys(ASSET_CATEGORY_META) as AssetCategory[];
+
+/** 是否为目录收录的资产类别（运行时守卫 · 唯一实现）。消费方**禁**再写 `['character','scene','prop'].includes(…)`。 */
+export function isAssetCategory(v: unknown): v is AssetCategory {
+  return typeof v === 'string' && Object.prototype.hasOwnProperty.call(ASSET_CATEGORY_META, v);
+}
+
+/** 资产类别 → 中文显示名（唯一取用口）。表外值**原样透出**（不吞不认识的值，便于暴露脏数据）。 */
+export function assetCategoryLabel(c: string | null | undefined): string {
+  return typeof c === 'string' && isAssetCategory(c) ? ASSET_CATEGORY_META[c].label : (c ?? '');
+}

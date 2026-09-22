@@ -46,6 +46,7 @@ import { DepthVideoModal, spawnDepthVideoNode } from '@/components/video';
 import { commitNewNodes } from '@/components/canvas/structure/deriveNodes';
 import { injectNodePrefs } from '@/components/canvas/contract/nodePrefs';
 import { generateId } from '@/components/base/core/idGen';
+import { EXT_BY_TYPE } from '@/components/base/api/filesApi';
 
 /**
  * 素材节点
@@ -165,19 +166,14 @@ function AssetNode({ id, data, selected }: AssetNodeProps) {
   // 文件名优先用节点 label，其次是 URL 里的文件名；无扩展名时按类型补扩展名。
   const handleDownload = useCallback(() => {
     if (!url) return;
-    const extMap: Partial<Record<AssetType, string>> = {
-      image: 'png',
-      video: 'mp4',
-      audio: 'm4a',
-      text: 'txt',
-    };
     let filename = data.label || '';
     // TD-16-14：URL→文件名统一走 core/utils 唯一原语（URL 解析剥 ?# + decode 一次）
     const fromUrl = fileNameFromUrl(url);
     if (fromUrl && !/^blob:|^data:/.test(url)) filename = filename || fromUrl;
     const ext =
       (filename.match(/\.[a-z0-9]{2,5}$/i) || [])[0] ||
-      (type !== 'image' ? `.${extMap[type] || 'bin'}` : '');
+      // 【TD-03-25】类型→扩展名收口到唯一真源（原先本文件另有逐项同值的 extMap 副本）
+      (type !== 'image' ? `.${EXT_BY_TYPE[type] || 'bin'}` : '');
     if (filename && !ext) filename += ext;
     if (!filename) filename = `image-${type || 'content'}${ext || '.png'}`;
     downloadUrl(url, filename);

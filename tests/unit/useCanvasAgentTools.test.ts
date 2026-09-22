@@ -21,6 +21,9 @@ const mod = await import('../../src/components/agent/canvas/useCanvasAgentTools.
 const { buildCanvasAgentTools, buildCanvasAgentToolSchemas, CANVAS_AGENT_TOOL_NAMES } = mod;
 // getNodeAssetUrl 已下沉 base/canvas（TD-04-25），测试改引新位置。
 const { getNodeAssetUrl } = await import('../../src/components/canvas/lib/nodeMedia.ts');
+// 【TD-11-83】AI 可建类型白名单真源 + 提示词（断言"两处 schema / 提示词均派生自真源"）
+const { AGENT_PROMPTS, CREATABLE_NODE_TYPES } =
+  await import('../../src/components/agent/agentConfig.ts');
 
 describe('getNodeAssetUrl', () => {
   it('data.assetUrl 优先', () => {
@@ -177,5 +180,44 @@ describe('buildCanvasAgentTools', () => {
     const res = tools.create_node({ type: 'notExist' });
     expect(res.ok).toBe(false);
     expect(res.error).toContain('未知节点类型');
+  });
+});
+
+/**
+ * 【TD-11-83】AI 可建节点类型白名单：两处 tool schema 与提示词必须**派生自唯一真源**。
+ * 反证：把任一处 schema enum 改回手抄字面量（哪怕只漏一项）⇒ 对应断言红；
+ *       把提示词列举改回手抄（成员/顺序不符）⇒ 第三条断言红。
+ */
+describe('CREATABLE_NODE_TYPES — AI 可建类型白名单唯一真源（TD-11-83）', () => {
+  // LLM 实际收到的是 JSON 序列化后的 schema ⇒ 断言走同一形态（按 JSON 路径取值，不 import 内部结构）。
+  // ⚠️ 两处 enum 的**路径不同**：create_node 在 `properties.type`；batch_create_nodes 在
+  //    `properties.nodes.items.type` —— 这正是"手抄"曾经可能漂移的地方，故按各自真实路径分别取值。
+  const enumAt = (toolName: string, path: string): string[] => {
+    const tools: Record<string, unknown>[] = JSON.parse(
+      JSON.stringify(buildCanvasAgentToolSchemas()),
+    );
+    const tool = tools.find(
+      (x) => (x.function as { name?: string } | undefined)?.name === toolName,
+    );
+    const found = path
+      .split('.')
+      .reduce<unknown>((acc, k) => (acc as Record<string, unknown> | undefined)?.[k], tool);
+    return Array.isArray(found) ? (found as string[]) : [];
+  };
+
+  it('create_node / batch_create_nodes 的 type enum 与真源逐项一致', () => {
+    expect(enumAt('create_node', 'function.parameters.properties.type.enum')).toEqual([
+      ...CREATABLE_NODE_TYPES,
+    ]);
+    expect(
+      enumAt(
+        'batch_create_nodes',
+        'function.parameters.properties.nodes.items.properties.type.enum',
+      ),
+    ).toEqual([...CREATABLE_NODE_TYPES]);
+  });
+
+  it('CANVAS_RULES 提示词里的类型列举由真源插值（非手抄）', () => {
+    expect(AGENT_PROMPTS.CANVAS_RULES).toContain(CREATABLE_NODE_TYPES.join(' / '));
   });
 });

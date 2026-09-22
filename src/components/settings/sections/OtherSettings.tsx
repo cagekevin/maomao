@@ -30,7 +30,9 @@ function SettingRow({ icon: Icon, title, desc, checked, onChange }: SettingRowPr
  * 其他设置（应用设置统一收口，见 docs/18）。
  *
  * 开关由 settings/settingRegistry.js 的 UI_SETTING_ROWS 驱动——新增开关只需在注册表加一项，
- * 这里自动渲染。切换经 appSettings 持久化，且 app_settings 整键随云端同步（见 contracts.ts）。
+ * 这里自动渲染。切换经 appSettings 持久化到 `app_settings` 整键 —— 该键**留本机、不进云同步**
+ * （`contracts.ts` 登记 `backend:'local'` 且缺 `sync:true`；原文写"整键随云端同步"与事实**矛盾**，
+ * 已于 2026-09-22 订正 —— 见判据登记表 §七 #13）。
  */
 export default function OtherSettings() {
   const settings = useAppSettings();

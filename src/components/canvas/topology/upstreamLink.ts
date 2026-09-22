@@ -16,6 +16,7 @@
 import { useEffect } from 'react';
 import { useReactFlow } from '@xyflow/react';
 import { subscribe } from '@/components/base/core/event/eventBus';
+import { UPSTREAM_UPDATED_EVENT } from '@/components/base/core/contracts';
 import { runNodeGeneration } from '@/components/base/store/taskStore';
 import { AUTO_TRIGGER_DOWNSTREAM } from '@/components/base/core/config';
 import { logger } from '@/components/base/core/log/logger';
@@ -33,7 +34,7 @@ export function useUpstreamAutoTrigger(): void {
   const { getEdges } = useReactFlow();
   useEffect(() => {
     if (!AUTO_TRIGGER_DOWNSTREAM) return undefined;
-    return subscribe('upstream:updated', (payload) => {
+    return subscribe(UPSTREAM_UPDATED_EVENT, (payload) => {
       const { sourceNodeId } = (payload || {}) as UpstreamUpdatedPayload;
       if (!sourceNodeId) return;
       try {

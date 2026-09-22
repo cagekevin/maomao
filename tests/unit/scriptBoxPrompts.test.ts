@@ -267,7 +267,10 @@ describe('剧本盒纯函数 §2.7/2.17', () => {
   // 保留的这几条是「修复后的正确行为」契约锁。
   describe('collectAssets · @名后紧贴中文也能垫图（缺陷②修复锁）', () => {
     it('场景 @卧室内 → 命中注册名「卧室」（旧边界会误杀）', () => {
-      const assets = [{ id: '卧室', name: '卧室', category: 'scene', assetUrl: '/files/room.png' }];
+      // 【§五 #5／§七 #6】资产类别已收窄为联合类型 ⇒ 夹具标注类型（否则字面量被拓宽成 string）
+      const assets: ScriptAsset[] = [
+        { id: '卧室', name: '卧室', category: 'scene', assetUrl: '/files/room.png' },
+      ];
       const shotA = { description: '深夜@卧室,柔和灯光' }; // 后接标点
       const shotB = { description: '深夜@卧室内,柔和灯光' }; // 后接中文（旧实现的断点）
       expect(collectAssets(shotA, assets)).toHaveLength(1);
@@ -278,7 +281,7 @@ describe('剧本盒纯函数 §2.7/2.17', () => {
       const shot = {
         description: '深夜@卧室内。@骷髅A站在床边,右手举起@HKH精华瓶至胸前。@骷髅B坐在床上。',
       };
-      const assets = [
+      const assets: ScriptAsset[] = [
         { id: 'a1', name: '卧室', category: 'scene', assetUrl: '/files/room.png' },
         { id: 'a2', name: '骷髅A', category: 'character', assetUrl: '/files/ka.png' },
         { id: 'a3', name: '骷髅B', category: 'character', assetUrl: '/files/kb.png' },

@@ -66,6 +66,16 @@ export interface AssetSendOptions {
 export const MAX_SEND_DIM = 1920;
 
 /**
+ * 缩略图渲染/出图的**默认最长边**（跨栈契约 · TD-08-71）。
+ *
+ * 前端 `buildThumbnailUrl` 的请求默认值，与后端 `/files/thumbnail` 端点兜底值**必须相等**
+ * （`localTool/src/routes/files.ts` 同名常量）—— 不等则同一张图产生**两套缓存**，
+ * 且"到底按哪个尺寸出图"取决于调用方是否传 `maxDim`。由 `check-arch` 的
+ * `CROSS_STACK_CONSTS` 逐字对账，改一侧必须改另一侧。
+ */
+export const THUMB_MAX_DIM = 640;
+
+/**
  * 相对 /files/ 路径 → 完整可访问 URL。
  *
  * 【TD-06-7 收口 2026-09-13】实现在此**已下沉** `core/utils.ts::toAbsoluteFileUrl`
@@ -148,7 +158,7 @@ export function buildThumbnailUrl(url: string, opts: { maxDim?: number } = {}): 
   if (!rel) return toAbsoluteFileUrl(url); // 非本地文件，出图端点无法服务，回原图绝对地址
   const q = new URLSearchParams();
   q.set('url', rel);
-  q.set('maxDim', String(opts.maxDim || 640));
+  q.set('maxDim', String(opts.maxDim || THUMB_MAX_DIM));
   return `${API_BASE}${API_ENDPOINTS.fileThumbnail}?${q.toString()}`;
 }
 

@@ -51,6 +51,19 @@ export const CREDIT_GATE_FIELD = 'creditGate';
 /** credit 确认门禁广播事件名（useCanvasAgentTools 置位/清除 → AgentPanel 刷新确认卡片） */
 export const CREDIT_GATE_EVENT = 'agent:credit-gate';
 
+// ── 事件名常量（TD-08-69）────────────────────────────────────────────
+// 【为什么逐个抽常量】事件名是**跨模块契约字符串**：裸写时改名只能靠人肉搜（漏一处即「事件失联、静默无反应」），
+// 且消费方无法被编辑器跳转/重命名。此前只抽了 `CREDIT_GATE_EVENT` ⇒ 其余 7 个导致板块外 14 处裸写。
+// 【纪律】消费方一律 `import { X_EVENT } from contracts`，**禁止裸写事件名字符串**。
+// 【与 EVENTS 表同源】下方 `EVENTS` 表的键**直接引用这些常量** ⇒ 表与常量不再两处维护（键名冻结见 ADR-0038）。
+export const TASK_COMPLETED_EVENT = 'agent:task-completed';
+export const UPSTREAM_UPDATED_EVENT = 'upstream:updated';
+export const PRESETS_CHANGED_EVENT = 'presets-changed';
+export const RESOURCE_SENT_EVENT = 'resource:sent';
+export const PROJECT_IMPORT_EVENT = 'project:import';
+export const PROJECT_EXPORT_EVENT = 'project:export';
+export const VIDEOEDITOR_SEEK_EVENT = 'videoeditor:seek';
+
 /**
  * 事件注册表（通信层 eventBus 的单一事实来源）。
  *
@@ -82,33 +95,33 @@ export interface EventRegistryEntry {
 
 // 🔒 键名冻结（ADR-0038）：本表**键名**属对外契约，禁随手改名 —— 见文件头【键名冻结】段。
 export const EVENTS: Record<string, EventRegistryEntry> = {
-  'agent:task-completed': {
+  [TASK_COMPLETED_EVENT]: {
     from: ['taskCompletionBus.ts:30'],
     to: ['useNodeGeneration.ts:328', 'useScriptBoxEngine.ts', 'GeneratedView.tsx'],
     payload: '{ taskId, nodeId, resultUrl, type, status: "completed" }',
     note: '任务完成 → 精准回填节点（刷新不丢图）+ 刷新「生成」面板。现统一经 taskCompletionBus.publishTaskCompleted 唯一发布（P1-D）；done 已去落盘（P0-C），广播直接用持久 resultUrl。订阅者判据各不同：节点侧按 nodeId 等值（useNodeGeneration）；剧本盒资产图按伪 nodeId 前缀反解（useScriptBoxEngine，TD-01-9）；生成面板只关心「有新结果落 tasks」→ 全量刷新（GeneratedView，TD-12-10 同母体：结果就绪信号须被当前可见消费方收到）',
   },
   // 上游节点完成 → 直接下游可视需要自动触发（P2-G 安全网，AUTO_TRIGGER_DOWNSTREAM 默认关）
-  'upstream:updated': {
+  [UPSTREAM_UPDATED_EVENT]: {
     from: ['taskCompletionBus.ts:33'],
     to: ['upstreamLink.ts:36'],
     payload: '{ sourceNodeId }',
     note: '上游生成完成 → 直接下游（只接一层）自动触发（经 useUpstreamAutoTrigger；开关默认关，零行为改变）',
   },
-  'presets-changed': {
+  [PRESETS_CHANGED_EVENT]: {
     from: ['promptManager.ts:105'],
     to: ['PromptPresetView.tsx:61'],
     payload: '{ presets }',
     note: '提示词库跨节点同步。生产使用',
   },
-  'agent:credit-gate': {
+  [CREDIT_GATE_EVENT]: {
     from: ['useCanvasAgentTools.ts:1464', 'useCanvasAgentTools.ts:1550'],
     to: ['AgentPanel.tsx:577'],
     payload: '{ pending }',
     note: '高消耗积分确认门禁置位/清除广播（AgentPanel 刷新 credit 确认卡片）。经常量 CREDIT_GATE_EVENT 引用（P1-D）；check-events 已支持常量引用解析（TD-13-1），不再跳过',
   },
   // 素材发送成功事件（P1-D 收口：原 resourceStore 裸回调桥 → eventBus；resourceStore 保留薄封装 onResourceSent/emitResourceSent）
-  'resource:sent': {
+  [RESOURCE_SENT_EVENT]: {
     from: ['resourceStore.ts:537'],
     to: ['resourceStore.ts:534'],
     payload: '{ folder }',
@@ -118,13 +131,13 @@ export const EVENTS: Record<string, EventRegistryEntry> = {
   // 改名/移动改由 contentId 模型处理，属「第二机制」死脚手架（见 docs/122）。
   // 'yimao:remove-edge' 已于 2026-09-11 删除（TD-04-8）：只有 App window 监听、全项目从无 dispatch
   // （CustomEdge 实际走 deleteElements→onDelete）。属「只有订阅、从无发布」的死事件，同 §多窗口 判定。
-  'project:import': {
+  [PROJECT_IMPORT_EVENT]: {
     from: ['ProjectSelector.tsx:117'],
     to: ['useCanvasEventSubscriptions.ts:66'],
     payload: '{}',
     note: '导入按钮 → App 处理文件（App.tsx:437 标准 subscribe 承接，已核对，D5）。生产使用',
   },
-  'project:export': {
+  [PROJECT_EXPORT_EVENT]: {
     from: ['ProjectSelector.tsx:121'],
     to: ['useCanvasEventSubscriptions.ts:67'],
     payload: '{}',
@@ -139,7 +152,7 @@ export const EVENTS: Record<string, EventRegistryEntry> = {
   // 剪辑器播放头跳转（TD-22-23，2026-09-15）：原为 `window.dispatchEvent('playback-seek')` ——
   // eventBus 文件头明文禁止的「第二套广播」，videoEditor 搬迁时带进来的漏网（同族前例：TD-04-8 的
   // 'yimao:remove-edge'、已删的 'resource:renamed'）。现收口进唯一通道。
-  'videoeditor:seek': {
+  [VIDEOEDITOR_SEEK_EVENT]: {
     from: ['playback-manager.ts:209'],
     to: ['audio-manager.ts:31'],
     payload: '{ time }',

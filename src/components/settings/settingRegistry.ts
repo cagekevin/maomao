@@ -11,7 +11,11 @@
  * 收口后：每项设置只在本表声明一次，自动派生三样东西——
  *  1. appSettings.js 的 DEFAULTS（默认值）
  *  2. 「其他设置」页的开关行（OtherSettings.jsx 遍历渲染，含 title/desc/icon/分组）
- *  3. 云同步：app_settings 整键已在 contracts.ts 登记 backend:'local'，本表内所有项自动随键上传/下载
+ *  3. 本地持久化（**不进云同步**）：`app_settings` 整键在 contracts.ts 登记 `backend:'local'`、缺 `sync:true`
+ *     ⇒ **留本机**（与 `cloudSync.ts` 文件头「app_settings 整键不同步」一致），本表各项随键**存本地**。
+ *     ⚠️ 原文写"自动随键上传/下载"，与上述事实**矛盾**，已于 2026-09-22 订正（判据登记表 §七 #13）。
+ *     本注释只是**描述层**：事实以 `contracts.ts` 的 `STORAGE_KEYS` 登记为准（`sync` 缺省 = 不进云）；
+ *     改设置项**不得**据此以为会同步。
  *
  * 【如何新增一个开关】只在此表末尾加一个对象：
  *  { key, type, default, ui, group, icon, title, desc }

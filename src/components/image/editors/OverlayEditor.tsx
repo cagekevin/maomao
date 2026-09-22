@@ -48,6 +48,7 @@ import { loadImageOrNull } from '@/components/base/utils/net/asyncGuard';
 import { useFullscreenEditorKeys } from '@/components/base/core/interaction/modalLayer';
 // 编辑器内的交互归编辑器（ADR-0029）：判据走共用原语，禁自写（自写必漏）。
 import { isEditableTarget } from '@/components/base/core/interaction/uiHooks';
+import { IMG_MIN_DIM, IMG_MAX_DIM } from '@/components/image/lib/imageLimits';
 const genId = () => generateId('ov');
 
 type DragMode = 'move' | 'scale' | 'rotate';
@@ -706,15 +707,15 @@ export default function OverlayEditor({ state, onChange, upstreamUrls }: Overlay
         <span>画布</span>
         <input
           type="number"
-          min={64}
-          max={4096}
+          min={IMG_MIN_DIM}
+          max={IMG_MAX_DIM}
           value={canvasWidth}
           onChange={(e) =>
             onChange({
               ...state,
               canvasWidth: Math.max(
-                64,
-                Math.min(4096, parseInt(e.target.value || '0', 10) || canvasWidth),
+                IMG_MIN_DIM,
+                Math.min(IMG_MAX_DIM, parseInt(e.target.value || '0', 10) || canvasWidth),
               ),
             })
           }
@@ -723,15 +724,15 @@ export default function OverlayEditor({ state, onChange, upstreamUrls }: Overlay
         <span>×</span>
         <input
           type="number"
-          min={64}
-          max={4096}
+          min={IMG_MIN_DIM}
+          max={IMG_MAX_DIM}
           value={canvasHeight}
           onChange={(e) =>
             onChange({
               ...state,
               canvasHeight: Math.max(
-                64,
-                Math.min(4096, parseInt(e.target.value || '0', 10) || canvasHeight),
+                IMG_MIN_DIM,
+                Math.min(IMG_MAX_DIM, parseInt(e.target.value || '0', 10) || canvasHeight),
               ),
             })
           }

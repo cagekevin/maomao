@@ -2,7 +2,7 @@
  * 文件落盘统一管理（单一职责收口）
  * ------------------------------------------------------------
  * 之前「写盘 / 建目录 / 缩略图」散落在 files.ts 的 saveFile、
- * saveRemoteUrl、tryGenerateThumbnail、handleThumbnail、handleMkdir、
+ * saveRemoteUrl、handleThumbnail、handleMkdir、
  * handleMove、handleOpen 多处，各自重复 existsSync+mkdirSync+writeFileSync，
  * 缩略图目录逻辑还复制了两份。这里统一收口，避免后期改一处漏一处。
  *

@@ -34,6 +34,8 @@ const {
   failTask,
   computeTaskCounts,
   isTaskActive,
+  isTaskNeedsAttention,
+  taskStatusVisual,
 } = await import('../../src/components/base/store/taskStore.ts');
 
 beforeEach(() => {
@@ -55,6 +57,37 @@ describe('taskStore §2.6 状态映射', () => {
 
   it('statusLabel：表外状态仍原样透出（不吞不认识的值）', () => {
     expect(statusLabel('some-future-state')).toBe('some-future-state');
+  });
+});
+
+describe('taskStatusVisual — 状态→视觉唯一判据（TD-04-61 收口）', () => {
+  // 反证：把 unknown 的色档改成 done 档 ⇒ 本断言红（未知被染成成功色 = 失败伪装成成功）
+  it('unknown 与 completed 不得同色（未知 ≠ 成功）', () => {
+    expect(taskStatusVisual('unknown').dot).not.toBe(taskStatusVisual('completed').dot);
+    expect(taskStatusVisual('unknown').text).not.toBe(taskStatusVisual('completed').text);
+  });
+
+  it('仅 failed / unknown 提供错误块样式', () => {
+    expect(taskStatusVisual('failed').box).not.toBe('');
+    expect(taskStatusVisual('unknown').box).not.toBe('');
+    expect(taskStatusVisual('completed').box).toBe('');
+    expect(taskStatusVisual('running').box).toBe('');
+  });
+
+  it('运行中与待跑同视觉（同属「生成中」）', () => {
+    expect(taskStatusVisual('running')).toEqual(taskStatusVisual('pending'));
+  });
+});
+
+describe('isTaskNeedsAttention — failed ∪ unknown 唯一谓词（TD-04-62 收口）', () => {
+  const mk = (status: Task['status']): Task => ({ id: 'id', nodeId: 'n1', type: 't', status });
+  // 反证：把谓词改成只认 failed ⇒ unknown 那条红（清理/计数/错误块三处同源，漏一处即分叉）
+  it('只认 failed / unknown，其余为 false', () => {
+    expect(isTaskNeedsAttention(mk('failed'))).toBe(true);
+    expect(isTaskNeedsAttention(mk('unknown'))).toBe(true);
+    expect(isTaskNeedsAttention(mk('completed'))).toBe(false);
+    expect(isTaskNeedsAttention(mk('running'))).toBe(false);
+    expect(isTaskNeedsAttention(mk('pending'))).toBe(false);
   });
 });
 

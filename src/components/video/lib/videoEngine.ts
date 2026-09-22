@@ -60,12 +60,19 @@ interface ConcatSegment {
   duration: number;
   muted: boolean;
 }
+/** 音频导出格式（**唯一真源** · TD-09-7）：引擎 `extractAudio` 能产出的容器格式。
+ *
+ *  【为什么真源在引擎】引擎是**接受方** —— 由它定义"我支持哪几种"。节点侧 UI 列表（`AUDIO_FORMATS`）
+ *  与本集合**全等**（m4a/wav/mp3）⇒ **同一判据**，故共享本类型（与 `mode` 不同：那里引擎侧是
+ *  **真子集**，属"引擎能力边界"这一**另一判据**）。新增格式只改此处 ⇒ 节点侧漏改**编译报错**。 */
+export type AudioFormat = 'm4a' | 'wav' | 'mp3';
+
 /** processVideo 选项（对齐官方 Dc 的 t） */
 export interface ProcessVideoOptions extends ProgressOptions {
   mode: 'trim' | 'extractAudio' | 'sizeFrameRate';
   start?: number;
   end?: number;
-  format?: 'm4a' | 'wav' | 'mp3';
+  format?: AudioFormat;
   width?: number;
   height?: number;
   fps?: number;

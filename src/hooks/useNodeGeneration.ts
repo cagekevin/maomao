@@ -11,6 +11,7 @@ import type { TaskController, NodeRunClaim } from '../components/base/store/task
 import { runGenerationOrchestration } from '../components/generate/lib/generationOrchestration.ts';
 import { logger } from '../components/base/core/log/logger.ts';
 import { subscribe } from '../components/base/core/event/eventBus.ts';
+import { TASK_COMPLETED_EVENT } from '../components/base/core/contracts.ts';
 import { useNodeData } from './useNodeData.ts';
 
 /**
@@ -325,7 +326,7 @@ export function useNodeGeneration({
       writeBackRef.current(d.resultUrl);
       onRecoverRef.current?.(d);
     };
-    return subscribe('agent:task-completed', handler);
+    return subscribe(TASK_COMPLETED_EVENT, handler);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [nodeId]);
 

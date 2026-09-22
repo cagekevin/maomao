@@ -46,6 +46,7 @@ import { logger } from '@/components/base/core/log/logger';
 import { AGENT_KEY_PREFIX } from './agentKeys.ts';
 import { AGENT_PROMPTS } from '../agentConfig.ts';
 import type { ImageMapEntry } from '../conversation/conversationImageMap.ts';
+import type { ConversationMessage } from '../contract/conversationTypes.ts';
 
 /**
  * 把本轮附件数组转成 OpenAI 兼容的多模态 messages content 块：
@@ -96,6 +97,97 @@ export interface agentChatMessage {
   reasoning?: string;
   attachments?: Array<{ url?: string; x?: number; y?: number; [k: string]: unknown }>;
   refCatalog?: string;
+}
+
+/**
+ * `buildRequestMessages` / `toChatMessages` 的**消息输入面**（窄接口）。
+ *
+ * 【为什么不用 `ConversationMessage`】那个类型带**索引签名**（存储侧要容纳任意历史遗留字段）——
+ * 而有索引签名的类型**不能反向接受**具体类型（`agentChatMessage` 没有索引签名）⇒ 于是所有
+ * "协议态进、宽松态出"的调用点都被迫加断言。本接口只声明**本层真正读取的 7 个字段**且全为 `unknown`
+ * ⇒ 两种输入（会话存储态 / 协议态）**都能直接传入**，零断言（TD-11-82）。
+ */
+export interface ChatMessageInput {
+  role?: unknown;
+  content?: unknown;
+  tool_calls?: unknown;
+  tool_call_id?: unknown;
+  reasoning?: unknown;
+  attachments?: unknown;
+  refCatalog?: unknown;
+}
+
+/** LLM 协议允许的 role 取值（与 `agentChatMessage.role` 同集合 —— 下方编译期断言双向锁死）。 */
+const CHAT_MESSAGE_ROLES: readonly agentChatMessage['role'][] = [
+  'system',
+  'user',
+  'assistant',
+  'tool',
+];
+
+// 【编译期一致性守卫】`CHAT_MESSAGE_ROLES` ⟷ `agentChatMessage.role` 必须**双向相等**：
+// 任一侧多/少一个 ⇒ 类型约束不满足 ⇒ 编译报错（防"加了 role 却漏改守卫导致它被判非法丢弃"）。
+// 用变量 + `void` 消费 —— 本仓 src 侧开启 `noUnusedLocals`，纯类型别名会报 TS6196。
+type _AssertTrue<T extends true> = T;
+const _chatRolesCoverage: [
+  _AssertTrue<
+    Exclude<agentChatMessage['role'], (typeof CHAT_MESSAGE_ROLES)[number]> extends never
+      ? true
+      : false
+  >,
+  _AssertTrue<
+    Exclude<(typeof CHAT_MESSAGE_ROLES)[number], agentChatMessage['role']> extends never
+      ? true
+      : false
+  >,
+] = [true, true];
+void _chatRolesCoverage;
+
+const isChatRole = (v: unknown): v is agentChatMessage['role'] =>
+  typeof v === 'string' && (CHAT_MESSAGE_ROLES as readonly string[]).includes(v);
+
+/**
+ * 会话/落盘态（**宽松** `ConversationMessage`）→ LLM 协议态（`agentChatMessage`）的**唯一转换入口**。
+ *
+ * 【为什么必须有它、且不能是 `as`】（TD-11-82）两态**判据不同、不可合并**：`ConversationMessage` 是
+ * **故意宽松**的存储形态（流式中间态 / 体积降级 / 历史遗留字段，见 `conversationTypes.ts` 注释），
+ * 协议态必须具体 ⇒ 二者之间必然有一次转换。此前这次转换**并不存在** —— 调用方直接
+ * `getCurrentSnapshot().messages as agentChatMessage[]` 骗过编译器（ADR-0021 禁 `as` 绕墙）。
+ *
+ * 【失败语义（ADR-0048 · fail-soft + 留痕）】`role` 非法的消息**丢弃并 warn**：原实现会把它落进
+ * `buildRequestMessages` 末尾分支**原样发给上游**（必然 400），或在下游 `role === 'xxx'` 判断里被
+ * **静默忽略**（用户看到"AI 失忆"、日志里空白）。单条脏消息不该让整轮对话失败，但**必须可见**。
+ */
+export function toChatMessages(raw: ChatMessageInput[]): agentChatMessage[] {
+  const out: agentChatMessage[] = [];
+  raw.forEach((m, i) => {
+    const role = m?.role;
+    if (!isChatRole(role)) {
+      logger.warn(
+        'agentCore',
+        'toChatMessages: 丢弃 role 非法的会话消息（原会被静默忽略或发给上游）',
+        {
+          index: i,
+          role: String(role),
+        },
+      );
+      return;
+    }
+    const msg: agentChatMessage = { role };
+    // 逐字段收窄（每项都带运行时检查）：形状不符 ⇒ 该字段**缺席**，而不是把脏值透传给上游。
+    if (typeof m.content === 'string' || Array.isArray(m.content)) {
+      msg.content = m.content as agentChatMessage['content'];
+    }
+    if (Array.isArray(m.tool_calls)) msg.tool_calls = m.tool_calls as ToolCall[];
+    if (typeof m.tool_call_id === 'string') msg.tool_call_id = m.tool_call_id;
+    if (typeof m.reasoning === 'string') msg.reasoning = m.reasoning;
+    if (Array.isArray(m.attachments)) {
+      msg.attachments = m.attachments as agentChatMessage['attachments'];
+    }
+    if (typeof m.refCatalog === 'string') msg.refCatalog = m.refCatalog;
+    out.push(msg);
+  });
+  return out;
 }
 
 /** SSE 增量累加器（parseSSEChunk 就地累加）。 */
@@ -182,7 +274,10 @@ const historyKey = (agentKey: string): string => `agent_history_${agentKey || AG
  *  【拆兜底 · 2026-09-17】原 try/catch 是**不可达死兜底**：`contentGet` 对本键不抛
  *  （`agent_history_{agentKey}` 已在 contracts.ts 登记，`pattern:true`），`sGet` 自身也不抛
  *  （读 localStorage 失败回 null / 走内存回退）。吞掉失败只会掩盖「登记契约被破坏」这一真信号。 */
-export function loadHistory(agentKey: string): agentChatMessage[] {
+export function loadHistory(agentKey: string): ConversationMessage[] {
+  // 【TD-11-82】返回**宽松态**（存储读到的原始形状，未校验）—— 唯一消费方是 `importLegacy`
+  // （旧会话迁移，需要完整字段，故**不**在此重建）。原先声明为 `agentChatMessage[]`（协议态）是
+  // 无校验的类型声索，会诱导消费方把它当已校验数据使用。
   const arr = contentGet(historyKey(agentKey));
   return Array.isArray(arr) ? arr : [];
 }
@@ -395,7 +490,7 @@ export function parseGenerationsFromReply(content = '') {
  *  ② 包裹符与预算是**skill 门面的对外契约**（谁改措辞谁负责，唯一实现）；收字符串让"组装"与"拼接"分家。
  *  导出供单测（AI 助手前端逻辑核心：确认发给 LLM 的 messages 组装正确）。 */
 export function buildRequestMessages(
-  messages: agentChatMessage[],
+  rawMessages: ChatMessageInput[],
   systemPrompt: string,
   enhance: boolean = true,
   skillDocsText: string = '',
@@ -406,6 +501,10 @@ export function buildRequestMessages(
   mode: 'canvas' | 'table' = 'canvas',
   skillIndexText: string = '',
 ) {
+  // 【TD-11-82】入参如实声明为**宽松态**（会话存储形状）⇒ 调用方不再需要 `as agentChatMessage[]`
+  // 骗过编译器（ADR-0021）。转换在**此处一处**完成（`toChatMessages`：role 非法即丢弃并留痕），
+  // 之后本文各处一律按 `messages`（真协议态）使用 —— 下方两百余行逻辑零改动。
+  const messages = toChatMessages(rawMessages);
   const out: agentChatMessage[] = [];
   // 工具消息配对：assistant 声明 tool_calls 时登记其 id，后续 tool 消息需命中才保留（防孤儿 tool 消息）
   const pendingToolIds = new Set();

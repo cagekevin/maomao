@@ -3,7 +3,13 @@ import { clamp } from '@/components/base/core/utils';
 import { TRACK_GAP } from '@/components/videoEditor/constants/timeline-constants';
 import { wouldElementOverlap } from './element-utils';
 import type { ComputeDropTargetParams, DropTarget } from '@/components/videoEditor/types/timeline';
-import { isMainTrack, enforceMainTrackStart, getTrackHeight } from './track-utils';
+import {
+  isMainTrack,
+  enforceMainTrackStart,
+  getTrackHeight,
+  // 【TD-22-70】元素↔轨道兼容的**唯一实现**。本文件原有一份逐字同实现的私有 `isCompatible`，已删。
+  canElementGoOnTrack,
+} from './track-utils';
 
 function getTrackAtY({
   mouseY,
@@ -50,22 +56,6 @@ function getTrackAtY({
   return null;
 }
 
-function isCompatible({
-  elementType,
-  trackType,
-}: {
-  elementType: ElementType;
-  trackType: TimelineTrack['type'];
-}): boolean {
-  if (elementType === 'text') return trackType === 'text';
-  if (elementType === 'audio') return trackType === 'audio';
-  if (elementType === 'sticker') return trackType === 'sticker';
-  if (elementType === 'video' || elementType === 'image') {
-    return trackType === 'video';
-  }
-  return false;
-}
-
 function getMainTrackIndex({ tracks }: { tracks: TimelineTrack[] }): number {
   return tracks.findIndex((track) => isMainTrack(track));
 }
@@ -100,7 +90,7 @@ function findBestCompatibleTrack({
   }
 
   for (let i = 0; i < tracks.length; i++) {
-    if (!isCompatible({ elementType, trackType: tracks[i].type })) continue;
+    if (!canElementGoOnTrack({ elementType, trackType: tracks[i].type })) continue;
     const hasOverlap = wouldElementOverlap({
       elements: tracks[i].elements,
       startTime: xPosition,
@@ -250,7 +240,7 @@ export function computeDropTarget({
   const trackHeight = getTrackHeight({ type: track.type, scale: trackHeightScale });
   const isInUpperHalf = relativeY < trackHeight / 2;
 
-  const isTrackCompatible = isCompatible({
+  const isTrackCompatible = canElementGoOnTrack({
     elementType,
     trackType: track.type,
   });

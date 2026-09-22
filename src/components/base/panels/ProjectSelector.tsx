@@ -13,6 +13,7 @@ import type { Project } from '../store/projectStore.ts';
 import { showToast } from '../core/event/toastStore.ts';
 import { askConfirm } from '../core/event/confirmStore.ts';
 import { publish } from '../core/event/eventBus.ts';
+import { PROJECT_IMPORT_EVENT, PROJECT_EXPORT_EVENT } from '../core/contracts.ts';
 
 /**
  * 项目选择器（复刻官方 Vr.jsx L3308-3370 项目下拉 + L3713-3749 新建/重命名弹窗）。
@@ -156,7 +157,7 @@ export default function ProjectSelector({ onSwitch, onCreate }: ProjectSelectorP
               将来有其它入口要触发导入导出，也只需 publish 同名事件复用同一套逻辑。 */}
           <button
             type="button"
-            onClick={() => publish('project:import')}
+            onClick={() => publish(PROJECT_IMPORT_EVENT)}
             className="w-full text-left px-3 py-2.5 text-sm text-body hover:bg-surface-hover-strong hover:text-white flex items-center gap-2 cursor-pointer border-none bg-transparent"
           >
             <svg
@@ -177,7 +178,7 @@ export default function ProjectSelector({ onSwitch, onCreate }: ProjectSelectorP
           </button>
           <button
             type="button"
-            onClick={() => publish('project:export')}
+            onClick={() => publish(PROJECT_EXPORT_EVENT)}
             className="w-full text-left px-3 py-2.5 text-sm text-body hover:bg-surface-hover-strong hover:text-white flex items-center gap-2 cursor-pointer border-none bg-transparent"
           >
             <svg

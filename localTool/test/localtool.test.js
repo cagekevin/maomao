@@ -1230,7 +1230,7 @@ function makeMultipartReq({ filename, fileContent, contentType, fields = {} }) {
   return req;
 }
 
-test('Files·upload multipart 落盘并返回 URL + 缩略图', async () => {
+test('Files·upload multipart 落盘并返回 URL（不再预热缩略图）', async () => {
   const res = makeRes();
   await filesMod.handleUpload(
     makeMultipartReq({
@@ -1244,7 +1244,11 @@ test('Files·upload multipart 落盘并返回 URL + 缩略图', async () => {
   const body = data(res);
   assert.ok(body.url, '应返回 url');
   assert.match(body.url, /^http:\/\/127\.0\.0\.1:18080\/files\/canvas\//);
-  assert.ok(body.thumbnailUrl, 'png 应生成缩略图');
+  // 【TD-08-71 · 2026-09-22 契约变更】上传**不再预热缩略图** ⇒ 响应不含 thumbnailUrl。
+  // 原因：原预热产物（256、缓存名无尺寸前缀）与按需端点（`${maxDim}x${quality}_` 前缀）**缓存名不同**
+  // ⇒ 永不命中；且该字段**前端 0 消费**（前端那个 thumbnailUrl 是 videoEditor 的 dataURL，另一判据）。
+  // 显示统一走 `/files/thumbnail?maxDim=…` 按需出图端点（`buildThumbnailUrl`）。
+  assert.strictEqual(body.thumbnailUrl, undefined, '不再返回 thumbnailUrl（改由按需端点出图）');
   // 落盘文件存在且内容一致
   const relPath = body.url.replace(/^http:\/\/127\.0\.0\.1:18080\/files\//, '');
   const diskPath = path.join(TEST_DIR, 'uploads', relPath);

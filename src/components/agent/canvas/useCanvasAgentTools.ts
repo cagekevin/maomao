@@ -12,6 +12,8 @@ import {
 import { runNodeGeneration } from '../../base/store/taskStore.ts';
 import '@/components/canvas/structure/groupNodes';
 import { createAgentCanvasHost, type AgentCanvasHostCtx } from './agentCanvasHost.ts';
+// 【TD-11-83】AI 可建节点类型白名单的**唯一真源**（运行时守卫 / 两处 schema enum / 提示词全派生自它）
+import { CREATABLE_NODE_TYPES } from '../agentConfig.ts';
 import { executePlan, type GenerationStep } from './canvasPlanExecutor.ts';
 import {
   patchCurrentWorkflow,
@@ -391,17 +393,10 @@ function buildCreateNode(
   currentNodes: Node[],
 ): BuildCreateNodeResult {
   const type = str(args.type);
-  // agent 可创建的节点类型白名单（不含剧本盒等复合节点）。
+  // 【TD-11-83】agent 可创建的节点类型白名单 = **唯一真源** `CREATABLE_NODE_TYPES`（agentConfig）。
   // 用白名单而非 getPaletteNode：即使调色板里新增了剧本盒等类型，agent 也不会被允许创建。
-  const ALLOWED_TYPES = [
-    'textGenerateNode',
-    'imageGenerateNode',
-    'assetNode',
-    'videoGenerateNode',
-    'group',
-  ];
-  if (!type || !ALLOWED_TYPES.includes(type))
-    return { error: `未知节点类型：${type}。可选：${ALLOWED_TYPES.join('、')}` };
+  if (!type || !CREATABLE_NODE_TYPES.includes(type))
+    return { error: `未知节点类型：${type}。可选：${CREATABLE_NODE_TYPES.join('、')}` };
   // 节点 data 是各节点类型自有的自由字段集（defaultNodeData 按 type 返回不同形状），
   // 此处按「可写任意字段的 data 容器」处理，便于下面按 type 补 text / aspectRatio / imageSize。
   const data: Record<string, unknown> = {
@@ -468,7 +463,8 @@ const createNodeTool = {
     properties: {
       type: {
         type: 'string',
-        enum: ['textGenerateNode', 'imageGenerateNode', 'assetNode', 'videoGenerateNode', 'group'],
+        // 【TD-11-83】派生自唯一真源（手抄漏改 ⇒ 模型看不到新类型）
+        enum: [...CREATABLE_NODE_TYPES],
         description:
           '节点类型：textGenerateNode=文本(text=内容落生成区/prompt=内容落抽屉)/imageGenerateNode=生图(prompt=画面提示词)/assetNode=图片(label=说明)/videoGenerateNode=视频(prompt=视频提示词)/group=编组',
       },
@@ -534,13 +530,8 @@ const batchCreateNodesTool = {
           properties: {
             type: {
               type: 'string',
-              enum: [
-                'textGenerateNode',
-                'imageGenerateNode',
-                'assetNode',
-                'videoGenerateNode',
-                'group',
-              ],
+              // 【TD-11-83】派生自唯一真源（手抄漏改 ⇒ 模型看不到新类型）
+              enum: [...CREATABLE_NODE_TYPES],
             },
             prompt: { type: 'string' },
             text: { type: 'string' },

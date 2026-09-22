@@ -41,6 +41,13 @@ import { extToMime, mimeToExt } from '../utils/mime.js';
 
 const BASE_URL = localToolBaseUrl();
 
+/** 缩略图出图**默认最长边**（跨栈契约 · TD-08-71）：与前端 `assetUrl.THUMB_MAX_DIM` 同值，
+ *  由 `check-arch` 的 `CROSS_STACK_CONSTS` **逐字对账**（改一侧必须改另一侧，否则同图产生两套缓存，
+ *  且"谁生效"取决于调用方是否传 `maxDim`）。 */
+const THUMB_MAX_DIM = 640;
+/** 缩略图默认质量（仅本端：前端只传 `maxDim` 不传 `quality` ⇒ 这里就是唯一真相） */
+const THUMB_QUALITY = 80;
+
 /**
  * 入口校验并规范化 subfolder；非法 → 返回 null（调用方回 400）。
  *
@@ -78,7 +85,6 @@ function resolveRequestSubfolder(raw: unknown): string | null {
 interface SaveRemoteResult {
   url: string;
   path: string;
-  thumbnailUrl?: string;
   /** Content 维度身份（`<alg>:<hex>`），与 resources.sha1 同源 */
   contentId: string;
 }
@@ -172,7 +178,7 @@ async function handleUploadFormData(req: IncomingMessage, res: ServerResponse): 
     const saveName = filename || fileData.filename;
     // 【TD-03-8 修复】扩展名回退链：filename 后缀 → multipart mimeType → 空。
     // 此前**只用** filename 推 ext，于是 `canvas.toBlob` 等无 `.name` 的 Blob（前端传 'upload'）
-    // 落盘成无后缀文件 → handleRead 回 octet-stream（浏览器不按图渲染）+ tryGenerateThumbnail 跳过。
+    // 落盘成无后缀文件 → handleRead 回 octet-stream（浏览器不按图渲染）+ 缩略图端点拒绝（不可编码）。
     // 手边的 fileData.mimeType 是权威回退源，必须用上。
     const ext = path.extname(saveName) || mimeToExt(fileData.mimeType) || '';
     // 【docs/122 Content 维度 #6】按 contentId(`<alg>:<hex>`) 全局查重（folder 无关，入口不可能自带 hash 上行）：
@@ -206,9 +212,6 @@ async function handleUploadFormData(req: IncomingMessage, res: ServerResponse): 
       }))
     )
       return;
-    const thumbnailUrl = dedup.savedPath
-      ? await tryGenerateThumbnail(dedup.savedPath, fileUrlPath)
-      : undefined;
     uploadLog(
       200,
       `formdata ${saveName} -> ${fileUrlPath}${dedup.deduped ? ' (contentId dedup)' : ''}`,
@@ -218,7 +221,6 @@ async function handleUploadFormData(req: IncomingMessage, res: ServerResponse): 
       data: {
         url: `${BASE_URL}${fileUrlPath}`,
         path: dedup.savedPath || fileUrlPath,
-        thumbnailUrl: thumbnailUrl ? `${BASE_URL}${thumbnailUrl}` : undefined,
         // Content 维度去重身份（docs/122 #4 桥）：前端可持 contentId（稳定），渲染经 url 派生
         contentId: dedup.contentId,
       },
@@ -450,46 +452,11 @@ async function doSaveRemoteUrl(subfolder: string, fileUrl: string): Promise<Save
     `[download] ${ts()} | OK | ${fileUrl} -> ${urlPath}${dedup.deduped ? ' (contentId dedup)' : ''} | ${(data.length / 1024).toFixed(0)}KB`,
   );
 
-  const thumbnailUrl = savedPath ? await tryGenerateThumbnail(savedPath, urlPath) : undefined;
   return {
     url: `${BASE_URL}${urlPath}`,
     path: savedPath || urlPath,
-    thumbnailUrl: thumbnailUrl ? `${BASE_URL}${thumbnailUrl}` : undefined,
     contentId: dedup.contentId,
   };
-}
-
-async function tryGenerateThumbnail(filePath: string, _urlPath: string): Promise<string | null> {
-  // 【TD-08-21 修复 2026-09-16】原 `const imageExts = ['.png','.jpg',…,'.svg']` 是本文件内联的
-  // 第二份「哪些格式能缩图」白名单，且**多含 webp/svg**（Jimp 不可编码）→ resize 必失败、
-  // 白走一轮 I/O 后静默返回 null。改为委托同文件已引入的 SSOT `isJimpEncodableExt`（无点扩展名）。
-  const ext = path.extname(filePath).slice(1).toLowerCase();
-  if (!isJimpEncodableExt(ext)) return null;
-
-  const { thumbPath, thumbUrl } = ensureThumbnailTarget(filePath);
-  try {
-    if (!fs.existsSync(thumbPath)) {
-      // 【TD-03-7 修复】缩放失败**不再 copyFileSync 伪造缩略图**：那会把全尺寸原图当缩略图返回，
-      // 与「缩略图」语义相反（且 MIME/尺寸全错、无日志）。改为诚实降级 —— 不生成缩略图，
-      // 返回 null，由调用方交给前端用原图 URL（这正是「缩略图是优化非前提」的正确表达）。
-      const ok = await resizeImage(filePath, thumbPath, { maxDim: 256, quality: 80 });
-      if (!ok) {
-        // 与 handleThumbnail **同款语义分离**：只有「字节能解码却仍写不出」才是真失败（warn）；
-        // 「字节不可编码」（存量名实不符文件：`.jpg` 名装 webp 字节）是预期内**不适用** → info。
-        // 本函数上方已按扩展名快筛过一道（`isJimpEncodableExt`），但扩展名会说谎，故失败后仍需判字节。
-        const realExt = await jimpExtForFile(filePath);
-        if (realExt) {
-          console.warn(`[thumbnail] resize 真失败（字节可编码为 ${realExt}）: ${filePath}`);
-        } else {
-          console.log(`[thumbnail] 源不可缩，跳过预热（前端将回原图）: ${filePath}`);
-        }
-        return null;
-      }
-    }
-    return thumbUrl;
-  } catch {
-    return null;
-  }
 }
 
 // ── read ──
@@ -531,8 +498,8 @@ export async function handleThumbnail(
     return sendError(res, 'Missing url parameter', 400);
   }
 
-  const maxDim = parseInt(url.searchParams.get('maxDim') || '200', 10);
-  const quality = parseInt(url.searchParams.get('quality') || '80', 10);
+  const maxDim = parseInt(url.searchParams.get('maxDim') || String(THUMB_MAX_DIM), 10);
+  const quality = parseInt(url.searchParams.get('quality') || String(THUMB_QUALITY), 10);
   // format：目标扩展名（如 webp）。缺省沿用源文件扩展名（保持既有行为，无回归）。
   const formatParam = url.searchParams.get('format') || '';
 
@@ -579,7 +546,7 @@ export async function handleThumbnail(
   }
 
   // 缩略图缓存路径：复用 ensureThumbnailTarget 解析的缩略图目录，文件名显式含后缀与扩展名，
-  // 使同源同 maxDim/quality/format 只渲染一次（幂等缓存，与 tryGenerateThumbnail 共用缓存目录）。
+  // 使同源同 maxDim/quality/format 只渲染一次（幂等缓存）。
   const { thumbDir } = ensureThumbnailTarget(filePath, `${maxDim}x${quality}_`);
   const stemName = path.basename(filePath).replace(/\.[a-z0-9]+$/i, '') || `thumb_${Date.now()}`;
   const thumbName = `thumb_${maxDim}x${quality}_${outExt}_${stemName}.${outExt}`;

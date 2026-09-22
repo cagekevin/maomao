@@ -9,6 +9,7 @@
  */
 
 import { publish } from '../base/core/event/eventBus.ts';
+import { TASK_COMPLETED_EVENT, UPSTREAM_UPDATED_EVENT } from '../base/core/contracts.ts';
 
 /** 任务完成事件入参（与 agent:task-completed 载荷一致） */
 export interface TaskCompletedArg {
@@ -33,10 +34,10 @@ export function publishTaskCompleted({
 }: TaskCompletedArg): boolean {
   if (status !== 'completed') return false;
   if (typeof resultUrl !== 'string' || !resultUrl) return false;
-  publish('agent:task-completed', { taskId, nodeId, resultUrl, type, status: 'completed' });
+  publish(TASK_COMPLETED_EVENT, { taskId, nodeId, resultUrl, type, status: 'completed' });
   // P2-G 安全网：上游节点完成 → 通知直接下游（useUpstreamAutoTrigger 消费；开关 AUTO_TRIGGER_DOWNSTREAM 默认关）。
   if (typeof nodeId === 'string' && nodeId) {
-    publish('upstream:updated', { sourceNodeId: nodeId });
+    publish(UPSTREAM_UPDATED_EVENT, { sourceNodeId: nodeId });
   }
   return true;
 }

@@ -525,7 +525,7 @@ agent/skill/store/skillRepository.ts（三个键的唯一读写口：agent_skill
 task/nodeRuntimeStore.ts（纯内存瞬态 map，不落盘）
 ```
 
-**关键边**：`contracts.ts` EVENTS 被全仓 `publish/subscribe('` 配对消费（无第二套广播通道）；
+**关键边**：`contracts.ts` EVENTS 被全仓消费（事件名**一律经 `<语义>_EVENT` 常量引用**，TD-08-69；无第二套广播通道）；
 `providerStore` ← 22 处；`active_api_endpoint` 已在 STORAGE_KEYS 登记（backend:kv），前端 save 写、后端 `official.ts`/`passthrough.ts` 读做路由（派生缓存，设计权衡非债）。
 
 ---

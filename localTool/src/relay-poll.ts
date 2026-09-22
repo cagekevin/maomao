@@ -72,6 +72,25 @@ export interface RelaySubmitInput {
   timeoutMs?: number;
 }
 
+/**
+ * 任务句柄状态成员集合（**唯一真源**）。
+ *
+ * 【为什么抽成常量】`RelayTaskStatus` 是**判别联合**（每个状态带自己的必需载荷），无法直接由数组派生；
+ * 但「有哪些状态」这个**成员集合**必须单点 —— 前端 `RelayTaskStatusValue`（relayProxy.ts）是同一判据的
+ * 跨栈另一份（两栈无共享模块 ⇒ 结构必然），由 `check:arch` 的 `CROSS_STACK_UNIONS` 逐字对账（ADR-0057。
+ * 判别联合与本表的一致性由下方**编译期断言**锁死：漏登记 / 多登记均编译报错（TD-01-29）。
+ */
+export const RELAY_TASK_STATUSES = [
+  'running',
+  'completed',
+  'failed',
+  'unknown',
+  'not-found',
+] as const;
+
+/** 任务句柄状态取值（由值派生；跨栈与前端 `RelayTaskStatusValue` 同集合）。 */
+export type RelayTaskStatusValue = (typeof RELAY_TASK_STATUSES)[number];
+
 /** 任务查询结果（GET attach / status） */
 export type RelayTaskStatus =
   | { status: 'running'; progress?: number; budgetMs?: number }
@@ -96,6 +115,18 @@ export type RelayTaskStatus =
   //   可选是因为它**本就可能未知**（sendChat 失败时拿不到 threadId，见 `upsertUnknown` 注释）。
   | { status: 'unknown'; error: string; threadId?: string }
   | { status: 'not-found' };
+
+// 【编译期一致性守卫】判别联合的 status 集合 ⟷ `RELAY_TASK_STATUSES` 必须**双向相等**：
+// 任一侧多/少一个状态 ⇒ 下面类型约束不满足 ⇒ **编译报错**（比任何运行时断言都早、且不可绕过）。
+// 反证：往判别联合加一个 `| { status: 'cancelled' }` 而不入常量表 ⇒ 第一条守卫红；
+//       往常量表加 'cancelled' 而不入判别联合 ⇒ 第二条守卫红。
+type _AssertTrue<T extends true> = T;
+type _TaskStatusAllRegistered = _AssertTrue<
+  Exclude<RelayTaskStatus['status'], RelayTaskStatusValue> extends never ? true : false
+>;
+type _TaskStatusNoExtraMember = _AssertTrue<
+  Exclude<RelayTaskStatusValue, RelayTaskStatus['status']> extends never ? true : false
+>;
 
 /**
  * 解析某平台 capability 对应的异步调用协议（方案① per-provider 自定义协议）。

@@ -68,8 +68,11 @@ const CONST_EVENT_REF_RE = new RegExp(
   `\\b(${[...EVENT_FNS].join('|')})\\s*\\(\\s*([A-Za-z_$][\\w$]*)\\s*[,)]`,
   'g',
 );
-// 常量声明：`const NAME = 'event:string'` / `export const NAME = "event:string"`（同一行，事件名须含 ':'）
-const CONST_DECL_RE = /\bconst\s+([A-Za-z_$][\w$]*)\s*=\s*(['"])([a-zA-Z0-9_-]+:[a-zA-Z0-9:_-]+)\2/g;
+// 常量声明：`const NAME = 'event:name'` / `export const NAME = "event:name"`（同一行）。
+// ⚠️ **不要求值里含 `:`** —— 事件名不必都带冒号（既有 `presets-changed` 就没有）；原正则写死 `x:y`
+// 形态 ⇒ 该常量的引用解析会**静默失效**，闸报「实测: 无」（TD-08-69 实测踩到）。
+// ⇒ 改为抽**任意字符串值**，再由 `EVENTS` 登记键过滤（更准：只认真正登记过的事件名）。
+const CONST_DECL_RE = /\bconst\s+([A-Za-z_$][\w$]*)\s*=\s*(['"])([^'"\n]+)\2/g;
 
 // ── 加载事件登记表 ──
 let EVENTS = {};
@@ -127,6 +130,8 @@ for (const file of [resolve(root, 'src/components/base/core/contracts.ts'), ...t
   while ((m = CONST_DECL_RE.exec(src)) !== null) {
     const name = m[1];
     const ev = m[3];
+    // 只收录「值确实是已登记事件名」的常量（比"必须含冒号"更准，且容忍无冒号事件名）
+    if (!Object.prototype.hasOwnProperty.call(EVENTS, ev)) continue;
     if (CONST_EVENT_NAMES.has(name) && CONST_EVENT_NAMES.get(name) !== ev)
       CONST_EVENT_NAMES.set(name, null);
     else CONST_EVENT_NAMES.set(name, ev);

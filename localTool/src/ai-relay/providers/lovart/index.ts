@@ -9,7 +9,7 @@
 
 import type { GenerateImageOptions, GenerateVideoOptions, StreamChatOptions } from '../../types.js';
 import type { LovartDirectProfile } from './lovart_contract.js';
-import { LOVART_MODEL_SPECS } from './lovart_config.js';
+import { LOVART_MODEL_SPECS, type LovartCategory } from './lovart_config.js';
 import { LovartError, LOVART_ERR_TYPES } from './lovart_errors.js';
 import type { LovartClientDeps } from './lovart_client.js';
 import { sendLovartChatWithProject } from './lovart_project.js';
@@ -48,7 +48,7 @@ function toDeps(
   };
 }
 
-function assertCategory(model: string, expected: 'IMAGE' | 'VIDEO' | 'CHAT'): void {
+function assertCategory(model: string, expected: LovartCategory): void {
   const spec = LOVART_MODEL_SPECS[model];
   if (!spec || spec.category !== expected) {
     throw new LovartError(
@@ -245,7 +245,10 @@ export interface LovartTaskHandle {
 /** 提交一次 image/video 任务（project→set_mode→attachments→send），返回可持久化句柄，不等终态。 */
 export async function submitLovartTask(
   profile: LovartDirectProfile,
-  opts: LovartTaskInput & { capability: 'IMAGE' | 'VIDEO' },
+  // 【§二 #1 · 2026-09-22】capability 派生自真源 `LovartCategory`（本文件原另写内联联合
+  // `'IMAGE' | 'VIDEO'` —— 属「该走真源却没走」：真源加成员时此处不会跟随 ⇒ 静默分叉）。
+  // `Exclude<…, 'CHAT'>`：本函数只提交图像/视频任务，聊天走 `sendLovartChatWithProject`。
+  opts: LovartTaskInput & { capability: Exclude<LovartCategory, 'CHAT'> },
 ): Promise<LovartTaskHandle> {
   const deps = toDeps(profile, profile.signal, profile.timeoutMs);
   assertCategory(opts.model, opts.capability);

@@ -54,7 +54,7 @@ Object.defineProperty(globalThis.navigator, 'clipboard', {
 });
 
 vi.mock('../../src/components/base/store/taskStore.ts', async () => {
-  // 【唯一真源】纯函数（statusDotClass / statusLabel / typeLabel / taskMediaKind）一律取自真源：
+  // 【唯一真源】纯函数（taskStatusVisual / statusLabel / typeLabel / taskMediaKind）一律取自真源：
   // 本文件此前手抄了一份「按真实实现兜底」，且**已实际漂移**（discountVideo 抄成「特惠视频」，
   // 真源是「视频生成」）—— 那就是 SSOT 第二份。此处只替换「有状态订阅 / 有副作用」的成员。
   const actual = await vi.importActual<

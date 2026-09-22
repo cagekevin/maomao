@@ -195,8 +195,20 @@ export interface ModelProtocolPollResponseConfig {
   progressPath?: string;
 }
 
+/** 协议请求方法值域（**唯一真源** · TD-08-70）。
+ *
+ *  【为什么单独具名】此前 `'GET' | 'POST'` 在本文件写了 **2 遍**（配置声明层
+ *  `ModelProtocolRequestConfig.method` 与解析产物层 `ResolvedPollConfig.method`）——
+ *  两处角色不同（一个是 provider JSON 里声明的，一个是 `resolvePoll` 解析后的运行时结构），
+ *  但**值域是同一事实** ⇒ 新增方法（如 `'PUT'`）只改一处必漏另一处，且编译器不报（结构同构）。
+ *
+ *  【不是本判据的两处，勿合并】`lovart_client.ts` 的 `lovartRequest(method)` 是 lovart 出站函数入参、
+ *  调用点**硬编码**字面量（不随协议配置变化）；`router.ts` 的 `'GET'｜'POST'｜'PUT'｜…` 是 HTTP 路由方法（超集）。
+ *  ⇒ 三者值域局部重合但**决策点不同**（ADR-0031）。 */
+export type ProtocolHttpMethod = 'GET' | 'POST';
+
 export interface ModelProtocolRequestConfig {
-  method: 'GET' | 'POST';
+  method: ProtocolHttpMethod;
   path: string;
   pathMode?: 'append' | 'origin';
   headers?: Record<string, string>;
@@ -252,7 +264,7 @@ export interface SubmitModelProtocolOptions {
 }
 
 export interface ResolvedPollConfig {
-  method: 'GET' | 'POST';
+  method: ProtocolHttpMethod;
   url: string;
   auth: AuthConfig;
   headers: Record<string, string>;

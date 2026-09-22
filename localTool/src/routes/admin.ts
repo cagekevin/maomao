@@ -63,6 +63,16 @@ export async function handleAdminStats(_req: IncomingMessage, res: ServerRespons
 
 // ── POST /api/admin/clear-cache（按缓存前缀精准清理 KV，保留业务数据）──
 // 只删缓存类键（img_* 图片缓存、接入点、同步元数据、画布版本标记等），
+/**
+ * 画布快照 KV 键前缀 —— **与前端 `contracts.ts::CANVAS_STATE_PREFIX` 同值的跨栈契约**（TD-08-68）。
+ *
+ * 【为什么两端各留一份】**两栈无共享模块**（`src/components/**` 与 `localTool/src/**` 是两套构建产物）
+ * ⇒ 各持一份是**结构必然**；一致性由 `check:arch` 的 `CROSS_STACK_CONSTS` **逐字对账**
+ * （任一侧改值而另一侧没跟 ⇒ 闸红）。
+ * 【本处两处用途】① 清理类操作的**保护名单**（绝不删画布状态本体）；② 项目存储统计（拼 `{prefix}{projectId}` 查 kv 表）。
+ */
+export const CANVAS_STATE_PREFIX = 'canvas-state-v1-';
+
 // 绝不碰 canvas-state-v1-* 本体 / auth_token / projects / users 等业务数据。
 // body: { confirm: true, prefixes?: string[], exactKeys?: string[] }
 export async function handleAdminClearCache(
@@ -94,7 +104,7 @@ export async function handleAdminClearCache(
 
   for (const { key } of all) {
     // 画布状态本体、登录 token、项目等业务键绝不删（即使命中前缀）
-    if (key === 'auth_token' || key.startsWith('canvas-state-v1-')) continue;
+    if (key === 'auth_token' || key.startsWith(CANVAS_STATE_PREFIX)) continue;
     if (exactKeys.includes(key)) {
       toDelete.push(key);
       continue;
@@ -325,7 +335,7 @@ export async function handleAdminStorageHealth(
     name: string;
   }>;
   const projects = projRows.map((p) => {
-    const key = `canvas-state-v1-${p.id}`;
+    const key = `${CANVAS_STATE_PREFIX}${p.id}`;
     const kvRow = queryOne(db, 'SELECT value FROM kv WHERE key = ?', [key]) as
       { value: string } | undefined;
     const kvBytes = kvRow && typeof kvRow.value === 'string' ? kvRow.value.length : 0;

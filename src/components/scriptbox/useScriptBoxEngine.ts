@@ -8,6 +8,7 @@ import {
   type ScriptBoxData,
 } from './scriptBoxSchema.ts';
 import { subscribe } from '../base/core/event/eventBus.ts';
+import { TASK_COMPLETED_EVENT } from '../base/core/contracts.ts';
 import { localizeAndStoreToResourceLibrary, resourceFolderOf } from '../resource/resourceStore.ts';
 import { injectNodePrefs, commitNewNodes } from '../canvas';
 
@@ -250,7 +251,7 @@ export function useScriptBoxEngine(
         }),
       }));
     };
-    return subscribe('agent:task-completed', handler);
+    return subscribe(TASK_COMPLETED_EVENT, handler);
   }, [nodeId, updateData, getNode]);
 
   return { updateData, callbacks };

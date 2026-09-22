@@ -2163,6 +2163,22 @@ const CROSS_STACK_CONSTS = [
       'chat 任务总预算（前端=真相，写进 `body.timeoutMs`；后端=前端未声明时的**兜底**）—— ' +
       '两值不等 ⇒ "前端传了"与"没传"拿到不同预算 = 行为分叉（TD-08-54）',
   },
+  {
+    name: 'CANVAS_STATE_PREFIX',
+    fe: 'src/components/base/core/contracts.ts',
+    be: 'localTool/src/routes/admin.ts',
+    why:
+      '画布快照 KV 键前缀（前端构键；后端**清理保护名单**＋**项目存储统计**同按它）—— ' +
+      '单边改值 ⇒ 后端会误删画布状态本体、或统计永远落空（TD-08-68）',
+  },
+  {
+    name: 'THUMB_MAX_DIM',
+    fe: 'src/components/base/utils/media/assetUrl.ts',
+    be: 'localTool/src/routes/files.ts',
+    why:
+      '缩略图渲染/出图的默认最长边（前端 `buildThumbnailUrl` 请求默认 与 后端 `/files/thumbnail` ' +
+      '端点兜底）—— 不等 ⇒ 同图产生两套缓存，且"按哪个尺寸出图"取决于调用方是否传参（TD-08-71）',
+  },
 ];
 let crossStackViol = 0;
 for (const c of CROSS_STACK_CONSTS) {
@@ -2237,6 +2253,22 @@ const CROSS_STACK_UNIONS = [
     why:
       '生成能力枚举（前端提交意图 / 后端分流与预算同按它；单边加一员 ⇒ 该能力在另一端永远"非法"，' +
       '而两端各自都编译得过 —— TD-08-59）',
+  },
+  {
+    name: 'RelayTaskStatusValue',
+    fe: {
+      file: 'src/components/generate/lib/relayProxy.ts',
+      anchor: /export\s+type\s+RelayTaskStatusValue\s*=/,
+      end: ';',
+    },
+    be: {
+      file: 'localTool/src/relay-poll.ts',
+      anchor: /export\s+const\s+RELAY_TASK_STATUSES\s*=/,
+      end: ']',
+    },
+    why:
+      '任务句柄状态集合（前端 attach 解析 / 后端查询结果同按它；单边加状态 ⇒ 另一端永远收不到、' +
+      '且 routes/generate.ts 压平层会静默折成 not-found，而两端各自都编译得过 —— TD-01-29）',
   },
 ];
 
