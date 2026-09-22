@@ -30,8 +30,9 @@ import { relayAttachUntilDone } from '@/components/generate/lib/relayProxy';
 import { showToast } from '@/components/base/core/event/toastStore';
 import { logger } from '@/components/base/core/log/logger';
 
-// 恢复轮询总超时兜底：单任务最多 attach 多久，到点 relayAttachUntilDone 强停防挂起
-const POLL_TIMEOUT_MS: number = 600_000;
+// 【143 · S4′】原 `POLL_TIMEOUT_MS = 600_000`（本文件自持的恢复预算）**已删** ——
+// 恢复路径的等待上限改为**从后端 attach 响应学**（`relayAttachUntilDone` 读 `st.budgetMs`）：
+// 该路径本来就没有 POST 响应可读，而 attach 响应里后端会告知本任务的生效预算（S3′）⇒ 不必自持数值。
 // 补扫周期：周期发现"启动扫描后新变为 running"的迟达候选并接管
 const SCAN_INTERVAL: number = 5000;
 
@@ -70,7 +71,7 @@ async function pollOneTaskAttach(task: PollableTask): Promise<boolean> {
   try {
     st = await relayAttachUntilDone({
       frontTaskId,
-      timeoutMs: POLL_TIMEOUT_MS,
+      // 【143 · S4′】不传 `timeoutMs` ⇒ 由 attach 循环从后端 `budgetMs` 学（本路径无 POST 响应可读）。
       cancelOnAbort: false, // 恢复不取消，让后端句柄续跑到终态
       onProgress: (p) => {
         if (p !== undefined) patchTask(task.id, { status: 'running', progress: p });

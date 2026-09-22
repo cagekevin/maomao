@@ -17,7 +17,6 @@ import type { GenerationResult } from '@/types';
 import {
   API_BASE,
   GEN_POLL_INTERVAL,
-  CHAT_TIMEOUT,
   CHAT_TOTAL_TIMEOUT,
   LOCAL_TOOL_PING_TIMEOUT,
 } from '@/components/base/core/config';
@@ -64,10 +63,12 @@ export interface RelayIntent {
 /** relay GET attach 返回（/api/generate/:id 的 data 子集） */
 export interface RelayPollData {
   /** 【TD-08-24】`unknown` = 提交结果未知（**可能已在跑**），与 `failed`（确定没跑）区分 —— 勿合并。 */
-  status: 'running' | 'completed' | 'failed' | 'unknown';
+  status: 'running' | 'completed' | 'failed' | 'unknown' | 'not-found';
   progress?: number;
   url?: string;
   error?: string;
+  /** 【143 · S3′】后端实际生效的任务预算（ms）。前端据此设等待上限，**不自持数值**。 */
+  budgetMs?: number;
 }
 
 /** 信封解析：localTool 端点 { code, data } */
@@ -79,7 +80,7 @@ interface CodeData<T> {
 /** 提交到 /api/generate（不等终态），后端立即返 taskId。 */
 export async function relaySubmit(
   intent: RelayIntent,
-): Promise<{ ok: boolean; taskId?: string; error?: string }> {
+): Promise<{ ok: boolean; taskId?: string; error?: string; budgetMs?: number }> {
   try {
     const body = {
       frontTaskId: intent.frontTaskId,
@@ -106,8 +107,12 @@ export async function relaySubmit(
       retries: 0,
       timeoutMs: 0,
       label: 'relaySubmit',
-    })) as CodeData<{ taskId?: string }>;
-    if (env?.data?.taskId) return { ok: true, taskId: env.data.taskId };
+    })) as CodeData<{ taskId?: string; budgetMs?: number }>;
+    // 【143 · S4′】`budgetMs` = 后端**实际生效**的任务预算（生产者给全）⇒ 前端据此设等待上限，
+    // 不再自持 `GEN_TIMEOUT`/`VIDEO_TIMEOUT`（消费者不许替生产者定真相）。
+    if (env?.data?.taskId) {
+      return { ok: true, taskId: env.data.taskId, budgetMs: env.data.budgetMs };
+    }
     const msg = (env?.data as { error?: string } | undefined)?.error || `提交失败 (HTTP 200)`;
     return { ok: false, error: msg };
   } catch (e) {
@@ -120,7 +125,8 @@ export async function relayPoll(frontTaskId: string): Promise<RelayPollData> {
   try {
     // parseJson:true 默认 → 返纯 data；非 2xx 抛 HttpError 进 catch → 返回 running 下轮续查
     // 【根治·2026-09-04】单次 GET attach 只读 localTool 内存/DB 句柄，近瞬回；
-    // 真正的长等待由外层 relayAttachUntilDone 的 timeoutMs(GEN_TIMEOUT) 兜底，故去掉本层 15s 掐点，
+    // 真正的长等待由外层 relayAttachUntilDone 的等待上限兜底（143 S4′ 起 = 后端告知的 `budgetMs`），
+    // 故去掉本层 15s 掐点，
     // 避免后端忙时单次 attach 误超时被降级为 running 空转。
     const env = (await httpRequest(`${API_BASE}/api/generate/${encodeURIComponent(frontTaskId)}`, {
       method: 'GET',
@@ -134,7 +140,13 @@ export async function relayPoll(frontTaskId: string): Promise<RelayPollData> {
     // 【TD-08-24】unknown 是终态，必须原样透出 —— 折成 running 会让前端空等到超时，
     // 把「可能已生成」误报成「还在生成」，用户等满超时后才看到失败，更容易误重提。
     if (d?.status === 'unknown') return { status: 'unknown', error: d.error || '提交结果未知' };
-    return { status: 'running', progress: d?.progress ?? 0 };
+    // 【143 · S3′】`not-found` = **后端明确说"我这儿没这个任务"**（生产者给全）——
+    // 后端已由 404 改为 200 + 该状态。此前它被折成 `running` ⇒ 与「连不上」同形 ⇒ 空等到超时。
+    // ⚠️ 与 `unknown` 不同：`unknown` 是"可能已生成"；这里是"无从判断，后端无记录"。
+    if (d?.status === 'not-found') {
+      return { status: 'not-found', error: '后端无此任务记录（句柄与任务行都不存在）' };
+    }
+    return { status: 'running', progress: d?.progress ?? 0, budgetMs: d?.budgetMs };
   } catch (e) {
     return { status: 'running', error: e instanceof Error ? e.message : '查询异常' }; // 网络抖动/HTTP错：下轮续查
   }
@@ -159,15 +171,21 @@ export async function relayCancel(frontTaskId: string): Promise<{ ok: boolean }>
 
 export interface RelayGenerateOptions {
   intent: RelayIntent;
-  /** 总超时 ms（对齐前端 GEN_TIMEOUT/VIDEO_TIMEOUT 语义，默认 10min） */
-  timeoutMs?: number;
   signal?: AbortSignal;
   onProgress?: (percent: number, message?: string) => void;
 }
 
 export interface RelayAttachOptions {
   frontTaskId: string;
-  /** 总超时 ms（默认 10min） */
+  /**
+   * 等待上限（ms）——**可选**，两级来源，**都不自持数值**（143 · S4′）：
+   *   ① 本字段 = 调用方的显式覆盖（"本次只等 N 秒"），优先级最高；
+   *   ② 缺省 ⇒ 从**后端 attach 响应里的 `budgetMs`** 学（生产者给全）。
+   * ⚠️ **两级都拿不到时不掐点** —— 不是"忘了兜底"，而是有意的：
+   *   后端**必有**自己的预算并最终写终态 ⇒ 前端的不确定等待**由生产者的终态封顶**；
+   *   而"后端真死了"这一情形由 `MAX_CONSECUTIVE_POLL_ERRORS`（连续查询失败）负责 fail-loud，
+   *   不该再编一个数字来假装它是业务预算（ADR-0035：不掐点 ≠ 无风险，但风险要有**对的那道**防线）。
+   */
   timeoutMs?: number;
   signal?: AbortSignal;
   onProgress?: (percent: number, message?: string) => void;
@@ -189,7 +207,9 @@ export async function relayAttachUntilDone(
   opts: RelayAttachOptions,
 ): Promise<RelayGenerationResult> {
   const { frontTaskId, signal } = opts;
-  const timeoutMs = opts.timeoutMs ?? 600_000;
+  // 【143 · S4′】等待上限**不自持数值**：优先调用方显式覆盖，否则从后端 attach 响应的 `budgetMs` 学。
+  // `undefined` = 尚未学到 ⇒ **不掐点**（理由见 RelayAttachOptions.timeoutMs 的三条说明）。
+  let budgetMs = opts.timeoutMs;
   const pollInterval = Math.max(1000, GEN_POLL_INTERVAL);
   const startedAt = Date.now();
 
@@ -221,7 +241,7 @@ export async function relayAttachUntilDone(
   // 但绝不能因此把「连不上」一路吞到「生成超时」——记下真实原因 + 连续错误数，达阈值即 fail-loud。
   let lastTransportError = '';
   let consecutiveErrors = 0;
-  while (Date.now() - startedAt < timeoutMs) {
+  while (true) {
     if (signal?.aborted) {
       onAbort();
       const err = new Error('Aborted');
@@ -230,6 +250,24 @@ export async function relayAttachUntilDone(
     }
     await new Promise((r) => setTimeout(r, pollInterval));
     const st = await relayPoll(frontTaskId);
+    // 【143 · S4′】第一次拿到后端告知的预算即固定（生产者给全；不回退本地常量）
+    if (budgetMs === undefined && typeof st.budgetMs === 'number') budgetMs = st.budgetMs;
+    // 【等待预算用尽 · 2026-09-21】前台**只是不再等**，不是任务终态 —— 故带 `pending` 判别字段返回。
+    // 依据：终态只能由后端写（localTool tasks.ts 的 EXECUTION_OWNED_COLUMNS 只许 poller 写执行态列）；
+    //   本函数是**消费者**，唯一权利是「声明我不再等」，无权替生产者判死。
+    // 消费方（generationOrchestration / pollTask / agent generate_node）据此保持任务 running，
+    //   交给既有恢复轮询续 attach 到真终态。
+    // error 文案走 `timeoutMessage`（本仓超时文案唯一出口，禁自写「生成超时」变体）；它只是排障字段。
+    if (budgetMs !== undefined && Date.now() - startedAt >= budgetMs) {
+      const budgetMsg = timeoutMessage(budgetMs);
+      return finish({
+        ok: false,
+        pending: true,
+        error: lastTransportError
+          ? `${budgetMsg}（最后一次错误：${lastTransportError}）`
+          : budgetMsg,
+      });
+    }
     if (st.status === 'completed' && st.url) {
       opts.onProgress?.(100, '完成');
       logger.debug(
@@ -249,6 +287,12 @@ export async function relayAttachUntilDone(
     if (st.status === 'unknown') {
       logger.warn('生成', '[relay] 提交结果未知', { frontTaskId, error: st.error });
       return finish({ ok: false, error: st.error || '提交结果未知，请到任务中心确认' });
+    }
+    // 【143 · S3′】`not-found` = 后端明确无此任务 ⇒ **立即终态**，不再空等到超时。
+    // 判据：它是**生产者给的确定事实**（后端查过句柄与任务行都没有），不是"查询失败" ⇒ 不许当 transport 错误续查。
+    if (st.status === 'not-found') {
+      logger.warn('生成', '[relay] 任务不存在', { frontTaskId, error: st.error });
+      return finish({ ok: false, error: st.error || '后端无此任务记录' });
     }
     if (st.error) {
       // transport 错误：续查但留痕；连续到阈值 → 直接以真实原因失败（不再等到超时误报）
@@ -271,19 +315,6 @@ export async function relayAttachUntilDone(
       opts.onProgress?.(30 + Math.min(60, Math.round(lastProgress)), '上游生成中…');
     }
   }
-  // 【等待预算用尽 · 2026-09-21】前台**只是不再等**，不是任务终态 —— 故带 `pending` 判别字段返回。
-  // 依据：终态只能由后端写（localTool tasks.ts 的 EXECUTION_OWNED_COLUMNS 只许 poller 写执行态列）；
-  //   本函数是**消费者**，唯一权利是「声明我不再等」，无权替生产者判死。
-  // 消费方（generationOrchestration / pollTask / agent generate_node）据此保持任务 running，
-  //   交给既有恢复轮询续 attach 到真终态。
-  // error 文案保留（含最后一次真实 transport 原因）—— 它降级为**排障字段**，不再是失败结论。
-  // error 文案走 timeoutMessage（本仓超时文案唯一出口，禁自写「生成超时」变体）—— 它现在只是排障字段。
-  const budgetMsg = timeoutMessage(timeoutMs);
-  return finish({
-    ok: false,
-    pending: true,
-    error: lastTransportError ? `${budgetMsg}（最后一次错误：${lastTransportError}）` : budgetMsg,
-  });
 }
 
 /**
@@ -302,7 +333,11 @@ export async function relayGenerate(opts: RelayGenerateOptions): Promise<RelayGe
   try {
     const r = await relayAttachUntilDone({
       frontTaskId: sub.taskId,
-      timeoutMs: opts.timeoutMs,
+      // 【143 · S4′】等待上限 = **后端在 POST 响应里告知的预算**（生产者给全）。
+      // 前端不再自持 `GEN_TIMEOUT`/`VIDEO_TIMEOUT`：那正是"消费者替生产者定真相"。
+      // POST 恒带 `budgetMs`（S3′）⇒ 此处理论上不会 undefined；真缺了也只是"不掐点"，
+      // 由后端终态 + `MAX_CONSECUTIVE_POLL_ERRORS` 两道既有防线兜住（不编数字）。
+      timeoutMs: sub.budgetMs,
       signal,
       onProgress: opts.onProgress,
       startProgress: 20,
@@ -333,7 +368,14 @@ export async function relayChat(
   } = {},
 ): Promise<RelayGenerationResult> {
   const { signal } = opts;
-  const timeoutMs = opts.timeoutMs ?? CHAT_TIMEOUT; // 唯一真源（config）——不再硬编码副本
+  // 【143 · S5′ · 修语义错位】此前**一个** `timeoutMs` 同时当两件事用：① 写进 `body.timeoutMs`
+  // （后端按**任务总预算**用）② 掐本层 `httpRequest`（前端等这次 POST 返回）。而它取的是
+  // `CHAT_TIMEOUT`（120s）= 「等上游响应」**段**的值 ⇒ **段值被当成总预算传给了后端**。
+  // 现按判据分层（ADR-0031：判据不同不合并）：
+  //   · `totalBudgetMs` = **任务总预算**（`CHAT_TOTAL_TIMEOUT`）→ 进 `body.timeoutMs`（后端据此掐上游）；
+  //   · 本层 `httpRequest` 也等满**同一总预算** —— 同步 chat 的响应只在**整件事做完**才回来，
+  //     它等的是「任务」而不是「某一段」⇒ 与总预算同源，不是段值。
+  const totalBudgetMs = opts.timeoutMs ?? CHAT_TOTAL_TIMEOUT;
   const body: Record<string, unknown> = {
     frontTaskId: intent.frontTaskId,
     providerId: intent.providerId,
@@ -345,7 +387,7 @@ export async function relayChat(
     // 【TD-01-24 · 口径贯通】把**本次实际预算**写进请求体 —— 此前它只用来掐本层 fetch，
     // 后端**根本不知道**这个数，于是按自己的默认（180s）继续跑上游 ⇒ 前端先放弃、上游白跑。
     // 现在「生产者给全 · 消费者只转发」：后端读它、原样交给上游，前后端口径天然一致。
-    timeoutMs,
+    timeoutMs: totalBudgetMs,
   };
   if (opts.temperature !== undefined) body.temperature = opts.temperature;
   if (opts.responseFormat) body.response_format = opts.responseFormat;
@@ -358,7 +400,7 @@ export async function relayChat(
       body: JSON.stringify(body),
       signal,
       retries: 0,
-      timeoutMs,
+      timeoutMs: totalBudgetMs,
       label: 'relayChat',
     })) as CodeData<{ status?: string; text?: string; error?: string }>;
     const d = env?.data;

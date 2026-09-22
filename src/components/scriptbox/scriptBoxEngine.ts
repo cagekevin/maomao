@@ -294,7 +294,7 @@ export function createScriptBoxEngine({
     const ac = new AbortController();
     abortMap.set(key, ac);
     try {
-      // 【总耗时兜底】内层超时（chatProxy CHAT_TIMEOUT / 生图 GEN_TIMEOUT）只覆盖「等上游响应」阶段，
+      // 【总耗时兜底】内层超时（chat 的 `CHAT_TIMEOUT`）只覆盖「等上游响应」阶段，
       // 卡在响应体读取（res.json / SSE 累积）、发图前图片归一、结果落盘等阶段时无人管 → 动画永不结束。
       // 故在任务边界加一道总闸：到点 abort 同一个 signal（真正掐断底层请求，不留悬挂请求）并复位 loading。
       // withTimeout 内部会 catch task 的后续 rejection，超时后不会冒泡成 unhandled rejection。

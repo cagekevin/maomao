@@ -31,7 +31,7 @@ describe('config.ts §API_BASE 日志与配置', () => {
     // 【2026-09-19 裁判裁定 TASK-031 §四-A-11】生成链路 / AI 中继整片迁 `generate/lib/`
     // ⇒ 本清单必须**随搬迁同步**（写死旧路径 = readFileSync ENOENT 恒红）。
     const apiFiles = [
-      'src/components/generate/lib/generate.ts', // L3 收口后 config 消费端（GEN_TIMEOUT/VIDEO_TIMEOUT/CHAT_TIMEOUT）
+      'src/components/generate/lib/generate.ts', // L3 收口后 config 消费端（CHAT_TOTAL_TIMEOUT）
       'src/components/base/api/localToolApi.ts',
       'src/components/base/api/filesApi.ts',
       'src/components/base/core/log/logger.ts', // logger 已归 core/log/（2026-09-19 A7）

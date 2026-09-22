@@ -550,8 +550,8 @@ describe('AgentPanel — Skill 应用与移除', () => {
     render(<AgentPanel {...OPEN_PROPS} />);
     const picker = openSkillPicker();
     fireEvent.click(within(picker!).getByText('赛博朋克风格'));
-    // 按钮标题变为已启用 Skill 名
-    expect(screen.getByTitle('已启用 赛博朋克风格')).toBeTruthy();
+    // 按钮标题带上当前这个 Skill 的名字（一次对话只带一个 ⇒ 说"当前带的"，不说"已启用几个"）
+    expect(screen.getByTitle(/当前带的 Skill：赛博朋克风格/)).toBeTruthy();
     // skills 同步到 conversationStore：**存 id 列表**（不是"对象副本" —— 副本就是第二份真相）
     const lastSnapshot = h.snapshots[h.snapshots.length - 1];
     expect(lastSnapshot.skills).toEqual(['s1']);
@@ -575,11 +575,11 @@ describe('AgentPanel — Skill 应用与移除', () => {
     // 先应用
     const picker = openSkillPicker();
     fireEvent.click(within(picker!).getByText('赛博朋克风格'));
-    // 再打开下拉移除（按钮标题此时为已启用）
-    fireEvent.click(screen.getByTitle(/已启用/));
+    // 再打开下拉移除（按钮标题此时带当前 Skill 名）
+    fireEvent.click(screen.getByTitle(/当前带的 Skill/));
     // chip 按钮(agent-skill-main)与下拉行(agent-pop 内)都显示同名，须限定到下拉容器取行。
     // 见应用用例：chip 显示完整 Skill 名后，整容器(.agent-skill-btn)会有两个同名文本，故 query 下拉 .agent-pop。
-    const picker2 = screen.getByTitle(/已启用/).parentElement;
+    const picker2 = screen.getByTitle(/当前带的 Skill/).parentElement;
     const pop = picker2!.querySelector('.agent-pop') as HTMLElement | null;
     if (!pop) throw new Error('skill 下拉容器 .agent-pop 未找到');
     fireEvent.click(within(pop).getByText('赛博朋克风格'));
@@ -591,7 +591,7 @@ describe('AgentPanel — Skill 应用与移除', () => {
     render(<AgentPanel {...OPEN_PROPS} />);
     // 空态下方展示前 3 个 Skill chips
     fireEvent.click(screen.getByText('分镜脚本'));
-    expect(screen.getByTitle('已启用 分镜脚本')).toBeTruthy();
+    expect(screen.getByTitle(/当前带的 Skill：分镜脚本/)).toBeTruthy();
   });
 });
 
@@ -781,7 +781,7 @@ describe('AgentPanel — 技能索引读不到（TD-11-66：降级允许，静�
     h.setSkills(SKILLS);
     render(<AgentPanel {...OPEN_PROPS} />);
     fireEvent.click(screen.getByText('分镜脚本')); // 选中用户技能 s2
-    expect(screen.getByTitle('已启用 分镜脚本')).toBeTruthy();
+    expect(screen.getByTitle(/当前带的 Skill：分镜脚本/)).toBeTruthy();
 
     // 索引读失败 + 设置页那边来了一次通知（走 resync 的唯一实现）
     // ⚠️ 用 `ENABLED_KEY` 触发：`SKILLS_KEY` 被**两处**订阅（resync + 磁盘现状），
@@ -793,7 +793,7 @@ describe('AgentPanel — 技能索引读不到（TD-11-66：降级允许，静�
 
     // 【剔 id 的前提是"我确实读到了索引"】读失败时 `list` 只剩内置 ⇒ 若照旧按 known 剔，
     // 用户已选的技能会被静默抹掉（且原因不显）
-    expect(screen.getByTitle('已启用 分镜脚本')).toBeTruthy();
+    expect(screen.getByTitle(/当前带的 Skill：分镜脚本/)).toBeTruthy();
     expect(document.querySelector('.agent-drift-bar')?.textContent).toContain('技能列表读不到');
   });
 });
@@ -882,7 +882,7 @@ describe('AgentPanel — 选文件（参考图 / 导入 Skill · TD-11-63）', (
     expect(h.importCalls[0][0]).toBe('漫画生成.md'); // 名字口径交给模块（去扩展名是它的活）
     expect(h.importCalls[0][1]).toContain('正文甲');
     // 成功后才选中它；chip 的名字是**现查**的（面板不镜像字段 —— TD-17 装配契约）
-    await waitFor(() => expect(screen.getByTitle('已启用 导入的技能')).toBeTruthy());
+    await waitFor(() => expect(screen.getByTitle(/当前带的 Skill：导入的技能/)).toBeTruthy());
     expect(h.showToast).toHaveBeenCalledWith('已导入 Skill「导入的技能」', { type: 'success' });
   });
 
@@ -899,7 +899,7 @@ describe('AgentPanel — 选文件（参考图 / 导入 Skill · TD-11-63）', (
       expect.stringContaining('已导入 Skill'),
       expect.anything(),
     );
-    expect(screen.queryByTitle(/^已启用/)).toBeNull(); // 没有 chip
+    expect(screen.queryByTitle(/^当前带的 Skill/)).toBeNull(); // 没有 chip
     expect(h.importCalls.length).toBe(1);
   });
 

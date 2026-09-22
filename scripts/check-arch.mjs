@@ -2256,11 +2256,15 @@ if (entryLiteralViol === 0) {
 //   直接禁掉 `exec*` 比"枚举危险写法"完整得多（枚举式判据的覆盖永远是漏的：本仓 M1 母体）。
 // 【为什么不是"更宽松即可"】`execFileSync` 不含 `exec(`（后面是 `FileSync`），
 //   `RegExp.exec(` 有 `.` 前缀被排除，故本判据在真实代码上零误报。
-// 【唯一豁免（带理由，改它要过评审）】`localTool/src/index.ts` 启动时开浏览器：① URL 由本文件拼出，
-//   无外部输入、注入面为 0；② Windows 的 `start` 是 cmd **内置命令**，argv 形态会 ENOENT。
+// 【唯一豁免（带理由，改它要过评审）】`localTool/src/utils/openExternal.ts` —— **拉起外部程序的唯一入口**：
+//   ① 非 shell 分支走 `execFileSync(cmd, [target])`（argv ⇒ 注入结构上不存在）；
+//   ② `shell:true` 分支走 `execSync`，**全仓只有「开画布页」一个调用点用它**（URL 由本仓拼出、无外部输入），
+//      且 Windows 的 `start` 是 cmd **内置命令**，argv 形态会 ENOENT。
+//   【143 · S9′ 迁移】此前豁免的是 `localTool/src/index.ts`（当时那处 `execSync` 在那里）——
+//   收口后 `execSync` 迁进唯一入口，**豁免随之迁移**（不是新增豁免，总豁免数仍为 1）。
 // ─────────────────────────────────────────────────────────────────
 console.log('\n🐚 命令行只许 argv 传递：禁 exec / execSync（反向判据）');
-const SHELL_ARGV_EXEMPT = new Set(['localTool/src/index.ts']);
+const SHELL_ARGV_EXEMPT = new Set(['localTool/src/utils/openExternal.ts']);
 let shellViol = 0;
 for (const base of [SRC, BACKEND_SRC]) {
   if (!existsSync(base)) continue;
@@ -2289,7 +2293,7 @@ for (const base of [SRC, BACKEND_SRC]) {
 }
 if (shellViol === 0) {
   console.log(
-    '  ✅ 无 exec/execSync 调用（扫 src + localTool/src；豁免 localTool/src/index.ts 开浏览器）',
+    '  ✅ 无 exec/execSync 调用（扫 src + localTool/src；豁免唯一入口 localTool/src/utils/openExternal.ts）',
   );
 }
 

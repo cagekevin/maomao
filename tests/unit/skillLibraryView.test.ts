@@ -244,9 +244,10 @@ describe('buildSkillLibraryView · 组与三态', () => {
     });
 
     const byName = Object.fromEntries(view.groups.map((g) => [g.name, g]));
-    expect(byName['营销文案'].toggleState).toBe('partial'); // a 开 b 关
+    // 组开关只有两态：有一个开着就算 on（"开了一半"不是第三种状态，开了几个看 onCount）
+    expect(byName['营销文案'].toggleState).toBe('on'); // a 开 b 关 ⇒ 这组在用
     expect(byName['营销文案'].onCount).toBe(1);
-    expect(byName['素材处理'].toggleState).toBe('off'); // c 显式关
+    expect(byName['素材处理'].toggleState).toBe('off'); // c 显式关 ⇒ 一个都没开
     expect(byName['未分类'].toggleState).toBe('on'); // d 开
   });
 

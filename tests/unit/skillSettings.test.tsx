@@ -141,13 +141,13 @@ describe('SkillSettings · 一个列表（行状态各自带动作）', () => {
     expect(screen.getByText('读不到 SKILL.md')).toBeTruthy();
   });
 
-  it('芯片计数说清"磁盘几包 / 可用的启用几个"', async () => {
+  it('芯片计数说清"一共几个 / 对话里可用几个"（不出现"磁盘/索引"这类实现词）', async () => {
     seedFourStates();
     render(<SkillSettings />);
 
-    expect(await screen.findByText('磁盘 3 包')).toBeTruthy();
+    expect(await screen.findByText('共 3 个')).toBeTruthy();
     // 可用 = ok 行（1）+ 内置（1）；启用的也是它俩（enabledMap 空 ⇒ 默认启用）
-    expect(screen.getByText('启用 2/2')).toBeTruthy();
+    expect(screen.getByText('对话里可用 2/2')).toBeTruthy();
   });
 
   it('**没有搜索框**（用户裁定：技能就几个，搜索是噪声）', async () => {

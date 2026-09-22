@@ -124,8 +124,12 @@ export interface SkillGroupView {
   toggleIds: string[];
   /** 其中已启用数 */
   onCount: number;
-  /** 三态：`on` 全开 / `off` 全关（含无可开关行）/ `partial` 部分 */
-  toggleState: 'on' | 'partial' | 'off';
+  /**
+   * 组开关的状态：**二态**（用户裁定：分组开关只有全开 / 全关）。
+   * 判据 = 组里**有任何一个**开着 ⇒ `on`；一个都没开（含无可开关行）⇒ `off`。
+   * 「开了一半」不是第三种开关状态 —— 它就是"这组正在用"这一件事，开了几个看 `onCount/toggleable`。
+   */
+  toggleState: 'on' | 'off';
   readonly: boolean;
 }
 
@@ -382,12 +386,7 @@ export function buildSkillLibraryView(input: {
       toggleable: toggleable.length,
       toggleIds: toggleable.map((r) => r.id), // 与 `toggleable` 同源：消费者别再自己 `filter(state==='ok')`
       onCount,
-      toggleState:
-        toggleable.length === 0 || onCount === 0
-          ? 'off'
-          : onCount === toggleable.length
-            ? 'on'
-            : 'partial',
+      toggleState: onCount > 0 ? 'on' : 'off',
       readonly: kind === 'official',
     };
   };

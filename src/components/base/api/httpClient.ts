@@ -6,7 +6,7 @@
  * 这类 bug。任何新网络请求必须走 httpRequest，禁止再裸写 fetch。
  *
  * 【能力】
- *  - 超时：**无默认值**。需要时限的调用方显式传 timeoutMs（UPLOAD_TIMEOUT / GEN_TIMEOUT /
+ *  - 超时：**无默认值**。需要时限的调用方显式传 timeoutMs（UPLOAD_TIMEOUT /
  *    LOCAL_TOOL_PING_TIMEOUT…）；不传或 <=0 即不掐点。超时抛 TimeoutError（asyncGuard.withTimeout）
  *    并中止底层请求。
  *    更新(2026-09-04)：移除原默认 15000。① 15s 会把上传类长请求掐断（网络差时传不完即失败，真实 bug）；
@@ -80,7 +80,7 @@ export interface HttpRequestOptions {
    * 这是 ADR-0035「无超时 Promise 的失败形态最坏」的原样复发形态。
    *
    * 【改后契约】调用方**必须显式二选一**，无法"不表态"：
-   *   · 有明确时限 → 传该链路的命名常量（`GEN_TIMEOUT` / `UPLOAD_TIMEOUT` / …，真源 `base/core/config.ts`）；
+   *   · 有明确时限 → 传该链路的命名常量（`UPLOAD_TIMEOUT` / `LOCAL_CRUD_TIMEOUT` / …，真源 `base/core/config.ts`）；
    *   · 确知不该掐点（如响应近瞬回、总超时由外层 `withTimeout` 兜底）→ 传 `NO_TIMEOUT`
    *     （**显式**声明"我考虑过了，不要超时"，而非"我忘了"）。
    * ⇒ 类型层逼出决策：漏写编译不过；写 `NO_TIMEOUT` 是**做过判断的声明**，可被 review 与检索。

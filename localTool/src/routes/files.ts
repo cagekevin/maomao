@@ -4,7 +4,7 @@
  */
 
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { execFileSync } from 'node:child_process';
+import { openExternal } from '../utils/openExternal.js';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -683,12 +683,13 @@ export async function handleOpen(
 
   ensureDir(dirPath);
 
-  const cmd = process.platform === 'win32' ? 'explorer' : 'open';
   try {
-    // 不走 shell：路径作为 argv 传递（与 `routes/skills.ts` 的 open-dir 同一形态，TD-11-25）
-    execFileSync(cmd, [dirPath], { timeout: 5000 });
-  } catch {
-    // 忽略打开失败
+    // 【143 · S9′】改走唯一入口 `openExternal`（此前本处 cmd 映射**缺 Linux 分支** ⇒ Linux 必失败，
+    // 且被 `catch {}` 静默吞掉 ⇒ 失败不可见）。`shell:false`：路径源自磁盘 ⇒ 必须走 argv（TD-11-25）。
+    openExternal(dirPath, { shell: false });
+  } catch (e) {
+    // 打开失败不阻断（路径已如实返回）—— 但**必须留痕**（ADR-0011：禁静默吞退回判据层）
+    console.warn(`[open-dir] 拉起失败（不阻断）: ${dirPath} | ${(e as Error)?.message}`);
   }
 
   return json(res, { code: 0, data: { path: dirPath } });
@@ -722,13 +723,14 @@ export async function handleOpenDir(
   }
 
   const dirToOpen = fs.statSync(fullPath).isDirectory() ? fullPath : path.dirname(fullPath);
-  const cmd = process.platform === 'win32' ? 'explorer' : 'open';
 
   try {
-    // 不走 shell：`filepath` 来自查询参数（用户可控）⇒ 拼命令行等于把注入面直接交出去（TD-11-25 同形态）
-    execFileSync(cmd, [dirToOpen], { timeout: 5000 });
-  } catch {
-    // 忽略打开失败
+    // 【143 · S9′】唯一入口；`shell:false` —— `filepath` 来自查询参数（用户可控）⇒ 拼命令行等于
+    // 把注入面直接交出去（TD-11-25 同形态）。同时补上了此前缺失的 **Linux 分支**。
+    openExternal(dirToOpen, { shell: false });
+  } catch (e) {
+    // 不阻断（路径已如实返回）但必须留痕
+    console.warn(`[open-dir] 拉起失败（不阻断）: ${dirToOpen} | ${(e as Error)?.message}`);
   }
 
   return json(res, { code: 0, data: { path: dirToOpen } });

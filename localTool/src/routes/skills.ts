@@ -28,7 +28,7 @@
  * ════════════════════════════════════════════════════════════════
  */
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { execFileSync } from 'node:child_process';
+import { openExternal } from '../utils/openExternal.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import { getSkillsDir } from '../db/database.js';
@@ -461,20 +461,15 @@ export async function handleSkillsOpenDir(
       }
     }
     if (!fs.existsSync(dir)) return sendError(res, '目录不存在', 404);
-    const cmd =
-      process.platform === 'win32'
-        ? 'explorer'
-        : process.platform === 'darwin'
-          ? 'open'
-          : 'xdg-open';
     try {
-      // 【不走 shell（TD-11-25）】`execSync(`${cmd} "${dir}"`)` 把路径拼进命令行 ⇒ 目录名里只要有一个
-      // `"` / `$()` / 反引号就能逃出引号执行任意命令，而 `isSafeSegment` **允许**这些字符（POSIX 文件名
-      // 本就可以含 `"`，Finder 也建得出来）。改成 `execFileSync(cmd, [dir])`：参数不经 shell 解析，
-      // 这一整类注入**结构上不存在**（不依赖"字符集够不够严"这种会漂移的判据）。
-      execFileSync(cmd, [dir], { timeout: 5000 });
-    } catch {
-      // 打开失败不阻断：路径已如实返回，UI 可提示用户手动前往（与 files.ts handleOpenDir 同口径）
+      // 【143 · S9′】改走唯一入口。⚠️ 此前这里**自己实现了一份** cmd 映射（与 files.ts 不同形），
+      // 现统一 —— 且沿用 `shell:false`（TD-11-25）：`execSync(`${cmd} "${dir}"`)` 把路径拼进命令行 ⇒
+      // 目录名里只要有一个 `"` / `$()` / 反引号就能逃出引号执行任意命令，而 `isSafeSegment` **允许**
+      // 这些字符（POSIX 文件名本就可以含 `"`，Finder 也建得出来）⇒ 参数经 argv 传递才结构上不存在该注入。
+      openExternal(dir, { shell: false });
+    } catch (e) {
+      // 打开失败不阻断：路径已如实返回，UI 可提示用户手动前往 —— 但必须留痕
+      console.warn(`[skills] open-dir 拉起失败（不阻断）: ${dir} | ${(e as Error)?.message}`);
     }
     json(res, { code: 0, data: { path: dir } });
   } catch (e) {

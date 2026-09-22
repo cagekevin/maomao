@@ -93,6 +93,35 @@ const STATUS_ICON = {
 };
 /** 「已退出」= 不再作为现行判据被引用（保留作记录，**不搬家** —— 搬家会断链）。 */
 const RETIRED = ['已取代', '已弃用', '已否决', '已毕业'];
+
+/**
+ * 已退出条目的**标题在渲染时必须自带状态** —— 否则标题被摘出来引用时会像现行判据。
+ *
+ * 【为什么放渲染层，而不是去改 15 个源文件标题】（2026-09-22）
+ *   - **实证**：`ADR-0054` 的标题「…存量一律不动」被当判据引用，把"因契约变更同步断言"误报成
+ *     须用户签字的例外（`docs/plan/143`）。
+ *   - **是通病不是个案**：15 条已退出里 **7 条标题本身就是命令句**
+ *     （0010/0017/0020/0030/0037/0046/0047）⇒ 一被 `search` 命中就会被当判据。
+ *   - **放渲染层的理由**：`状态` 是头部字段（**真源**）⇒ 状态改了前缀自动跟随，**零同步成本**；
+ *     与「README 索引表是生成物、禁手改」同一逻辑。改源文件标题则要手工同步 15 处，必漂移。
+ *   - **幂等**：标题若已自带 `【…】` 前缀（作者已自行标注状态，如 ADR-0054），不重复加。
+ *   - ⚠️ **只覆盖 CLI 读路径**（`list` / `list --all` / `search` / `show`）。直接读 `.md` 文件时
+ *     看的是文件里的 `- **状态**：` 字段（第 3 行），不经过本函数 —— 故 `show` 另加一行横幅。
+ */
+function displayTitle(a) {
+  if (!RETIRED.includes(a.status)) return a.title;
+  if (/^【[^】]*】/.test(a.title)) return a.title; // 作者已自带状态标记
+  return `【${a.status}】${a.title}`;
+}
+
+/** `show` 用的横幅：直接读文件的人也要在**第一眼**看到"这不是现行判据"。 */
+function retiredBanner(a) {
+  if (!RETIRED.includes(a.status)) return '';
+  return (
+    `⛔ 【${a.status}】本条目已退出，**不承载现行判据** —— 引用前先确认它被谁取代/毕业到了哪。\n` +
+    `   ↳ 查现行版：\`node scripts/adr.mjs list\`（默认只看现行）或 \`search <关键词>\`\n\n`
+  );
+}
 const FIELDS = ['状态', '结论', '日期', '裁定人', '触发', '取代', '被取代于', '毕业去向'];
 const REQUIRED = ['状态', '日期', '裁定人', '结论'];
 /** 正文行数上限 —— ADR 是**一页**：判据 + 证据 + 落点，不是过程记录（过程归区域日志）。 */
@@ -331,7 +360,7 @@ function cmdList() {
       (showAll ? `（--all：含已退出 ${retired} 条）` : retired ? `（另有已退出 ${retired} 条，--all 可见）` : ''),
   );
   for (const a of adrs) {
-    console.log(`${a.id} ｜ ${STATUS_ICON[a.status] ?? '❔'} ${a.status} ｜ ${a.title}`);
+    console.log(`${a.id} ｜ ${STATUS_ICON[a.status] ?? '❔'} ${a.status} ｜ ${displayTitle(a)}`);
     if (a.conclusion) console.log(`        ${a.conclusion}`);
   }
   console.log(
@@ -344,6 +373,7 @@ function cmdShow() {
   if (!q) die('用法：node scripts/adr.mjs show <NNNN|文件名片段>');
   const hit = loadAdrs().filter((a) => a.no === q || a.id === q || a.file.includes(q));
   if (!hit.length) die(`没有匹配的 ADR：${q}`, '先 `list` 看编号');
+  process.stdout.write(retiredBanner(hit[0]));
   console.log(hit[0].text);
 }
 
@@ -356,7 +386,13 @@ function cmdSearch() {
     return;
   }
   console.log(`🔎 adr search「${words.join(' + ')}」｜ 命中 ${hit.length} 条`);
-  for (const a of hit) console.log(`${a.id} ｜ ${STATUS_ICON[a.status]} ${a.status} ｜ ${a.title}`);
+  const nRetired = hit.filter((a) => RETIRED.includes(a.status)).length;
+  if (nRetired) {
+    console.log(
+      `   ⚠️ 其中 ${nRetired} 条**已退出**（标题带【状态】前缀）—— 它们**不承载现行判据**，别直接引用。`,
+    );
+  }
+  for (const a of hit) console.log(`${a.id} ｜ ${STATUS_ICON[a.status]} ${a.status} ｜ ${displayTitle(a)}`);
 }
 
 function cmdAdd() {

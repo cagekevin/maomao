@@ -35,6 +35,7 @@ import {
   generateImageLovart,
   generateVideoLovart,
   streamChatLovart,
+  LOVART_DEFAULT_TIMEOUT_MS,
 } from './providers/lovart/index.js';
 import { LOVART_DIRECT_BASE_URL } from './providerEndpoints.js';
 import type {
@@ -195,7 +196,8 @@ export function createRelay(config: CreateRelayConfig) {
     const profile: LovartDirectProfile = {
       baseUrl: effectiveBaseUrl ?? LOVART_DIRECT_BASE_URL,
       auth: hmacAuth,
-      timeoutMs: 180_000,
+      // 默认出站超时 = **lovart 域真源**（`lovart_config.ts:8`），此处不再写第二份字面量（143 · §4 #3）。
+      timeoutMs: LOVART_DEFAULT_TIMEOUT_MS,
     };
     return {
       ...relay,

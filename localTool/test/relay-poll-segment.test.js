@@ -13,6 +13,12 @@
  *
  * 【测什么口径】以 `initRelayPoller`（恢复扫描）为唯一驱动入口，断言 **DB 终态 + 文案归属** ——
  * 行为断言（给定快照 → 得到哪个终态），不断实现细节。
+ *
+ * 【143 · S2′-b · 2026-09-22】预算注入键由 `timeoutMs` 改名 `overrideMs`（默认值已移入真源
+ * `src/budget.ts`，本入口只收 **override**）。⚠️ 同时把注入值与 fixture 耗时**拉开**：
+ * 注入 `1 * MIN`，fixture 耗时取 **2min** —— **必须卡在「注入值」与「capability 默认值（image 5min）」
+ * 之间**，否则"override 有没有生效"两种情形都会超时，探针形同虚设（首版用 6min + 5min 注入，
+ * 实测**改坏注入键测试照样全绿** ⇒ 已修）。
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -71,13 +77,13 @@ test('段② 从「交出上游」起算：我们段耗时不再吃掉上游预�
     submit_ack_at: Date.now(),
   });
 
-  await poll.initRelayPoller({ timeoutMs: 5 * MIN });
+  await poll.initRelayPoller({ overrideMs: 1 * MIN });
   await tick();
 
   assert.equal(
     (await readRow(id)).status,
     'running',
-    '上游段 elapsed≈0 < 5min ⇒ 不得判超时（旧实现按 handles.startedAt 算 10min>预算 → 立刻判死）',
+    '上游段 elapsed≈0 < 1min ⇒ 不得判超时（旧实现按 handles.startedAt 算 10min>预算 → 立刻判死）',
   );
   await poll.cancelGenerateTask(id); // 收尾：停句柄，防定时器常驻测试进程
 });
@@ -88,11 +94,13 @@ test('段② 真超时 → 文案归属上游段（不再笼统「生成超时�
     task_id: id,
     status: 'running',
     progress: 0,
+    // ⚠️ 耗时必须**卡在「注入值」与「capability 默认值」之间**（2min > 注入 1min，但 < image 默认 5min）
+    //    —— 否则 override 有没有生效都判不出来（本文件首版用 6min，两种情形都超时 ⇒ 探针形同虚设）。
     request_data: snapshot({ startedAt: Date.now() - 20 * MIN, taskId: 'thread-y' }),
-    submit_ack_at: Date.now() - 6 * MIN, // 交出后已过 6min > 5min 预算
+    submit_ack_at: Date.now() - 2 * MIN, // 交出后已过 2min > 1min 预算
   });
 
-  await poll.initRelayPoller({ timeoutMs: 5 * MIN });
+  await poll.initRelayPoller({ overrideMs: 1 * MIN });
   await tick();
 
   const r = await readRow(id);
@@ -106,14 +114,14 @@ test('段① 卡住 → 归「提交阶段」且判 unknown（可能已部分出
     task_id: id,
     status: 'running',
     progress: 0,
-    // 尚未交出（pendingSubmit 在册）且我们段已跑 6min > 5min 预算
+    // 尚未交出（pendingSubmit 在册）且我们段已跑 2min > 1min 预算（同样卡在注入值与默认值之间）
     request_data: snapshot({
-      startedAt: Date.now() - 6 * MIN,
+      startedAt: Date.now() - 2 * MIN,
       pendingSubmit: { model: 'm', prompt: 'p', capability: 'IMAGE' },
     }),
   });
 
-  await poll.initRelayPoller({ timeoutMs: 5 * MIN });
+  await poll.initRelayPoller({ overrideMs: 1 * MIN });
   await tick();
 
   const r = await readRow(id);

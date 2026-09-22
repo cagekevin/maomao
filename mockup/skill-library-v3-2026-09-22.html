@@ -4,67 +4,80 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>技能库 · v3（卡片平铺 + 右滑编辑 · 补 5 处）</title>
+<link rel="stylesheet" href="./maomao-kit.css" />
 <style>
-/* 色值全部取自 src/index.css 的 --mao-* 令牌（与 mockup/maomao-kit.css 一致），禁裸色 */
+/* 令牌一律引用真实产品的 --mao-*（maomao-kit.css = 从 src/index.css 逐字提取，零漂移）。
+   产品改令牌 ⇒ 本 mockup 自动跟着变。此处不写任何裸色值。 */
 :root{
-  --bg:#0d0d0c;            /* --mao-canvas */
-  --panel:#151514;         /* --mao-input：面板/弹窗容器底 */
-  --card:#1b1b1a;          /* --mao-surface */
-  --card-hover:#2b2b29;    /* --mao-surface-hover */
-  --menu:#1d1d1c;          /* --mao-surface-menu */
-  --input:#171716;         /* --mao-surface-strong：编辑型输入框 */
-  --border:#2b2b29;        /* --mao-edge-faint */
-  --border-hover:#343433;  /* --mao-edge */
-  --t-main:#e6e6e6;        /* --mao-text-primary */
-  --t-sub:#aaaaaa;         /* --mao-text-secondary */
-  --t-disabled:#767676;    /* --mao-text-muted */
-  --t-placeholder:#747474; /* --mao-text-muted-2 */
-  --danger:#ef4444;        /* --mao-danger */
-  --danger-bg:rgba(239,68,68,.1);
-  --warn:#fbbf24;          /* amber-400（设置页在用） */
-  --sw-off:#20201f;        /* --mao-surface-2 */
-  --sw-on:#22d3ee;         /* cyan-400：Toggle.tsx 的开启色 */
-  --sw-thumb:#ffffff;
-  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"PingFang SC","Microsoft YaHei",sans-serif;
+  --bg:rgb(var(--mao-canvas));
+  --panel:rgb(var(--mao-input));            /* 面板/弹窗容器底 */
+  --card:rgb(var(--mao-surface));
+  --card-hover:rgb(var(--mao-surface-hover));
+  --menu:rgb(var(--mao-surface-menu));
+  --input:rgb(var(--mao-surface-strong));   /* 编辑型输入框 */
+  --border:rgb(var(--mao-edge-faint));
+  --border-hover:rgb(var(--mao-edge));
+  --t-main:rgb(var(--mao-text-primary));
+  --t-sub:rgb(var(--mao-text-secondary));
+  --t-disabled:rgb(var(--mao-text-muted));
+  --t-placeholder:rgb(var(--mao-text-muted-2));
+  --danger:rgb(var(--mao-danger));
+  --danger-rgb:239 68 68;                    /* --mao-danger 的通道，供 rgba() 用 */
+  --danger-bg:rgba(var(--danger-rgb),.1);
+  --warn:#fbbf24;                            /* amber-400（设置页在用，非 --mao-* 令牌） */
+  --warn-rgb:251 191 36;
+  --sw-off:rgb(var(--mao-surface-2));
+  --sw-on:#22d3ee;                           /* cyan-400：Toggle.tsx 的开启色 */
+  --sw-thumb:#fff;
 }
+html{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"PingFang SC","Microsoft YaHei",sans-serif}
 *{box-sizing:border-box;margin:0;padding:0}
-body{background:var(--bg);color:var(--t-main);height:100vh;overflow:hidden;display:flex;flex-direction:column;user-select:none}
+/* 页面左右留白只在这里定义一次：所有区块都不再各写水平 padding/margin */
+body{background:var(--bg);color:var(--t-main);height:100vh;overflow:hidden;display:flex;flex-direction:column;
+  user-select:none;padding:0 32px}
 ::-webkit-scrollbar{width:6px}
-::-webkit-scrollbar-thumb{background:#333;border-radius:3px}
+::-webkit-scrollbar-thumb{background:rgb(var(--mao-edge));border-radius:3px}
 
 /* 顶栏 */
-.header{padding:24px 32px 16px;display:flex;justify-content:space-between;align-items:center;flex-shrink:0}
+.header{padding:24px 0 16px;display:flex;justify-content:space-between;align-items:center;flex-shrink:0}
 .header h1{font-size:15px;font-weight:600;letter-spacing:.3px}   /* base-sm */
-.count{margin-left:8px;font-size:12px;color:var(--t-sub);background:#222;padding:2px 7px;border-radius:10px}
+/* 计数 chip：全页只有这一种规格 */
+.count{margin-left:8px;font-size:11px;color:rgb(var(--mao-text-body));background:var(--card-hover);
+  padding:2px 7px;border-radius:10px}
 .hctrl{display:flex;gap:10px;align-items:center}
 .search{position:relative;width:220px}
 .search svg{position:absolute;left:10px;top:50%;transform:translateY(-50%);fill:var(--t-sub);width:14px;height:14px}
-.search input{width:100%;background:var(--input);border:1px solid var(--border);color:var(--t-main);
-  padding:6px 12px 6px 30px;border-radius:8px;font-size:12px;outline:none}
+/* 顶栏这三个控件统一 32px 高：搜索 / 添加 / ⋯ */
+.search input{width:100%;height:32px;background:var(--input);border:1px solid var(--border);color:var(--t-main);
+  padding:0 12px 0 30px;border-radius:8px;font-size:12px;outline:none}
 .search input::placeholder{color:var(--t-placeholder)}
-.search input:focus{border-color:#555}
+.search input:focus{border-color:rgb(var(--mao-edge-strong))}
 /* 主按钮：对齐 ApiSettings/StorageMonitor —— 白底黑字 rounded-xl(12) h-9(36) text-xs(12) */
 .btn-p{background:#fff;color:#000;border:0;height:36px;padding:0 16px;border-radius:12px;font-size:12px;
-  font-weight:500;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
+  font-weight:500;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:6px;
+  line-height:1;white-space:nowrap}   /* line-height:1 —— 中文在 flex 里靠它才真正居中 */
+.btn-p svg{flex:none}                /* 图标不许被压缩，也不许掉到第二行 */
 .btn-p:hover{opacity:.9}
-.iconbtn{width:30px;height:30px;border-radius:6px;border:1px solid var(--border);background:var(--card);
+.header .btn-p{height:32px;border-radius:8px}   /* 与搜索框/⋯ 同高 */
+.iconbtn{width:32px;height:32px;border-radius:8px;border:1px solid var(--border);background:var(--card);
   color:var(--t-sub);display:flex;align-items:center;justify-content:center;cursor:pointer}
 .iconbtn:hover{color:var(--t-main);border-color:var(--border-hover)}
 
 /* 读盘失败横幅（不顶掉列表） */
-.banner{display:none;margin:0 32px 8px;padding:9px 12px;border-radius:8px;
-  border:1px solid rgba(216,154,74,.3);background:rgba(216,154,74,.08);color:var(--warn);
+.banner{display:none;margin:0 0 8px;padding:9px 12px;border-radius:8px;
+  border:1px solid rgba(var(--warn-rgb),.3);background:rgba(var(--warn-rgb),.08);color:var(--warn);
   font-size:12px;align-items:center;gap:10px}
 .banner.show{display:flex}
 .banner u{color:var(--t-main);cursor:pointer}
-.banner .x{margin-left:auto;color:var(--t-sub);cursor:pointer}
+/* banner 里没有关闭按钮（去重/重试/打开位置 已够）：去掉这条死规则 */
 
 /* 拖入条 */
-.drop{margin:0 32px 20px;height:38px;border:1px dashed var(--border);border-radius:8px;
-  display:flex;align-items:center;justify-content:center;gap:7px;color:var(--t-disabled);font-size:12px}
+.drop{margin:0 0 20px;height:38px;border:1px dashed var(--border);border-radius:8px;
+  display:flex;align-items:center;justify-content:center;gap:7px;color:var(--t-disabled);font-size:12px;
+  white-space:nowrap;overflow:hidden}   /* 单行提示，窄窗口也不折行 */
 .drop b{color:var(--t-sub);font-weight:400}
 
-.container{flex:1;overflow-y:auto;padding:0 32px 32px}
+.container{flex:1;overflow-y:auto;padding:0 0 32px}
 .state-view{display:none;height:100%;flex-direction:column;justify-content:center;align-items:center;
   text-align:center;color:var(--t-sub);font-size:14px}
 .state-view.active{display:flex}
@@ -72,23 +85,35 @@ body{background:var(--bg);color:var(--t-main);height:100vh;overflow:hidden;displ
 .state-error{color:var(--t-sub)}
 
 /* 分组 */
-.group-header{display:flex;align-items:center;cursor:pointer;padding:16px 0 8px;color:var(--t-sub);
+/* 组间距只由这一处管（.grid 不再写 margin-bottom） */
+.group-header{display:flex;align-items:center;cursor:pointer;padding:20px 0 10px;color:var(--t-sub);
   font-size:12px;font-weight:500;letter-spacing:.5px}
+.group:first-child .group-header{padding-top:4px}
 .group-header:hover{color:var(--t-main)}
 .group-header svg{width:12px;height:12px;margin-right:6px;fill:currentColor;transition:transform .2s}
 .group-collapsed .group-header svg{transform:rotate(-90deg)}
 .group-collapsed .grid{display:none}
-.group-count{margin-left:8px;background:#222;padding:2px 6px;border-radius:10px;font-size:11px}
-.gop{margin-left:auto;width:20px;height:20px;border-radius:5px;display:flex;align-items:center;
+.group-count{margin-left:8px;background:var(--card-hover);color:rgb(var(--mao-text-body));padding:2px 7px;border-radius:10px;font-size:11px}
+/* 组状态（文字）+ 组开关（动作）：第三态"部分"由文字说，开关不必硬画三种样子 */
+.gstate{margin-left:10px;font-size:11px;color:var(--t-sub);white-space:nowrap}
+.tri{margin-left:auto;position:relative;width:32px;height:18px;border-radius:999px;background:var(--sw-off);
+  flex-shrink:0;cursor:pointer;display:inline-flex;align-items:center}
+.tri i{position:absolute;left:2px;width:14px;height:14px;border-radius:50%;background:var(--sw-thumb);
+  transition:left .2s}
+.tri.on{background:var(--sw-on)}
+.tri.on i{left:16px}
+.tri.mix{background:var(--sw-on)}      /* "部分"与"全开"同色 —— 区分靠旁边的文字，不靠颜色 */
+.tri.mix i{left:9px}
+.gop{margin-left:8px;width:20px;height:20px;border-radius:5px;display:flex;align-items:center;
   justify-content:center;color:var(--t-sub);opacity:.55}   /* 常显：不靠 hover 冒出来 */
 .group-header:hover .gop{opacity:1}
 .gop:hover{background:var(--card-hover);color:var(--t-main)}
 
-.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px;margin-bottom:24px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px}
 .card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:16px;
   transition:all .2s;position:relative;display:flex;flex-direction:column;cursor:default}
 .card:hover:not(.card-error){background:var(--card-hover);border-color:var(--border-hover)}
-.card-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px}
+.card-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
 .card-title{font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-right:12px}
 .card-desc{font-size:12px;color:var(--t-sub);line-height:1.5;flex:1;display:-webkit-box;
   -webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
@@ -105,50 +130,58 @@ input:checked+.slider:before{transform:translateX(20px)}
 input:disabled+.slider{cursor:not-allowed;opacity:.5}
 /* 卡片上不摆任何 hover 才出现的控件：唯一的常显控件 = 右上开关 */
 
-.card-error{border-color:rgba(204,67,67,.3);background:rgba(204,67,67,.05)}
+.card-error{border-color:rgba(var(--danger-rgb),.3);background:rgba(var(--danger-rgb),.05)}
 .card-error .card-title{color:var(--t-sub)}
 .card-error .card-desc{color:var(--t-disabled)}
-.error-msg{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--danger);margin-top:12px;
-  padding-top:12px;border-top:1px dashed rgba(204,67,67,.2)}
+/* 卡内不再加分隔线：颜色 + 图标已经说明"这张有问题" */
+.error-msg{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--danger);margin-top:10px}
 .error-msg svg{width:12px;height:12px;fill:currentColor}
 .error-msg u{margin-left:auto;color:var(--t-main);cursor:pointer;text-decoration:underline}
 .error-msg .d{color:var(--t-sub);cursor:pointer}
 
 /* 菜单 */
-#menu{position:fixed;background:var(--menu);border:1px solid var(--border);border-radius:6px;width:150px;
+/* 菜单项一律不折行：宽度由最长的那项撑（原来写死 150px ⇒ 「删除分组（技能回到未分组）」会换行） */
+#menu{position:fixed;background:var(--menu);border:1px solid var(--border);border-radius:6px;
+  min-width:150px;width:max-content;max-width:280px;
   box-shadow:0 4px 12px rgba(0,0,0,.5);z-index:1000;display:none;padding:4px}
-#menu li{list-style:none;padding:6px 12px;font-size:13px;color:var(--t-main);cursor:pointer;border-radius:4px}
+#menu li{list-style:none;padding:6px 12px;font-size:13px;color:var(--t-main);cursor:pointer;border-radius:4px;
+  white-space:nowrap}
 #menu li:hover{background:var(--card-hover)}
 #menu li.danger{color:var(--danger)}
 #menu li.danger:hover{background:var(--danger-bg)}
 #menu li.div{height:1px;background:var(--border);margin:4px 6px;padding:0}
 
-/* 右滑编辑面板 */
-#panel{position:fixed;top:0;right:-420px;width:420px;height:100%;background:var(--panel);
-  border-left:1px solid var(--border);transition:right .3s cubic-bezier(.16,1,.3,1);z-index:100;
-  padding:24px;box-shadow:-4px 0 24px rgba(0,0,0,.5);overflow-y:auto;user-select:text}
-#panel.open{right:0}
-.p-head{display:flex;align-items:center;margin-bottom:18px}
-.p-head h2{font-size:16px;font-weight:500}
-.p-head .x{margin-left:auto;background:none;border:0;color:var(--t-sub);cursor:pointer;font-size:18px}
+/* 编辑弹窗：照 src/components/base/ui/feedback/ConfirmContainer.tsx ——
+   遮罩 fixed inset-0 bg-black/70 · 容器 bg-surface-raised + border-edge + rounded-xl + 底部按钮条 border-t */
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.7);display:none;align-items:center;justify-content:center;
+  padding:24px;z-index:200}
+.overlay.show{display:flex}
+.modal{width:100%;max-width:620px;background:rgb(var(--mao-surface-raised));border:1px solid var(--border);
+  border-radius:12px;padding:18px 20px;user-select:text;box-shadow:0 24px 48px rgba(0,0,0,.5)}
+.modal h2{font-size:13px;font-weight:500;color:#fff}
+.m-head{display:flex;align-items:flex-start;margin-bottom:14px}
+.m-head .x{margin-left:auto;background:none;border:0;color:var(--t-sub);cursor:pointer;font-size:18px;line-height:1}
+/* 表单弹窗不需要"内容/动作"分隔线（那是确认框的写法）：靠间距 + 右对齐表达 */
+.m-foot{display:flex;align-items:center;justify-content:flex-end;gap:8px;margin-top:18px}
+.modal .btn-p,.modal .btn-t{height:30px;display:inline-flex;align-items:center}  /* 弹窗内按钮同高 */
 .fld{margin-bottom:12px}
 .fld label{display:block;font-size:11px;color:var(--t-sub);margin-bottom:5px}
 .fld-row{display:flex;gap:12px}          /* 名称 + 分组 同一排 */
-.fld-row .fld{margin-bottom:12px}
-.hintline{font-size:11px;color:var(--t-disabled);margin:-4px 0 12px}
-.inp{width:100%;background:var(--input);border:1px solid var(--border);color:var(--t-main);
-  padding:7px 10px;border-radius:8px;font-size:13px;outline:none;font-family:inherit}
+.fld-row .fld{margin-bottom:6px}
+.hintline{font-size:11px;color:var(--t-disabled);margin:0 0 12px}   /* 不再用负 margin 打补丁 */
+.inp{width:100%;height:32px;background:var(--input);border:1px solid var(--border);color:var(--t-main);
+  padding:0 10px;border-radius:8px;font-size:13px;outline:none;font-family:inherit}  /* 与 .sel 等高（同一排） */
 .sel{height:32px;padding:0 10px;background:var(--input);border:1px solid var(--border);border-radius:8px;
-  color:var(--t-main);font-size:13px;display:inline-flex;align-items:center;gap:8px;cursor:pointer}
+  color:var(--t-main);font-size:13px;display:inline-flex;align-items:center;gap:8px;cursor:pointer;
+  white-space:nowrap}   /* 分组名再长也不折行 */
 .ta{width:100%;height:260px;background:var(--input);border:1px solid var(--border);color:var(--t-main);
   padding:10px;border-radius:6px;font:12px/1.75 ui-monospace,Menlo,Consolas,monospace;resize:vertical;outline:none}
-.p-foot{display:flex;align-items:center;gap:8px;margin-top:14px}
-.p-foot .btn-p{padding:7px 16px}
-.btn-t{background:none;border:1px solid transparent;color:var(--t-sub);padding:7px 10px;border-radius:6px;
-  font-size:13px;cursor:pointer;font-family:inherit}
-.btn-t:hover{background:var(--card);border-color:var(--border)}
+.btn-t{background:transparent;border:1px solid var(--border);color:var(--t-sub);padding:0 12px;
+  border-radius:8px;font-size:11px;cursor:pointer;font-family:inherit;line-height:1;white-space:nowrap;
+  display:inline-flex;align-items:center;justify-content:center}
+.btn-t:hover{background:var(--card-hover);color:#fff}
 .btn-t.danger{color:var(--danger)}
-.path{margin-top:14px;font-size:11px;color:var(--t-disabled)}
+.path{font-size:11px;color:var(--t-disabled)}
 .path u{color:var(--t-sub);cursor:pointer}
 
 /* 状态切换器（演示用） */
@@ -161,12 +194,12 @@ input:disabled+.slider{cursor:not-allowed;opacity:.5}
 <body>
 
 <header class="header">
-  <h1>技能库<span class="count" id="total">14</span></h1>
+  <h1>技能库</h1>
   <div class="hctrl">
-    <div class="search">
-      <svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27A6.5 6.5 0 109.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 5 1.5-1.5-5-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
-      <input id="q" placeholder="搜索技能名称或描述">
-    </div>
+    <!-- 芯片与右侧动作同一排、右对齐（与真实实现一致：chip 在头部右上，不在标题旁） -->
+    <span class="count">共 <span id="total">14</span> 个</span>
+    <span class="count" title="开关决定它能不能在对话里被选到">对话里可用 10/14</span>
+    <!-- 没有搜索框：用户裁定「技能就几个，搜索是噪声」，组件测试也锁死了这一点 -->
     <button class="btn-p" id="addBtn">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>添加
     </button>
@@ -181,10 +214,7 @@ input:disabled+.slider{cursor:not-allowed;opacity:.5}
   读不到技能库，下面是上次读到的内容 · <u>重试</u> · <u>打开所在位置</u>
 </div>
 
-<div class="drop" id="drop">
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 16V4m0 0L8 8m4-4l4 4M4 16v3h16v-3"/></svg>
-  把 <b>.md</b> 或<b>技能包</b>拖到这里，或点右上「添加」
-</div>
+<!-- 拖入条暂不实现（目录拖入需递归遍历 FileSystemEntry）⇒ 导入走右上「添加」；做之前不画它 -->
 
 <div class="container">
   <div id="view-normal" class="state-view active" style="display:block"><div id="list"></div></div>
@@ -196,22 +226,30 @@ input:disabled+.slider{cursor:not-allowed;opacity:.5}
 
 <ul id="menu"></ul>
 
-<div id="panel">
-  <div class="p-head"><h2 id="p-title">编辑技能</h2><button class="x" onclick="closePanel()">×</button></div>
-  <div class="fld-row">
-    <div class="fld" style="flex:1"><label>名称</label><input class="inp" id="p-name"></div>
-    <div class="fld" style="width:170px"><label>分组</label><span class="sel" id="p-group" style="width:100%;justify-content:space-between"></span></div>
+<div class="overlay" id="overlay">
+  <div class="modal">
+    <div class="m-head">
+      <div>
+        <h2 id="p-title">编辑技能</h2>
+        <div class="hintline" style="margin:4px 0 0">改名/换组/改正文，保存即写回磁盘</div>
+      </div>
+      <button class="x" onclick="closeModal()">×</button>
+    </div>
+    <div class="fld-row">
+      <div class="fld" style="flex:1"><label>名称</label><input class="inp" id="p-name"></div>
+      <div class="fld" style="width:170px"><label>分组</label><span class="sel" id="p-group" style="width:100%;justify-content:space-between"></span></div>
+    </div>
+    <div class="hintline">没有想要的分组？右上 ⋯ → 新建分组</div>
+    <div class="fld"><label>一句话说明</label><input class="inp" id="p-desc"></div>
+    <div class="fld"><label>正文（SKILL.md）</label><textarea class="ta" id="p-body" style="height:220px"></textarea></div>
+    <div class="m-foot">
+      <span class="path" id="p-path" style="margin-right:auto"></span>
+      <button class="btn-t">导出</button>
+      <button class="btn-t danger">删除</button>
+      <button class="btn-t" onclick="closeModal()">取消</button>
+      <button class="btn-p" style="padding:0 14px;font-size:12px">保存</button>
+    </div>
   </div>
-  <div class="hintline">没有想要的分组？右上 ⋯ → 新建分组</div>
-  <div class="fld"><label>一句话说明</label><input class="inp" id="p-desc"></div>
-  <div class="fld"><label>正文（SKILL.md）</label><textarea class="ta" id="p-body"></textarea></div>
-  <div class="p-foot">
-    <button class="btn-p">保存</button>
-    <button class="btn-t" onclick="closePanel()">取消</button>
-    <button class="btn-t">导出</button>
-    <button class="btn-t danger">删除</button>
-  </div>
-  <div class="path" id="p-path"></div>
 </div>
 
 <div class="dev">
@@ -257,9 +295,21 @@ function render(){
     if(!fs.length && q) return;
     const wrap = document.createElement('div'); wrap.className = 'group';
     const head = document.createElement('div'); head.className = 'group-header';
+    // 组头：状态用**文字**说（全开 / 部分 / 全关 + 计数），开关只管动作（一键全开或全关）
+    const on = fs.filter(s => s.active).length;
+    const st = on === fs.length ? '全开' : on === 0 ? '全关' : '部分';
+    const triCls = on === fs.length ? 'tri on' : on === 0 ? 'tri' : 'tri mix';
     head.innerHTML = `<svg viewBox="0 0 24 24"><path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6z"/></svg>
       ${g.group}<span class="group-count">${fs.length}</span>
+      <span class="gstate" title="这一组在对话里可用的情况">${st} ${on}/${fs.length}</span>
+      <span class="${triCls}" data-tri="${g.group}" title="一键全开 / 全关这一组"><i></i></span>
       <span class="gop" data-g="${g.group}" title="重命名 / 删除分组">${DOTS}</span>`;
+    head.querySelector('[data-tri]').onclick = e => {
+      e.stopPropagation();
+      const next = on !== fs.length;
+      fs.forEach(s => { s.active = next; });
+      render();
+    };
     head.onclick = e => { if(e.target.closest('[data-g]')) return; wrap.classList.toggle('group-collapsed'); };
     head.querySelector('[data-g]').onclick = e => { e.stopPropagation(); openMenu(e.currentTarget, groupMenu(g.group)); };
     wrap.appendChild(head);
@@ -270,7 +320,7 @@ function render(){
       card.className = 'card' + (s.error ? ' card-error' : '');
       card.dataset.id = s.id;
       card.onclick = e => { if(e.target.closest('.switch') || e.target.closest('u')) return;
-        if(s.error) return; openPanel(s.id); };
+        if(s.error) return; openModal(s.id); };
       card.oncontextmenu = e => { e.preventDefault(); cur = s; openMenu({getBoundingClientRect:()=>({
         left:e.clientX, top:e.clientY, bottom:e.clientY, right:e.clientX, width:0, height:0})}, cardMenu(s)); };
       card.innerHTML = `
@@ -321,9 +371,9 @@ function openMenuAt(x, y, items){
 }
 document.addEventListener('click', () => { menu.style.display = 'none'; if(menu._a){ menu._a.classList.remove('open'); menu._a = null; } });
 menu.onclick = e => { const li = e.target.closest('li'); if(!li || li.classList.contains('div')) return;
-  if(li.textContent === '编辑内容' && cur) openPanel(cur.id); };
+  if(li.textContent === '编辑内容' && cur) openModal(cur.id); };
 
-function openPanel(id){
+function openModal(id){
   const f = findSkill(id); if(!f) return; const s = f.s;
   cur = s;
   document.getElementById('p-title').textContent = s.name;
@@ -332,11 +382,12 @@ function openPanel(id){
   document.getElementById('p-group').textContent = f.g.group + ' ▾';
   document.getElementById('p-body').value = `# ${s.name}\n\n${s.desc}\n\n## 用法\n1. …\n2. …\n`;
   document.getElementById('p-path').innerHTML = `~/.maomao/skills/${f.g.group}/${s.name}/SKILL.md · <u>打开所在位置</u>`;
-  document.getElementById('panel').classList.add('open');
+  document.getElementById('overlay').classList.add('show');
 }
-function closePanel(){ document.getElementById('panel').classList.remove('open'); }
+function closeModal(){ document.getElementById('overlay').classList.remove('show'); }
+document.getElementById('overlay').onclick = e => { if(e.target.id === 'overlay') closeModal(); };
+document.addEventListener('keydown', e => { if(e.key === 'Escape') closeModal(); });
 
-document.getElementById('q').addEventListener('input', e => { q = e.target.value.trim().toLowerCase(); render(); });
 
 document.getElementById('addBtn').onclick = e => { e.stopPropagation();
   openMenuAt(e.currentTarget.getBoundingClientRect().left - 20, e.currentTarget.getBoundingClientRect().bottom + 4,

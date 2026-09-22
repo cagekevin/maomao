@@ -669,7 +669,13 @@ interface PollerEntry {
 const pollers = new Map<string, PollerEntry>();
 
 const DEFAULT_POLL_INTERVAL_MS = 3000;
-const DEFAULT_TIMEOUT_MS = 300_000;
+/**
+ * 【143 · S4′ · 判归属】**轮询驱动器自己的存活上限**（防无限挂）—— **不是上游任务预算**。
+ * 上游预算真源在后端 `localTool/src/budget.ts`（`budgetMsFor`），前端不复制它；
+ * 本值只表达「这个驱动器最多转多久」，与「任务该等多久」是**两个判据**（ADR-0031：判据不同不合并）。
+ * 生产唯一调用方是 `pollTask` 的 `occupyOnly` 占位（`register` 首轮即返 `true`）⇒ **实际不触发**。
+ */
+const DEFAULT_POLLER_TTL_MS = 300_000;
 
 /**
  * 唯一轮询入口：为 taskId 注册一个轮询器，保证同一 taskId 只有一个 poller。
@@ -685,7 +691,7 @@ export function ensurePolling(taskId: string, opts: EnsurePollingOptions): Polle
   if (existing) return { taskId: existing.taskId, stop: existing.stop }; // 已有 poller → 复用，杜绝双重轮询
 
   const intervalMs = opts.pollIntervalMs ?? DEFAULT_POLL_INTERVAL_MS;
-  const timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  const timeoutMs = opts.timeoutMs ?? DEFAULT_POLLER_TTL_MS;
   const startedAt = Date.now();
   let timer: ReturnType<typeof setInterval> | null = null;
 

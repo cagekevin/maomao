@@ -46,8 +46,8 @@ describe('config — 默认值契约（无 env）', () => {
     expect(c.DOWNLOAD_TIMEOUT).toBe(30000);
     expect(c.VIDEO_DOWNLOAD_TIMEOUT).toBe(60000);
     expect(c.UPLOAD_TIMEOUT).toBe(30000);
-    expect(c.GEN_TIMEOUT).toBe(300000);
-    expect(c.VIDEO_TIMEOUT).toBe(600000);
+    // 【143 · S4′】`GEN_TIMEOUT` / `VIDEO_TIMEOUT` 已删 —— 上游预算真源移到后端
+    // （`localTool/src/budget.ts`），前端不再自持该数值 ⇒ 此处不再断言（同步而非删除整个用例）。
     expect(c.GEN_POLL_INTERVAL).toBe(3000);
     expect(c.GEN_MAX_CONCURRENT).toBe(6);
   });

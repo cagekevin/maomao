@@ -307,6 +307,13 @@ export async function pollResolvedModelProtocol(
   const result = await pollTask({
     fetchState: async () => {
       if (pendingExtraDelayMs > 0) {
+        // 【`maxDurationMs` 的消费点清单（143 · S0 · 2026-09-22 勘误后）】本文件内**两处**消费它：
+        //   · **本处**：sync 链的多轮循环（`pollResolvedModelProtocol` ← `executeModelProtocol`，
+        //     后者**不传任何 timeoutMs**）⇒ 它是这条链「不无限挂」的执行者。
+        //   · **另一处**：`pollModelProtocolOnce` 把 `maxDuration: poll.maxDurationMs` 交给 `pollTask`
+        //     —— 而 **句柄链（`relay-poll.ts`）正是经它消费本字段的**。
+        //   ⇒ **两条链都消费**（初版写"句柄链不消费"是错的，见 `daily/架构日志/08-跨区-143规划文档勘误-2026-09-22.md`）。
+        //   ⇒ 删掉该字段 = **两条链都失去超时执行者**（ADR-0053 红线关 ⇒ 不许删，只能"修"）。
         const maxDurationMs = poll.maxDurationMs ?? Infinity;
         if (Date.now() - pollStartedAt + pendingExtraDelayMs >= maxDurationMs) {
           throw new Error('模型任务轮询超时');

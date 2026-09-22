@@ -36,6 +36,7 @@ import type {
   ModelProtocolProfile,
 } from './ai-relay/types.js';
 import { submitLovartTask, pollLovartTaskOnce } from './ai-relay/providers/lovart/index.js';
+import { budgetMsFor } from './budget.js';
 import { resolveLocalImages, resolveImagesForEgress } from './utils/resolveLocalImages.js';
 import { saveRemoteUrl } from './routes/files.js';
 import { upsertTask } from './routes/tasks.js';
@@ -74,9 +75,9 @@ export interface RelaySubmitInput {
 
 /** 任务查询结果（GET attach / status） */
 export type RelayTaskStatus =
-  | { status: 'running'; progress?: number }
-  | { status: 'completed'; url: string; type: string }
-  | { status: 'failed'; error: string }
+  | { status: 'running'; progress?: number; budgetMs?: number }
+  | { status: 'completed'; url: string; type: string; budgetMs?: number }
+  | { status: 'failed'; error: string; budgetMs?: number }
   /**
    * 【TD-08-24 · 2026-09-16】提交结果未知（付费任务专属第三终态）。
    *
@@ -128,11 +129,15 @@ function isLovartDirect(providerId: string): boolean {
   return providerId === 'lovart';
 }
 
-// ── 轮询时序默认值（对齐前端 config.ts GEN_TIMEOUT/VIDEO_TIMEOUT 语义）──
+// ── 轮询时序默认值 ──
 const DEFAULT_POLL_INTERVAL_MS = 3000; // 单轮间隔（异步任务轮询默认）
-const DEFAULT_TOTAL_TIMEOUT_MS = 10 * 60 * 1000; // 总超时兜底，防无限挂（对齐 relay.ts 10min）
-/** direct(lovart) 单次出站请求超时兜底（后台补提交/轮询的底层单请求上限，防无限挂，对齐 ai-relay 180s）。
- *  注：只兜「连不上/单步卡死」，绝不替代总超时 DEFAULT_TOTAL_TIMEOUT_MS（生成本身可远超此值）。 */
+// 【143 · S2′-b】原 `DEFAULT_TOTAL_TIMEOUT_MS = 10 分钟` 已删 —— 总预算**唯一真源** =
+// `budgetMsFor(capability, override?)`（`src/budget.ts`）。本文件不再自持默认值：
+// 默认由真源给，调用方只能给 `override`（"我这次只等 N 秒"）。
+/** direct(lovart) 单次出站请求超时兜底（后台补提交/轮询的底层**单请求**上限，防无限挂）。
+ *  注：① 只兜「连不上/单步卡死」，**绝不**替代任务总预算（生成本身可远超此值）；
+ *      ② 它与 `LOVART_DEFAULT_TIMEOUT_MS` 同值但**判据不同**（这里是"单请求"、那里是"lovart 出站默认"）
+ *      —— 同值不是同义，**不许**按"统一"合并（ADR-0031：判据重复禁合并）。 */
 const DIRECT_SUBMIT_TIMEOUT_MS = 180_000;
 // 连续单轮异常达此阈值 → 立即 failed 透传（默认 3s×30≈90s），避免未知持续异常静默挂起至总超时
 const MAX_CONSECUTIVE_POLL_ERRORS = 30;
@@ -178,6 +183,12 @@ interface PollHandle {
   apiKey: string; // 驻内存；重启重建时按 providerId 重读（direct 任务可为空串）
   providerId: string;
   capability: RelayCapability;
+  /**
+   * 【143 · S3′】本句柄**实际生效**的任务预算（由 `registerHandle` 从真源算好后回填，不手填）。
+   * 用途：`getGenerateStatus` 把它透给前端 ⇒ 前端不必自持等待上限（消费者不许替生产者定真相）。
+   * 可选是因为它由 registerHandle 赋值（不要求 4 处字面量各写一遍）。
+   */
+  budgetMs?: number;
   model: string;
   type: string;
   baseUrl: string;
@@ -249,12 +260,17 @@ interface RelayPollSnapshot {
  */
 export async function submitGenerateTask(
   input: RelaySubmitInput,
-): Promise<{ ok: boolean; frontTaskId: string; error?: string }> {
+): Promise<{ ok: boolean; frontTaskId: string; error?: string; budgetMs: number }> {
   const { frontTaskId } = input;
-  const timeoutMs = input.timeoutMs ?? DEFAULT_TOTAL_TIMEOUT_MS;
+  // 【143 · S2′-b + S3′】预算在此**解析一次**，然后两用：① 作为 override 交给 registerHandle
+  // （保证"响应里告知的值"与"句柄实际生效的值"**同一个数**，不可能分叉）；② 随响应回给前端。
+  // `input.timeoutMs` 只是 override；缺省由真源 `budgetMsFor(capability)` 给。
+  const budgetMs = budgetMsFor(input.capability, input.timeoutMs);
   try {
-    // 已存在句柄 → 视为幂等重放，直接返回（防重复提交双轮询）
-    if (handles.has(frontTaskId)) return { ok: true, frontTaskId };
+    // 已存在句柄 → 视为幂等重放，直接返回（防重复提交双轮询）。预算取**在册句柄的**（那才是生效值）。
+    if (handles.has(frontTaskId)) {
+      return { ok: true, frontTaskId, budgetMs: handles.get(frontTaskId)?.budgetMs ?? budgetMs };
+    }
 
     const providerId = input.providerId || 'lovart';
     const capability = input.capability;
@@ -331,9 +347,9 @@ export async function submitGenerateTask(
           stopped: false,
           consecutiveErrors: 0,
         },
-        timeoutMs,
+        budgetMs, // 已解析的生效预算（同一数回给前端，见函数头注释）
       );
-      return { ok: true, frontTaskId };
+      return { ok: true, frontTaskId, budgetMs };
     }
 
     // ── 非 lovart（非 direct）：按 per-provider 自定义异步协议提交（方案①，docs/105 §阶段 C）──
@@ -345,6 +361,7 @@ export async function submitGenerateTask(
       return {
         ok: false,
         frontTaskId,
+        budgetMs,
         error: `供应商 ${providerId} 暂不支持异步${capability === 'video' ? '视频' : '图片'}生成：请在平台配置文件中为 ${capability} 配置自定义调用协议（model_protocols.${capability}）`,
       };
     }
@@ -370,34 +387,29 @@ export async function submitGenerateTask(
         ? ((await resolveLocalImages(input.images)) as string[])
         : undefined;
 
-    // 【图文/图生视频修复 · 2026-09-03】image/video preset body 缺 image_url 字段，参考图只进
-    // variables.imageUrls 会被引擎忽略（preset 不消费）→ 上游收不到图 → 退化文生图/文生视频。
-    // 统一把 data:base64 补进 body.image_urls（所有 OpenAI 兼容平台普遍认的形态），与 chat 同一归一机制。
-    if (
-      (capability === 'image' || capability === 'video') &&
-      images &&
-      images.length > 0 &&
-      protocolDef.submit?.body &&
-      typeof protocolDef.submit.body === 'object' &&
-      !Array.isArray(protocolDef.submit.body)
-    ) {
-      (protocolDef.submit.body as Record<string, unknown>).image_urls = images;
-    }
-
+    // 【2026-09-22 收口】参考图「怎么发」归【协议】所有，调度器只负责「给全信息」。
+    //
+    // 【旧形态与它挡死的能力】原实现把参考图硬编码塞进 `body.image_urls`（OpenAI 形态），
+    // 且 `variables.imageUrls` 的赋值反向挂在「body 里有没有 image_urls」上 —— 两处互相纠缠，
+    // 后果是【非 OpenAI 形态的平台根本表达不出参考图】：
+    //   ① 平台不认 `image_urls`（如豆包只认 `referenceImage` 文件字段 / `referenceImageUrl`）
+    //      ⇒ 参考图被静默丢弃、退化成文生视频（违反「绝不静默降级为无参考图」）；
+    //   ② 因 `body.image_urls` 已被注入，`variables.imageUrls` 反而不赋值
+    //      ⇒ 协议模板拿不到参考图，写不出 multipart `$file`。
+    //
+    // 【现形态】调度器只把参考素材放进**引擎钦定的那一个变量** `referenceImageUrls`
+    // （名字唯一来源：`protocol/shared.ts` 的 `FOR_EACH_VARIABLE_ROOTS` —— `$forEach` 只信它；
+    //  同义的 `imageUrls` 属第二份名字，已在此路径停用，不再赋值）。
+    // 至于放进请求体的哪个字段（`image_urls` / `$file` 文件字段 / `referenceImageUrl`），
+    // 由各平台协议模板自己声明 —— 调度器不再替所有平台决定字段名。
+    //
+    // 【爆炸半径 = 0 的凭证】出厂种子无 model_protocols；运行期 17 份 provider 配置的
+    // `model_protocols` 全为空对象（非空命中 0 个 / 空对象命中 17 个）⇒ 无任何存量消费方。
     const variables: Record<string, unknown> = { model: input.model };
     if (input.prompt !== undefined) variables.prompt = input.prompt;
     if (input.size !== undefined) variables.size = input.size;
     if (input.messages !== undefined) variables.messages = input.messages;
-    if (
-      images !== undefined &&
-      !(
-        (capability === 'image' || capability === 'video') &&
-        protocolDef.submit?.body &&
-        (protocolDef.submit.body as Record<string, unknown>).image_urls
-      )
-    ) {
-      variables.imageUrls = images; // 兼容仍需 imageUrls 变量的 preset（参考图已由 body.image_urls 携带）
-    }
+    if (images !== undefined) variables.referenceImageUrls = images;
 
     const submitted: ModelProtocolSubmitResult = await protocol.submitModelProtocol({
       protocol: protocolDef,
@@ -461,12 +473,12 @@ export async function submitGenerateTask(
         stopped: false,
         consecutiveErrors: 0,
       },
-      timeoutMs,
+      budgetMs, // 已解析的生效预算（同一数回给前端）
     );
-    return { ok: true, frontTaskId };
+    return { ok: true, frontTaskId, budgetMs };
   } catch (e) {
     const err = e instanceof Error ? e.message : String(e);
-    return { ok: false, frontTaskId, error: err };
+    return { ok: false, frontTaskId, budgetMs, error: err };
   }
 }
 
@@ -595,11 +607,30 @@ async function runDirectSubmit(handle: PollHandle, profile: LovartDirectProfile)
   }
 }
 
-/** 注册句柄并启动定时器驱动单轮。 */
-function registerHandle(frontTaskId: string, handle: PollHandle, timeoutMs: number): void {
+/**
+ * 注册句柄并启动定时器驱动单轮。
+ *
+ * 【143 · S2′-b】预算**不再由调用方传**（原先第 3 参 `timeoutMs`）—— 改为在此按
+ * `handle.capability` 向**真源**取（`budgetMsFor`）。这样：
+ *   · 默认值只有一处（`src/budget.ts`），4 个调用点不必各记一个数；
+ *   · `overrideMs` 仍是**输入**（调用方本次耐心），非法值由 `budgetMsFor` 兜回默认。
+ */
+function registerHandle(frontTaskId: string, handle: PollHandle, overrideMs?: number): void {
+  const timeoutMs = budgetMsFor(handle.capability, overrideMs);
+  handle.budgetMs = timeoutMs; // 回填：GET attach 要把它透给前端（S3′）
   handles.set(frontTaskId, handle);
   const interval = Math.max(
     500,
+    // 【S0 · `poll.*` 的消费点清单（143 · 2026-09-22 勘误后）】
+    //   · **本行**：句柄侧只读 `poll.intervalMs`（单轮间隔）。
+    //   · **本文件另一处**：`runOnce` 里 `pollModelProtocolOnce(handle.poll!, …)` 把整个 `poll` 交给
+    //     协议执行器 ⇒ 那里的 `poll.maxDurationMs` **是会被消费的**（`ai-relay/protocol/poll.ts` 内
+    //     把它作为 `pollTask` 的 `maxDuration`）。
+    //   · **sync 链**：`pollResolvedModelProtocol` 的多轮循环也消费它。
+    //   ⇒ **两条链都消费 `maxDurationMs`**（不是"只有 sync 链"）。本路径的总预算另由上一行
+    //     的 `budgetMsFor` 管 —— 两者**不同判据，不冲突**。
+    //   ⚠️ **勘误留痕**：本条初版写"本路径不被消费"是**错的** —— 根因是"另一条链的代码里没搜到就直接下否定结论"，
+    //     没去看**它被传进去的那个对象**有没有在更深处被读。见 `daily/架构日志/08-跨区-143规划文档勘误-2026-09-22.md`。
     handle.direct ? DEFAULT_POLL_INTERVAL_MS : handle.poll?.intervalMs || DEFAULT_POLL_INTERVAL_MS,
   );
   const runOnce = async (): Promise<void> => {
@@ -786,6 +817,25 @@ async function updateProgress(
  * GET attach：查某 frontTaskId 的状态。内存句柄优先；不在内存则回库读终态。
  * 重启后句柄未重建时走 initRelayPoller 自动重建，此处回库兜底。
  */
+/**
+ * 【143 · S3′】从任务行快照取 capability —— **只在句柄不在内存时用**（重启后扫描尚未接管的那段窗口）。
+ * ⚠️ 不用 `row.type`：那是**节点类型**（`RelayIntent.type` 是自由字符串，如 `imageGenerate`），不是 capability。
+ * ⚠️ 该路径**取不到本次任务的 override**（快照不存它）⇒ 报的是 capability 默认值。
+ *   两个方向的偏差都无害：报小了 ⇒ 前端只声明"我不再等"（`pending` 非终态）+ 恢复轮询续接；
+ *   报大了 ⇒ 前端多等一会儿。**都不会造成任务被判死**。
+ */
+function capabilityFromRow(row: { request_data?: unknown }): RelayCapability | undefined {
+  try {
+    const snap =
+      typeof row.request_data === 'string' ? JSON.parse(row.request_data) : row.request_data;
+    const cap = (snap as { _relayPoll?: { capability?: unknown } } | undefined)?._relayPoll
+      ?.capability;
+    return cap === 'image' || cap === 'video' || cap === 'chat' ? cap : undefined;
+  } catch {
+    return undefined; // 快照损坏：不给预算（前端据此保持 running，不判失败）
+  }
+}
+
 export async function getGenerateStatus(frontTaskId: string): Promise<RelayTaskStatus> {
   const h = handles.get(frontTaskId);
   if (h) {
@@ -794,10 +844,10 @@ export async function getGenerateStatus(frontTaskId: string): Promise<RelayTaskS
       frontTaskId,
     ])[0];
     if (row && row.status === 'completed' && row.result_url) {
-      return { status: 'completed', url: row.result_url, type: h.type };
+      return { status: 'completed', url: row.result_url, type: h.type, budgetMs: h.budgetMs };
     }
     if (row && row.status === 'failed') {
-      return { status: 'failed', error: row.error_msg || '生成失败' };
+      return { status: 'failed', error: row.error_msg || '生成失败', budgetMs: h.budgetMs };
     }
     // 【TD-08-24】unknown 是终态（句柄已 stopHandle 移除，此处为兜底），必须原样透出 ——
     // 若折成 running，前端会一直等到超时才报错，把「可能已生成」误导成「还在生成」。
@@ -807,20 +857,31 @@ export async function getGenerateStatus(frontTaskId: string): Promise<RelayTaskS
     return {
       status: 'running',
       progress: typeof row?.progress === 'number' ? row.progress : undefined,
+      budgetMs: h.budgetMs,
     };
   }
   // 句柄不在内存：回库判断（可能是历史已完成/失败/未知，或重启后尚未被扫描接管）
   const db = await getDb();
   const row = queryAll(
     db,
-    'SELECT status, progress, result_url, error_msg, poll_task_id FROM tasks WHERE task_id = ?',
+    'SELECT status, progress, result_url, error_msg, poll_task_id, request_data FROM tasks WHERE task_id = ?',
     [frontTaskId],
   )[0];
   if (!row) return { status: 'not-found' };
+  // 【143 · S3′】无句柄时按快照 capability 报默认预算（取不到 override，见 capabilityFromRow 注释）
+  const cap = capabilityFromRow(row);
+  const rowBudgetMs = cap ? budgetMsFor(cap) : undefined;
   if (row.status === 'completed' && row.result_url) {
-    return { status: 'completed', url: row.result_url, type: row.type || '' };
+    return {
+      status: 'completed',
+      url: row.result_url,
+      type: row.type || '',
+      budgetMs: rowBudgetMs,
+    };
   }
-  if (row.status === 'failed') return { status: 'failed', error: row.error_msg || '生成失败' };
+  if (row.status === 'failed') {
+    return { status: 'failed', error: row.error_msg || '生成失败', budgetMs: rowBudgetMs };
+  }
   if (row.status === 'unknown') {
     return { status: 'unknown', error: row.error_msg || '提交结果未知' };
   }
@@ -829,11 +890,13 @@ export async function getGenerateStatus(frontTaskId: string): Promise<RelayTaskS
     return {
       status: 'running',
       progress: typeof row.progress === 'number' ? row.progress : undefined,
+      budgetMs: rowBudgetMs,
     };
   }
   return {
     status: 'running',
     progress: typeof row.progress === 'number' ? row.progress : undefined,
+    budgetMs: rowBudgetMs,
   };
 }
 
@@ -853,8 +916,10 @@ export async function cancelGenerateTask(frontTaskId: string): Promise<{ ok: boo
  * && request_data._relayPoll 可解析) → 按 providerId 重读 .env key → 重建句柄续跑。
  * DB 持久态即真相，不依赖内存（docs/90 R4）。
  */
-export async function initRelayPoller(opts: { timeoutMs?: number } = {}): Promise<void> {
-  const timeoutMs = opts.timeoutMs ?? DEFAULT_TOTAL_TIMEOUT_MS;
+export async function initRelayPoller(opts: { overrideMs?: number } = {}): Promise<void> {
+  // 【143 · S2′-b】原为「一个全局 timeoutMs 套所有重建句柄」⇒ 与"按 capability 定预算"矛盾。
+  // 现逐句柄取：默认由 `registerHandle` 按 `core.capability` 向真源算；`opts.overrideMs` 只是
+  // **override**（当前消费方：`test/relay-poll-segment.test.js` 注入短预算，生产不传）。
   try {
     const db = await getDb();
     // 在途 relay 任务 = 有 poll_task_id（存量/新近已提交）或 request_data 内含 _relayPoll 快照的行
@@ -906,7 +971,7 @@ export async function initRelayPoller(opts: { timeoutMs?: number } = {}): Promis
             stopped: false,
             consecutiveErrors: 0,
           },
-          timeoutMs,
+          opts.overrideMs, // 缺省 ⇒ 由 registerHandle 按 core.capability 取真源
         );
         continue;
       }
@@ -934,7 +999,7 @@ export async function initRelayPoller(opts: { timeoutMs?: number } = {}): Promis
           stopped: false,
           consecutiveErrors: 0,
         },
-        timeoutMs,
+        opts.overrideMs, // 缺省 ⇒ 由 registerHandle 按 core.capability 取真源
       );
     }
   } catch (e) {

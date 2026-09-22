@@ -40,8 +40,9 @@ export interface GenerationResult {
   /**
    * 【2026-09-21 · 停止等待 ≠ 失败】本次**只是前端不再等**，任务终态仍未确定（**≠ failed**）。
    *
-   * 【为什么必须有这个判别字段】异步 relay（image/video）的前端等待预算（GEN_TIMEOUT/VIDEO_TIMEOUT）
-   * 用尽时，曾直接返回 `{ok:false, error:'生成超时'}` —— 那是**消费者替生产者下终态结论**（越权）：
+   * 【为什么必须有这个判别字段】异步 relay（image/video）的**前端等待预算**用尽时，
+   * 曾直接返回 `{ok:false, error:'生成超时'}` —— 那是**消费者替生产者下终态结论**（越权）：
+   * （该预算的**真源已在后端** `localTool/src/budget.ts`，前端只读 `budgetMs`；原前端常量已删 · 143 S4′）
    * 任务可能仍在上游跑、后端句柄还在（`localTool` 写终态，见其 `tasks.ts` 的 `EXECUTION_OWNED_COLUMNS`），
    * 于是「任务中心显示失败」与「后端其实成功落盘」两处真相分叉，用户还容易被引导去重提（重复计费）。
    *

@@ -447,12 +447,12 @@ function AgentPanel({
    * 收对象只会让调用方以为"传进来的正文被记住了"（P4 事故形态）。窄化成 id 后，那种误会**写不出来**。
    */
   const applySkill = (id: string) => {
-    setActiveSkills((prev) => {
-      if (prev.includes(id)) return prev;
-      return [...prev, id];
-    });
+    // 【一次对话只带一个技能】选中即**替换**当前那个；再点已选中的那个 = 取消（toggle）。
+    // 数据结构仍是 `string[]`（与会话快照/冻结层契约一致，不改持久化格式），但长度恒 ≤ 1：
+    // 把"只能一个"这条规则收在这里一处，调用方（`/` 下拉、工具栏下拉、推荐位）写不出第二个。
+    setActiveSkills((prev) => (prev.length === 1 && prev[0] === id ? [] : [id]));
   };
-  // 移除 Skill（已启用列表里去掉）：应用 Skill 后，用户可在已启用 chip 上点 ✕ 撤销
+  // 移除 Skill：一次对话只带一个 ⇒ chip 上点 ✕ 就是"这次不带 Skill 了"
   const removeSkill = (id: string) => {
     setActiveSkills((prev) => prev.filter((a) => a !== id));
   };
@@ -603,10 +603,13 @@ function AgentPanel({
     // 会话快照里的 skills 现在就是 id 列表（旧格式是对象数组 ⇒ 按"不为旧数据做兼容"丢弃，
     // 它只是"本轮选中态"，不是用户资产）
     if (snap?.skills)
+      // 【读侧归一：一次只带一个】老快照可能存着 2 个 id（改为单选之前写的）。
+      // 若原样恢复 ⇒ UI 只显示第一个、清除只删第一个，第二个变成删不掉的"幽灵技能"还会被注入。
+      // 故在**读进来这一刻**收敛到 1 个（落盘格式不动，仍是 id 列表）。
       setActiveSkills(
-        (Array.isArray(snap.skills) ? snap.skills : []).filter(
-          (v): v is string => typeof v === 'string',
-        ),
+        (Array.isArray(snap.skills) ? snap.skills : [])
+          .filter((v): v is string => typeof v === 'string')
+          .slice(0, 1),
       );
     if (Array.isArray(snap?.attachments)) setAttachments(snap.attachments as AgentAttachment[]);
     // 【TD-17】草稿跟随对话：只同步到 UI state，不再手动「也写一次存储键」——
@@ -765,6 +768,24 @@ function AgentPanel({
 
   // 【TD-17】草稿初值 = 当前对话快照的 draft（useAgentChat 首渲前该值即会话内存态；不读独立存储键，杜绝双源）
   const [input, setInput] = useState<string>(() => String(getCurrentSnapshot().draft || ''));
+
+  /**
+   * 「/」之后的词 = 搜索词（**跨分组**）。
+   *
+   * 【为什么必须有】此前 `skillSlashOpen` 只在 `input === '/'` 时为真 ⇒ 用户一打第二个字下拉就消失，
+   * 等于"想按名字找"这条路是断的，只能靠滚动。分组的职责是**缩短选择面**，不是给搜索设关卡 ——
+   * 所以输入即全局搜（不要求先选分组），搜不到时如实说一句。
+   */
+  const slashQuery = input.startsWith('/') ? input.slice(1).trim().toLowerCase() : '';
+  const shownSkillGroups = useMemo(() => {
+    if (!slashQuery) return skillPickerGroups;
+    return skillPickerGroups
+      .map((g) => ({
+        ...g,
+        items: g.items.filter((s) => s.name.toLowerCase().includes(slashQuery)),
+      }))
+      .filter((g) => g.items.length > 0);
+  }, [skillPickerGroups, slashQuery]);
   const [attachments, setAttachments] = useState<AgentAttachment[]>([]);
   const [uploading, setUploading] = useState(false);
   // 【2026-09-05 精简】执行模型收敛恒 auto（完全自主）+ credit 积分闸：三态选择器（direct/step-confirm/auto）已删，
@@ -1876,7 +1897,7 @@ function AgentPanel({
                 const v = e.target.value;
                 setInput(v);
                 saveDraft(v); // TD-17：草稿唯一真源（会话快照，内部节流落盘）
-                setSkillSlashOpen(v === '/');
+                setSkillSlashOpen(v.startsWith('/'));
               }}
               onKeyDown={(e) => {
                 if (e.key === 'Escape' && skillSlashOpen) {
@@ -1907,13 +1928,15 @@ function AgentPanel({
             )}
 
             {/* Skill / 快捷调用下拉：锚定在输入框正下方，向上弹出紧贴 textarea */}
-            {skillSlashOpen && (
+            {/* 【搜不到就不出现】用户可能只是想发一条以 `/` 开头的消息（`/help` 之类）——
+                没得选的时候还挂一个空下拉 = 挡路。下拉是"帮你选"的，不是"你必须选"的。 */}
+            {skillSlashOpen && shownSkillGroups.length > 0 && (
               <div ref={skillSlashRef} className="relative">
                 <div className="agent-pop is-slash agent-mh-240">
                   {allSkills.length === 0 ? (
                     <div className="agent-pop-empty">暂无 Skill</div>
                   ) : (
-                    skillPickerGroups.map((g) => (
+                    shownSkillGroups.map((g) => (
                       // key 不用组名（那会把哨兵/磁盘目录名当身份）—— `kind` + `label` 才是本层的语义
                       <div key={`${g.kind}:${g.label}`}>
                         <SkillGroupHeader label={g.label} />
@@ -1941,6 +1964,42 @@ function AgentPanel({
 
             {/* 工具栏：纯图标化（Skill / 生图参数 / 生图模型），去掉全部文字标签 */}
             <div className="agent-tools">
+              {/* 选文件：参考图 + 技能文本（`.md`/`.markdown`/`.txt`）——
+                  `accept` 从模块白名单派生（`SKILL_IMPORT_ACCEPT`），不在 UI 里再写一份扩展名表。
+                  隐藏 input + 按钮触发是本站既有形态（同 SkillSettings 的导入）。
+                  第0位（最左）：+"号按钮（上传参考图 / 导入 Skill），放在模型选择左边。 */}
+              <input
+                ref={fileRef}
+                type="file"
+                accept={`image/*,${SKILL_IMPORT_ACCEPT}`}
+                multiple
+                onChange={(e) => void handleFiles(e)}
+                className="hidden"
+                data-testid="agent-file-input"
+              />
+              <button
+                type="button"
+                onClick={() => fileRef.current?.click()}
+                disabled={uploading || sending}
+                className={`agent-icon-btn is-sm ${attachments.length > 0 ? 'is-active' : ''}`}
+                title={`上传参考图 / 导入 Skill（${SKILL_IMPORT_ACCEPT}）`}
+                aria-label="上传参考图或导入 Skill"
+              >
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <line x1="12" y1="5" x2="12" y2="19" />
+                  <line x1="5" y1="12" x2="19" y2="12" />
+                </svg>
+              </button>
+
               {/* ────────────────────────────────────────────────────────────
                   【已注释】左下角聊天模型（AI 助手对话模型）选择按钮。
                   为什么去掉：AI 助手的聊天模型已在「设置 → AI 助手」分区统一指定，
@@ -2086,7 +2145,7 @@ function AgentPanel({
                     }}
                     disabled={sending}
                     className="agent-skill-clear"
-                    title={`清除当前所选 Skill（${activeSkills.map(skillNameOf).join('、')}）`}
+                    title={`清除当前所选 Skill（${activeSkills[0] ? skillNameOf(activeSkills[0]) : ''}）`}
                   >
                     <X size={12} strokeWidth={2.5} />
                   </button>
@@ -2100,7 +2159,7 @@ function AgentPanel({
                   className="agent-skill-main"
                   title={
                     activeSkills.length > 0
-                      ? `已启用 ${activeSkills.map(skillNameOf).join('、')}`
+                      ? `当前带的 Skill：${skillNameOf(activeSkills[0])}（点下拉可换一个）`
                       : '应用 Skill'
                   }
                 >
@@ -2145,41 +2204,6 @@ function AgentPanel({
                 )}
               </span>
 
-              {/* 选文件：参考图 + 技能文本（`.md`/`.markdown`/`.txt`）——
-                  `accept` 从模块白名单派生（`SKILL_IMPORT_ACCEPT`），不在 UI 里再写一份扩展名表。
-                  隐藏 input + 按钮触发是本站既有形态（同 SkillSettings 的导入）。 */}
-              <input
-                ref={fileRef}
-                type="file"
-                accept={`image/*,${SKILL_IMPORT_ACCEPT}`}
-                multiple
-                onChange={(e) => void handleFiles(e)}
-                className="hidden"
-                data-testid="agent-file-input"
-              />
-              <button
-                type="button"
-                onClick={() => fileRef.current?.click()}
-                disabled={uploading || sending}
-                className="p-1.5 rounded-md transition-colors text-secondary hover:text-primary hover:bg-surface disabled:cursor-not-allowed disabled:opacity-50"
-                title={`上传参考图 / 导入 Skill（${SKILL_IMPORT_ACCEPT}）`}
-                aria-label="上传参考图或导入 Skill"
-              >
-                <svg
-                  width="14"
-                  height="14"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
-                  <circle cx="8.5" cy="8.5" r="1.5" />
-                  <polyline points="21 15 16 10 5 21" />
-                </svg>
-              </button>
               <span className="agent-spacer" />
 
               {/* 发送/停止 */}

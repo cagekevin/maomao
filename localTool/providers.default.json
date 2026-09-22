@@ -182,6 +182,73 @@
       ],
       "volcengine_project_name": "default",
       "volcengine_region": "cn-beijing"
+    },
+    {
+      "id": "doubao",
+      "name": "豆包账号池",
+      "base_url": "http://127.0.0.1:17888",
+      "protocol": "openai",
+      "image_request_mode": "openai",
+      "image_mode": "async",
+      "enabled": true,
+      "video_models": [
+        {
+          "id": "seedance_2_0_mini",
+          "label": "Seedance 2.0 Mini（豆包）",
+          "streaming": false,
+          "promptOnly": true
+        },
+        {
+          "id": "seedance_2_0_fast",
+          "label": "Seedance 2.0 Fast（豆包）",
+          "streaming": false,
+          "promptOnly": true
+        }
+      ],
+      "model_protocols": {
+        "video": {
+          "version": 2,
+          "mode": "async",
+          "submit": {
+            "method": "POST",
+            "path": "/api/generate",
+            "bodyEncoding": "multipart",
+            "body": {
+              "model": "{{model}}",
+              "prompt": "{{prompt}}",
+              "source": "maomao-canvas",
+              "referenceImage": [
+                {
+                  "$forEach": "{{referenceImageUrls}}",
+                  "$value": {
+                    "$file": "{{referenceImageUrls}}",
+                    "filename": "reference.png"
+                  }
+                }
+              ]
+            }
+          },
+          "response": {
+            "type": "json",
+            "taskIdPath": "requestId"
+          },
+          "poll": {
+            "method": "GET",
+            "path": "/api/requests/{{submit.requestId}}",
+            "response": {
+              "statusPath": "status",
+              "successValues": ["success"],
+              "failureValues": ["failed", "stopped"],
+              "result": { "urlPath": "cleanVideoUrl" },
+              "errorPath": "message"
+            },
+            "intervalMs": 4000,
+            "maxDurationMs": 1500000
+          }
+        }
+      },
+      "volcengine_project_name": "default",
+      "volcengine_region": "cn-beijing"
     }
   ]
 }

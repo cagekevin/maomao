@@ -21,6 +21,15 @@ import { getLovartStatus, getLovartResult, confirmLovartThread } from './lovart_
 import { synthesizeLovartChatStream } from './lovart_stream.js';
 import { RelayHttpError, isRetryableHttpStatus } from '../../httpTransport.js';
 
+/**
+ * 域常量再导出 —— 供**父门面** `ai-relay/index.ts` 用。
+ *
+ * 【为什么必须走门面】域外要用的东西只走门面（ADR-0044 §①）。`ai-relay/index.ts` 构造 lovart
+ * direct profile 时用的「默认出站超时」就是**本域的真源**，父门面里再写一份 `180_000` 字面量
+ * 等于同一判据两份（143 · §4 #3）。改值只改 `lovart_config.ts`，两处同时生效。
+ */
+export { LOVART_DEFAULT_TIMEOUT_MS } from './lovart_config.js';
+
 function toDeps(
   profile: LovartDirectProfile,
   signal?: AbortSignal,

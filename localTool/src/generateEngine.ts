@@ -14,12 +14,13 @@
  * 【2026-09-20】归一必须落在**分叉之后**（选定出站路径的那个分支里）—— 分叉之前算 = 算了不消费的那条，
  * 既白干又出假警（详见本文件 relayGenerate 内注释）。
  *
- * 总超时：异步（image/video）若网关一直 processing，绝不能无限轮询 —— 用 AbortSignal
- * 给整个执行套硬超时（默认 10 分钟），到点 abort 抛错（失败可见，不静默挂起）。
+ * 总超时：绝不能无限等 —— 用 AbortSignal 给整个执行套硬超时，到点 abort 抛错（失败可见，不静默挂起）。
+ * 缺省值**不在本文件**：取预算真源 `budgetMsFor(capability)`（见 `src/budget.ts`）。
  */
 
 import { chatWithTools, chat } from './ai-relay/index.js';
 import { chatLovartText } from './ai-relay/providers/lovart/index.js';
+import { budgetMsFor } from './budget.js';
 import { resolveLocalImages, resolveImagesForEgress } from './utils/resolveLocalImages.js';
 import { fetchWithProxy } from './utils/netProxy.js';
 import { sendError } from './utils/helpers.js';
@@ -51,7 +52,7 @@ export interface RelayGenerateInput {
   /** 连接覆盖：存在则优先于 providers.json / .env（测试打 mock、同平台多实例用） */
   baseUrl?: string;
   apiKey?: string;
-  /** 总超时毫秒；缺省 600000（10 分钟），异步轮询到点必抛，防无限挂 */
+  /** 总超时毫秒；缺省取**预算真源** `budgetMsFor(capability)`（见 `src/budget.ts`，不在此写数值） */
   timeoutMs?: number;
   signal?: AbortSignal;
   /**
@@ -110,7 +111,10 @@ function makeTimeoutSignal(
 export async function relayGenerate(input: RelayGenerateInput): Promise<RelayGenerateOutput> {
   const startedAt = Date.now();
   const { providerId, capability, model } = input;
-  const timeoutMs = input.timeoutMs ?? 600_000;
+  // 【143 · S2′】原为「缺省 10 分钟」的硬编码兜底。**该值是错的**：`relayGenerate` 全仓唯一调用点
+  // （`routes/generate.ts` 的 chat 分支）⇒ 它服务 **chat**，而 chat 的总预算是 180s（不是 600s）。
+  // 现取预算真源，不再自持数值。
+  const timeoutMs = budgetMsFor(capability, input.timeoutMs);
   const timeout = makeTimeoutSignal(timeoutMs, input.signal);
   const base: RelayGenerateOutput = {
     ok: false,
@@ -312,9 +316,12 @@ export async function relayChatStream(
       'Access-Control-Allow-Origin': '*',
     });
     res.flushHeaders?.();
-    // 【TD-01-24】上游预算 = **调用方给的预算**（前端已把实际值写进 body.timeoutMs 并由路由转发过来）；
-    // 这个 120_000 只在"调用方没给"时兜底 —— 它**不是口径**，别拿它当"后端默认 180s"那种第二份真相。
-    const timeoutMs = input.timeoutMs ?? 120_000;
+    // 【143 · S2′ / TD-01-24】上游预算 = **调用方给的预算**（前端写进 `body.timeoutMs`、由路由转发过来）；
+    // 缺省时取**预算真源** `budgetMsFor('chat')` = 180s。
+    // 原兜底写死「2 分钟」，两处都错：① 它是「等上游响应」**段**的值，被当成了任务总预算；
+    // ② 后端 chat 默认值不该有两份（真源 = `src/budget.ts`）。
+    // ⚠️ 行为变更留痕：本处由 120s 放宽到 180s（后端 SSE 兜底窗口变长）。
+    const timeoutMs = budgetMsFor('chat', input.timeoutMs);
     const timer = setTimeout(() => controller.abort(), timeoutMs);
 
     const ctype = (upstream.headers.get('content-type') || '').toLowerCase();

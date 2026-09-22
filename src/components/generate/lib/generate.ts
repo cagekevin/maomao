@@ -17,7 +17,7 @@
  *
  * 【结果信封】复用 src/types/provider.ts 的 GenerationResult 唯一真源，禁止二次定义（修正 8）。
  */
-import { GEN_TIMEOUT, VIDEO_TIMEOUT, CHAT_TIMEOUT } from '@/components/base/core/config';
+import { CHAT_TOTAL_TIMEOUT } from '@/components/base/core/config';
 import {
   normalizeAssetUrlsForSend,
   toImageContentBlocks,
@@ -168,7 +168,8 @@ async function generate(
       },
       {
         signal,
-        timeoutMs: CHAT_TIMEOUT,
+        // 【143 · S5′】chat 的**任务总预算**（不是「等上游响应」段值）—— 与流式路径同源。
+        timeoutMs: CHAT_TOTAL_TIMEOUT,
         ...(req.temperature !== undefined ? { temperature: req.temperature } : {}),
         ...(req.responseFormat
           ? { responseFormat: req.responseFormat === 'json' ? 'json_object' : req.responseFormat }
@@ -203,7 +204,8 @@ async function generate(
   }
   const r = await relayGenerate({
     intent,
-    timeoutMs: capability === 'video' ? VIDEO_TIMEOUT : GEN_TIMEOUT,
+    // 【143 · S4′】不再传 `timeoutMs` —— 等待上限由**后端**在 POST 响应里告知（`budgetMs`），
+    // 前端不自持 `GEN_TIMEOUT`/`VIDEO_TIMEOUT`（消费者不许替生产者定真相）。
     signal,
     onProgress,
   });

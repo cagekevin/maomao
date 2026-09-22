@@ -1023,6 +1023,124 @@ test('[generate] image/video 缺 frontTaskId → 400 Missing frontTaskId', async
   assert.match(body.error, /Missing frontTaskId/);
 });
 
+// ════════════════════════════════════════════════════════════════════════
+// 143 · S3′ —— 预算告知（budgetMs）+ attach 终态完整性
+// ════════════════════════════════════════════════════════════════════════
+const { handleGenerateGet } = await importSrc(path.join('routes', 'generate.ts'));
+const { upsertTask } = await importSrc(path.join('routes', 'tasks.ts'));
+
+/** 造一行 relay 快照（capability 决定预算真源；与 relay-poll-recovery.test.js 同形）。 */
+const relaySnapshot = (capability) =>
+  JSON.stringify({
+    _relayPoll: {
+      capability,
+      taskId: 'thread-z',
+      poll: null,
+      providerId: 'lovart',
+      model: 'm',
+      type: capability,
+      baseUrl: 'https://x.test',
+      direct: true,
+      startedAt: Date.now(),
+    },
+  });
+
+const getUrl = (id) => new URL(`http://127.0.0.1/api/generate/${id}`);
+
+test('[143 S3′] POST 失败路径也带 budgetMs，值 = 预算真源（image 300000）', async () => {
+  const res = makeRes();
+  await handleGenerateSubmit(
+    makeJsonReq({
+      capability: 'image',
+      providerId: '__no_such_provider__',
+      model: 'm1',
+      frontTaskId: 'task_budget_a',
+    }),
+    res,
+  );
+  const body = parseResBody(res);
+  assert.equal(body.code, -1);
+  assert.equal(body.data.budgetMs, 300_000, 'POST 必须回传后端实际生效的预算（真源 image=300000）');
+});
+
+test('[143 S3′] POST 的 timeoutMs 作为 override 透传进 budgetMs', async () => {
+  const res = makeRes();
+  await handleGenerateSubmit(
+    makeJsonReq({
+      capability: 'image',
+      providerId: '__no_such_provider__',
+      model: 'm1',
+      frontTaskId: 'task_budget_b',
+      timeoutMs: 60_000,
+    }),
+    res,
+  );
+  assert.equal(parseResBody(res).data.budgetMs, 60_000, 'override 优先于真源默认');
+});
+
+test('[143 S3′·修缺陷] GET 的 unknown 终态必须 200 + status:unknown（原先落到 404 ⇒ 前端折 running 空等）', async () => {
+  const db = await getDb();
+  const id = 'task_route_unknown';
+  await upsertTask(db, {
+    task_id: id,
+    status: 'unknown',
+    progress: 0,
+    error_msg: '提交结果未知（可能已开始生成），请到任务中心确认',
+  });
+  const res = makeRes();
+  await handleGenerateGet(makeJsonReq(), res, getUrl(id));
+  const body = parseResBody(res);
+  assert.equal(res.status, 200, 'unknown 是终态，不许走 404（404 会被前端折成 running）');
+  assert.equal(body.data.status, 'unknown');
+  assert.match(body.data.error, /任务中心/);
+});
+
+test('[143 S3′] GET 的 not-found 必须 200 + status:not-found（不再 404：生产者给全）', async () => {
+  const res = makeRes();
+  await handleGenerateGet(makeJsonReq(), res, getUrl('task_never_existed'));
+  const body = parseResBody(res);
+  assert.equal(res.status, 200, 'not-found 不再用 404 表达');
+  assert.equal(body.data.status, 'not-found');
+});
+
+test('[143 S3′] GET running 带 budgetMs（无句柄时按快照 capability 取真源）', async () => {
+  const db = await getDb();
+  const id = 'task_route_running';
+  await upsertTask(db, {
+    task_id: id,
+    status: 'running',
+    progress: 5,
+    poll_task_id: 'thread-z',
+    request_data: relaySnapshot('image'),
+  });
+  const res = makeRes();
+  await handleGenerateGet(makeJsonReq(), res, getUrl(id));
+  const body = parseResBody(res);
+  assert.equal(body.data.status, 'running');
+  assert.equal(body.data.budgetMs, 300_000, '重 attach 也要能拿到预算（不能只靠 POST 那次）');
+});
+
+test('[143 S3′] GET running 但快照 capability 不可辨 ⇒ 不带 budgetMs（不得编一个数）', async () => {
+  const db = await getDb();
+  const id = 'task_route_running_nocap';
+  await upsertTask(db, {
+    task_id: id,
+    status: 'running',
+    progress: 5,
+    poll_task_id: 'thread-y',
+    request_data: JSON.stringify({ _relayPoll: { capability: 'weird' } }),
+  });
+  const res = makeRes();
+  await handleGenerateGet(makeJsonReq(), res, getUrl(id));
+  const body = parseResBody(res);
+  assert.equal(body.data.status, 'running');
+  assert.equal(
+    body.data.budgetMs,
+    undefined,
+    '取不到 capability ⇒ 不给预算（前端据此保持 running，不判失败）',
+  );
+});
+
 // ── 清理临时数据目录（延迟以等待 debouncedSaveDb 异步 flush 完成）──
 after(async () => {
   await new Promise((r) => setTimeout(r, 1500));

@@ -136,7 +136,11 @@ export const DOWNLOAD_TIMEOUT = 30000;
 export const VIDEO_DOWNLOAD_TIMEOUT = 60000;
 /** 文件上传（filesApi.js） */
 export const UPLOAD_TIMEOUT = 30000;
-/** 聊天/提示词生成总超时（relayChat）：2 分钟，超时 abort 并复位 loading，避免动画无限挂起 */
+/**
+ * chat 的「**等上游响应**」段预算（120s）—— **不是**任务总预算，别拿它当 `relayChat` 的总超时
+ *（143 · S5′ 实证：曾被写进 `body.timeoutMs` 当总预算传给后端，导致后端按段值掐上游）。
+ * 总预算见 `CHAT_TOTAL_TIMEOUT`（= 本值 + 宽限）。
+ */
 export const CHAT_TIMEOUT = 120000;
 /**
  * chat **任务总预算**（外层总闸）= 「等上游响应」+「响应体读取 / 解析 / 落盘」两段之和。
@@ -156,20 +160,22 @@ export const KV_TIMEOUT = 8000;
 /** 失败提示节流窗口：同一条 toast 文案在该窗口内重复只报一次（`reportDegrade` 节流用） */
 export const THROTTLE_MS = 5000;
 
-// ── 生成轮询超时（ms）───────────────────────────────────────────
-/** 生图 async 模式轮询总超时 */
-export const GEN_TIMEOUT = 300000;
-/** 视频 async 模式轮询总超时 */
-export const VIDEO_TIMEOUT = 600000;
+// ── 生成轮询超时 ────────────────────────────────────────────────
+// 【143 · S4′】`GEN_TIMEOUT` / `VIDEO_TIMEOUT` **已删除** —— 它们曾是「前端替上游定预算」的
+// 第二份真相。现在：**上游预算真源 = 后端** `localTool/src/budget.ts`（`budgetMsFor(capability)`），
+// 后端在 POST/GET 响应里以 `budgetMs` 告知，前端只读（`relayProxy` 的 attach 循环据此掐点）。
+// ⇒ 前端**不再有** image/video 的上游预算常量；要改预算改后端那一处。
 
 // ── 剧本盒引擎任务总耗时兜底 ────────────────────────────────────
-// 内层超时（CHAT_TIMEOUT / GEN_TIMEOUT）只覆盖「等上游响应」阶段；卡在响应体读取、发图前
-// 图片归一、结果落盘等阶段时无人管 → loading 永不结束。故在 runAbortable 任务边界再加一道总闸。
+// 内层超时（`CHAT_TIMEOUT`）只覆盖「等上游响应」阶段；卡在响应体读取、发图前图片归一、结果落盘
+// 等阶段时无人管 → loading 永不结束。故在 runAbortable 任务边界再加一道总闸。
+// ⚠️ 这一组是**前端自己环节的总闸**（不是上游预算）：上游预算由后端 `budgetMs` 给，前端不复制它。
 // 宽限 60s 供内层超时之外的环节（图片归一/解析/落盘）使用，不会误杀正常生成。
 /** 文本类任务（生成剧本 / 分镜提示词 / 审查 / 合并）总耗时上限 —— 与 chat 总预算同源（TD-01-24 收口） */
 export const SCRIPT_TEXT_TIMEOUT = CHAT_TOTAL_TIMEOUT;
-/** 生图类任务（资产参考图 / 尾帧变体）总耗时上限 */
-export const SCRIPT_IMAGE_TIMEOUT = GEN_TIMEOUT + 60000;
+/** 生图类任务（资产参考图 / 尾帧变体）总耗时上限 —— **前端自己的闸**，只保证「不早于上游默认预算」
+ *  （后端 image 默认 5 分钟 + 1 分钟宽限）。⚠️ 此处**不复制**后端那个数（数字只在上面的注释里）。 */
+export const SCRIPT_IMAGE_TIMEOUT = 360000;
 
 // ── 轮询间隔（ms）───────────────────────────────────────────────
 export const GEN_POLL_INTERVAL = 3000;

@@ -26,7 +26,8 @@ import { showToast, toastInfo } from '@/components/base/core/event/toastStore';
  *  R4 mutex 不在本原语内：节点侧单节点锁（claimNodeRun）与剧本盒伪 nodeId 各自在调用方，本原语只保证
  *     「同 taskNodeId 的旧 running 任务被 reportGenerate 自然结束」。
  *  R5 失败三分支内聚：abort（warn，不扰用户）/ 业务 fail（toast）/ 异常（classifyError 记录 + toast）。
- *  R6 超时不在本原语内：底层请求自带超时（GEN_TIMEOUT/CHAT_TIMEOUT）+ 调用方总闸（剧本盒 withTimeout）。
+ *  R6 超时不在本原语内：底层请求自带超时（chat 用 `CHAT_TOTAL_TIMEOUT` 任务总预算；image/video 的等待上限由**后端** `budgetMs` 给）
+ *     + 调用方总闸（剧本盒 withTimeout）。
  *  R7 文本例外：文本无 resultUrl、`done('')` 不广播（taskCompletionBus 校验空 URL 拒发）→
  *     非异步任务不要走本原语（它假定"有结果 URL"）。
  *  R8 伪 nodeId：`taskNodeId` 由调用方给（剧本盒用 `${nodeId}-asset-${assetId}` 保证每资产一卡）。

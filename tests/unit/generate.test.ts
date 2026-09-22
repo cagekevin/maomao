@@ -100,10 +100,12 @@ describe('generate — 三模态差异与信封（#2/#3 + 迁移）', () => {
     expect(intent.prompt).toBe('a cat');
     expect(intent.size).toBe('880x1776'); // 9:16 + 1K → 精确像素
     expect(intent.frontTaskId).toBe('front-task-1');
-    expect(timeoutMs).toBe(300000); // GEN_TIMEOUT
+    // 【143 · S4′】不再传 `timeoutMs` —— 等待上限由**后端**在 POST 响应里告知（`budgetMs`）。
+    // 断言"该字段不存在"= 锁住「前端不自持上游预算」这个新契约：回退到本地常量即红。
+    expect(timeoutMs).toBeUndefined();
   });
 
-  it('video：relay 返 url → {ok:true,url}；size/resolution/duration 透传；总超时 VIDEO_TIMEOUT（#2）', async () => {
+  it('video：relay 返 url → {ok:true,url}；size/resolution/duration 透传；不传总超时（#2 · S4′）', async () => {
     h.mockRelayGenerate.mockResolvedValue({
       ok: true,
       url: 'http://127.0.0.1:18080/files/tasks/v.mp4',
@@ -124,7 +126,8 @@ describe('generate — 三模态差异与信封（#2/#3 + 迁移）', () => {
     expect(intent.resolution).toBe('1080p');
     expect(intent.duration).toBe('8');
     expect(intent.frontTaskId).toBe('front-task-1');
-    expect(timeoutMs).toBe(600000); // VIDEO_TIMEOUT
+    // 【143 · S4′】同上：video 也不再有前端预算常量（原 `VIDEO_TIMEOUT` 已删）。
+    expect(timeoutMs).toBeUndefined();
   });
 
   it('image 比例 Auto → size 不指定（undefined）', async () => {
@@ -334,12 +337,12 @@ describe('别名函数共用 generate 实现（#10，防各自实现漂移）', 
     expect(intent.size).toBe('1152x2048'); // 走 resolveImagePixel（仅 generate() 调用）
     expect(intent.images).toEqual(['http://ref/a.png']); // 走 normalizeAssetUrlsForSend（仅 generate() 调用）
   });
-  it('generateVideo 时长转字符串 + VIDEO_TIMEOUT 只发生在 generate() 内', async () => {
+  it('generateVideo 时长转字符串只发生在 generate() 内；且**不再传 timeoutMs**（预算归后端 · S4′）', async () => {
     h.mockRelayGenerate.mockResolvedValue({ ok: true, url: 'http://x/v.mp4' });
     await api.generateVideo({ provider: { id: 'p1' }, prompt: 'x', model: 'm', seconds: 8 });
     const { intent, timeoutMs } = h.mockRelayGenerate.mock.calls[0][0];
     expect(intent.duration).toBe('8');
-    expect(timeoutMs).toBe(600000);
+    expect(timeoutMs).toBeUndefined();
   });
   it('chatCompletions 走 relayChat 消息块组装只发生在 generate() 的 chat 分支', async () => {
     vi.mocked(normalizeAssetUrlsForSend).mockResolvedValue(['http://ref/x.png']);
@@ -351,7 +354,7 @@ describe('别名函数共用 generate 实现（#10，防各自实现漂移）', 
       images: ['blob:q'],
     });
     const got = h.mockRelayChat.mock.calls[0][1];
-    expect(got.timeoutMs).toBe(120000); // CHAT_TIMEOUT（仅 generate() 的 chat 分支设置）
+    expect(got.timeoutMs).toBe(180000); // CHAT_TOTAL_TIMEOUT（任务总预算；S5′ 前误用段值 120s）
     const intent = h.mockRelayChat.mock.calls[0][0];
     expect(intent.capability).toBe('chat');
   });
