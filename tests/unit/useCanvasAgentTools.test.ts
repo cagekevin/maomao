@@ -50,6 +50,7 @@ describe('tool schemas / names', () => {
     expect(CANVAS_AGENT_TOOL_NAMES).toContain('delete_node');
     expect(CANVAS_AGENT_TOOL_NAMES).toContain('generate_node');
     expect(CANVAS_AGENT_TOOL_NAMES).toContain('read_canvas');
+    expect(CANVAS_AGENT_TOOL_NAMES).toContain('skill_read_file'); // 渐进披露第三层（按需读资料）
   });
 
   it('buildCanvasAgentToolSchemas 返回 function calling 格式', () => {
@@ -100,6 +101,14 @@ describe('buildCanvasAgentTools', () => {
     const res = tools.read_canvas({});
     expect(res.ok).toBe(false);
     expect(res.error).toContain('read_canvas');
+  });
+
+  it('skill_read_file 是**异步**工具：无本轮 Skill 时如实拒绝（不静默回空内容）', async () => {
+    const tools = buildCanvasAgentTools(makeCtx());
+    // async 工具经注册表包装后仍是 Promise（runToolCalls 会 await）——此处显式 await 验证这一点
+    const res = await tools.skill_read_file({ path: 'references/风格.md' });
+    expect(res.ok).toBe(false);
+    expect(res.error).toContain('本轮没有启用 Skill');
   });
 
   it('create_node 用合法 type → setNodes 追加节点并返回新 id', () => {

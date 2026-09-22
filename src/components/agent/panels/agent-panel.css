@@ -406,6 +406,18 @@
   font-size: 11.5px;
 }
 
+/* Skill 下拉里的分组小标题（组 = 技能库一级目录，docs/plan/140 §1.6）。
+   刻意做得比行更轻（小字/弱色/不大写粗体）：它是导航标注，不该跟"可点的技能名"抢视觉权重。 */
+.agent-pop-group {
+  padding: 7px 9px 3px;
+  color: rgb(var(--mao-text-faint));
+  font-size: 10.5px;
+  letter-spacing: 0.03em;
+}
+.agent-pop-group:first-child {
+  padding-top: 2px;
+}
+
 .agent-pop-divider {
   height: 1px;
   margin: 5px 4px;
@@ -1290,4 +1302,39 @@
 }
 .agent-mode-clear:hover {
   color: rgb(var(--mao-accent-strong));
+}
+
+/* 聊天区顶部「磁盘 Skill 被外部改了」提示条（琥珀色：是"待处理"不是"错误"）
+   —— 与 .agent-mode-bar 同构，只换配色，保证两条提示在视觉上同级（不是一个提示一个警告） */
+.agent-drift-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 9px;
+  border-radius: 8px;
+  background: rgb(245 158 11 / 0.08);
+  border: 1px solid rgb(245 158 11 / 0.25);
+  color: rgb(252 211 77);
+  font-size: 11px;
+  margin-bottom: 12px;
+  flex-shrink: 0;
+}
+.agent-drift-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.agent-drift-btn {
+  margin-left: auto;
+  flex-shrink: 0;
+  border: none;
+  background: transparent;
+  color: rgb(252 211 77);
+  font-size: 11px;
+  cursor: pointer;
+  text-decoration: underline;
+}
+.agent-drift-btn:hover {
+  color: rgb(253 230 138);
 }

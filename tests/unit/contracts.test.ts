@@ -118,7 +118,7 @@ describe('STORAGE_KEYS 语义检查', () => {
 });
 
 describe('STORAGE_KEYS 内容验证', () => {
-  it('当前共有 44 个登记键', () => {
+  it('当前共有 45 个登记键', () => {
     // 计数护栏：登记表增删键时必须同步此处。
     //   G0 新增 video-editor-project-{projectId} → 34→35
     //   2026-09-14 多工程改造（docs/134 T1）→ 35→37（删旧键 1：video-editor-project-{projectId}；
@@ -132,8 +132,10 @@ describe('STORAGE_KEYS 内容验证', () => {
     //     剪辑素材元数据由浏览器 IndexedDB 迁 KV，是**新增的 KV 键**）。
     //   2026-09-21 左侧面板拖拽调宽 → 43→44（加 left_panel_width：面板宽度记忆，
     //     与 AI 面板的 agent_panel_width 同性质但宿主不同 ⇒ 两把键，见 contracts 内该键注释）。
+    //   2026-09-21 Skill 模块设置（docs/plan/140 · D8/D9）→ 44→45（加 agent_skill_config：
+    //     「清单是否常驻发给 AI」+ 3 个预算；`sync:true`，换设备跟随）。
     // 它是有意保留的"变更需被看见"金丝雀，非行为契约——不要改成派生计数（派生即失效）。
-    expect(Object.keys(STORAGE_KEYS).length).toBe(44);
+    expect(Object.keys(STORAGE_KEYS).length).toBe(45);
   });
 
   it('云同步台账键已登记（防覆盖保护的本地基线，不进云端）', () => {

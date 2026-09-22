@@ -495,51 +495,6 @@ export function debounce<T extends (...args: any[]) => void>(fn: T, ms: number):
   return wrapped;
 }
 
-/**
- * IME 感知的输入提交工厂（P2/P12 收口原语，替代散落的手写 setTimeout 防抖）。
- *
- * 场景：中文/日文输入法组字期间，onChange 会携带「组字中间态」频繁触发；
- * 若直接防抖提交（搜索/落盘/写 store），会拿未组完的拼音去搜索，体验抖动。
- * 本工厂用 isComposing 门控：组字中仅缓存最新值不提交；组字结束立即提交一次；
- * 非组字输入走 debounce 合并（连续输入窗口内只提交 1 次，提交最新值）。
- *
- * 用法（与 AgentPanel isComposing 范式对齐）：
- *   const submit = createImeInput((v) => setQuery(v), 200)
- *   <input
- *     value={q}
- *     onChange={(e) => submit.onChange(e.target.value, e.nativeEvent.isComposing)}
- *     onCompositionEnd={(e) => submit.onCompositionEnd(e.target.value)}
- *   />
- *
- * 语义：
- *  - onChange(value, composing=true)：组字中 → 仅缓存，不提交、不调度。
- *  - onChange(value, composing=false)：非组字 → 重置防抖窗口，窗口内多次输入只提交 1 次（最新值）。
- *  - onCompositionEnd(value)：组字结束 → 立即提交一次（补触发，避免组字完成不提交）。
- *  - cancel()：取消未执行的提交（卸载/重置兜底）。
- */
-export function createImeInput(submit: (value: string) => void, ms = 200) {
-  const d = debounce(submit, ms);
-  let latest = '';
-  return {
-    onChange(value: string, composing = false): void {
-      latest = value;
-      if (composing) {
-        d.cancel(); // 组字中：取消可能存在的待提交（避免拼音中间态触发）
-        return;
-      }
-      d(latest);
-    },
-    onCompositionEnd(value: string): void {
-      latest = value;
-      d.cancel();
-      submit(latest); // 组字结束立即提交一次
-    },
-    cancel(): void {
-      d.cancel();
-    },
-  };
-}
-
 /** 节流（返回包装函数 + cancel） */
 export function throttle<T extends (...args: any[]) => void>(fn: T, ms: number): ThrottledFn<T> {
   let last = 0;

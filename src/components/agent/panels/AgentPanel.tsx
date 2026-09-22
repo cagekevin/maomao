@@ -1,6 +1,5 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { clamp } from '@/components/base/core/utils';
-import { generateId } from '@/components/base/core/idGen';
 // 拖拽调宽原语（唯一实现；与左侧面板 / 表格工作区共用，见该 hook 文件头）
 import { usePanelResize } from '@/hooks/usePanelResize';
 
@@ -64,16 +63,30 @@ import {
   AGENT_CHAT_MODEL_KEY,
 } from '@/components/agent/runtime/agentModelStore';
 import {
-  getAllSkills,
+  findSkill,
   markSkillUsed,
-  repairMojibakeText,
   isSkillEnabled,
-  isSkillImportFile,
-  skillNameFromFile,
   SKILLS_KEY,
   ENABLED_KEY,
-  type Skill,
 } from '@/components/agent/runtime/skillStore';
+// Skill 模块门面（域外只准走它）：块① 可用清单（块② 由 runtime 在发送起点冻结）+ 磁盘漂移侦测与重载。
+// 【为什么块① 在面板层拼】拼装要读设置态（`agent_skill_config`）与**已启用全集** —— 那是 UI 的现成事实；
+// agentCore 收字符串，保持纯函数层零业务耦合（见 buildRequestMessages 头注释）。
+import {
+  buildSkillPickerGroups,
+  detectSkillDrift,
+  getSkillIndexText,
+  importSkillText,
+  isSkillImportFile,
+  listAllSkills,
+  readDiskSkillPackages,
+  reloadSkillsFromDisk,
+  repairMojibakeText,
+  SKILL_CONFIG_KEY,
+  SKILL_IMPORT_ACCEPT,
+  SKILL_MAX_FILE_BYTES,
+  type SkillLibrary,
+} from '@/components/agent/skill';
 // 面板宽度键真源（TD-13-7：本面板不再自持第二份键字面量）
 import { KEY_AGENT_PANEL_WIDTH } from '@/components/base/core/contracts';
 import { contentGet, contentSet, contentSubscribe } from '@/components/base/core/contentStore';
@@ -163,6 +176,15 @@ function AttMediaChip({
       </button>
     </span>
   );
+}
+
+/**
+ * Skill 下拉里的分组小标题。
+ * 【为什么要有】分组是"技能库一级目录"这个概念的可见形态 —— 只在设置页显示的话，日常挑技能的那一处
+ * （本面板下拉）依旧是一条平铺长列表，"有分组"对用户就不成立。
+ */
+function SkillGroupHeader({ label }: { label: string }) {
+  return <div className="agent-pop-group">{label}</div>;
 }
 
 /**
@@ -371,13 +393,40 @@ function AgentPanel({
   useEnsureProvidersLoaded();
 
   // ── Skill 系统 ──
-  // 只展示已启用的 Skill（设置页中关闭的 Skill 不显示在可选列表里）
-  const [allSkills, setAllSkills] = useState(() =>
-    getAllSkills().filter((s) => isSkillEnabled(s.id)),
+  /**
+   * 技能全集的**读取结果**（`{ok, list, error}`）—— 连读失败一起拿着（TD-11-66）。
+   *
+   * 【为什么不留数组】此前这里只存数组：缓存读失败 ⇒ 组合层静默降级成"只剩内置" ⇒ 面板照样渲染一份
+   * "没有你的技能"的列表，用户以为技能全丢了（实际是**读不到**）。现在 `ok:false` 会配一条横幅如实说明。
+   */
+  const [skillsRead, setSkillsRead] = useState(() => listAllSkills());
+  /** 可选列表 = 已启用的那批（设置页关掉的不出现在下拉里）；读失败时它只剩内置（横幅会说明原因） */
+  const allSkills = useMemo(
+    () => skillsRead.list.filter((s) => isSkillEnabled(s.id)),
+    [skillsRead],
   );
-  const [activeSkills, setActiveSkills] = useState<
-    { id: string; name: string; description: string; content: string }[]
-  >([]);
+  /**
+   * 磁盘现状（每包**只取入口文件**；`null` = 没读到 / 后端没起 ⇒ **未决**）。
+   *
+   * 【面板为什么要读盘（TD-11-55）】选用入口此前**只按索引**列 ⇒ "磁盘上已删除、索引里还在"的条目
+   * 在"还没重读"的窗口内仍会出现在下拉里（能被选中、正文能注入，而附属资料已随磁盘删除而丢失）。
+   * 取用面的可用性必须与设置页列表**同一处判**（`row.usable`），而那个判据的真相源是磁盘。
+   * 【读不到怎么办】保持 `null` ⇒ 下拉按索引列出（**不把下拉变空**）：读不到磁盘 ≠ 磁盘上没有技能。
+   */
+  const [diskSnapshot, setDiskSnapshot] = useState<SkillLibrary | null>(null);
+  /**
+   * 本轮选中的 Skill —— **只存 id**。
+   * 【为什么不存正文/落点】那是第二份真相：字段一多必然漏传（P4 曾漏 `category`/`slug`，
+   * 致「按需读附属资料」静默恒失败）。正文与磁盘落点由 skill 模块按 id 现查（`freezeSkillTurn`）。
+   * 需要名字时现查 `skillNameOf`（缓存变更会经订阅触发重渲）。
+   */
+  const [activeSkills, setActiveSkills] = useState<string[]>([]);
+  // 设置页改「清单开关 / 预算」（agent_skill_config）时自增 → 重算注入文本（见下方 contentSubscribe）
+  const [skillConfigVersion, setSkillConfigVersion] = useState(0);
+  /** 磁盘上被外部改过的 Skill 名字（焦点侦测到；用户点「重新载入」后清空） */
+  const [skillDrift, setSkillDrift] = useState<string[]>([]);
+  /** 上次拉盘比对的时间戳（节流：焦点事件很密） */
+  const lastDriftCheckRef = useRef(0);
   const [skillSlashOpen, setSkillSlashOpen] = useState(false);
   const skillSlashRef = useRef<HTMLDivElement | null>(null);
   useOutsideClick(skillSlashRef, skillSlashOpen, () => setSkillSlashOpen(false));
@@ -391,19 +440,23 @@ function AgentPanel({
     saveSkills(activeSkills);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- saveDraft 等 action 定义在本 effect 之后（TDZ 依赖数组）
   }, [activeSkills]);
-  const applySkill = (skill: Skill) => {
+  /** 已选 id → 显示名（现查；查不到 = 该 Skill 已被删，退化为 id 本身而非空白） */
+  const skillNameOf = (id: string) => findSkill(id)?.name || id;
+  /**
+   * 选中一个 Skill —— **只收 id**。
+   * 【为什么不再收整个对象】本轮选中态存的就是 id（正文由 `freezeSkillTurn` 在发送起点按 id 现查），
+   * 收对象只会让调用方以为"传进来的正文被记住了"（P4 事故形态）。窄化成 id 后，那种误会**写不出来**。
+   */
+  const applySkill = (id: string) => {
     setActiveSkills((prev) => {
-      if (prev.some((s) => s.id === skill.id)) return prev;
-      markSkillUsed(skill.id);
-      return [
-        ...prev,
-        { id: skill.id, name: skill.name, description: skill.description, content: skill.content },
-      ];
+      if (prev.includes(id)) return prev;
+      markSkillUsed(id);
+      return [...prev, id];
     });
   };
   // 移除 Skill（已启用列表里去掉）：应用 Skill 后，用户可在已启用 chip 上点 ✕ 撤销
   const removeSkill = (id: string) => {
-    setActiveSkills((prev) => prev.filter((a) => a.id !== id));
+    setActiveSkills((prev) => prev.filter((a) => a !== id));
   };
   // 【联动修复】订阅 skillStore 两键：设置页新增/删除/编辑 Skill（agent_skills）、
   // 开关启用状态（agent_skill_enabled）变更时即时重读 allSkills，避免 AI 助手 Skill 列表
@@ -412,30 +465,150 @@ function AgentPanel({
   // 【关键：已选 skill 同步刷新】applySkill 选中时把 {content,...} 复制进 activeSkills（冻结快照），
   // 之后在设置页改了 skill 正文，activeSkills 仍是旧 content → 发给 AI 的还是旧 skill。
   // 故此处一并用 store 最新值回填已选条目（按 id 匹配），确保「改完设置页立刻用新 skill」。
+  /**
+   * 按存储重读 Skill 列表（订阅回调与「重新载入」共用**唯一实现**）：
+   *  · `allSkills` 只放**已启用**的（下拉里不该出现被关掉的）；
+   *  · `activeSkills` 只存 id ⇒ **不需要回填内容**（正文由 `freezeSkillTurn` 在发送起点按 id 现查，
+   *    "改完设置页立刻用新的"因此是天然成立的，而不是靠回填维持）；
+   *    但必须剔除**已经不存在的 id**（技能被删）—— 否则 chip 会永远挂着一个查不到名字的 id。
+   */
+  const resyncSkills = () => {
+    const fresh = listAllSkills();
+    setSkillsRead(fresh);
+    // 【读失败时**不许剔除**（TD-11-66）】`ok:false` ⇒ `list` 只剩内置 ⇒ 若照旧按 `known` 剔，
+    // 一次瞬时读失败就会把用户已选的技能**全部抹掉**（"我的选择没了"，且原因还不可见）。
+    // 剔 id 的前提是"我确实读到了索引"，不是"我拿到了一份清单"。
+    if (!fresh.ok) return;
+    const known = new Set(fresh.list.map((s) => s.id));
+    setActiveSkills((prev) =>
+      prev.some((id) => !known.has(id)) ? prev.filter((id) => known.has(id)) : prev,
+    );
+  };
+
   useEffect(() => {
-    const resync = () => {
-      const fresh = getAllSkills();
-      setAllSkills(fresh.filter((s) => isSkillEnabled(s.id)));
-      setActiveSkills((prev) =>
-        prev.map((a) => {
-          const f = fresh.find((s) => s.id === a.id);
-          return f ? { ...a, name: f.name, description: f.description, content: f.content } : a;
-        }),
-      );
-    };
-    const unsubSkills = contentSubscribe(SKILLS_KEY, resync);
-    const unsubEnabled = contentSubscribe(ENABLED_KEY, resync);
+    // 设置页改「清单开关 / 预算」也走同一个键通知 ⇒ 自增版本号让下面 skillIndexText 重算（否则要重启才生效）
+    const resyncConfig = () => setSkillConfigVersion((v) => v + 1);
+    const unsubSkills = contentSubscribe(SKILLS_KEY, resyncSkills);
+    const unsubEnabled = contentSubscribe(ENABLED_KEY, resyncSkills);
+    const unsubConfig = contentSubscribe(SKILL_CONFIG_KEY, resyncConfig);
     return () => {
       unsubSkills();
       unsubEnabled();
+      unsubConfig();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // 磁盘现状（选用入口的可用性判据）：面板打开时读一次，并在索引变化后重读。
+  // 【为什么挂在 `open` 上】面板没开时不该打扰后端；
+  // 【为什么也订 SKILLS_KEY】设置页写完盘会通知这个键，那时磁盘与索引刚对齐 —— 立刻重读才能让
+  // 下拉跟上（否则要等用户切窗口触发下面的焦点检查，中间那段就是 TD-11-55 说的"未重读窗口"）。
+  useEffect(() => {
+    if (!open) return;
+    let stopped = false;
+    const load = async () => {
+      const r = await readDiskSkillPackages();
+      if (stopped) return;
+      setDiskSnapshot(r.ok ? r.data : null); // 读不到 ⇒ 未决（按索引显示，不伪装成"磁盘上没有"）
+    };
+    void load();
+    const unsub = contentSubscribe(SKILLS_KEY, () => void load());
+    return () => {
+      stopped = true;
+      unsub();
+    };
+  }, [open]);
+
+  // ── 磁盘漂移侦测（P2）：焦点回到窗口时**只读**比对"磁盘正文 vs 缓存指纹" ──
+  // 【为什么只提示不自动改】"改了文件就自动覆盖缓存"会把一次误触手（编辑器存了个半截文件）直接变成事实；
+  //   hydrate 的写门槛（不写空/不猜身份）在这里同样成立 ⇒ 只提示、由用户点「重新载入」。
+  // 【节流】焦点事件很密（切窗口、切标签），5s 内不重复拉盘。
+  useEffect(() => {
+    if (!open) return; // 面板没开时不打扰后端：漂移提示只有在看得见的地方才有意义
+    let stopped = false;
+    const check = async () => {
+      if (document.visibilityState === 'hidden') return;
+      const now = Date.now();
+      if (now - lastDriftCheckRef.current < 5000) return;
+      lastDriftCheckRef.current = now;
+      const r = await detectSkillDrift();
+      // 失败不提示（这是"锦上添花"的侦测，不是用户操作）——但绝不把失败伪装成"无漂移"以外的东西：
+      // 静默只是不打扰；真正的读写结果由用户动作（重载/保存）负责报。
+      if (!stopped && r.ok && r.changed.length) setSkillDrift(r.changed.map((c) => c.name));
+    };
+    const onFocus = () => void check();
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onFocus);
+    return () => {
+      stopped = true;
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onFocus);
+    };
+  }, [open]);
+
+  /** 「重新载入」= 磁盘 → 缓存（hydrate）后重读列表；清掉提示。失败如实报，不假装刷新过。 */
+  const reloadSkills = async () => {
+    const r = await reloadSkillsFromDisk();
+    if (!r.ok) {
+      showToast(`重新载入失败：${r.error || '未知原因'}`, { type: 'error' });
+      return;
+    }
+    setSkillDrift([]);
+    resyncSkills();
+    const extra: string[] = [];
+    if (r.failures.length) extra.push(`${r.failures.length} 个包**未纳入**（${r.failures[0]}）`);
+    // 与 `failures` 分开说：这些包**已经纳入**，只是正文引用的资料不在包里（TD-11-46：一字段两义会把用户带偏）
+    if (r.warnings.length)
+      extra.push(`${r.warnings.length} 个包引用的资料缺失（${r.warnings[0]}）`);
+    if (r.missingId.length) extra.push(`${r.missingId.length} 个包缺 id，请到设置页「补齐 id」`);
+    // 【三态，不许二选一】未决（磁盘没给出结论）**不能**报成"磁盘内容与缓存一致" ——
+    // 那会把"磁盘上已经没有技能了"说成"两边一样"，用户接着一保存就把已删技能重建回磁盘（TD-11-18）。
+    const msg = r.undecided
+      ? '磁盘上还没有可用技能包 ⇒ 缓存未改动（要删掉缓存里的技能，请在设置页逐个删除）'
+      : r.changed
+        ? `已从磁盘重新载入 Skill${extra.length ? `；${extra.join('；')}` : ''}`
+        : '磁盘内容与缓存一致，无需更新';
+    showToast(msg, { type: r.changed ? 'success' : 'warning' });
+  };
+
+  // ── 块①（可用 Skill 清单）──
+  // 由 `getSkillIndexText` 读开关决定（默认关 ⇒ 空串 ⇒ 不注入，模型不知道 skill 体系存在）。
+  // 块②（本次启用正文）不在这里：它在发送起点由 runtime `freezeSkillTurn` 冻结（与消息留痕同源）。
+  const skillIndexText = useMemo(
+    () =>
+      getSkillIndexText(
+        allSkills.map((s) => ({ id: s.id, name: s.name, description: s.description })),
+      ),
+    // `skillConfigVersion` 不是"多余依赖"：`getSkillIndexText` 内部读 `agent_skill_config`，
+    // 而 eslint 看不见"闭包内部读的状态" ⇒ 版本号是让它重算的**唯一信号**（否则改了开关要重启才生效）
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [allSkills, skillConfigVersion],
+  );
+
+  /**
+   * Skill 下拉里的分组（组 = 技能库一级目录，docs/plan/140 §1.6）。
+   *
+   * 【为什么不在这里归组（TD-11-62）】此前本处**手写**了官方组（`{ name: '__official', label: '官方' }`）
+   * —— 消费者自己捏造组哨兵 ⇒ 组语义有两个出生地，改哨兵值即静默失效。现在整组交给模块的
+   * `buildSkillPickerGroups`（与设置页列表同一套 `kind`/`label`）；本面板不认识任何哨兵。
+   * 【输入是"选得动的"那批】`allSkills` 已经过组合（`listAllSkills`）与启用判据（`isSkillEnabled`）；
+   * 空组不出现（没有成员可选时摆空组只是挡路；磁盘上的空组由设置页如实显示）。
+   * 【第三参 `diskSnapshot`（TD-11-55）】给磁盘现状 ⇒ "磁盘上已删、索引里还在"的条目**不进下拉**；
+   * 没读到（`null`）⇒ 按索引列出（不把下拉变空）。
+   */
+  const skillPickerGroups = useMemo(
+    () => buildSkillPickerGroups(allSkills, diskSnapshot),
+    [allSkills, diskSnapshot],
+  );
+
   const handleConversationChange = useCallback((snap: SnapshotPatch) => {
+    // 会话快照里的 skills 现在就是 id 列表（旧格式是对象数组 ⇒ 按"不为旧数据做兼容"丢弃，
+    // 它只是"本轮选中态"，不是用户资产）
     if (snap?.skills)
       setActiveSkills(
-        snap.skills as { id: string; name: string; description: string; content: string }[],
+        (Array.isArray(snap.skills) ? snap.skills : []).filter(
+          (v): v is string => typeof v === 'string',
+        ),
       );
     if (Array.isArray(snap?.attachments)) setAttachments(snap.attachments as AgentAttachment[]);
     // 【TD-17】草稿跟随对话：只同步到 UI state，不再手动「也写一次存储键」——
@@ -489,6 +662,7 @@ function AgentPanel({
     defaultModel: defaultAgentModel,
     provider: agentProvider,
     skills: activeSkills,
+    skillIndexText,
     onConversationChange: handleConversationChange,
     tableOpen,
   });
@@ -729,10 +903,8 @@ function AgentPanel({
 
   const [modelOpen, setModelOpen] = useState(false);
   const modelRef = useRef<HTMLDivElement | null>(null);
-  // 上传 input 的 ref：上传 UI 当前被注释（见下方「图片上传：暂时隐藏」块），取消注释即可恢复
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- fileRef 仅在被注释的上传 UI 中引用
-  const _fileRef = useRef<HTMLInputElement | null>(null);
-  void _fileRef;
+  /** 选文件（参考图 / `.md`·`.markdown`·`.txt` 技能文件）用的隐藏 input ref */
+  const fileRef = useRef<HTMLInputElement | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   // 「回到底部」按钮：atBottom 驱动显隐；atBottomRef 供滚动副作用同步读取最新值（避免闭包读到过期 state）
@@ -1030,29 +1202,40 @@ function AgentPanel({
     [messages, send, scrollToBottom],
   );
 
-  // 图片上传（对应 UI 已被注释，见下方「图片上传：暂时隐藏」块；保留实现以便取消注释即恢复）
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- handleFiles 仅在被注释的上传 UI 中引用
-  const _handleFiles = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
+  /**
+   * 选文件：**参考图**（进附件）与 **技能文本**（`.md`/`.markdown`/`.txt` → 真落盘为 Skill）。
+   *
+   * 【落盘优先】技能这条走模块用例 `importSkillText`（磁盘为真源），**成功后才选中它** ——
+   * 从前这里是 `applySkill({id: generateId(...), content})`，而选中态只存 id ⇒ 那个正文谁也没接住
+   * （toast 说"已导入"，磁盘/索引都没有它，chip 挂着一个查不到的 id。TD-11-62 顺带修掉）。
+   * 【不静默丢】不支持的文件（含超限）**逐个记下来如实说**，不许静默 `continue`（M5）。
+   */
+  const handleFiles = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const list = Array.from(e.target.files || []);
+    if (!list.length) return;
     setUploading(true);
+    const skipped: string[] = [];
     try {
-      for (let i = 0; i < files.length; i++) {
-        const f = files[i];
-        // .md/.markdown/.txt → 导入为 Skill（对齐大雄 setAgentSkillFile：文件名即 Skill 名，content 即文本）
-        // TD-16-8：白名单/去扩展名收口到 skillStore（唯一实现），禁各处复写正则
+      for (const f of list) {
+        // .md/.markdown/.txt → 导入为 Skill（文件名即 Skill 名，正文即文本）
+        // TD-16-8 / TD-11-52：白名单判定收口到 skill 模块（唯一实现），禁各处复写正则
         if (isSkillImportFile(f.name)) {
+          // 【大小闸（TD-11-27 的判据横向铺开）】后端对单文件有硬上限（超限即 400、整包失败），
+          // 设置页那条导入早就有这道判断；面板这条此前没有 ⇒ 会先把一个**必然被拒**的文件整读进内存
+          // 再 POST 出去。判据取自同一个跨栈常量（不新写数字）。
+          if (f.size > SKILL_MAX_FILE_BYTES) {
+            skipped.push(`${f.name}（超过 ${Math.round(SKILL_MAX_FILE_BYTES / 1024 / 1024)} MB）`);
+            continue;
+          }
           try {
             const text = await readTextFile(f);
-            const name = skillNameFromFile(f.name);
-            // id 走 idGen 唯一入口（TD-18-18）：原 `skill_file_${Date.now()}_${i}` 零随机段，同毫秒导入即撞
-            applySkill({
-              id: generateId('skill_file'),
-              name,
-              description: '',
-              content: String(repairMojibakeText(text)),
-            });
-            showToast(`已导入 Skill「${name}」`, { type: 'success' });
+            const r = await importSkillText(f.name, String(repairMojibakeText(text)));
+            if (!r.ok) {
+              showToast(`Skill 导入失败：${r.message}`, { type: 'error' });
+            } else {
+              applySkill(r.skill.id);
+              showToast(`已导入 Skill「${r.skill.name}」`, { type: 'success' });
+            }
           } catch (err) {
             showToast(`Skill 导入失败：${(err as { message?: string })?.message || err}`, {
               type: 'error',
@@ -1060,7 +1243,10 @@ function AgentPanel({
           }
           continue;
         }
-        if (detectFileType(f) !== 'image') continue;
+        if (detectFileType(f) !== 'image') {
+          skipped.push(f.name); // 既不是技能文本、也不是图片 ⇒ 记下来（下面如实说）
+          continue;
+        }
         const localUrl = previewUrls.create(f);
         try {
           const dataUrl = await fileToDataUrl(f);
@@ -1086,10 +1272,16 @@ function AgentPanel({
       }
     } finally {
       setUploading(false);
-      e.target.value = '';
+      e.target.value = ''; // 复位：否则同一个文件再选一次不触发 onChange（第二次"没反应"）
+    }
+    // 【跳过要如实说（M5：不许静默）】只在真有跳过时提示；文案说清"这里收什么"，别让用户猜
+    if (skipped.length) {
+      showToast(
+        `已跳过 ${skipped.length} 个文件：${skipped.slice(0, 2).join('、')}${skipped.length > 2 ? ' 等' : ''}（这里只收图片和 ${SKILL_IMPORT_ACCEPT}）`,
+        { type: 'warning' },
+      );
     }
   };
-  void _handleFiles;
 
   // 释放本地预览 blob 的 url（幂等：非 blob 预览 url 未登记，release 安全返回）
   const releaseAttachmentUrls = (list: { localUrl?: string | null }[]) => {
@@ -1438,6 +1630,40 @@ function AgentPanel({
                   )}
                 </div>
               )}
+              {/* 技能索引**读不到** ⇒ 如实说明（TD-11-66）：不许静默降级成"只剩内置"
+                  —— 那种时候用户看到的是"我的技能全没了"，而真相是"读不到"（两件事）。
+                  动作给「重新载入」：它会拿磁盘重写本地索引，正是这种损坏的根治手段。 */}
+              {skillsRead.ok === false && (
+                <div className="agent-drift-bar">
+                  <span className="agent-drift-text">
+                    技能列表读不到（{skillsRead.error || '本地索引损坏'}）—— 现在只显示内置 Skill
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => void reloadSkills()}
+                    className="agent-drift-btn"
+                    title="从磁盘重新载入（会重写本地索引）"
+                  >
+                    重新载入
+                  </button>
+                </div>
+              )}
+              {/* 磁盘被外部改了 ⇒ 如实提示 + 一键重载（不自动覆盖：见下方漂移侦测注释） */}
+              {skillDrift.length > 0 && (
+                <div className="agent-drift-bar">
+                  <span className="agent-drift-text">
+                    磁盘上的 Skill 文件已更新：{skillDrift.join('、')}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => void reloadSkills()}
+                    className="agent-drift-btn"
+                    title="从磁盘重新载入（磁盘是内容的真相源）"
+                  >
+                    重新载入
+                  </button>
+                </div>
+              )}
               {messages.length === 0 && (
                 <div className="agent-empty" onClick={focusTextarea}>
                   <div className="agent-empty-mark">{AI_ICON}</div>
@@ -1450,7 +1676,7 @@ function AgentPanel({
                         <button
                           key={s.id}
                           type="button"
-                          onClick={() => applySkill(s)}
+                          onClick={() => applySkill(s.id)}
                           className="agent-chip"
                         >
                           <FileText size={10} strokeWidth={2} />
@@ -1689,20 +1915,26 @@ function AgentPanel({
                   {allSkills.length === 0 ? (
                     <div className="agent-pop-empty">暂无 Skill</div>
                   ) : (
-                    allSkills.map((s) => (
-                      <button
-                        key={s.id}
-                        type="button"
-                        onClick={() => {
-                          applySkill(s);
-                          setInput('');
-                          setSkillSlashOpen(false);
-                        }}
-                        className="agent-row"
-                      >
-                        <span className="agent-slash-mark">/</span>
-                        <span className="agent-row-name">{s.name}</span>
-                      </button>
+                    skillPickerGroups.map((g) => (
+                      // key 不用组名（那会把哨兵/磁盘目录名当身份）—— `kind` + `label` 才是本层的语义
+                      <div key={`${g.kind}:${g.label}`}>
+                        <SkillGroupHeader label={g.label} />
+                        {g.items.map((s) => (
+                          <button
+                            key={s.id}
+                            type="button"
+                            onClick={() => {
+                              applySkill(s.id);
+                              setInput('');
+                              setSkillSlashOpen(false);
+                            }}
+                            className="agent-row"
+                          >
+                            <span className="agent-slash-mark">/</span>
+                            <span className="agent-row-name">{s.name}</span>
+                          </button>
+                        ))}
+                      </div>
                     ))
                   )}
                 </div>
@@ -1851,12 +2083,12 @@ function AgentPanel({
                     onClick={(e) => {
                       e.stopPropagation();
                       // Skill 单选：直接清除当前所选的那一个
-                      if (activeSkills[0]) removeSkill(activeSkills[0].id);
+                      if (activeSkills[0]) removeSkill(activeSkills[0]);
                       setSkillPickOpen(false);
                     }}
                     disabled={sending}
                     className="agent-skill-clear"
-                    title={`清除当前所选 Skill（${activeSkills.map((s) => s.name).join('、')}）`}
+                    title={`清除当前所选 Skill（${activeSkills.map(skillNameOf).join('、')}）`}
                   >
                     <X size={12} strokeWidth={2.5} />
                   </button>
@@ -1870,64 +2102,86 @@ function AgentPanel({
                   className="agent-skill-main"
                   title={
                     activeSkills.length > 0
-                      ? `已启用 ${activeSkills.map((s) => s.name).join('、')}`
+                      ? `已启用 ${activeSkills.map(skillNameOf).join('、')}`
                       : '应用 Skill'
                   }
                 >
-                  {activeSkills.length === 0 ? 'Skill' : activeSkills[0]?.name || 'Skill'}
+                  {activeSkills.length === 0 ? 'Skill' : skillNameOf(activeSkills[0])}
                 </button>
                 {skillPickOpen && (
                   <div className="agent-pop is-slash agent-mh-280">
                     {allSkills.length === 0 ? (
                       <div className="agent-pop-empty">暂无 Skill</div>
                     ) : (
-                      allSkills.map((s) => {
-                        const on = activeSkills.some((a) => a.id === s.id);
-                        return (
-                          <button
-                            key={s.id}
-                            type="button"
-                            onClick={() => {
-                              if (on) removeSkill(s.id);
-                              else applySkill(s);
-                              setSkillPickOpen(false);
-                            }}
-                            className={`agent-row ${on ? 'is-active' : ''}`}
-                          >
-                            <span className="agent-row-name">{s.name}</span>
-                            <span className="agent-step-meta is-inline">
-                              {s.builtin ? '内置' : ''}
-                            </span>
-                            {on && (
-                              <span className="agent-row-check">
-                                <Check size={12} strokeWidth={2.5} />
-                              </span>
-                            )}
-                          </button>
-                        );
-                      })
+                      skillPickerGroups.map((g) => (
+                        <div key={`${g.kind}:${g.label}`}>
+                          {/* 组头承担"内置/自定义"的信息（原先每行挂一个「内置」小标签）——
+                              分组可见之后，逐行重复标注同一件事只是噪声 */}
+                          <SkillGroupHeader label={g.label} />
+                          {g.items.map((s) => {
+                            const on = activeSkills.includes(s.id);
+                            return (
+                              <button
+                                key={s.id}
+                                type="button"
+                                onClick={() => {
+                                  if (on) removeSkill(s.id);
+                                  else applySkill(s.id);
+                                  setSkillPickOpen(false);
+                                }}
+                                className={`agent-row ${on ? 'is-active' : ''}`}
+                              >
+                                <span className="agent-row-name">{s.name}</span>
+                                {on && (
+                                  <span className="agent-row-check">
+                                    <Check size={12} strokeWidth={2.5} />
+                                  </span>
+                                )}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      ))
                     )}
                   </div>
                 )}
               </span>
 
-              {/* 图片上传：暂时隐藏（如需恢复，取消下方注释即可） */}
-              {/*
-              <input ref={fileRef} type="file" accept="image/*,.md,.markdown,.txt" multiple onChange={handleFiles} className="hidden" />
+              {/* 选文件：参考图 + 技能文本（`.md`/`.markdown`/`.txt`）——
+                  `accept` 从模块白名单派生（`SKILL_IMPORT_ACCEPT`），不在 UI 里再写一份扩展名表。
+                  隐藏 input + 按钮触发是本站既有形态（同 SkillSettings 的导入）。 */}
+              <input
+                ref={fileRef}
+                type="file"
+                accept={`image/*,${SKILL_IMPORT_ACCEPT}`}
+                multiple
+                onChange={(e) => void handleFiles(e)}
+                className="hidden"
+                data-testid="agent-file-input"
+              />
               <button
                 type="button"
                 onClick={() => fileRef.current?.click()}
                 disabled={uploading || sending}
                 className="p-1.5 rounded-md transition-colors text-secondary hover:text-primary hover:bg-surface disabled:cursor-not-allowed disabled:opacity-50"
-                title="上传参考图"
+                title={`上传参考图 / 导入 Skill（${SKILL_IMPORT_ACCEPT}）`}
+                aria-label="上传参考图或导入 Skill"
               >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
                   <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
                   <circle cx="8.5" cy="8.5" r="1.5" />
                   <polyline points="21 15 16 10 5 21" />
                 </svg>
               </button>
-              */}
               <span className="agent-spacer" />
 
               {/* 发送/停止 */}

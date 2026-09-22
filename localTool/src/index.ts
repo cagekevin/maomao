@@ -494,6 +494,9 @@ async function main(): Promise<void> {
             : process.platform === 'win32'
               ? 'start'
               : 'xdg-open';
+        // ⚠️ 全仓唯一**保留 shell** 的 open 调用：① `pageUrl` 由本文件拼出（无外部输入，注入面为 0）；
+        // ② Windows 的 `start` 是 cmd 内置命令，`execFileSync('start', …)` 会 ENOENT。别为"统一形态"改它 ——
+        // 其余三处（skills/files 的 open-dir）的路径都源自用户/磁盘，已改 `execFileSync`（TD-11-25）。
         execSync(`${openCmd} "${pageUrl}"`, { timeout: 3000 });
       } catch {
         /* 打开失败不阻塞服务 */

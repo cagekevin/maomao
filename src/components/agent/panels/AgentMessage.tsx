@@ -38,7 +38,14 @@ export interface AgentMessageData extends agentChatMessage {
   id?: string;
   content?: string;
   streaming?: boolean;
-  skills?: Array<{ name?: string; id?: string; [k: string]: unknown }>;
+  /** 本轮启用的 Skill 冻结绑定（`SkillBinding[]`：含 version / contentHash 供回看对账） */
+  skills?: Array<{
+    name?: string;
+    id?: string;
+    version?: string;
+    contentHash?: string;
+    [k: string]: unknown;
+  }>;
   generations?: Array<{
     id?: string;
     title?: string;
@@ -315,15 +322,33 @@ function AgentMessage({
   }, [message?.content]);
 
   if (message.role === 'user') {
-    const skillNames = (message.skills || []).map((s) => s?.name || s?.id || '').filter(Boolean);
+    // 本轮启用的 Skill = 发送时**冻结的绑定**（含 contentHash/version，见 skillInject.freezeSkillTurn）。
+    // chip 的 title 带上"当时是哪一版"：之后磁盘改了文件，回看这条消息仍能对账（这正是冻结的意义）。
+    const skillBadges = (message.skills || [])
+      .map((s) => {
+        // 来源（官方 / 哪个分组）——读的是**冻结时记下的** `origin` / `category`，不是现在去查磁盘：
+        // 技能事后改名、换组甚至被删，这条消息仍如实说出"当时用的是哪一份"（这正是冻结的意义，TD-11-29）。
+        const category = typeof s?.category === 'string' ? s.category : '';
+        return {
+          name: String(s?.name || s?.id || ''),
+          version: typeof s?.version === 'string' ? s.version : '',
+          hash: typeof s?.contentHash === 'string' ? s.contentHash.slice(0, 8) : '',
+          source: s?.origin === 'builtin' ? '官方' : category ? `分组：${category}` : '自建',
+        };
+      })
+      .filter((b) => b.name);
     return (
       <div className="agent-user-row">
         <div className="agent-user-col">
           {/* 已使用 Skill（对齐大雄：user 消息显示本轮用到的 Skill） */}
-          {skillNames.length > 0 && (
+          {skillBadges.length > 0 && (
             <div className="agent-user-skills">
-              {skillNames.map((n, i) => (
-                <span key={i} className="agent-user-skill">
+              {skillBadges.map((b, i) => (
+                <span
+                  key={i}
+                  className="agent-user-skill"
+                  title={`本轮启用 Skill · ${b.source}${b.version ? ` · v${b.version}` : ''}${b.hash ? ` · ${b.hash}` : ''}`}
+                >
                   <svg
                     width="9"
                     height="9"
@@ -339,7 +364,7 @@ function AgentMessage({
                     <line x1="16" y1="13" x2="8" y2="13" />
                     <line x1="16" y1="17" x2="8" y2="17" />
                   </svg>
-                  {n}
+                  {b.name}
                 </span>
               ))}
             </div>

@@ -1718,7 +1718,7 @@ const MEDIA_SSOT = new Set([
   'src/components/base/core/utils.ts', // fileNameFromUrl / relativePathFromFileUrl（URL 提取真源）
   'src/components/base/api/filesApi.ts', // relativePathFromUrl（薄委托，保留同名导出）
   'src/components/base/utils/media/assetUrl.ts', // toRelativeFileUrl 等 URL 归一化出口
-  'src/components/agent/runtime/skillStore.ts', // isSkillImportFile / skillNameFromFile（Skill 白名单真源 TD-16-8；2026-09-19 随 A1 从 base/store/ 迁入 agent/runtime/）
+  'src/components/agent/skill/skillImport.ts', // isSkillImportFile / skillNameFromFile（Skill 白名单真源；TD-16-8 收口，2026-09-22 随 TD-11-52 从 runtime/skillStore.ts 迁入本模块）
 ]);
 // ① 媒体扩展名「列举」正则：`\.(png|jpe?g|gif|…)` —— ≥2 个分支才算列举（单个 `\.(mp4)$` 不算表）。
 //    ⚠️ 只拦**与 EXT_KIND 真值源重叠**的列举（媒体/文本类）；域专用扩展名（如 3D 模型的 glb/gltf、
@@ -1985,8 +1985,10 @@ if (
 //   真正的缺口是：**没有任何机器对账** —— 两侧注释互相指向（"勿单边漂移"），但注释拦不住人。
 //   实证风险：任一侧漂移会**静默改变发送图片的压缩上限**（用户可见：图变大/被压糊）。
 //
-// 【判据】从两侧各自的源文件抓 `MAX_SEND_DIM = <数字>` → 必须都存在且相等；任一侧缺失/不等 → 违规。
-//   · 不列「允许谁」的清单（只对这一个跨栈契约，未来新增同类契约按此模式补一行）。
+// 【判据】从两侧各自的源文件抓 `NAME = <字面标量>`：**数字或引号字符串**（写成 `2 * 1024 * 1024`
+//   或变量引用会抓不到 ⇒ 报"缺失"；2026-09-22 起支持字符串，见 `SKILL_ENTRY_FILE`）
+//   → 必须都存在且相等；任一侧缺失/不等 → 违规。对账项见下方 `CROSS_STACK_CONSTS` 数组
+//   （现有 `MAX_SEND_DIM` · `SKILL_MAX_FILE_BYTES`）；未来新增同类契约**按此模式补一行**。
 // ─────────────────────────────────────────────────────────────────
 // 规则 16（2026-09-18 · TD-02-64 / TD-02-65 母体止血）：**存** —— 后端落盘唯一权威。
 //
@@ -2131,7 +2133,7 @@ if (!collectViol) {
   console.log('  ✅ 无越权直写 data.images（扫 src；唯一写入口 = ImageBoxNode.addImages）');
 }
 
-console.log('\n📐 跨栈契约常量对账：MAX_SEND_DIM 前后端必须相等（反向判据）');
+console.log('\n📐 跨栈契约常量对账：前后端必须相等（反向判据）');
 const CROSS_STACK_CONSTS = [
   {
     name: 'MAX_SEND_DIM',
@@ -2139,14 +2141,34 @@ const CROSS_STACK_CONSTS = [
     be: 'localTool/src/utils/resolveLocalImages.ts',
     why: '发送图片最长边上限（前端压 blob/data、后端压 /files/，两端口径必须一致）',
   },
+  {
+    name: 'SKILL_MAX_FILE_BYTES',
+    fe: 'src/components/agent/skill/skillImport.ts',
+    be: 'localTool/src/routes/skills.ts',
+    why: '单个技能文件上限（前端据此不把必然被拒的文件读进内存、后端超限即 400；取值同一事实 —— TD-11-27）',
+  },
+  {
+    name: 'SKILL_ENTRY_FILE',
+    fe: 'src/components/agent/skill/skillEntry.ts',
+    be: 'localTool/src/routes/skills.ts',
+    why:
+      '技能包入口文件名（**跨栈协议名**：前端建包/解析、后端落盘/供数都按它找文件；' +
+      '单边改成 `skill.md`/别的扩展名 = 包还在但谁也读不到它，而两侧各自都"对"、无类型错 —— TD-11-59）',
+  },
 ];
 let crossStackViol = 0;
 for (const c of CROSS_STACK_CONSTS) {
   const grab = (rel) => {
     const abs = join(root, rel);
     if (!existsSync(abs)) return null;
-    const m = new RegExp(`\\b${c.name}\\s*=\\s*(\\d+)`).exec(readFileSync(abs, 'utf8'));
-    return m ? m[1] : null;
+    // 值允许**数字**或**单/双引号字符串**（2026-09-22 · TD-11-59 扩）：
+    // 跨栈契约既有"取值上限"（`MAX_SEND_DIM = 1920`），也有"协议名"（`SKILL_ENTRY_FILE = 'SKILL.md'`）。
+    // 判据不变（两侧都必须**显式定义**且值相等），只是把"值"从数字扩到字面标量 ——
+    // 不扩的话协议名就只能靠注释互相喊话，那正是本闸当初要消灭的东西。
+    const m = new RegExp(`\\b${c.name}\\s*=\\s*(?:['"]([^'"]*)['"]|(\\d+))`).exec(
+      readFileSync(abs, 'utf8'),
+    );
+    return m ? (m[1] ?? m[2]) : null;
   };
   const feVal = grab(c.fe);
   const beVal = grab(c.be);
@@ -2168,6 +2190,146 @@ for (const c of CROSS_STACK_CONSTS) {
 }
 if (crossStackViol === 0) {
   console.log(`  ✅ 跨栈契约常量对账通过（${CROSS_STACK_CONSTS.length} 项）`);
+}
+
+// 规则（2026-09-22 · TD-11-59）：**技能包入口文件名**（`SKILL.md`）只许住在两侧的定义文件里。
+//
+// 【为什么要这一条（对账已经够了？不够）】上面的 `CROSS_STACK_CONSTS` 保证**两侧定义的值相等**，
+//   但它管不住"有人又在别处写一遍字面量"：那处的值可以永远正确、也可以在某次重构里被改成
+//   `skill.md`，而**对账看的是定义文件**⇒ 改在别处的第四份跑了。所以"单一常量"要两条一起：
+//   ① 两侧定义值相等（对账）；② 字面量只许出现在定义文件（本闸）。
+// 【判据】除 `skillEntry.ts`（前端定义）与 `localTool/src/routes/skills.ts`（后端定义）外，
+//   `src/**` + `localTool/src/**` 内出现**恰为** `'SKILL.md'` / `"SKILL.md"` / `` `SKILL.md` `` 的字面量
+//   ⇒ 违规。**含该名字的文案**（如 `'读不到 SKILL.md 文本'`）不算 —— 判据只认"整个字面量就是它"，
+//   免得把给用户看的句子也逼成拼接（那才是判据面超出问题面）。
+// ─────────────────────────────────────────────────────────────────
+console.log('\n📄 技能包入口文件名只许住定义文件（反向判据）');
+const SKILL_ENTRY_OWNERS = new Set([
+  'src/components/agent/skill/skillEntry.ts',
+  'localTool/src/routes/skills.ts',
+]);
+let entryLiteralViol = 0;
+for (const base of [SRC, BACKEND_SRC]) {
+  if (!existsSync(base)) continue;
+  for (const f of collectFiles(base)) {
+    const rel = f.slice(root.length + 1).replace(/\\/g, '/');
+    if (!/\.(ts|tsx)$/.test(rel)) continue;
+    if (SKILL_ENTRY_OWNERS.has(rel)) continue;
+    const lines = readFileSync(f, 'utf8').split('\n');
+    for (const [i, line] of lines.entries()) {
+      const trimmed = line.trim();
+      if (trimmed.startsWith('//') || trimmed.startsWith('*') || trimmed.startsWith('/*')) continue;
+      // 大小写不敏感（TD-11-64）：判据要覆盖"协议名的任何写法"，而 `skillImport` 里为了容忍手写包
+      // 本来就在做 `baseOf(...).toLowerCase() === 'skill.md'` —— 首版闸只抓规范大小写 ⇒ **两处真实例当场漏检**
+      // （那两处若在改名时漏改，整目录导入会静默失效且闸永远绿）。枚举式判据必漏，故这里收成"同形即违规"。
+      if (/['"`]SKILL\.md['"`]/i.test(line)) {
+        entryLiteralViol++;
+        fail(
+          `写了技能包入口文件名字面量: ${rel}:${i + 1} → ${trimmed.slice(0, 100)}` +
+            `（改用 \`SKILL_ENTRY_FILE\` / \`findSkillEntryFile(files)\` / \`skillEntryRelPath(category, slug)\`：` +
+            `它是**跨栈协议名**，散着写就没人能保证两侧一致。见 TD-11-59）`,
+        );
+      }
+    }
+  }
+}
+if (entryLiteralViol === 0) {
+  console.log('  ✅ 无散落的入口文件名字面量（唯一住处：skillEntry.ts 与后端 routes/skills.ts）');
+}
+
+// 规则（2026-09-22 · TD-11-25）：**命令行只许 argv 传递**。
+//
+// 【为什么必须有】`execSync(`${cmd} "${dir}"`)` 把变量拼进命令行 ⇒ 变量一旦含 `"` / `$()` / 反引号
+//   就能逃出引号执行任意命令。而"路径合法字符集"这条判据**靠不住**：后端 `isSafeSegment` 刻意宽松
+//   （POSIX 文件名本就可以含 `"`，Finder 也建得出来），前端另有一份（还更严）⇒ 两端分歧本身就是
+//   已登记的债（TD-11-25）。所以正确的收口不是在字符集上打补丁，而是**让 shell 不再参与**：
+//   `execFileSync(cmd, [arg, …])` 以 argv 传递，参数不经过 shell 解析 ⇒ 这一整类注入结构上不存在。
+//   实证（2026-09-22）：全仓一次 grep 命中 4 处（`routes/skills.ts` open-dir、`routes/files.ts` ×2、
+//   `index.ts` 开浏览器），其中前三处的参数分别来自**技能库目录名**与**用户可控查询参数**。
+//
+// 【判据（反向 · 2026-09-22 加固，TD-11-48）】**一律禁 `execSync(` / `exec(`**（豁免下表列出的文件），
+//   只允许 argv 形态（`execFileSync(cmd, [args])`）。
+//
+// 【为什么从"抓模板插值"改成"一律禁"】首版判据是单行正则抓 `` execSync(`…${x}`) `` ⇒ 两处漏检：
+//   ① 写成多行（反引号换到下一行）；② **先拼串再传**（`const c = \`…${x}\`` 然后 `execSync(c)`）——
+//   那是最自然的规避写法，也是最可能的真实写法。既然**批准形态只有 argv 一种**，
+//   直接禁掉 `exec*` 比"枚举危险写法"完整得多（枚举式判据的覆盖永远是漏的：本仓 M1 母体）。
+// 【为什么不是"更宽松即可"】`execFileSync` 不含 `exec(`（后面是 `FileSync`），
+//   `RegExp.exec(` 有 `.` 前缀被排除，故本判据在真实代码上零误报。
+// 【唯一豁免（带理由，改它要过评审）】`localTool/src/index.ts` 启动时开浏览器：① URL 由本文件拼出，
+//   无外部输入、注入面为 0；② Windows 的 `start` 是 cmd **内置命令**，argv 形态会 ENOENT。
+// ─────────────────────────────────────────────────────────────────
+console.log('\n🐚 命令行只许 argv 传递：禁 exec / execSync（反向判据）');
+const SHELL_ARGV_EXEMPT = new Set(['localTool/src/index.ts']);
+let shellViol = 0;
+for (const base of [SRC, BACKEND_SRC]) {
+  if (!existsSync(base)) continue;
+  for (const f of collectFiles(base)) {
+    const rel = f.slice(root.length + 1).replace(/\\/g, '/');
+    if (!/\.(ts|tsx)$/.test(rel)) continue;
+    if (rel.endsWith('.d.ts')) continue; // 类型声明：里面的 `exec(...)` 是方法签名，不是命令执行
+    if (SHELL_ARGV_EXEMPT.has(rel)) continue;
+    const lines = readFileSync(f, 'utf8').split('\n');
+    for (const [i, line] of lines.entries()) {
+      const trimmed = line.trim();
+      if (trimmed.startsWith('//') || trimmed.startsWith('*') || trimmed.startsWith('/*')) continue;
+      // 变量间接（`const c = ...` 然后 `execSync(c)`）也被这条抓住 —— 它不看参数形态
+      // ⚠️ 交替分支要写全 `execSync|exec`（首版写成 `e(xec|execSync)` ⇒ `execSync(` 永远匹不上，
+      //    是探针把它逼出来的：注入"先拼串再传"后闸仍绿）
+      if (/(^|[^.\w])(execSync|exec)\s*\(/.test(line)) {
+        shellViol++;
+        fail(
+          `使用了 shell 形态的命令执行: ${rel}:${i + 1} → ${trimmed.slice(0, 100)}` +
+            `（改用 execFileSync(cmd, [arg, …])：argv 不经 shell 解析，"路径里有没有引号/命令替换"` +
+            `就不再是安全前提 —— 别去补字符集，那是会漂移的判据。见 TD-11-25 / TD-11-48）`,
+        );
+      }
+    }
+  }
+}
+if (shellViol === 0) {
+  console.log(
+    '  ✅ 无 exec/execSync 调用（扫 src + localTool/src；豁免 localTool/src/index.ts 开浏览器）',
+  );
+}
+
+// 规则（2026-09-22 · TD-11-62）：Skill 的**组哨兵字面量**只许住在定义处 `skillGroup.ts`。
+//
+// 【为什么】这两个值（`__official` / `__index-only`）是模块的**内部实现细节**；消费者该读
+//   `SkillGroupView.kind` / `SkillPickGroup.kind`（语义），不是哨兵字符串。此前它们被导出 ⇒
+//   设置页直接写 `g.name === OFFICIAL_GROUP` 做渲染分支 ⇒ **改哨兵值即静默失效**（无类型错、无测试拦）。
+//   "门面不转发"堵住了域外 `import` 这条路，但堵不住有人**手抄字面量** ⇒ 本闸补上这半。
+//   （判据 3：约束落结构。只靠"记得别抄"是判据 4 的补丁形态。）
+// 【判据】除 `skillGroup.ts`（唯一定义处）外，`src/**` 内出现含 `__official` / `__index-only` 的字符串字面量 ⇒ 违规。
+// 【TD-11-68 起定义处换了文件】TD-11-62 时这两个哨兵住在 `skillLibraryView.ts`；拆分后组语义
+//   整体搬到 `skillGroup.ts`（列表与下拉**共用**它）⇒ 闸的归属跟着定义走，不然唯一住处就成了旧文件。
+// ─────────────────────────────────────────────────────────────────
+console.log('\n🏷️  Skill 组哨兵字面量只许住在 skillGroup.ts（反向判据）');
+const SENTINEL_OWNER = 'src/components/agent/skill/skillGroup.ts';
+let sentinelViol = 0;
+for (const base of [SRC]) {
+  if (!existsSync(base)) continue;
+  for (const f of collectFiles(base)) {
+    const rel = f.slice(root.length + 1).replace(/\\/g, '/');
+    if (!/\.(ts|tsx)$/.test(rel)) continue;
+    if (rel === SENTINEL_OWNER) continue;
+    const lines = readFileSync(f, 'utf8').split('\n');
+    for (const [i, line] of lines.entries()) {
+      const trimmed = line.trim();
+      if (trimmed.startsWith('//') || trimmed.startsWith('*') || trimmed.startsWith('/*')) continue;
+      if (/['"`]__(official|index-only)['"`]/.test(line)) {
+        sentinelViol++;
+        fail(
+          `抄了 Skill 组哨兵字面量: ${rel}:${i + 1} → ${trimmed.slice(0, 100)}` +
+            `（读 \`SkillGroupView.kind\`（'official'/'index-only'/'normal'）而不是比哨兵字符串 ——` +
+            ` 哨兵是 \`skillGroup.ts\` 的实现细节，改它不该影响任何消费者。见 TD-11-62）`,
+        );
+      }
+    }
+  }
+}
+if (sentinelViol === 0) {
+  console.log('  ✅ 无消费者手抄组哨兵（唯一住处：skillGroup.ts）');
 }
 
 console.log(`\n${errors === 0 ? '✅ 架构校验通过' : `❌ ${errors} 处架构违规`}`);

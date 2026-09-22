@@ -22,6 +22,12 @@
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, within, act, waitFor } from '@testing-library/react';
+// 【深引真源常量（门面桩不会覆盖它）】`accept` 与单文件上限都必须与模块白名单同源：
+// 断言写死 `.md,.markdown,.txt` / `2097152` 就会与真源漂移，而这两处的漂移**不报错**（TD-11-63 / TD-11-27）。
+import {
+  SKILL_IMPORT_ACCEPT,
+  SKILL_MAX_FILE_BYTES,
+} from '../../src/components/agent/skill/skillImport.ts';
 
 // ── 可控 hoisted 状态 ──
 const h = vi.hoisted(() => {
@@ -38,6 +44,24 @@ const h = vi.hoisted(() => {
   let skills: any = [];
   const skillsSetter = (s: any) => {
     skills = s;
+  };
+  /** `listAllSkills` 的**读失败**注入点（TD-11-66：缓存损坏时要如实提示，而不是静默只剩内置） */
+  let skillsError = '';
+  const skillsErrorSetter = (e: string) => {
+    skillsError = e;
+  };
+  /**
+   * `importSkillText`（单文件导入用例）的调用记录与返回值 —— TD-11-63。
+   * 【为什么要记调用】"真落盘"这条契约的判据就是**有没有走模块用例**（此前是内部 `applySkill(对象)`，
+   * 正文谁也没接住）；只断言 toast 会把"谎报"当成通过。
+   */
+  const importCalls: Array<[string, string]> = [];
+  let importResult: { ok: boolean; skill?: { id: string; name: string }; message?: string } = {
+    ok: true,
+    skill: { id: 'imported-1', name: '导入的技能' },
+  };
+  const importResultSetter = (r: typeof importResult) => {
+    importResult = r;
   };
   // 记录 setCurrentSnapshot 调用
   const snapshots: any = [];
@@ -68,7 +92,8 @@ const h = vi.hoisted(() => {
   const saveAttachments = vi.fn((attachments) => snapshotSetter({ attachments }));
   const closeAwaitingConfirm = vi.fn();
   // 收口 store 穿透（2026-08-21）：AgentPanel 从 useAgentChat 解构 handler，不再直连 conversationStore
-  const useAgentChat = vi.fn(() => ({
+  // 带一个可选入参：装配契约用例需要断言"面板到底把什么传给了 hook"（mock.calls 的形状取决于签名）
+  const useAgentChat = vi.fn((_opts?: { skills?: unknown }) => ({
     ...agentState,
     setModel,
     send,
@@ -124,7 +149,11 @@ const h = vi.hoisted(() => {
     saveAttachments,
     closeAwaitingConfirm,
     contentSubscribe,
-    subscribeCbs,
+    // ⚠️ 必须走 **getter**：写成属性就是"快照"，而 `beforeEach` 里 `setSubscribeCbs({})` 会**重新赋值**
+    // 那个 `let`（mock 闭包写的是新对象）⇒ 属性永远指向旧对象，读到的永远是空（同族坑见 beforeEach 注释）。
+    get subscribeCbs() {
+      return subscribeCbs;
+    },
     AGENT_CHAT_MODEL_KEY,
     setSubscribeCbs: (c: any) => {
       subscribeCbs = c;
@@ -154,6 +183,17 @@ const h = vi.hoisted(() => {
       return skills;
     },
     setSkills: skillsSetter,
+    get skillsError() {
+      return skillsError;
+    },
+    setSkillsError: skillsErrorSetter,
+    get importCalls() {
+      return importCalls;
+    },
+    get importResult() {
+      return importResult;
+    },
+    setImportResult: importResultSetter,
     get snapshots() {
       return snapshots;
     },
@@ -198,7 +238,9 @@ vi.mock('../../src/components/base/core/interaction/uiHooks.ts', () => ({
 }));
 vi.mock('../../src/components/agent/runtime/skillStore.ts', async (importOriginal) => ({
   ...((await importOriginal()) as Record<string, unknown>),
-  getAllSkills: () => h.skills,
+  // 【装配契约】选中态只存 id ⇒ 显示名要现查。桩必须给 findSkill，
+  // 否则 chip 标题退化成裸 id（测试会因此变红 —— 那正是"现查"这条链的存在感）。
+  findSkill: (id: string) => h.skills.find((s: { id: string }) => s.id === id) ?? null,
   markSkillUsed: h.markSkillUsed,
   isSkillEnabled: () => true,
   repairMojibakeText: (t: any) => t,
@@ -207,6 +249,32 @@ vi.mock('../../src/components/agent/runtime/skillStore.ts', async (importOrigina
   ENABLED_KEY: 'agent_skill_enabled',
 }));
 // 展开真模块再覆盖（TD-17-15：模块**新增导出**时桩不再脱钩 —— 判据见 tests/unit/mockPartialSpread.test.ts）
+// 【桩跟契约走（TD-11-55）】面板打开时会读一次**磁盘现状**（选用入口的可用性判据）。单测不连后端：
+// 桩成"读不到" ⇒ 快照保持**未决** ⇒ 下拉按索引列出（= 既有行为基线，各用例的断言不受影响）。
+// 「磁盘上已删 ⇒ 不进下拉」这条分支由 `skillLibraryView.test.ts` 的纯函数用例锁（不在这里造 HTTP）。
+vi.mock('../../src/components/agent/skill/index.ts', async (importOriginal) => ({
+  ...((await importOriginal()) as Record<string, unknown>),
+  readDiskSkillPackages: () => Promise.resolve({ ok: false, message: '单测不连后端' }),
+  // 【桩跟契约走（TD-11-66）】面板改从**门面**取技能全集（`{ok, list, error}`）—— 它要那个 `ok`
+  // 才能在缓存读不到时如实提示。桩默认 `ok:true`（= 正常读取），各用例的 `h.skills` 即全集；
+  // 注入 `h.setSkillsError(...)` 即模拟"缓存损坏"。
+  listAllSkills: () =>
+    h.skillsError
+      ? // 读失败时 **`list` 只剩内置** —— 这就是真实行为（缓存读不到 ⇒ 组合层只有内置那半）
+        // ⇒ 桩必须照此模拟，否则"读失败不许剔除已选 id"那条守卫根本不会被踩到
+        { ok: false, list: h.skills.filter((s: any) => s.builtin), error: h.skillsError }
+      : { ok: true, list: h.skills },
+  // 【桩跟契约走（TD-11-63）】面板选到 `.md` 时必须走**模块的导入用例**（真落盘），不是自己拼对象。
+  // 桩照真实行为模拟：**成功才写缓存**（真实现里 `saveSkillToDisk` 先落盘再回写缓存）⇒
+  // 那条"导入成功后 skill 能被查到（chip 有名字）"的链才是有意义的。
+  importSkillText: (name: string, text: string) => {
+    h.importCalls.push([name, text]);
+    if (h.importResult.ok && h.importResult.skill) {
+      h.setSkills([...h.skills, { id: h.importResult.skill.id, name: h.importResult.skill.name }]);
+    }
+    return Promise.resolve(h.importResult);
+  },
+}));
 vi.mock('../../src/components/base/core/contentStore.ts', async (importOriginal) => ({
   ...((await importOriginal()) as Record<string, unknown>),
   contentGet: () => null,
@@ -346,6 +414,9 @@ beforeEach(() => {
     activeConversationId: 'c1',
   });
   h.setSkills([]);
+  h.setSkillsError(''); // 默认"读得到"（读失败的分支由专测注入）
+  h.importCalls.length = 0;
+  h.setImportResult({ ok: true, skill: { id: 'imported-1', name: '导入的技能' } });
   h.snapshots.length = 0;
   // 重置订阅桩（清空历史注册与取消订阅记录），让每条用例从干净订阅态开始
   // 注意：必须走 setSubscribeCbs 写闭包变量——直接 h.subscribeCbs = {} 只改返回对象属性，
@@ -485,11 +556,21 @@ describe('AgentPanel — Skill 应用与移除', () => {
     expect(h.markSkillUsed).toHaveBeenCalledWith('s1');
     // 按钮标题变为已启用 Skill 名
     expect(screen.getByTitle('已启用 赛博朋克风格')).toBeTruthy();
-    // skills 同步到 conversationStore
+    // skills 同步到 conversationStore：**存 id 列表**（不是"对象副本" —— 副本就是第二份真相）
     const lastSnapshot = h.snapshots[h.snapshots.length - 1];
-    expect(lastSnapshot.skills).toEqual([
-      { id: 's1', name: '赛博朋克风格', description: 'd', content: 'c' },
-    ]);
+    expect(lastSnapshot.skills).toEqual(['s1']);
+  });
+
+  it('装配契约：传给 useAgentChat 的是 **id 列表**（正文/落点由 skill 模块现查，UI 不许镜像字段）', () => {
+    h.setSkills(SKILLS);
+    render(<AgentPanel {...OPEN_PROPS} />);
+    const picker = openSkillPicker();
+    fireEvent.click(within(picker!).getByText('赛博朋克风格'));
+
+    const passed = h.useAgentChat.mock.calls.at(-1)?.[0] as { skills?: unknown };
+
+    // 只给 id：一旦这里退回"带 name/content 的对象镜像"，字段一多必漏（TD-11-16 的根因）
+    expect(passed.skills).toEqual(['s1']);
   });
 
   it('再次点击已应用 Skill → 移除（不重复 markSkillUsed）', () => {
@@ -663,13 +744,63 @@ describe('AgentPanel — 设置改模型/供应商即生效（方案 B，无需�
   });
 
   it('卸载 → 取消订阅（返回的 unsubscribe 被调用，防泄漏）', () => {
-    // AgentPanel 现注册 3 次 contentSubscribe：SKILLS_KEY + ENABLED_KEY（skill resync，2026-09-06
-    // 「改设置页即时刷新已选 skill」新增）+ AGENT_CHAT_MODEL_KEY（方案 B）。
+    // AgentPanel 现注册 5 次 contentSubscribe：SKILLS_KEY + ENABLED_KEY（skill resync，2026-09-06
+    // 「改设置页即时刷新已选 skill」新增）+ SKILL_CONFIG_KEY（2026-09-21：清单开关/预算改了要即时重算注入文本）
+    // + AGENT_CHAT_MODEL_KEY（方案 B）+ SKILLS_KEY（2026-09-22 · TD-11-55：磁盘现状快照，选用入口的
+    // 可用性判据 —— 设置页写完盘后要立刻重读，否则下拉会停在"已删技能仍可选"的旧快照上）。
     // 卸载时应把每个注册的取消函数都调一遍，防跨用例/全局泄漏。
     const { unmount } = render(<AgentPanel {...OPEN_PROPS} />);
-    expect(h.subscribeUnsubs.length).toBe(3);
+    expect(h.subscribeUnsubs.length).toBe(5);
     unmount();
     h.subscribeUnsubs.forEach((unsub) => expect(unsub).toHaveBeenCalled());
+  });
+});
+
+/**
+ * 【TD-11-66】缓存读不到时**如实提示** —— 不许静默降级成"只剩内置"。
+ * 此前的可观测结果只有"列表里没有我的技能"（用户以为技能丢了），而真相是"读不到"。
+ */
+describe('AgentPanel — 技能索引读不到（TD-11-66：降级允许，静默不允许）', () => {
+  const barText = () => document.querySelector('.agent-drift-bar')?.textContent ?? '';
+
+  it('读失败（`listAllSkills` 回 ok:false）⇒ 横幅说明"只显示内置 Skill" + 给「重新载入」', () => {
+    h.setSkills([]);
+    h.setSkillsError('agent_skills 不是合法 JSON');
+    render(<AgentPanel {...OPEN_PROPS} />);
+
+    expect(barText()).toContain('技能列表读不到');
+    expect(barText()).toContain('agent_skills 不是合法 JSON'); // 原因来自生产者，本层只转发
+    expect(barText()).toContain('只显示内置 Skill');
+    expect(barText()).toContain('重新载入'); // 动作：拿磁盘重写本地索引（这种损坏的根治手段）
+    // 「读不到」≠「磁盘上没有技能」：措辞里不许出现"没有技能"这类断言
+    expect(barText()).not.toContain('没有 Skill');
+  });
+
+  it('读得到时**不**报故障（不许把正常态也画成告警）', () => {
+    h.setSkills([]);
+    render(<AgentPanel {...OPEN_PROPS} />);
+
+    expect(document.querySelector('.agent-drift-bar')).toBeNull();
+  });
+
+  it('读失败**不许剔除**已选技能（一次瞬时读失败 ≠「我的选择没了」）', () => {
+    h.setSkills(SKILLS);
+    render(<AgentPanel {...OPEN_PROPS} />);
+    fireEvent.click(screen.getByText('分镜脚本')); // 选中用户技能 s2
+    expect(screen.getByTitle('已启用 分镜脚本')).toBeTruthy();
+
+    // 索引读失败 + 设置页那边来了一次通知（走 resync 的唯一实现）
+    // ⚠️ 用 `ENABLED_KEY` 触发：`SKILLS_KEY` 被**两处**订阅（resync + 磁盘现状），
+    // 而测试的 contentSubscribe 桩是 `subscribeCbs[key] = cb`（后者覆盖前者）⇒ 只有 ENABLED_KEY 直达 resync
+    h.setSkillsError('agent_skills 不是合法 JSON');
+    act(() => {
+      h.subscribeCbs.agent_skill_enabled?.();
+    });
+
+    // 【剔 id 的前提是"我确实读到了索引"】读失败时 `list` 只剩内置 ⇒ 若照旧按 known 剔，
+    // 用户已选的技能会被静默抹掉（且原因不显）
+    expect(screen.getByTitle('已启用 分镜脚本')).toBeTruthy();
+    expect(document.querySelector('.agent-drift-bar')?.textContent).toContain('技能列表读不到');
   });
 });
 
@@ -709,5 +840,133 @@ describe('AgentPanel · memo 结构有效性（TD-04-46）', () => {
       h.useAgentChat.mock.calls.length,
       '宿主重渲后 useAgentChat 又被调用 ⇒ AgentPanel 未 memo（拖拽每帧陪跑）',
     ).toBe(before);
+  });
+});
+
+/**
+ * 【TD-11-63】「选文件」入口（参考图 / 导入 Skill）—— 本轮把此前被注释的上传 UI 接回，
+ * 同批锁住它的四条判据（都是"接回时最容易做错"的那种）：
+ *  ① 技能文本必须走**模块用例** `importSkillText`（真落盘），不是面板自己拼对象 —— 后者是"谎报已导入"
+ *     （而只断言 toast 会把谎报当成通过 ⇒ 这里断言的是**调用记录**）；
+ *  ② 失败**不许**说"已导入"、也不许选中它；
+ *  ③ 不支持 / 超限的文件**不许静默丢**，且超限的**不读进内存**（后端必拒，读了也白读）；
+ *  ④ 选完复位 `input.value`（否则同一个文件再选一次"没反应"）。
+ */
+describe('AgentPanel — 选文件（参考图 / 导入 Skill · TD-11-63）', () => {
+  const fileInput = () =>
+    document.querySelector('[data-testid="agent-file-input"]') as HTMLInputElement;
+
+  /** 模拟系统选择框回填 FileList 并触发 change（jsdom 里 `files` 只读，须 defineProperty） */
+  const pickFiles = (files: File[]) => {
+    const input = fileInput();
+    Object.defineProperty(input, 'files', { value: files, configurable: true });
+    fireEvent.change(input);
+    return input;
+  };
+
+  const textFile = (name: string, body = '正文', size?: number) => {
+    const f = new File([body], name, { type: 'text/markdown' });
+    if (size !== undefined) {
+      // 造"体积超限"不必真写 2MB 字符串：只把 size 覆盖成超限值（`File.size` 只读）
+      Object.defineProperty(f, 'size', { value: size });
+    }
+    return f;
+  };
+
+  it('`accept` 与白名单同源（不许出现"选择框钓你挑一个必然失败的文件"）', () => {
+    render(<AgentPanel {...OPEN_PROPS} />);
+
+    expect(fileInput().getAttribute('accept')).toBe(`image/*,${SKILL_IMPORT_ACCEPT}`);
+  });
+
+  it('选 `.md` ⇒ 走模块用例 importSkillText（文件名 + 正文一起交出去），成功后选中它', async () => {
+    render(<AgentPanel {...OPEN_PROPS} />);
+
+    pickFiles([textFile('漫画生成.md', '---\nname: 漫画生成\n---\n正文甲')]);
+
+    await waitFor(() => expect(h.importCalls.length).toBe(1));
+    expect(h.importCalls[0][0]).toBe('漫画生成.md'); // 名字口径交给模块（去扩展名是它的活）
+    expect(h.importCalls[0][1]).toContain('正文甲');
+    // 成功后才选中它；chip 的名字是**现查**的（面板不镜像字段 —— TD-17 装配契约）
+    await waitFor(() => expect(screen.getByTitle('已启用 导入的技能')).toBeTruthy());
+    expect(h.showToast).toHaveBeenCalledWith('已导入 Skill「导入的技能」', { type: 'success' });
+  });
+
+  it('导入失败 ⇒ 如实报错，不许说"已导入"、也不许选中它（不谎报）', async () => {
+    h.setImportResult({ ok: false, message: '后端没起' });
+    render(<AgentPanel {...OPEN_PROPS} />);
+
+    pickFiles([textFile('漫画生成.md')]);
+
+    await waitFor(() =>
+      expect(h.showToast).toHaveBeenCalledWith('Skill 导入失败：后端没起', { type: 'error' }),
+    );
+    expect(h.showToast).not.toHaveBeenCalledWith(
+      expect.stringContaining('已导入 Skill'),
+      expect.anything(),
+    );
+    expect(screen.queryByTitle(/^已启用/)).toBeNull(); // 没有 chip
+    expect(h.importCalls.length).toBe(1);
+  });
+
+  it('不支持的文件 ⇒ 如实说"跳过"（不静默），且不进导入路径', async () => {
+    render(<AgentPanel {...OPEN_PROPS} />);
+
+    pickFiles([new File(['x'], '文档.pdf', { type: 'application/pdf' })]);
+
+    await waitFor(() =>
+      expect(h.showToast).toHaveBeenCalledWith(
+        expect.stringContaining('已跳过 1 个文件：文档.pdf'),
+        { type: 'warning' },
+      ),
+    );
+    expect(h.importCalls.length).toBe(0);
+  });
+
+  it('超过单文件上限的技能文本 ⇒ 不读进内存（后端必拒）且如实说', async () => {
+    render(<AgentPanel {...OPEN_PROPS} />);
+
+    pickFiles([textFile('巨无霸.md', 'x', SKILL_MAX_FILE_BYTES + 1)]);
+
+    await waitFor(() =>
+      expect(h.showToast).toHaveBeenCalledWith(
+        expect.stringContaining('已跳过 1 个文件：巨无霸.md（超过 2 MB）'),
+        { type: 'warning' },
+      ),
+    );
+    expect(h.importCalls.length).toBe(0);
+  });
+
+  it('选的图片 ⇒ 进附件（不走 Skill 导入路径）', async () => {
+    // jsdom 没实现 createObjectURL（预览 URL 的唯一外部依赖）；补最小桩，免得把环境缺口当功能缺口
+    const u = URL as unknown as {
+      createObjectURL?: (b: Blob) => string;
+      revokeObjectURL?: (url: string) => void;
+    };
+    u.createObjectURL = () => 'blob:preview';
+    u.revokeObjectURL = () => {};
+    render(<AgentPanel {...OPEN_PROPS} />);
+
+    pickFiles([new File(['img'], 'a.png', { type: 'image/png' })]);
+
+    await waitFor(() => expect(document.querySelector('.agent-att-row')).toBeTruthy());
+    expect(h.importCalls.length).toBe(0);
+  });
+
+  it('选完把 input.value 复位（不复位则真实浏览器里"同一文件再选一次"不触发 change）', async () => {
+    render(<AgentPanel {...OPEN_PROPS} />);
+    const input = fileInput();
+    // ⚠️ jsdom **不会**像浏览器那样回填真实路径 ⇒ 不种一个值的话，"value === ''"这条断言**恒真**
+    // （就是本仓点名过的"自证式断言"）。手写一个值来模拟"上次选过文件"的既成事实，断言才咬得住。
+    Object.defineProperty(input, 'value', {
+      value: 'C:\\fakepath\\甲.md',
+      writable: true,
+      configurable: true,
+    });
+
+    pickFiles([textFile('甲.md')]);
+
+    await waitFor(() => expect(h.importCalls.length).toBe(1));
+    expect(input.value).toBe('');
   });
 });

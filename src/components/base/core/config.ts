@@ -189,9 +189,17 @@ export const GEN_MAX_CONCURRENT = 6;
 export const AUTO_TRIGGER_DOWNSTREAM = false;
 
 // ── 云同步终点（P2-H 透明化）──────────────────────────────────
-// cloudSync 的全量同步终点（Google Apps Script 部署 URL）。账号/API Key 等用户数据随 POST body
-// 明文同步到该第三方 GAS，**无鉴权/加密**——仅把 URL 从 cloudSync.ts 字面量移入此处便于替换/审计，
-// 不改变其安全暴露（如需安全需改走带鉴权 SDK + 加密，另见 docs/68 C-H）。
+// cloudSync 的全量同步终点（Google Apps Script 部署 URL）。账号/API Key、Skill 正文等用户数据
+// 随 POST body 发到该第三方 GAS。
+//
+// 【凭据模型 · 2026-09-21 用户裁定】请求体只有 `{action, data}`，不带任何额外凭据 ——
+// **这条部署 URL 本身就是密钥**（capability secret：路径里的 `AKfycbw…` 是不可猜的部署 ID，
+// 谁拿到这条 URL 谁就能 push/pull）。因此本常量按**密钥**对待：不写入文档/截图/对话，不进公开仓库。
+// 换密钥 = 在 GAS 重新部署并替换此常量（旧 URL 随之作废）。
+//
+// 【已知局限（不改变上述结论，仅备忘）】它是「能力型密钥」而非 per-user 鉴权，且 `config.ts` 是
+// 前端代码、会编译进产物 bundle —— 拿到产物的人可读出该 URL。对自用场景足够；若将来需要
+// per-user 鉴权/加密，须改走带鉴权 SDK + 加密（另见 docs/68 C-H）。
 export const CLOUD_SYNC_GAS_URL =
   'https://script.google.com/macros/s/AKfycbwI6PvC1v8Bv1E-0aKGx1PQ3AIH5SIUUKjTeDHtq5UxxF3qFFHj8DCr1QvflPDqFdI5/exec';
 

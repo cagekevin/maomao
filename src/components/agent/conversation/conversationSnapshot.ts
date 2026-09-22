@@ -55,6 +55,19 @@ export interface ConversationSnapshot {
  */
 export type SnapshotPatch = Partial<ConversationSnapshot>;
 
+/**
+ * `skills` 的**唯一归一**：本轮选中的技能是 **id 字符串列表**（正文与落点由 skill 模块按 id 现查）。
+ *
+ * 【为什么必须收口成一份（一归）】此处与 `conversationStore.importLegacy` 曾各写一份「对象浅拷贝」
+ * （`{ ...s }`）——它隐含假设 skills 是对象数组。契约早已是 id 列表 ⇒ `{...'s1'}` 会展开成
+ * `{0:'s',1:'1'}`，刷新/切对话后按 `typeof === 'string'` 过滤时全部滤掉 ⇒ **已选技能静默丢失**
+ * （TD-11-16 的尾巴，两条写路径同病）。
+ * 【为什么不兼容对象形状】它只是"这一轮选中了谁"的临时态，**不是用户资产** ⇒ 不为旧数据保留分支。
+ */
+export function normalizeSkillIds(v: unknown): string[] {
+  return Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string' && !!x) : [];
+}
+
 /** 读当前对话的快照副本（对外） */
 export function getCurrentSnapshot(): ConversationSnapshot {
   const conv = getActiveConv();
@@ -103,9 +116,10 @@ export function setCurrentSnapshot(snap?: SnapshotPatch | null): void {
     messages: sanitizeMessages(
       rawMessages as Parameters<typeof sanitizeMessages>[0],
     ) as ConversationMessage[],
-    skills: Array.isArray(snap?.skills)
-      ? snap.skills.map((s) => ({ ...(s as Record<string, unknown>) }))
-      : conv.skills,
+    // 【TD-11-16 尾巴】skills 是 id 列表 ⇒ 归一收口到 normalizeSkillIds；
+    // 原 `{ ...s }` 会把字符串展开成索引对象（`{...'s1'}` = `{0:'s',1:'1'}`）⇒ 刷新后已选技能丢失。
+    // 非数组仍然"不动该字段"（与其它字段的 `undefined` 契约一致）。
+    skills: Array.isArray(snap?.skills) ? normalizeSkillIds(snap.skills) : conv.skills,
     attachments: Array.isArray(snap?.attachments)
       ? snap.attachments.map((a) => ({ ...(a as Record<string, unknown>) }))
       : conv.attachments,
@@ -240,7 +254,8 @@ export function setCurrentDraft(draft: string): void {
 
 /** 写当前对话技能列表（随会话落盘） */
 export function setCurrentSkills(skills: unknown[]): void {
-  setCurrentSnapshot({ skills: Array.isArray(skills) ? skills : [] });
+  // 与写入口同一口径（`normalizeSkillIds`）：非 id 字符串一律不收，避免"写进去读不回来"
+  setCurrentSnapshot({ skills: normalizeSkillIds(skills) });
 }
 
 /**
@@ -291,7 +306,8 @@ export function resetCurrentConversationToEmpty(skills: unknown[] = []): void {
     aiUndoStack: [],
     pendingMemorySuggest: null,
     referenceImages: [],
-    skills: Array.isArray(skills) ? skills : [],
+    // 与其它写入口同一口径（`normalizeSkillIds`）：id 列表以外的一律不收 —— 否则落进去读不回来
+    skills: normalizeSkillIds(skills),
   };
   commit({
     ...getState(),

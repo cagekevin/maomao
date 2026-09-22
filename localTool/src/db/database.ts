@@ -23,6 +23,22 @@ export function getBackupDir(): string {
   return path.join(getDataDir(), 'backups');
 }
 
+/**
+ * 技能库根目录（Skill 包 = `<root>/<分类>/<名称>/`，见 `routes/skills.ts`）。
+ *
+ * 【为什么是 getUploadDir() 的**兄弟**目录，而不是 uploads 的子目录（2026-09-21 定案）】
+ * 三条硬事实，任一条都足以否决"塞进 uploads"：
+ *   ① `/files/**` 是静态服务 ⇒ 放进去等于 `scripts/**`（可执行脚本）能被 HTTP 直接取走；
+ *   ② 素材库 rescan **递归遍历 uploads 的每个顶层目录**并 `upsertResource`（`routes/resources.ts`）
+ *      ⇒ `SKILL.md` / `references/*.md` 会变成"素材"，污染素材库；
+ *   ③ uploads 有顶层根白名单（`fileStore.UPLOAD_ROOT_ALLOW`）+ 孤儿 GC（`orphanGc.ts`）
+ *      ⇒ 要么往白名单塞特例（把技能拖进媒体域），要么被 GC 误判。
+ * 故技能库独立成根，由 `routes/skills.ts` 独占读写。
+ */
+export function getSkillsDir(): string {
+  return path.join(getDataDir(), 'skills');
+}
+
 let _db: SqlJsDatabase | null = null;
 // 首次初始化单例 promise：getDb 首次含 await initSqlJs()，并发请求若各自进初始化会
 // 竞态建库（损坏重建路径下可能空库覆盖有数据的库）。用 _dbPromise 串行化首次初始化，

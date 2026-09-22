@@ -10,6 +10,11 @@ import {
 import type { agentChatMessage, SSEAccumulator } from '@/components/agent/runtime/agentCore.ts';
 // 生产者发布的失败文案（TD-16-50）：消费者只转发，测试据此断言"文案来自生产者"而非消费层自造。
 import { SSE_MALFORMED_MESSAGE } from '@/components/agent/runtime/agentCore.ts';
+// Skill 两段文本的纯函数真源（措辞与预算的唯一实现；agentCore 只收拼好的字符串）
+import {
+  buildBoundSkillBlocks,
+  buildSkillIndexText,
+} from '../../src/components/agent/skill/skillInjectText.ts';
 
 // buildRequestMessages 输出的 content 块类型（测试按块读 type/text）
 type ContentBlock = { type: string; text?: string; image_url?: { url: string } };
@@ -90,7 +95,7 @@ describe('AI 助手 buildRequestMessages（发 LLM 消息组装）§2.15', () =>
   // 提示词措辞会常改，断言具体句子会改一个字就红，属无效快照。断言引用同一常量即可：
   // 改字不红（content 恒等于该常量），仅当注入失效/顺序错/被覆盖时才红。
   it('enhance 默认注入 CANVAS_AGENT_RULES 为 system', () => {
-    const out = buildRequestMessages([{ role: 'user', content: 'hi' }], '', true, [], null);
+    const out = buildRequestMessages([{ role: 'user', content: 'hi' }], '', true, '', null);
     expect(out[0].role).toBe('system');
     expect(out[0].content).toContain(CANVAS_AGENT_RULES);
     // 执行模型分流段（恒 auto）紧随准则作为独立 system
@@ -105,7 +110,7 @@ describe('AI 助手 buildRequestMessages（发 LLM 消息组装）§2.15', () =>
       [{ role: 'user', content: 'hi' }],
       '',
       true,
-      [],
+      '',
       null,
       [],
       0,
@@ -122,7 +127,7 @@ describe('AI 助手 buildRequestMessages（发 LLM 消息组装）§2.15', () =>
   });
 
   it('enhance=false 且无 systemPrompt 时不注入', () => {
-    const out = buildRequestMessages([{ role: 'user', content: 'hi' }], '', false, [], null);
+    const out = buildRequestMessages([{ role: 'user', content: 'hi' }], '', false, '', null);
     expect(out.some((m) => m.role === 'system')).toBe(false);
   });
 
@@ -131,29 +136,63 @@ describe('AI 助手 buildRequestMessages（发 LLM 消息组装）§2.15', () =>
       [{ role: 'user', content: 'hi' }],
       '自定义准则',
       true,
-      [],
+      '',
       null,
     );
     expect(out.filter((m) => m.role === 'system')).toHaveLength(3); // 画布准则 + 外部准则 + 执行模型分流段(auto)
     expect(out[1].content).toBe('自定义准则');
   });
 
-  it('启用的 Skill 无损注入（原文包成 Skill 文档标记）', () => {
-    const skills = [{ name: '电商', content: '你是电商设计师' }];
-    const out = buildRequestMessages([{ role: 'user', content: 'hi' }], '', true, skills, null);
+  it('块②（本次启用）注入：包裹符写明「本次启用 Skill（N 项）」并追加执行规则', () => {
+    const docs = buildBoundSkillBlocks([{ name: '电商', content: '你是电商设计师' }]);
+    const out = buildRequestMessages([{ role: 'user', content: 'hi' }], '', true, docs, null);
     // content 是 string | 内容块数组联合，此处断言为字符串（system 消息 content 恒为字符串）
     const skillMsg = out.find(
-      (m) => m.role === 'system' && String(m.content).includes('Skill 文档'),
+      (m) => m.role === 'system' && String(m.content).includes('本次启用 Skill'),
     );
     expect(skillMsg!.content).toContain('你是电商设计师');
-    expect(skillMsg!.content).toContain('===== Skill 文档开始：电商 =====');
+    expect(skillMsg!.content).toContain('===== 本次启用 Skill（1 项）开始：电商 =====');
+    expect(skillMsg!.content).toContain('Skill 是你的参考'); // 执行规则随块② 追加
+  });
+
+  it('块② 为空 ⇒ **本轮没发 skill**：既不注入 Skill system，也不追加执行规则', () => {
+    // 这是「AI 怎么知道这次有没有发 skill」的机器判据：无块② = 没发（措辞不出现即无信号）。
+    const out = buildRequestMessages([{ role: 'user', content: 'hi' }], '', true, '', null);
+    const sys = out.filter((m) => m.role === 'system').map((m) => String(m.content));
+    expect(sys.some((t) => t.includes('本次启用 Skill'))).toBe(false);
+    expect(sys.some((t) => t.includes('Skill 是你的参考'))).toBe(false);
+  });
+
+  it('块①（可用清单）与块②（本次启用）**分块注入**，措辞互不混入', () => {
+    // 两块必须可区分：块① 声明"仅表示存在"，块② 声明"本次启用"。混在一起模型就会把清单当本次任务。
+    const index = buildSkillIndexText([{ id: 'a1', name: '电商', description: '出电商主图' }]);
+    const docs = buildBoundSkillBlocks([{ name: '电商', content: '正文' }]);
+    const out = buildRequestMessages(
+      [{ role: 'user', content: 'hi' }],
+      '',
+      true,
+      docs,
+      null,
+      [],
+      0,
+      '',
+      'canvas',
+      index,
+    );
+    const sys = out.filter((m) => m.role === 'system').map((m) => String(m.content));
+    const indexBlk = sys.find((t) => t.includes('仅表示存在'))!;
+    const docsBlk = sys.find((t) => t.includes('本次启用 Skill'))!;
+    expect(indexBlk).toBeTruthy();
+    expect(docsBlk).toBeTruthy();
+    expect(indexBlk).not.toContain('本次启用 Skill'); // 块① 不含块② 的措辞
+    expect(docsBlk).not.toContain('仅表示存在'); // 块② 不含块① 的措辞
   });
 
   it('memory.lastPlan 注入最近策划', () => {
     const memory = {
       lastPlan: { plan_text: '规划说明', generations: [{ title: '主图', prompt: '描述' }] },
     };
-    const out = buildRequestMessages([{ role: 'user', content: 'hi' }], '', true, [], memory);
+    const out = buildRequestMessages([{ role: 'user', content: 'hi' }], '', true, '', memory);
     const memMsg = out.find((m) => m.role === 'system' && String(m.content).includes('最近策划'));
     expect(memMsg!.content).toContain('规划说明');
     expect(memMsg!.content).toContain('主图');
@@ -164,7 +203,7 @@ describe('AI 助手 buildRequestMessages（发 LLM 消息组装）§2.15', () =>
       [{ role: 'user', content: '看图', attachments: [{ url: '/files/a.png' }] }],
       '',
       false,
-      [],
+      '',
       null,
     );
     const user = out.find((m) => m.role === 'user');
@@ -183,7 +222,7 @@ describe('AI 助手 buildRequestMessages（发 LLM 消息组装）§2.15', () =>
       ],
       '外部准则',
       true,
-      [],
+      '',
       null,
     );
     const sys = out.filter((m) => m.role === 'system');
@@ -313,7 +352,7 @@ describe('AI 助手 buildRequestMessages（发 LLM 消息组装）§2.15', () =>
       { role: 'assistant', content: '反推结果：一只猫在窗边' },
       { role: 'user', content: '把提示词优化一下' }, // 本轮
     ];
-    const out = buildRequestMessages(msgs, '', false, [], null, []);
+    const out = buildRequestMessages(msgs, '', false, '', null, []);
     const users = out.filter((m) => m.role === 'user');
     const assistants = out.filter((m) => m.role === 'assistant');
     expect(users).toHaveLength(1); // 只发本轮
@@ -327,7 +366,7 @@ describe('AI 助手 buildRequestMessages（发 LLM 消息组装）§2.15', () =>
       { role: 'assistant', content: '反推结果：一只猫在窗边' },
       { role: 'user', content: '把提示词优化一下' }, // 本轮
     ];
-    const out = buildRequestMessages(msgs, '', false, [], null, [], 3);
+    const out = buildRequestMessages(msgs, '', false, '', null, [], 3);
     const users = out.filter((m) => m.role === 'user');
     const assistants = out.filter((m) => m.role === 'assistant');
     // 最近 2 轮 user 文字都在（上一轮 + 本轮）
@@ -349,7 +388,7 @@ describe('AI 助手 buildRequestMessages（发 LLM 消息组装）§2.15', () =>
       msgs,
       '',
       false,
-      [],
+      '',
       null,
       [{ num: 1, url: '/files/historical.png', name: '历史图', source: 'gen' }],
       3,
@@ -372,7 +411,7 @@ describe('AI 助手 buildRequestMessages（发 LLM 消息组装）§2.15', () =>
       { role: 'assistant', content: '稍早回复' },
       { role: 'user', content: '本轮' },
     ];
-    const out = buildRequestMessages(msgs, '', false, [], null, [], 2);
+    const out = buildRequestMessages(msgs, '', false, '', null, [], 2);
     const users = out.map((m) => (m.role === 'user' ? m.content : null)).filter(Boolean);
     expect(users).not.toContain('最古老的话'); // 超出最近 2 轮
     expect(users).toContain('稍早的话');
@@ -386,7 +425,7 @@ describe('AI 助手 buildRequestMessages（发 LLM 消息组装）§2.15', () =>
       { role: 'assistant', content: '反推：一只猫' },
       { role: 'user', content: '优化' },
     ];
-    const out = buildRequestMessages(msgs, '外部准则', true, [], null, [], 3);
+    const out = buildRequestMessages(msgs, '外部准则', true, '', null, [], 3);
     expect(out.some((m) => m.role === 'system' && m.content === '旧系统注入')).toBe(false); // 历史 system 不回传
     expect(out.some((m) => m.role === 'system' && m.content === '外部准则')).toBe(true); // 前置注入保留
   });

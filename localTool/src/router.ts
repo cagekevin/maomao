@@ -39,6 +39,14 @@ import {
   handleList,
 } from './routes/files.js';
 import {
+  handleSkillsList,
+  handleSkillsRead,
+  handleSkillsSave,
+  handleSkillsDelete,
+  handleSkillsCreateGroup,
+  handleSkillsOpenDir,
+} from './routes/skills.js';
+import {
   handleTasksGet,
   handleTasksSave,
   handleTasksBatchSave,
@@ -179,6 +187,19 @@ export const routes: Route[] = [
   { method: 'GET', pattern: '/api/files/open', handler: handleOpen },
   { method: 'GET', pattern: '/api/files/open-dir', handler: handleOpenDir },
   { method: 'GET', pattern: '/api/files/list', handler: handleList },
+
+  // ── Skill 包（技能库 = ~/.maomao-localtool/skills/<分类>/<名称>/，**独立于 uploads**；见 routes/skills.ts 文件头）──
+  // ⚠️ 顺序刻意与别处相反：**动态 `/<分类>/<名称>` 放前，精确 `/api/skills` 放后**。
+  //   不是路由匹配需要（三个正则互不包含，谁先谁后都不会误命中），而是 `npm run check:api` 的
+  //   模板匹配在「前缀歧义」时按顺序取**首个同方法**路由：它把 `/api/skills` 也判成能满足
+  //   `/api/skills/{分类}/{名称}`（模板法允许"剩余段全为 {x}"），若 list 在前就会被它先取走
+  //   ⇒ read 那条永远报「后端有、前端未登记」的**假 info**（实测 2026-09-21，借此消掉）。
+  { method: 'GET', pattern: /^\/api\/skills\/[^/]+\/[^/]+$/, handler: handleSkillsRead },
+  { method: 'POST', pattern: /^\/api\/skills\/[^/]+\/[^/]+$/, handler: handleSkillsSave },
+  { method: 'DELETE', pattern: /^\/api\/skills\/[^/]+\/[^/]+$/, handler: handleSkillsDelete },
+  { method: 'POST', pattern: '/api/skills/group', handler: handleSkillsCreateGroup },
+  { method: 'GET', pattern: '/api/skills/open-dir', handler: handleSkillsOpenDir },
+  { method: 'GET', pattern: '/api/skills', handler: handleSkillsList },
 
   // ── Tasks ──
   { method: 'GET', pattern: '/api/tasks', handler: handleTasksGet },

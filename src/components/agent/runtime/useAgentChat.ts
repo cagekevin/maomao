@@ -34,7 +34,7 @@ import {
   buildIntentHint,
   CHAT_UPSTREAM_MAY_STILL_RUN_HINT,
 } from './agentCore.ts';
-import type { ToolCall, agentChatMessage, AgentMemory, SkillItem } from './agentCore.ts';
+import type { ToolCall, agentChatMessage, AgentMemory } from './agentCore.ts';
 // 运行时逻辑（依赖注入版本）。hook 内以 const roundTrip 等同名闭包封装调用，
 // 故此处用别名避免与 hook 内的函数名冲突。
 import {
@@ -44,6 +44,9 @@ import {
 } from './agentRuntime.ts';
 // 「记·长期」：按 agentKey 全局长期记忆注入块（照搬参考项目 memoryRetrieval + contextManager），注入 buildRequestMessages
 import { buildProjectMemoryContextFromStore } from './memoryRetrieval.ts';
+// Skill 门面（域外唯一出口）：**发送起点冻结**本轮 Skill（正文给模型 + 留痕给消息，同源产出）。
+// 只走门面不深引内部件（模块纪律），见 src/components/agent/skill/README.md §4。
+import { freezeSkillTurn, setSkillTurnBindings } from '@/components/agent/skill';
 // 「记·长期」持久化：memory_suggest 确认后落库（agentKey 全局）
 import { saveProjectMemory, PROJECT_MEMORY_KIND_LABELS } from './projectMemoryStore.ts';
 // 【刷新恢复去重解析器】pending(messageId 引用) → action/text/attachments（纯函数，见 pendingRecovery.js）
@@ -319,7 +322,19 @@ interface UseAgentChatOptions {
   systemPrompt?: string;
   defaultModel?: string;
   provider?: GenerationProvider | null;
-  skills?: unknown[];
+  /**
+   * 本轮选中的 Skill **id 列表**（只给 id）。
+   * 【为什么不是"技能对象"】正文与磁盘落点的真相住 skill 模块能到达的两处（缓存 / 内置常量）；
+   * UI 镜像字段必然漏传（P4 曾因漏传 `category`/`slug` 而让「按需读资料」静默恒失败），
+   * 故契约收成"消费者只指名"。见 `freezeSkillTurn`。
+   */
+  skills?: string[];
+  /**
+   * 块①（可用 Skill 清单）预拼文本 —— 由 UI 层经 skill 门面拼好（它需要"已启用全集"，那是 UI 的事实）。
+   * 【块② 不从这里来】块②（本次启用正文）在 `send` 起点由 `freezeSkillTurn` 现场冻结，
+   * 与写进 user 消息的留痕同源产出（见该函数注释）。
+   */
+  skillIndexText?: string;
   onConversationChange?: ((snap: ConversationSnapshot) => void) | null;
   tableOpen?: boolean;
 }
@@ -330,6 +345,7 @@ export function useAgentChat({
   defaultModel = '',
   provider = null,
   skills = [],
+  skillIndexText = '',
   onConversationChange = null,
   tableOpen = false,
 }: UseAgentChatOptions = {}): UseAgentChatReturn {
@@ -374,6 +390,8 @@ export function useAgentChat({
   // ref 缓存（避免闭包旧值，对齐官方 g.current/h.current）
   const systemRef = useRef(systemPrompt);
   const skillsRef = useRef(skills);
+  // 块① 清单同样走 ref：send 是 useCallback，闭包会拿到旧值（同 skillsRef 的理由）
+  const skillIndexTextRef = useRef(skillIndexText);
   // 表格工作区开合：send 是 useCallback 且在工具循环里经 makeContextMessages 实时重建请求，
   //  故用 ref 同步（仿 systemRef/skillsRef），避免闭包依赖旧值导致表格态切换不生效。
   const tableOpenRef = useRef(tableOpen);
@@ -407,6 +425,9 @@ export function useAgentChat({
   useEffect(() => {
     skillsRef.current = skills;
   }, [skills]);
+  useEffect(() => {
+    skillIndexTextRef.current = skillIndexText;
+  }, [skillIndexText]);
   useEffect(() => {
     tableOpenRef.current = tableOpen;
   }, [tableOpen]);
@@ -630,6 +651,21 @@ export function useAgentChat({
       setCurrentAttachments([]);
       patchCurrentWorkflow(wfStart());
 
+      // ── 发送起点**冻结本轮 Skill**（P2）──
+      // ① `turn.docs`（块② 正文）供本次发送的**所有**工具轮次共用 ⇒ 生成过程中任何重选/重读都不会让
+      //    「同一轮对话的不同轮次拿到不同正文」（用户以为发的是 A，就必须一直是 A）；
+      // ② `turn.bindings`（含 contentHash/version/全文）写进 user 消息 = 留痕 ⇒ 回看/重发可对账"当时哪一版"。
+      // 两者同源产出（同一函数返回），不许各算一份（各算就会背离）。
+      const turn = freezeSkillTurn(skillsRef.current || []);
+      // 【诚实闸】前置失败（缓存读不到）与"选中了却已被删掉的 id"都必须留痕：
+      // 否则用户以为本轮发了 Skill，实际一个字都没发（静默丢是最难查的那类）。
+      if (turn.error) logger.warn('AI助手', '本轮 Skill 冻结失败，未注入任何 Skill', turn.error);
+      if (turn.missing?.length)
+        logger.warn('AI助手', '本轮选中的 Skill 已不存在（未注入）', turn.missing.join('、'));
+      // 把本轮绑定交给「按需读附属资料」用（`skill_read_file` 只能读本轮启用的 Skill 的文件）；
+      // 发送收尾在 finally 清空 —— 不清的话下一轮没选 Skill 时，模型还能读到上一轮的文件。
+      setSkillTurnBindings(turn.bindings);
+
       // 构造 user 消息（附件归一化：blob→data、相对→绝对；只认 base64 的 provider 转 base64）
       // 显式补稳定 id：供 setCurrentPending 以 messageId 引用；恢复时按 id 从 messages 找回正文（去重，不再在 pending 存 text 副本）
       const userMsg: SendUserMessage = {
@@ -637,7 +673,7 @@ export function useAgentChat({
         role: 'user',
         content: text,
         createdAt: Date.now(),
-        skills: skillsRef.current.slice(),
+        skills: turn.bindings,
       };
       if (attachments && attachments.length > 0) {
         // 发送统一出口守卫：附件图必经归一（含缩略图端点自动还原原图），禁止发 render 小图。见 agentAttachments.js
@@ -720,12 +756,13 @@ export function useAgentChat({
               getCurrentSnapshot().messages as agentChatMessage[],
               systemRef.current,
               true,
-              skillsRef.current as SkillItem[],
+              turn.docs, // 块②（发送起点冻结；空串 ⇒ 本轮没发 skill）
               getCurrentMemory() as AgentMemory,
               getCurrentImageMap(),
               loadAgentHistoryTurns(),
               buildProjectMemoryContextFromStore(agentKey, '', text),
               mode,
+              skillIndexTextRef.current, // 块①（空串 ⇒ 开关关）
             );
             if (intentHint) msgs.push({ role: 'system', content: intentHint });
             return msgs;
@@ -847,6 +884,9 @@ export function useAgentChat({
         // 清理所有 streaming 残留占位（不只最后一个）：循环中途出错可能残留多轮 streaming:true 占位
         stripStreaming();
       } finally {
+        // 【本轮上下文收尾】清空「本轮启用的 Skill」：发送结束（成功/失败/中止）后，
+        // `skill_read_file` 不该还能读到这一轮的文件（否则下一轮没选 Skill 时模型仍能读上一轮的）。
+        setSkillTurnBindings(null);
         // 【TD-11-5 修正 2026-09-11】原此处 `setCurrentSnapshot({ messages: <读回原值>, skills })` 是 **no-op**：
         //   - `messages: getCurrentSnapshot().messages` = 读回自己再写回自己（部分 patch 下等价于不传）；
         //   - `skills: skillsRef.current` 已有独立写点 `saveSkills`（AgentPanel effect）负责落盘。

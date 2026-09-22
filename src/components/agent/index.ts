@@ -64,3 +64,6 @@ export {
 } from './canvas/useCanvasAgentTools.ts';
 // getNodeAssetUrl / getNodeMedia 已下沉 base/canvas（TD-04-25）。此处转发以保持对外聚合入口契约。
 export { setAgentKey } from './conversation/conversationStore.ts';
+// 用例「带上某个 Skill 去用」（设置页的「去使用」按钮）：选进当前对话 + 把面板打开（让动作可见）。
+// 见 conversation/skillSelection.ts —— 设置页只调这一个入口，不许自己拼"写快照 + 改面板开关"。
+export { selectSkillInCurrentConversation } from './conversation/skillSelection.ts';

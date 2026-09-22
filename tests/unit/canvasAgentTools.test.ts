@@ -182,9 +182,12 @@ beforeEach(() => {
 });
 
 describe('画布 Agent 工具层 §2.5', () => {
-  it('共 20 个工具注册（奥卡姆删除 6 个 + show_plan_for_confirm；新增 read_table 供表格工作区）', () => {
-    expect(CANVAS_AGENT_TOOL_NAMES).toHaveLength(20);
+  it('共 21 个工具注册（奥卡姆删除 6 个 + show_plan_for_confirm；新增 read_table 供表格工作区、skill_read_file 读 Skill 资料）', () => {
+    // 计数金丝雀：增删工具必须同步此处（新增的理由也写在标题里，防"悄悄多一个工具"）
+    //   2026-09-21 +1：skill_read_file（Skill 渐进披露第三层：按需读正文引用的资料文件）
+    expect(CANVAS_AGENT_TOOL_NAMES).toHaveLength(21);
     expect(CANVAS_AGENT_TOOL_NAMES).toContain('read_table');
+    expect(CANVAS_AGENT_TOOL_NAMES).toContain('skill_read_file');
   });
 
   it('create_node 建文本节点成功 + 返回 id', () => {
@@ -752,6 +755,7 @@ describe('画布 Agent 工具层 §2.5', () => {
     'list_edges',
     'get_node_details',
     'read_table',
+    'skill_read_file',
     'generate_node',
     'run_existing_plan',
     'focus_node',

@@ -34,6 +34,10 @@ vi.mock('../../src/components/base/core/log/logger.ts', () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), log: vi.fn(), debug: vi.fn() },
 }));
 
+// Skill 的正文与磁盘落点住在缓存（`agent_skills`）—— 冻结按 id 现查 ⇒ 测试必须把技能**写进缓存**，
+// 不能把对象传进 hook（那样测的是"UI 镜像字段"那条已被删除的老路，正是 TD-11-16 的根因）
+import { writeSkillList } from '../../src/components/agent/skill/skillRepository.ts';
+
 // ── mock 会话数据层：内存独立，避免跨测试污染 ──
 // 【阶段1A 消息单源】useAgentChat 渲染走 useStoreSelector(subscribe, getState)（conversationState），
 //   消息写入走 setCurrentSnapshot/patchCurrentMessages（conversationStore）。为让「写入→订阅连通」，
@@ -46,6 +50,8 @@ type TestChatMessage = agentChatMessage & {
   steer?: unknown;
   mode?: unknown;
   streaming?: unknown;
+  /** 本轮启用的 Skill 冻结绑定（P2；见 skillInject.freezeSkillTurn） */
+  skills?: unknown;
 };
 // buildRequestMessages 输出的消息：content 可能为字符串或内容块数组（测试需按块读 type/text/image_url）
 type ContentBlock = { type: string; text?: string; image_url?: { url: string } };
@@ -282,6 +288,8 @@ import {
 } from '../../src/components/agent/runtime/useAgentChat.ts';
 import { agentChatMessage } from '../../src/components/agent/runtime/agentCore.ts';
 import type { SSEAccumulator } from '../../src/components/agent/runtime/agentCore.ts';
+// 块② 文本的生产者（agentCore 收预拼字符串 ⇒ 测试须先经它拼，见 agentCore 头注释）
+import { buildBoundSkillBlocks } from '../../src/components/agent/skill/skillInjectText.ts';
 import * as convStore from '../../src/components/agent/conversation/conversationStore.ts';
 
 // 【类型消化】src 侧 useAgentChat().messages 已是 ChatMessage[]，但测试 fixture 会在消息上挂
@@ -376,6 +384,58 @@ describe('useAgentChat · 真实模式 SSE 编排', () => {
     expect(result.current.sending).toBe(false);
     expect(result.current.error).toBeNull();
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('发送起点冻结本轮 Skill：**只给 id**，正文与磁盘落点由模块现查（含 contentHash），请求正文与留痕同源', async () => {
+    fetchMock.mockResolvedValue(textStream('好'));
+    writeSkillList([
+      { id: 'sk-1', name: '电商套图', content: '原始正文 #@!', category: '电商', slug: '套图' },
+    ]);
+    const { result } = renderHook<AgentChatApi, unknown>(() => useAgentChat({ skills: ['sk-1'] }));
+    await act(async () => {}); // 会话水化/初始恢复为异步：先 flush，避免复位消息
+    await act(async () => {
+      await result.current.send('用它出图');
+    });
+
+    // ① 留痕：user 消息上的绑定（回看/重发据此对账"当时哪一版"）
+    const userMsg = result.current.messages.find((m) => m.role === 'user')!;
+    const bound = (userMsg.skills || []) as Array<Record<string, unknown>>;
+    expect(bound).toHaveLength(1);
+    expect(bound[0]).toMatchObject({
+      skillId: 'sk-1',
+      name: '电商套图',
+      content: '原始正文 #@!',
+      origin: 'user',
+      // 落点必须随绑定留下：丢了它「按需读附属资料」恒失败，而单测（自己造 binding）永远测不到
+      category: '电商',
+      slug: '套图',
+    });
+    expect(typeof bound[0].contentHash).toBe('string');
+    expect(String(bound[0].contentHash)).toBeTruthy();
+
+    // ② 同源：请求里的块② 与留痕出自同一份冻结结果（正文一字不差）
+    const sentBody = JSON.parse(fetchMock.mock.calls[0][1].body);
+    const sys = sentBody.messages
+      .filter((m: AssembledMsg) => m.role === 'system')
+      .map((m: AssembledMsg) => String(m.content))
+      .join('\n');
+    expect(sys).toContain('本次启用 Skill（1 项）开始：电商套图');
+    expect(sys).toContain('原始正文 #@!');
+  });
+
+  it('本轮零绑定：user 消息 skills 为空，且请求里**不出现**「本次启用 Skill」块', async () => {
+    fetchMock.mockResolvedValue(textStream('好'));
+    const { result } = renderHook<AgentChatApi, unknown>(() => useAgentChat({ skills: [] }));
+    await act(async () => {});
+    await act(async () => {
+      await result.current.send('随便说点');
+    });
+
+    const userMsg = result.current.messages.find((m) => m.role === 'user')!;
+    expect(userMsg.skills).toEqual([]);
+    const sentBody = JSON.parse(fetchMock.mock.calls[0][1].body);
+    const joined = sentBody.messages.map((m: AssembledMsg) => String(m.content)).join('\n');
+    expect(joined).not.toContain('本次启用 Skill'); // 无块② = 模型知道"这次没发 skill"
   });
 
   it('多轮工具循环：第一轮带 tool_calls → callTool 执行 → 第二轮收敛', async () => {
@@ -909,30 +969,32 @@ describe('useAgentChat · buildRequestMessages 深度（请求体组装）', () 
     expect(out.some((m) => m.role === 'tool')).toBe(true);
   });
 
-  it('Skill 无损注入：原文包成 ==== Skill 文档 ==== 且不 rewrite，并追加 SKILL_EXECUTION_RULES', () => {
-    const skills = [{ name: '电商主图', content: '原始 Skill 内容 #@! 不可被改写' }];
-    const out = buildRequestMessages(base, '', true, skills) as AssembledMsg[];
+  it('Skill 无损注入：原文包成「本次启用 Skill」且不 rewrite，并追加 SKILL_EXECUTION_RULES', () => {
+    const docs = buildBoundSkillBlocks([
+      { name: '电商主图', content: '原始 Skill 内容 #@! 不可被改写' },
+    ]);
+    const out = buildRequestMessages(base, '', true, docs) as AssembledMsg[];
     const skillSys = out.find(
-      (m) => m.role === 'system' && (m.content as string).includes('Skill 文档'),
+      (m) => m.role === 'system' && (m.content as string).includes('本次启用 Skill'),
     )!;
     expect(skillSys).toBeTruthy();
-    expect(skillSys.content).toContain('===== Skill 文档开始：电商主图 =====');
+    expect(skillSys.content).toContain('===== 本次启用 Skill（1 项）开始：电商主图 =====');
     expect(skillSys.content).toContain('原始 Skill 内容 #@! 不可被改写');
-    expect(skillSys.content).toContain('===== Skill 文档结束：电商主图 =====');
+    expect(skillSys.content).toContain('===== 本次启用 Skill（1 项）结束：电商主图 =====');
     expect(skillSys.content).toContain('Skill 是你的参考'); // 2026-09-05 起为单阶段 Skill 指令
   });
 
   it('多 Skill：各自独立包文档，拼接在同一 system 内（丢失一个也能定位）', () => {
-    const skills = [
+    const docs = buildBoundSkillBlocks([
       { name: 'A', content: '内容A' },
       { name: 'B', content: '内容B' },
-    ];
-    const out = buildRequestMessages(base, '', true, skills) as AssembledMsg[];
+    ]);
+    const out = buildRequestMessages(base, '', true, docs) as AssembledMsg[];
     const skillSys = out.find(
-      (m) => m.role === 'system' && (m.content as string).includes('Skill 文档'),
+      (m) => m.role === 'system' && (m.content as string).includes('本次启用 Skill'),
     )!;
-    expect(skillSys.content).toContain('===== Skill 文档开始：A =====');
-    expect(skillSys.content).toContain('===== Skill 文档开始：B =====');
+    expect(skillSys.content).toContain('===== 本次启用 Skill（2 项）开始：A =====');
+    expect(skillSys.content).toContain('===== 本次启用 Skill（2 项）开始：B =====');
     expect(skillSys.content).toContain('内容A');
     expect(skillSys.content).toContain('内容B');
   });
@@ -941,7 +1003,7 @@ describe('useAgentChat · buildRequestMessages 深度（请求体组装）', () 
     const memory = {
       lastPlan: { plan_text: '策划说明', generations: [{ title: '主图', prompt: '一只猫' }] },
     };
-    const out = buildRequestMessages(base, '', true, [], memory) as AssembledMsg[];
+    const out = buildRequestMessages(base, '', true, '', memory) as AssembledMsg[];
     const memSys = out.find(
       (m) => m.role === 'system' && (m.content as string).includes('本对话最近策划'),
     )!;
@@ -951,7 +1013,7 @@ describe('useAgentChat · buildRequestMessages 深度（请求体组装）', () 
   });
 
   it('memory 无 lastPlan：不注入 memory system（避免空 system）', () => {
-    const out = buildRequestMessages(base, '', true, [], {}) as AssembledMsg[];
+    const out = buildRequestMessages(base, '', true, '', {}) as AssembledMsg[];
     expect(
       out.find((m) => m.role === 'system' && (m.content as string).includes('本对话最近策划')),
     ).toBeFalsy();
@@ -1030,13 +1092,13 @@ describe('useAgentChat · 执行模型提示词注入（恒 auto）', () => {
     },
     { role: 'tool', content: '{"ok":true}', tool_call_id: 'c1' },
   ] as agentChatMessage[];
-  const skill = (name = '电商主图') => [{ name, content: 'Skill 原文内容' }];
+  const skill = (name = '电商主图') => buildBoundSkillBlocks([{ name, content: 'Skill 原文内容' }]);
 
   const systemTexts = (out: AssembledMsg[]) =>
     out.filter((m) => m.role === 'system').map((m) => m.content);
 
   it('auto：注入「完全自主」分流段，引导 plan 可调且不卡确认（R2）', () => {
-    const out = buildRequestMessages(base, '', true, [], null, [], 0, '') as AssembledMsg[];
+    const out = buildRequestMessages(base, '', true, '', null, [], 0, '') as AssembledMsg[];
     const joined = systemTexts(out).join('\n');
     expect(joined).toContain('完全自主');
     expect(joined).toContain('完全自主');
@@ -1046,7 +1108,7 @@ describe('useAgentChat · 执行模型提示词注入（恒 auto）', () => {
   it('skill × auto：Skill 只作理解参考注入，执行模型仍恒 auto（无分步确认）', () => {
     const out = buildRequestMessages(base, '', true, skill(), null, [], 0, '') as AssembledMsg[];
     const texts = systemTexts(out);
-    const skillSys = texts.find((t) => (t as string).includes('Skill 文档'))!;
+    const skillSys = texts.find((t) => (t as string).includes('本次启用 Skill'))!;
     expect(skillSys).toContain('Skill 是你的参考'); // 单阶段 Skill 指令
     expect(skillSys).not.toContain('阶段2 · 等待确认');
     expect(texts.join('\n')).toContain('完全自主'); // 全局 auto 分流段

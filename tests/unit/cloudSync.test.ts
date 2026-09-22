@@ -34,6 +34,34 @@ vi.mock('../../src/components/base/api/localToolApi.ts', async (importOriginal) 
   }),
 }));
 
+// 【D6】Skill 门面在 downloadConfig 里被用来「拉取后写回磁盘」。本文件只锁**接线**（是否调用、
+// 参数里带没带保护集、失败有没有如实上抛），写回本身的语义由 tests/unit/skillCloudSync.test.ts 覆盖。
+// 【默认实现必须有】downloadConfig 会解构返回值（`skills.error`）；给一个"什么也没发生"的默认，
+// 否则未显式桩这个函数的用例会因 undefined 抛错 → 整个下载被 catch 成 ok:false（实测踩到）。
+// 【类型必须显式标注】否则默认实现里的空数组字面量会把返回类型收窄成 `never[]`，
+// 各用例再用 mockResolvedValue 塞真实值就编译不过（实测）。
+const skillsApi = vi.hoisted(() => {
+  type DriftResult = { ok: boolean; changed: { id: string; name: string }[]; error?: string };
+  type ApplyResult = {
+    ok: boolean;
+    written: number;
+    already: number;
+    protected: string[];
+    failed: { name: string; message: string }[];
+  };
+  return {
+    detectSkillDrift: vi.fn(async (): Promise<DriftResult> => ({ ok: true, changed: [] })),
+    applyCloudSkillsToDisk: vi.fn(async (): Promise<ApplyResult> => ({
+      ok: true,
+      written: 0,
+      already: 0,
+      protected: [],
+      failed: [],
+    })),
+  };
+});
+vi.mock('@/components/agent/skill', () => skillsApi);
+
 const { providerApi } = await import('@/components/base/api/localToolApi.ts');
 const {
   CloudSyncEngine,
@@ -714,5 +742,85 @@ describe('cloudSync — autoSync 链路（uploadConfig 三态 onAutoConflict + i
     expect(res.ok).toBe(true);
     expect(gasCalls('push_data').length, '内容一致不应发起 push').toBe(0);
     expect(onAutoConflict, '内容一致不应弹冲突').not.toHaveBeenCalled();
+  });
+});
+
+describe('cloudSync — [D6] 拉取后把技能正文写回磁盘', () => {
+  beforeEach(() => {
+    // 每个用例都从"什么也没发生"的默认实现起步（否则上一个用例的 mockResolvedValue 会漏到下一个）
+    skillsApi.detectSkillDrift.mockReset();
+    skillsApi.applyCloudSkillsToDisk.mockReset();
+    skillsApi.detectSkillDrift.mockResolvedValue({ ok: true, changed: [] });
+    skillsApi.applyCloudSkillsToDisk.mockResolvedValue({
+      ok: true,
+      written: 0,
+      already: 0,
+      protected: [],
+      failed: [],
+    });
+  });
+
+  /** 造一次「云端有新数据」的下载（与 [F-云A] 用例同款：本地有值、云端不同 → 会真写回） */
+  async function pullOnce() {
+    const { contentSet } = await import('../../src/components/base/core/contentStore.ts');
+    contentSet('scriptbox_playbooks', { theme: 'dark' });
+    fetchMock.mockResolvedValueOnce(
+      jsonResp({
+        type: 'cloud_config',
+        version: 5,
+        updatedAt: 0,
+        data: { scriptbox_playbooks: { theme: 'dark' } },
+      }),
+    );
+    return downloadConfig(() => {});
+  }
+
+  it('写回被调用，且带上"本地磁盘已改过"的保护集（在恢复本地之前采集）', async () => {
+    skillsApi.detectSkillDrift.mockResolvedValue({ ok: true, changed: [{ id: 's1', name: '甲' }] });
+
+    const res = await pullOnce();
+
+    expect(res.ok).toBe(true);
+    expect(skillsApi.detectSkillDrift).toHaveBeenCalledTimes(1);
+    expect(skillsApi.applyCloudSkillsToDisk).toHaveBeenCalledWith({
+      protectIds: new Set(['s1']),
+    });
+  });
+
+  it('漂移检测失败 ⇒ 保护集为空但仍继续写回（后端不可用时写回自己会失败，不存在误覆盖）', async () => {
+    skillsApi.detectSkillDrift.mockResolvedValue({ ok: false, changed: [], error: '后端没起' });
+
+    await pullOnce();
+
+    expect(skillsApi.applyCloudSkillsToDisk).toHaveBeenCalledWith({ protectIds: new Set() });
+  });
+
+  it('技能写回失败 ⇒ 如实带 partial.failed（不掩盖成"一切正常"）', async () => {
+    skillsApi.applyCloudSkillsToDisk.mockResolvedValue({
+      ok: false,
+      written: 0,
+      already: 0,
+      protected: [],
+      failed: [{ name: '甲', message: '磁盘只读' }],
+    });
+
+    const res = await pullOnce();
+
+    expect(res.ok).toBe(true); // 本地缓存已恢复，整体仍算成功
+    expect(res.partial?.failed?.join('|')).toContain('磁盘只读');
+  });
+
+  it('本地磁盘改动被保护 ⇒ 用户可见地提示"未覆盖"（不静默吞掉这件事）', async () => {
+    skillsApi.applyCloudSkillsToDisk.mockResolvedValue({
+      ok: true,
+      written: 0,
+      already: 0,
+      protected: ['甲'],
+      failed: [],
+    });
+
+    const res = await pullOnce();
+
+    expect(res.partial?.failed?.join('|')).toContain('本地磁盘改动未覆盖');
   });
 });

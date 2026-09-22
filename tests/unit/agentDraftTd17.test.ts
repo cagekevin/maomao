@@ -89,7 +89,8 @@ describe('TD-17 复核 · 草稿唯一真源 = conv.draft（切对话不丢）',
 
   it('④ 窄接口：setCurrentDraft 只动 draft，不碰 messages/skills/attachments（TD-11-5）', () => {
     const convA = store.ensureActiveConversation();
-    store.setCurrentSkills([{ id: 's1' }]);
+    // skills = **id 列表**（契约：正文与落点由 skill 模块按 id 现查，见 TD-11-16）
+    store.setCurrentSkills(['s1']);
     store.setCurrentAttachments([{ url: 'u1' }]);
     store.setCurrentDraft('只有草稿变');
 
@@ -107,13 +108,13 @@ describe('TD-17 复核 · 草稿唯一真源 = conv.draft（切对话不丢）',
       draft: '半截',
       attachments: [{ url: 'u1' }],
     });
-    store.resetCurrentConversationToEmpty([{ id: 'keep' }]);
+    store.resetCurrentConversationToEmpty(['keep']); // skills = id 列表（同 ④ 的契约）
 
     const conv = state.getState().conversations.find((c) => c.id === convA);
     expect(conv?.messages).toHaveLength(0);
     expect(conv?.draft).toBe('');
     expect(conv?.attachments).toHaveLength(0);
-    expect(conv?.skills).toEqual([{ id: 'keep' }]); // 清空对话不撤技能（与原 clear 行为一致）
+    expect(conv?.skills).toEqual(['keep']); // 清空对话不撤技能（与原 clear 行为一致）
     expect(conv?.workflow).toBeNull();
     expect(conv?.pending).toBeNull();
     // 记忆必须回到空记忆（而非残留）

@@ -49,6 +49,9 @@ import { stableStringify, contentFingerprint, formatTime } from '../core/utils.t
 import { reloadAppSettings } from './appSettings.ts';
 import { reloadAccounts } from '@/components/settings/accountsStore';
 import { reloadProviders } from '@/components/settings/providerStore';
+// Skill 门面（域外只准走它）：拉取后把技能正文写回磁盘（D6）+ 拉取前的漂移采集。
+// 循环依赖安全：`agent/skill` 不 import 本文件（它的消费者是设置页/AgentPanel/工具层）⇒ 无环。
+import { applyCloudSkillsToDisk, detectSkillDrift } from '@/components/agent/skill';
 
 /* ======================================================================
  * 【标准同步引擎】原样保留，勿改动内部通讯逻辑。
@@ -780,6 +783,20 @@ export async function uploadConfig(
 }
 
 /**
+ * 拉取**之前**采集：磁盘上被外部改过、还没回灌到缓存的技能 id（见 `applyCloudSkillsToDisk` 的
+ * 「不覆盖未回灌的本地磁盘改动」）。取不到（后端没起/缓存损坏）⇒ 返回空集：
+ * 那种情况下写回本身也会失败，不存在"误覆盖"的风险。
+ */
+async function collectLocallyEditedSkillIds(): Promise<Set<string>> {
+  const d = await detectSkillDrift();
+  if (!d.ok) {
+    logger.warn('同步', '[下载] 技能库漂移检测失败（写回将不做保护）', { error: d.error || '' });
+    return new Set();
+  }
+  return new Set(d.changed.map((c) => c.id));
+}
+
+/**
  * 从云端拉取：CloudSyncEngine.pull → 归一化解析 → 算受影响项（必要时先问用户）→ 覆盖恢复本地。
  *
  * 【与旧版的行为差异】写回本地前先逐键比对，若「本地有值且与云端不同」则列出清单先问用户，
@@ -844,6 +861,9 @@ export async function downloadConfig(
     }
   }
   try {
+    // 【D6 · 2026-09-21】拉取**之前**先记下「磁盘上未回灌到缓存」的技能（用户在 VS Code 改过、还没点「重读」）。
+    // 必须抢在 restoreLocal 之前取：写回恢复后，缓存里已经是云端内容，"谁是本地改动"就再也分不出来了。
+    const localEditedIds = await collectLocallyEditedSkillIds();
     const { written, failed } = await restoreLocal(cloud);
     if (written === 0 && failed.length === 0) {
       logger.debug('同步', '[下载] 云端无新数据', {}, { module: 'project' });
@@ -853,6 +873,23 @@ export async function downloadConfig(
     // 手动/自动两路下载都经 downloadConfig，故在此统一触发，调用方无需各自 rehydrate；
     // 仅在有实际写回时执行（written>0），「云端无新数据」已在上方面 return，不触发无谓刷新。
     await rehydrateStoresAfterCloudPull();
+    // 【D6】云端技能正文写回磁盘（副本收敛；不写回 ⇒ 设备一旦有 skills/ 目录，云端更新被永久遮蔽）。
+    // 必须放在写台账**之前**：写回会更新缓存条目（updatedAt 等），台账基线要采「写回后」的本地值，
+    // 否则下次自动上传会把这次写回当成「本地改过」而把同样的内容回推一遍。
+    const skills = await applyCloudSkillsToDisk({ protectIds: localEditedIds });
+    if (skills.error) failed.push(`技能库写回磁盘（${skills.error}）`);
+    for (const f of skills.failed) failed.push(`技能库：${f.name}（${f.message}）`);
+    if (skills.protected.length) {
+      // 本地磁盘有新改动、没被云端覆盖 —— 这是**刻意的**（不静默删用户刚写的东西），但必须可见。
+      // 【为什么复用 `partial.failed` 这个通道】它已经是"下载完成但有话要说"的唯一用户可见出口
+      // （manual/auto 两路都会弹 warning），新开一个字段要动两处 UI；而**多报一句**远比**漏报**安全。
+      logger.warn('同步', '[下载] 技能库：本地磁盘改动未覆盖', { protected: skills.protected });
+      const shown = skills.protected.slice(0, 3).join('、');
+      const more = skills.protected.length > 3 ? ` 等 ${skills.protected.length} 个` : '';
+      failed.push(
+        `技能库：${shown}${more} 的本地磁盘改动未覆盖（云端版本已进缓存；点「重读」以磁盘为准）`,
+      );
+    }
     // 2) 记台账：云端这一版 = 新基线。指纹按「写回后的本地实际值」重新采集——
     //    若直接用云端包指纹，领域开关关闭的键（如 projects 不写回）会造成基线偏差，
     //    下次上传就会误报「本地改过」而多弹一次确认。

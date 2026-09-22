@@ -116,6 +116,29 @@ describe('AgentMessage — user 消息', () => {
     );
     expect(document.querySelector('img')).toBeTruthy();
   });
+
+  it('Skill 标签的 title 说出**冻结时记下的来源**（官方 / 分组）——`origin` 的读者（TD-11-29）', () => {
+    render(
+      <AgentMessage
+        message={{
+          role: 'user',
+          content: '用它',
+          skills: [
+            { name: '电商详情页套图', origin: 'builtin', contentHash: 'abcdef1234' },
+            { name: '漫画生成', origin: 'user', category: '图片类', version: '2' },
+          ],
+        }}
+      />,
+    );
+    const titles = [...document.querySelectorAll('.agent-user-skill')].map((el) =>
+      el.getAttribute('title'),
+    );
+
+    // 来源读的是绑定里的 origin/category（不是现在去查磁盘）：技能改名/换组/删除都不影响这条留痕
+    expect(titles[0]).toContain('官方');
+    expect(titles[1]).toContain('分组：图片类');
+    expect(titles[1]).toContain('v2');
+  });
 });
 
 describe('AgentMessage — assistant 消息（思考/工具/步骤卡片）', () => {

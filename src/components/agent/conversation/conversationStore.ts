@@ -30,7 +30,7 @@ import {
   AGENT_MSG_MAX,
 } from './conversationState.ts';
 import type { Conversation } from './conversationState.ts';
-import { getCurrentSnapshot } from './conversationSnapshot.ts';
+import { getCurrentSnapshot, normalizeSkillIds } from './conversationSnapshot.ts';
 import type { ConversationSnapshot } from './conversationSnapshot.ts';
 import { logger } from '@/components/base/core/log/logger';
 // 【SSOT-7 根治 / P1-B 2026-09-08】依赖方向单向无环：store(本文件) → aiState → state。
@@ -210,9 +210,8 @@ export function importLegacy({
     id: agentUid('ac'),
     title: firstUser?.content ? String(firstUser.content).slice(0, 30) : '对话',
     messages: msgs.slice(-AGENT_MSG_MAX),
-    skills: Array.isArray(skills)
-      ? (skills as Record<string, unknown>[]).map((s) => ({ ...s }))
-      : [],
+    // 与快照写入口同一归一（原 `{ ...s }` 会把 id 字符串展开成索引对象 ⇒ 迁移后技能丢失）
+    skills: normalizeSkillIds(skills),
     attachments: [],
     draft: '',
     workflow: null,

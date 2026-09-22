@@ -8,7 +8,6 @@ import {
   debounce,
   throttle,
   useDebouncedEffect,
-  createImeInput,
   createRafBatch,
   mergeRefImages,
   buildEffectivePrompt,
@@ -354,70 +353,6 @@ describe('debounce', () => {
     const d = debounce(fn, 100);
     d.flush();
     expect(fn).not.toHaveBeenCalled();
-  });
-});
-
-describe('createImeInput（P2/P12 输入提交 IME 门控）', () => {
-  beforeEach(() => {
-    vi.useFakeTimers();
-  });
-  afterEach(() => {
-    vi.useRealTimers();
-  });
-
-  it('连续非组字输入：防抖窗口内只提交 1 次，提交最新值', () => {
-    const submit = vi.fn();
-    const i = createImeInput(submit, 200);
-    i.onChange('a', false);
-    i.onChange('ab', false);
-    i.onChange('abc', false);
-    expect(submit).not.toHaveBeenCalled();
-    vi.advanceTimersByTime(199);
-    expect(submit).not.toHaveBeenCalled();
-    vi.advanceTimersByTime(1);
-    expect(submit).toHaveBeenCalledTimes(1);
-    expect(submit).toHaveBeenCalledWith('abc');
-  });
-
-  it('compositionstart~compositionend 组字期间：不提交（即使窗口过了）', () => {
-    const submit = vi.fn();
-    const i = createImeInput(submit, 200);
-    i.onChange('你', true);
-    i.onChange('你们', true);
-    i.onChange('你们好', true);
-    vi.advanceTimersByTime(500);
-    expect(submit).not.toHaveBeenCalled();
-  });
-
-  it('compositionend 后补提交 1 次（组字完成不丢）', () => {
-    const submit = vi.fn();
-    const i = createImeInput(submit, 200);
-    i.onChange('你', true);
-    i.onChange('你们好', true);
-    i.onCompositionEnd('你们好');
-    expect(submit).toHaveBeenCalledTimes(1);
-    expect(submit).toHaveBeenCalledWith('你们好');
-  });
-
-  it('组字中会取消此前非组字的待提交，结束后只提交组字最终值', () => {
-    const submit = vi.fn();
-    const i = createImeInput(submit, 200);
-    i.onChange('a', false); // 排了一个待提交 'a'
-    i.onChange('a你', true); // 组字开始 → 取消 'a' 的待提交
-    vi.advanceTimersByTime(500);
-    expect(submit).not.toHaveBeenCalled();
-    i.onCompositionEnd('a你好');
-    expect(submit).toHaveBeenCalledTimes(1);
-    expect(submit).toHaveBeenCalledWith('a你好');
-  });
-
-  it('cancel 取消未执行的提交', () => {
-    const submit = vi.fn();
-    const i = createImeInput(submit, 200);
-    i.onChange('x', false);
-    i.cancel();
-    vi.advanceTimersByTime(300);
-    expect(submit).not.toHaveBeenCalled();
   });
 });
 

@@ -105,12 +105,6 @@ export interface SSEAccumulator {
   toolCalls: ToolCall[];
 }
 
-/** 启用的 Skill（buildRequestMessages 注入用）。 */
-export interface SkillItem {
-  name?: string;
-  content?: string;
-}
-
 /** 对话记忆（buildRequestMessages memory 注入）。 */
 export interface AgentMemory {
   summary?: string;
@@ -370,7 +364,9 @@ export function parseGenerationsFromReply(content = '') {
  *  @param {Array}  messages       完整对话历史（send 时含本轮 user；本函数只取「最近 historyTurns 轮」）
  *  @param {string} systemPrompt   外部 systemPrompt（拼接在画布准则之后）
  *  @param {boolean} enhance        是否注入画布准则（默认 true）
- *  @param {Array}  skills         启用的 Skill 数组 [{name, content}]
+ *  @param {string} skillDocsText  块②（本次启用 Skill 正文）**预拼文本**。空串 ⇒ 本轮没发 skill（块② 不出现）。
+ *                                 由 skill 门面按预算拼好（`buildSkillDocBlocks`）：本函数**不引 skill 模块**，
+ *                                 只做拼接 —— 保持纯函数层零业务耦合（见下方「为什么是字符串而不是数组」）。
  *  @param {object} memory         对话记忆 { summary?, facts?, lastSharedStyle?, notes?, lastPlan?, global_contract? }
  *  @param {Array}  [imageCatalog] 当前可引用图编号目录 [{num,url,name,source}]（对齐大雄 agentCurrentImageMap）
  *  @param {number} [historyTurns] 回传最近 N 轮「纯文字」历史的轮数上限（默认 0 = 维持 fresh-task，只发本轮）。
@@ -389,17 +385,26 @@ export function parseGenerationsFromReply(content = '') {
  *  @param {string} [mode]          可选运行人格：'canvas'（默认，注入画布准则）| 'table'（表格工作区展开，
  *                                   注入 TABLE_AGENT_RULES 作首条 system，不叠加画布三通道）。
  *                                  默认 'canvas' → 既有调用/单测零变化。
+ *  @param {string} [skillIndexText] 块①（可用 Skill 清单）**预拼文本**（skill 门面 `getSkillIndexText`）。
+ *                                  空串 ⇒ 不注入（默认态 = 设置开关关）。它只声明"存在什么"，
+ *                                  **绝不代表本次已启用** —— 措辞的区分在文本里（见 skillInjectText）。
+ *
+ *  ── 为什么 Skill 两段都收「预拼字符串」而不是数组 ──
+ *  ① 本函数是**纯函数层**（单测直接跑，不引 React/存储）；收数组就得把"包裹符 / 预算 / 截断"
+ *     一起搬进来，或反向 import skill 模块 ⇒ 纯函数层被业务耦合。
+ *  ② 包裹符与预算是**skill 门面的对外契约**（谁改措辞谁负责，唯一实现）；收字符串让"组装"与"拼接"分家。
  *  导出供单测（AI 助手前端逻辑核心：确认发给 LLM 的 messages 组装正确）。 */
 export function buildRequestMessages(
   messages: agentChatMessage[],
   systemPrompt: string,
   enhance: boolean = true,
-  skills: SkillItem[] = [],
+  skillDocsText: string = '',
   memory: AgentMemory | null = null,
   imageCatalog: ImageRef[] = [],
   historyTurns: number = 0,
   projectMemoryContext: string = '',
   mode: 'canvas' | 'table' = 'canvas',
+  skillIndexText: string = '',
 ) {
   const out: agentChatMessage[] = [];
   // 工具消息配对：assistant 声明 tool_calls 时登记其 id，后续 tool 消息需命中才保留（防孤儿 tool 消息）
@@ -417,20 +422,16 @@ export function buildRequestMessages(
   } else if (systemPrompt) {
     out.push({ role: 'system', content: systemPrompt });
   }
-  // Skill 无损注入（对齐大雄：原文包成 ==== Skill 文档 ==== 直接给 LLM，不 rewrite）
-  const skillTexts = (skills || [])
-    .map((s) =>
-      s && s.content
-        ? `===== Skill 文档开始：${s.name || 'Skill'} =====\n${s.content}\n===== Skill 文档结束：${s.name || 'Skill'} =====`
-        : '',
-    )
-    .filter(Boolean);
-  if (skillTexts.length > 0) {
-    // Skill 注入指令：让 LLM 按 Skill 理解需求并按对话方式自主执行（2026-09-05 精简为单阶段）
-    out.push({
-      role: 'system',
-      content: `${skillTexts.join('\n\n')}\n\n${SKILL_EXECUTION_RULES}`,
-    });
+  // ── Skill 两段注入（2026-09-21 起分块；措辞与预算由 skill 门面负责，见 docs/plan/140 §1.4）──
+  // 块①「可用清单」：**仅当开关打开且确有 skill** 时出现（文本非空即注入）。措辞里声明"仅表示存在"，
+  //   末句声明"清单本身不是本次任务要求" —— 防模型把清单当成本次任务（这是最易踩的坑）。
+  if (skillIndexText) {
+    out.push({ role: 'system', content: skillIndexText });
+  }
+  // 块②「本次启用」：本轮零绑定 ⇒ 文本为空 ⇒ **本块完全不出现**。
+  //   模型据此判断"这次用户到底发没发 skill"（有块②=发了）；执行指令仍在本层追加（值属 agent 域配置）。
+  if (skillDocsText) {
+    out.push({ role: 'system', content: `${skillDocsText}\n\n${SKILL_EXECUTION_RULES}` });
   }
   // 执行模型指令段（2026-09-05 精简恒 auto）：注入引导 show_plan_for_confirm 可调性——
   // 修复根因：无 Skill 常规任务下 LLM 无 plan 使用指引 → plan 调不了。direct/step-confirm 已删，

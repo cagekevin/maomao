@@ -310,6 +310,7 @@ export const KEY_AGENT_HISTORY_TURNS = 'agent_history_turns';
 export const KEY_AGENT_SKILLS = 'agent_skills';
 export const KEY_AGENT_SKILL_USAGE = 'agent_skill_usage';
 export const KEY_AGENT_SKILL_ENABLED = 'agent_skill_enabled';
+export const KEY_AGENT_SKILL_CONFIG = 'agent_skill_config';
 export const KEY_AGENT_PANEL_WIDTH = 'agent_panel_width';
 export const KEY_AGENT_SPLIT_WIDTH = 'agent_split_width';
 export const KEY_MULTIWINDOW_CLIPBOARD = 'mutiwindow-clipboard';
@@ -369,7 +370,7 @@ export const STORAGE_KEYS: Record<string, StorageKeyMeta> = {
     backend: 'local',
     // 混合桶：含 thumbnailOn/minimapOn/agentOpen/pinnedTools 等 UI 开关 → 整键留本机（2026-09-16 裁定）
     label: '应用设置',
-    note: '应用设置：{ thumbnailOn, minimapOn, agentOpen, performanceMode, debugOn, pinnedTools, autoSyncEnabled }——整键随云端同步（手工 note，改动 settingRegistry 须同步，防漂移）。注：videoEditorOpen 已于 2026-09-15 **迁出**（它是界面开合的会话态，不该持久化/sync → base/core/editorSession.ts）',
+    note: '应用设置：{ thumbnailOn, minimapOn, agentOpen, performanceMode, debugOn, pinnedTools, autoSyncEnabled }——整键**留本机、不进云同步**（缺 `sync:true`，与 cloudSync.ts 文件头"app_settings 整键不同步"一致）。注：本行原写"整键随云端同步"，与上述事实矛盾，已于 2026-09-21 订正（手工 note，改动 settingRegistry 须同步，防漂移）。注：videoEditorOpen 已于 2026-09-15 **迁出**（它是界面开合的会话态，不该持久化/sync → base/core/editorSession.ts）',
   },
   [KEY_SCRIPTBOX_PLAYBOOKS]: {
     domain: 'settings',
@@ -406,29 +407,38 @@ export const STORAGE_KEYS: Record<string, StorageKeyMeta> = {
     note: 'AI 助手历史回传轮数（默认 6，非负整数）',
   },
 
-  // ── Skill（skillStore）─────────────────────────────────────────────
+  // ── Skill（**唯一读写口** = agent/skill/skillRepository.ts，见 ADR-0056 Q2）──────────
+  // 四个键只准经 skillRepository 读写；`store` 指向**真实写入者**（skillStore.ts 已降为转发层）。
   [KEY_AGENT_SKILLS]: {
     domain: 'agent',
-    store: 'skillStore.ts',
+    store: 'agent/skill/skillRepository.ts',
     backend: 'local',
     sync: true,
     label: '自定义 Skill',
-    note: '用户自定义 Skill 列表 [{id, name, description, content}]',
+    note: '用户自定义 Skill 列表 [{id, name, description, content}]。**正文照旧上云、不加密**（ADR-0056 Q4：GAS 部署 URL 即凭据，同通道已载账号/API key）',
   },
   [KEY_AGENT_SKILL_USAGE]: {
     domain: 'agent',
-    store: 'skillStore.ts',
+    store: 'agent/skill/skillRepository.ts',
     backend: 'local',
     label: 'Skill 使用统计',
-    note: 'Skill 使用次数统计：{ [skillId]: count }',
+    note: 'Skill 使用次数统计：{ [skillId]: count }。**刻意不进云**（高频变动，同步只会造 rev 噪音与假冲突）',
   },
   [KEY_AGENT_SKILL_ENABLED]: {
     domain: 'agent',
-    store: 'skillStore.ts',
+    store: 'agent/skill/skillRepository.ts',
     backend: 'local',
     sync: true,
     label: 'Skill 启用状态',
-    note: 'Skill 启用状态：{ [skillId]: boolean }。默认启用',
+    note: 'Skill 启用状态：{ [skillId]: boolean }。默认启用；组级开关 = 批量写本表（组自身不存状态）',
+  },
+  [KEY_AGENT_SKILL_CONFIG]: {
+    domain: 'agent',
+    store: 'agent/skill/skillRepository.ts',
+    backend: 'local',
+    sync: true,
+    label: 'Skill 设置',
+    note: 'Skill 模块设置：{ catalogToModel, contentLimits }。catalogToModel = 是否把「可用 Skill 清单」常驻发给 AI（默认 false，D8）',
   },
 
   // ── 提示词预设（promptManager）─────────────────────────────────────
@@ -1214,6 +1224,57 @@ export const apiRegistry: Record<string, ApiRegistryEntry> = {
     envelope: 'code-data',
     status: 'ACTIVE',
     note: '打开指定文件所在目录（open-dir?filepath=）',
+  },
+
+  // ── Skill 包（技能库 facade：根 = localTool getSkillsDir()，**独立于 uploads**；见 docs/plan/140）──
+  // 5 条与 localTool/src/routes/skills.ts 一一对应；后端 scope=content 默认排除 scripts/**。
+  skillsList: {
+    fn: 'skillApi.listSkillPackages',
+    method: 'GET',
+    path: '/api/skills',
+    envelope: 'code-data',
+    status: 'ACTIVE',
+    note: '列 Skill 包（?withContent=1 一次带 SKILL.md + references/**，避免 N+1）',
+  },
+  skillsOpenDir: {
+    fn: 'skillApi.openSkillFolder',
+    method: 'GET',
+    path: '/api/skills/open-dir',
+    envelope: 'code-data',
+    status: 'ACTIVE',
+    note: '打开技能库/某包的文件夹（只收 category/slug，缺 slug 开根；无任意路径输入）',
+  },
+  skillsRead: {
+    fn: 'skillApi.readSkillPackage',
+    method: 'GET',
+    path: '/api/skills/{category}/{slug}',
+    envelope: 'code-data',
+    status: 'ACTIVE',
+    note: '读单包；scope=content（默认）排除 scripts/**，package 仅供导入导出',
+  },
+  skillsSave: {
+    fn: 'skillApi.saveSkillPackage',
+    method: 'POST',
+    path: '/api/skills/{category}/{slug}',
+    envelope: 'code-data',
+    status: 'ACTIVE',
+    note: '整包原子写（提交集合即最终状态，不合并旧文件）',
+  },
+  skillsDelete: {
+    fn: 'skillApi.deleteSkillPackage',
+    method: 'DELETE',
+    path: '/api/skills/{category}/{slug}',
+    envelope: 'code-data',
+    status: 'ACTIVE',
+    note: '整包原子删（rename 进 .trash/，不真删）',
+  },
+  skillsCreateGroup: {
+    fn: 'skillApi.createSkillGroup',
+    method: 'POST',
+    path: '/api/skills/group',
+    envelope: 'code-data',
+    status: 'ACTIVE',
+    note: '新建分组（= 技能库一级目录，body={name}；已存在幂等 created:false）',
   },
   filesMove: {
     fn: 'filesApi.moveFile',

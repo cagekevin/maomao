@@ -129,7 +129,8 @@ node scripts/extract-detours.mjs      # 重生成弯路汇编（doctor 说"已�
 ```bash
 # 1 新建合并条（必须自洽成一条线）
 node scripts/adr.mjs add --title "<合并后标题>" --conclusion "<新结论 ≤120 字>"
-# 2 原条转已取代 —— 正文冻结，**只改头部状态行**（不可变性）
+# 2 原条转已取代 —— **只改头部状态行**（正文冻结）；⚠️ 但原文**本身写错** ⇒ README §三
+#     **修正优先：回改原文 + 留痕**，别拿"冻结"挡住修正
 node scripts/adr.mjs status <旧编号> --to 已取代 --by <新编号> --note "合并入 ADR-<新编号>"
 # 4/5 索引（产物）+ 对账
 node scripts/adr.mjs index --write && node scripts/adr.mjs audit   # 必须 0 问题

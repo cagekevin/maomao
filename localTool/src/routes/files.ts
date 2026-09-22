@@ -4,7 +4,7 @@
  */
 
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { execSync } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -685,7 +685,8 @@ export async function handleOpen(
 
   const cmd = process.platform === 'win32' ? 'explorer' : 'open';
   try {
-    execSync(`${cmd} "${dirPath}"`, { timeout: 5000 });
+    // 不走 shell：路径作为 argv 传递（与 `routes/skills.ts` 的 open-dir 同一形态，TD-11-25）
+    execFileSync(cmd, [dirPath], { timeout: 5000 });
   } catch {
     // 忽略打开失败
   }
@@ -705,9 +706,16 @@ export async function handleOpenDir(
   }
 
   // filepath 是 URL pathname 去 /files/ 前缀
-  const uploadDir = getUploadDir();
   const relativePath = filepath.replace(/^\/files\//, '');
-  const fullPath = path.join(uploadDir, relativePath);
+  // 【越根守卫（TD-11-43）】此前是 `path.join(uploadDir, relativePath)`：`filepath=/files/../../x`
+  // 就能把**任意目录**交给 `open`（`path.join` 会乖乖上跳），且紧随其后的 `existsSync` 让本端点
+  // 顺带成了**存在性探针**（任意路径存不存在，一个 200/404 就答了）。
+  // 复用**已有原语** `resolveUploadFile`（只校验不改写：空 / 含 `.`·`..` / resolve 后越出 uploadDir ⇒ null），
+  // 与同文件的 `handleList` **同一口径** —— 守卫只有一份，别处不必再判。
+  const fullPath = resolveUploadFile(relativePath);
+  if (!fullPath) {
+    return sendError(res, `Invalid filepath: ${filepath}`, 400); // 越根/非法路径：在拉起访达之前就拒
+  }
 
   if (!fs.existsSync(fullPath)) {
     return sendError(res, 'File/directory not found', 404);
@@ -717,7 +725,8 @@ export async function handleOpenDir(
   const cmd = process.platform === 'win32' ? 'explorer' : 'open';
 
   try {
-    execSync(`${cmd} "${dirToOpen}"`, { timeout: 5000 });
+    // 不走 shell：`filepath` 来自查询参数（用户可控）⇒ 拼命令行等于把注入面直接交出去（TD-11-25 同形态）
+    execFileSync(cmd, [dirToOpen], { timeout: 5000 });
   } catch {
     // 忽略打开失败
   }

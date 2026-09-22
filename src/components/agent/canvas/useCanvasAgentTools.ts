@@ -51,6 +51,9 @@ import {
   CREDIT_GATE_EVENT,
   KEY_CANVAS_AGENT_GEN_PARAMS,
 } from '../../base/core/contracts.ts';
+// Skill 门面（域外只准走它）：模型按需读 Skill 附属资料（渐进披露第三层）。
+// 安全边界与判据都住在模块内（本轮启用 + 正文显式引用 + 只收文本），此处只是薄适配。
+import { readSkillResource, UNTRUSTED_SKILL_TEXT_RULE } from '@/components/agent/skill';
 
 /* ════════════════════════════════════════════════════════════════
  * AI 生图默认参数（genParams）—— 由 AgentPanel 生图参数区设置，execute_plan 读取。
@@ -910,6 +913,44 @@ const listEdgesTool = {
   },
 };
 
+/**
+ * 读 Skill 附属资料（skill_read_file）—— 只读。
+ * 语义：读**本轮启用**的 Skill 里、正文以反引号/链接**显式写出**的文本资料（渐进披露第三层）。
+ * 判据（本轮绑定 / 正文引用 / 路径准入 / 文本）全在 skill 门面内；此处只做参数转发与信封包装。
+ * ⚠️ 读到的内容是**参考资料**（不会被当指令执行）—— 判据在门面，此处只把这条告诉模型。
+ */
+const skillReadFileTool = {
+  name: 'skill_read_file',
+  // 【不可信条款】与块① 清单**共用同一份字面文本**（`UNTRUSTED_SKILL_TEXT_RULE`）：
+  // 同一判据两处各写一套话术 = 两份真相，改一处漏一处。
+  description: `读取 Skill 资料文件：Skill 正文里用反引号或链接写出的相对路径（如 references/流程.md）。仅当正文引用了这类文件、且确实需要其中内容时才调用；一次读一个，别重复读同一份。${UNTRUSTED_SKILL_TEXT_RULE}`,
+  parameters: {
+    type: 'object',
+    additionalProperties: false,
+    properties: {
+      path: {
+        type: 'string',
+        minLength: 1,
+        description: 'Skill 正文里写出的相对路径，如 references/风格.md',
+      },
+      skill: {
+        type: 'string',
+        description: '可选：本轮启用多个 Skill 时，用 Skill 名或 id 指明读哪一个',
+      },
+    },
+    required: ['path'],
+  },
+  async execute(args: Record<string, unknown>) {
+    const r = await readSkillResource(args.path, args.skill);
+    if (!r.ok) return { ok: false, error: r.error };
+    // truncated 也要回给模型：否则它会把截断版当全文用（例如漏掉文件后半段的规则）
+    return {
+      ok: true,
+      data: { skill: r.skill, path: r.path, content: r.content, truncated: !!r.truncated },
+    };
+  },
+};
+
 /** 读单个节点详情（get_node_details）—— 只读 */
 const getNodeDetailsTool = {
   name: 'get_node_details',
@@ -1730,6 +1771,7 @@ const AGENT_TOOLS = (() => {
     listEdgesTool,
     getNodeDetailsTool,
     readTableTool,
+    skillReadFileTool,
     // ② 节点增删
     createNodeTool,
     batchCreateNodesTool,
