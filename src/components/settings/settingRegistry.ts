@@ -6,11 +6,11 @@
  *
  * 统一设置注册表（应用设置的"单一事实来源"）。
  *
- * 【为什么收口】此前应用设置默认值散在 appSettings.js，设置页开关散在 OtherSettings.jsx，
+ * 【为什么收口】此前应用设置默认值散在 appSettings.ts，设置页开关散在 OtherSettings.tsx，
  * 加一个开关要改两处且容易漏（默认值/开关/说明不一致或忘登记）。
  * 收口后：每项设置只在本表声明一次，自动派生三样东西——
- *  1. appSettings.js 的 DEFAULTS（默认值）
- *  2. 「其他设置」页的开关行（OtherSettings.jsx 遍历渲染，含 title/desc/icon/分组）
+ *  1. appSettings.ts 的 DEFAULTS（默认值）
+ *  2. 「其他设置」页的开关行（OtherSettings.tsx 遍历渲染，含 title/desc/icon/分组）
  *  3. 本地持久化（**不进云同步**）：`app_settings` 整键在 contracts.ts 登记 `backend:'local'`、缺 `sync:true`
  *     ⇒ **留本机**（与 `cloudSync.ts` 文件头「app_settings 整键不同步」一致），本表各项随键**存本地**。
  *     ⚠️ 原文写"自动随键上传/下载"，与上述事实**矛盾**，已于 2026-09-22 订正（判据登记表 §七 #13）。
@@ -136,7 +136,7 @@ export type UISettingDef = Extract<SettingDefAny, { type: 'boolean' }>;
 /** 供设置页渲染的行（仅 ui:true） */
 export const UI_SETTING_ROWS: UISettingDef[] = SETTING_DEFS.filter((s): s is UISettingDef => s.ui);
 
-/** 由注册表派生 DEFAULTS（appSettings.js 用它做默认值）。
+/** 由注册表派生 DEFAULTS（appSettings.ts 用它做默认值）。
  *  用 Record<string,unknown> 桥接逐键赋值，规避 TS 对按 key 推导在联合索引时塌缩成交集的问题。 */
 export function buildDefaults(): SettingState {
   const d = {} as SettingState;

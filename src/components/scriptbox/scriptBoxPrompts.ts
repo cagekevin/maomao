@@ -13,6 +13,7 @@
  */
 
 import { SCRIPT_BOX_WORKFLOWS } from './scriptBoxWorkflows.ts';
+import { defaultShotFields } from './scriptBoxSchema.ts';
 // 资产类别真源在 `@/types` 的 `ASSET_CATEGORY_META`（§五 #5／§七 #6 收口）；原 `export type AssetCategory = string`
 // 的放宽已收窄为联合，边界一律走 `isAssetCategory` 守卫。本文件**不 re-export** 该类型（消费方从 `@/types` 取，免多头入口）。
 import { isAssetCategory, type AssetCategory } from '../../types';
@@ -327,33 +328,33 @@ export function patchShots(
   });
 }
 
-/** 新增分镜（StepShots addShot 纯函数化）：id/index 按当前数组末尾自增，缺省字段用默认值。 */
+/**
+ * 新增分镜（StepShots addShot 纯函数化）：id/index 按当前数组末尾自增。
+ *
+ * 【字段清单唯一（TD-04-71）】全字段基线从 `defaultShotFields()`（schema 数据契约真源）展开，
+ * 只在此**显式覆盖**「新建时的用户友好预填」—— 不再逐字段手抄副本（此前那份已漏
+ * `imgGenLoading`，且与基线漂移出 5 个值）。
+ *
+ * 【预填值与 schema 基线不同是**有意**（非漂移）】两者是**两个角色**：
+ *   · `defaultShotFields()` = 数据基线，供 `normalizeScriptBoxData` **补齐旧数据缺字段**
+ *     —— 必须诚实留空（空串 = 用户没填过），不得假装用户填过；
+ *   · 本函数 = **新建那一刻的引导**，预填「中景／自然光／环境音／3s／双击…提示」以减少输入。
+ * 故下列 5 项的差异是设计；**其余字段一律由基线决定**（新增字段自动两端生效）。
+ */
 export function createNewShot(shots?: Shot[] | null): Shot {
   const list = Array.isArray(shots) ? shots : [];
   const last = list[list.length - 1];
-  // Number() 归一：last.id 可能来自旧数据（字符串），统一数值化自增
   return {
-    id: Number(last?.id || 0) + 1,
-    index: list.length + 1,
+    ...defaultShotFields(),
+    // ← 以下 5 项 = 新建引导预填（与 schema 基线不同，见上方注释）
     duration: '3s',
     description: '双击编辑画面描述（@引用资产）',
     shotType: '中景',
     lighting: '自然光',
-    dialogue: [],
     sound: '环境音',
-    motion: '固定',
-    grid: 0,
-    prompt: '',
-    videoPrompt: '',
-    promptLoading: false,
-    connImg: false,
-    connVid: false,
-    usePrevShotVideoTail: false,
-    prevShotImageRefUrls: [],
-    prevTailFrameVariants: [],
-    selectedTailFrameVariantId: 'original',
-    tailFrameVariantsLoading: false,
-    tailFrameVariantsError: undefined,
+    // Number() 归一：last.id 可能来自旧数据（字符串），统一数值化自增
+    id: Number(last?.id || 0) + 1,
+    index: list.length + 1,
   };
 }
 

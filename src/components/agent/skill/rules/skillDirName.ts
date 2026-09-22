@@ -8,6 +8,14 @@
  */
 
 /**
+ * 目录名**单段长度上限** —— **跨栈契约常量**
+ * （后端 `localTool/src/routes/skills.ts:37` 同名常量，由 `check:arch` 的跨栈对账保证两侧相等）。
+ * 【为什么必须双写】前后端是两个独立构建产物、无共享模块 ⇒ 双写是结构必然，缺口在**机器对账**
+ * （此前前端内联两处 + 后端一份，改一处另两处静默留旧值 ⇒ 产出名后端收不收取决于改没改全 —— TD-11-78）。
+ */
+export const SKILL_MAX_DIR_SEGMENT_LEN = 64;
+
+/**
  * 技能名 → 目录名（slug）：只做**安全化**（去路径敌意字符与首尾空白、限长），不改语义、不转拼音。
  * 【唯一入口】迁移、新建、导入都必须走它 —— 否则同一个名字会产出两种目录名（同语义两套规则的母体）。
  * 【职责边界（TD-11-25）】它只管"**新造**一个名字"；**磁盘上已存在的组名不许经它**（那等于给已有目录改名）
@@ -27,7 +35,7 @@ export function slugifySkillName(name: string): string {
     // 留着它用户只会看到一句"非法分类或名称"——把可预防的失败变成难懂的报错。
     .replace(/^\.+/, '')
     .trim()
-    .slice(0, 64)
+    .slice(0, SKILL_MAX_DIR_SEGMENT_LEN)
     .trim();
   return cleaned || '未命名';
 }
@@ -44,7 +52,7 @@ export function slugifySkillName(name: string): string {
 export function isLegalDirSegment(name: unknown): boolean {
   if (typeof name !== 'string' || !name) return false;
   if (name !== name.trim()) return false;
-  if (name.length > 64) return false;
+  if (name.length > SKILL_MAX_DIR_SEGMENT_LEN) return false;
   if (name === '.' || name === '..') return false;
   if (name.startsWith('.')) return false;
   // eslint-disable-next-line no-control-regex

@@ -1,5 +1,6 @@
 import type { Node } from '@xyflow/react';
-import { classifyAssetUrlKind } from '@/components/base/utils/media/assetType';
+import { classifyUrl } from '@/components/base/utils/media/assetType';
+import { isMediaRefType, type MediaRefAssetType } from '@/types';
 
 /* ════════════════════════════════════════════════════════════════
  * 节点媒体提取 / 选中派生（**横切层** · 纯函数，零 React / 零 store 依赖）
@@ -46,7 +47,7 @@ export function getNodeAssetUrl(node: Node | null) {
  *   3. 退化为 getNodeAssetUrl 主图 url → 按扩展名判型（video/audio 原样标记，其余按 image）。
  * 只返回可作 AI 多模态上下文的媒体（image / video / audio），text / 空返回 { type:'', url:'' }。
  */
-type MediaType = 'image' | 'video' | 'audio' | '';
+type MediaType = MediaRefAssetType | '';
 
 export function getNodeMedia(node: Node | null): { type: MediaType; url: string } {
   const d = (node?.data || {}) as {
@@ -57,10 +58,10 @@ export function getNodeMedia(node: Node | null): { type: MediaType; url: string 
     assetUrl?: string;
     [k: string]: unknown;
   };
-  const kindOf = (u: unknown) => classifyAssetUrlKind(String(u)) || '';
-  let explicit = '';
+  let explicit: MediaRefAssetType | '' = '';
   let url = '';
-  if (d.assetType === 'video' || d.assetType === 'audio') {
+  // 「声明了 video/audio 本体」= 可引用媒体白名单派生（image 走 assetUrl，不取本体字段）
+  if (isMediaRefType(d.assetType) && d.assetType !== 'image') {
     explicit = d.assetType;
     url = d.videoUrl || d.audioUrl || d.url || d.assetUrl || '';
   } else if (typeof d.videoUrl === 'string' && d.videoUrl) {
@@ -70,14 +71,10 @@ export function getNodeMedia(node: Node | null): { type: MediaType; url: string 
     explicit = 'audio';
     url = d.audioUrl;
   }
-  if (url) {
-    const type = explicit || kindOf(url);
-    return { type: type === 'audio' ? 'audio' : type === 'video' ? 'video' : 'image', url };
-  }
+  if (url) return { type: explicit || classifyUrl(url), url };
   const image = getNodeAssetUrl(node);
   if (!image) return { type: '', url: '' };
-  const k = kindOf(image);
-  return { type: k === 'video' ? 'video' : k === 'audio' ? 'audio' : 'image', url: image };
+  return { type: classifyUrl(image), url: image };
 }
 
 /** 选中派生产物：「选中且带媒体」节点的只读投影（AgentPanel 待引用区消费） */

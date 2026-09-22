@@ -33,7 +33,7 @@
  */
 import { useState, useCallback, useRef } from 'react';
 import { contentGet, contentSet } from '@/components/base/core/contentStore';
-import { KEY_YIMAO_NODE_PREFS } from '@/components/base/core/contracts';
+import { KEY_YIMAO_NODE_PREFS, type NodeTypeKey } from '@/components/base/core/contracts';
 import { confirmPersist } from '@/components/base/core/log/degrade';
 
 // TD-13-4：键名唯一真源 = contracts.ts 的 KEY_YIMAO_NODE_PREFS（不再本地复刻字面量）。
@@ -41,8 +41,8 @@ const STORAGE_KEY = KEY_YIMAO_NODE_PREFS;
 
 /** 节点上次参数存储形状：{ [key]: any }（值类型因节点而异，宽松以兼容存量） */
 type NodePrefsMap = Record<string, unknown>;
-/** 节点类型 → data 键名 → 记忆键名 映射 */
-type PrefsFieldMap = Record<string, Record<string, string>>;
+/** 节点类型 → data 键名 → 记忆键名 映射（键受 `NodeTypeKey` 约束 · TD-04-66） */
+type PrefsFieldMap = Partial<Record<NodeTypeKey, Record<string, string>>>;
 
 function loadAll(): NodePrefsMap {
   // 【消费者不越权 · 2026-09-17 拆 catch-ok】删 catch：`contentGet` 对**已登记键不抛**
@@ -102,9 +102,9 @@ export const PREFS_DEFAULTS: PrefsFieldMap = {
  * @returns {object} 注入后的 data
  */
 export function injectNodePrefs(type: string, data: NodePrefsMap): NodePrefsMap {
-  const fieldMap = PREFS_FIELDS[type];
+  const fieldMap = PREFS_FIELDS[type as NodeTypeKey];
   if (!fieldMap) return data;
-  const prefs = getNodePrefs(type, PREFS_DEFAULTS[type]);
+  const prefs = getNodePrefs(type, PREFS_DEFAULTS[type as NodeTypeKey] ?? {});
   for (const dataKey of Object.keys(fieldMap)) {
     if (data[dataKey] === undefined) data[dataKey] = prefs[fieldMap[dataKey]];
   }

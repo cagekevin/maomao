@@ -10,7 +10,7 @@ import {
   WEB_DROP_SUBFOLDER,
 } from '../components/base/api/index.ts';
 import { fileNameFromUrl } from '../components/base/core/utils.ts';
-import { assetTypeLabel } from '@/types';
+import { assetTypeLabel, isMediaRefType } from '@/types';
 import { UPLOAD_DIRS } from '../components/base/utils/uploadDirs.ts';
 import { logger } from '../components/base/core/log/logger.ts';
 import { tryParse } from '../components/base/utils/net/asyncGuard.ts';
@@ -425,7 +425,7 @@ export function useAssetDropPaste({
         for (const item of items) {
           if (item.kind === 'file') {
             const at = detectFileType(item);
-            if (at === 'image' || at === 'video' || at === 'audio') {
+            if (isMediaRefType(at)) {
               const file = item.getAsFile && item.getAsFile();
               if (file) {
                 e.preventDefault();

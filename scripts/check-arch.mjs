@@ -2179,6 +2179,34 @@ const CROSS_STACK_CONSTS = [
       '缩略图渲染/出图的默认最长边（前端 `buildThumbnailUrl` 请求默认 与 后端 `/files/thumbnail` ' +
       '端点兜底）—— 不等 ⇒ 同图产生两套缓存，且"按哪个尺寸出图"取决于调用方是否传参（TD-08-71）',
   },
+  {
+    name: 'SKILL_MAX_DIR_SEGMENT_LEN',
+    fe: 'src/components/agent/skill/rules/skillDirName.ts',
+    be: 'localTool/src/utils/skillSegment.ts',
+    why:
+      '技能目录名单段长度上限（前端安全化 `slice` 与围栏 `isLegalDirSegment`、后端 `isSafeSegment` 判据）' +
+      '—— 后端收严而前端不知 ⇒ 前端产出的名字后端拒收（TD-11-78）',
+  },
+  {
+    name: 'SKILL_MAX_FILES',
+    fe: 'src/components/agent/skill/write/skillImport.ts',
+    be: 'localTool/src/routes/skills.ts',
+    why:
+      '技能包文件数上限（前端提交前预检、后端 400 判据；两侧口径均为**含 `SKILL.md`** 的最终集合）' +
+      '—— 不等 ⇒ 预检放行但后端整包失败（TD-11-80）',
+  },
+  {
+    name: 'SKILL_MAX_REL_DEPTH',
+    fe: 'src/components/agent/skill/write/skillImport.ts',
+    be: 'localTool/src/routes/skills.ts',
+    why: '技能包内**目录层级**上限（前端预检、后端 `safeRelPath` 判据）—— 不等即静默分叉（TD-11-80）',
+  },
+  {
+    name: 'SKILL_MAX_REL_SEGMENT_LEN',
+    fe: 'src/components/agent/skill/write/skillImport.ts',
+    be: 'localTool/src/routes/skills.ts',
+    why: '技能包内**路径单段长度**上限（前端预检、后端 `safeRelPath` 判据）—— 不等即静默分叉（TD-11-80）',
+  },
 ];
 let crossStackViol = 0;
 for (const c of CROSS_STACK_CONSTS) {

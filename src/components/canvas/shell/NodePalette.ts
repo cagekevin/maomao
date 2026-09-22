@@ -13,6 +13,7 @@ import {
   Grid2X2,
   FolderTree,
 } from 'lucide-react';
+import type { NodeTypeKey } from '@/components/base/core/contracts';
 // 画布渲染组件引用（component 字段用于 App.jsx 派生 nodeTypes，避免双维护平行表）。
 // 注意：节点组件均不反向 import 本文件，故无循环依赖（已验证）。
 import TextGenerate from '@/components/text/TextGenerate';
@@ -79,8 +80,8 @@ export interface PaletteCategoryDef {
  *  - component 可选（ghostTarget 类连线占位不登记 component，由 App 派生后显式补）。
  */
 export interface PaletteNodeDef {
-  /** 画布 node.type / contracts.NODE_TYPES 键 */
-  type: string;
+  /** 画布 node.type / contracts.NODE_TYPES 键（受 `NodeTypeKey` 编译期约束 · TD-04-66） */
+  type: NodeTypeKey;
   /** 菜单/面板显示名 */
   label: string;
   /** 工具栏小图标（lucide 组件引用，渲染时由调用方实例化） */

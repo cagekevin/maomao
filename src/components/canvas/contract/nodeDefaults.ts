@@ -14,6 +14,8 @@
  *    两者合并成一张表看似更收敛，实则会诱导后人用同一函数处理两种时机 → 静默覆盖用户数据，故刻意分开。
  */
 
+import type { NodeTypeKey } from '@/components/base/core/contracts';
+
 /** 节点类型「结构默认」形状（缺字段缺失时才补，见 applyNodeTypeDefaults） */
 interface NodeTypeDefault {
   width?: number;
@@ -32,11 +34,11 @@ export const INPUT_PANEL_NODE_TYPES = [
   'textGenerateNode',
   'imageGenerateNode',
   'videoGenerateNode',
-] as const;
+] as const satisfies readonly NodeTypeKey[];
 // 注：原含 templateNode，已于 2026-09-11 摘除（TD-04-5）——它是参考蓝本非活节点，不在画布上。
 
-/** 各节点类型结构默认值（对齐官方 + 历史修复） */
-export const NODE_TYPE_DEFAULTS: Record<string, NodeTypeDefault> = {
+/** 各节点类型结构默认值（对齐官方 + 历史修复；键受 `NodeTypeKey` 约束 · TD-04-66） */
+export const NODE_TYPE_DEFAULTS: Partial<Record<NodeTypeKey, NodeTypeDefault>> = {
   imageGenerateNode: { width: 420, height: 420, style: { width: 420, height: 420 } },
   gridSplitNode: { width: 280, style: { width: 280 } },
   videoProcessNode: { width: 520, height: 620, style: { width: 520, height: 620 } },
@@ -115,7 +117,7 @@ export function applyNodeTypeDefaults<T extends Record<string, unknown>>(
   node: T,
 ): T & NodeStructuralDefaults {
   const type = String(node.type || '');
-  const d = NODE_TYPE_DEFAULTS[type];
+  const d = NODE_TYPE_DEFAULTS[type as NodeTypeKey];
   if (!d) return node;
   const next: Record<string, unknown> = { ...node };
   const data = (node.data as Record<string, unknown>) || {};

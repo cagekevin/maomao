@@ -20,7 +20,7 @@ import {
 
 const KEY: string = 'app_settings';
 
-// 默认应用设置：单一事实来源在 settings/settingRegistry.js（新增开关只改注册表）
+// 默认应用设置：单一事实来源在 settings/settingRegistry.ts（新增开关只改注册表）
 const DEFAULTS: SettingState = buildDefaults();
 
 let settings: SettingState = load();

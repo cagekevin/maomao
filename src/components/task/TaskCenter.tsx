@@ -15,6 +15,7 @@ import {
   statusLabel,
   typeLabel,
   taskMediaKind,
+  taskResultExt,
   removeTask,
   clearTasksBy,
   clearAllTasks,
@@ -240,7 +241,7 @@ const TaskCard = React.memo(function TaskCard({
       return;
     }
     try {
-      const ext = kind === 'video' ? '.mp4' : '.png';
+      const ext = taskResultExt(kind);
       const filename = `${task.modelName || 'task'}_${Date.now()}${ext}`;
       const res = await downloadUrl(task.resultUrl, filename);
       if (res?.ok) showToast('已开始下载', { type: 'success' });

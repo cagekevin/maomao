@@ -11,7 +11,7 @@
  *      （本仓 `// catch-ok:` 实证：99 处标记里 7 处贴错 —— "一句话即可伪装成已评审"），且与
  *      ADR-0052「判据要么机器可判、要么字段不可达」冲突。本表的**正确落点 = 唯一入口**（键名只在此定义）
  *      + **本节**；三处表声明各带**一行指针**（不是复制）。
- * 彼此形态相同（静态声明表 + 派生/校验），与 settingRegistry.js 同族（兄弟）。
+ * 彼此形态相同（静态声明表 + 派生/校验），与 settingRegistry.ts 同族（兄弟）。
  * 新增同族登记表先归本文件或既有表，禁止另起新表。
  *
  * 横切契约登记表 —— 横切基础设施层的「单一事实来源」。
@@ -856,6 +856,16 @@ export const NODE_TYPES = {
  *   格式由 scripts/check-dead-code.mjs 的元层校验强制（句式 + 路径存在 + 该文件真含此符号名）。
  */
 export const NODE_TYPE_SET = new Set(Object.values(NODE_TYPES));
+
+/**
+ * 节点类型键集（`NODE_TYPES` 的键）—— 各处「节点类型子集」表的**编译期上界**（TD-04-66）。
+ *
+ * 【为什么导出它】palette／NODE_DATA_DEFAULTS／NODE_TYPE_DEFAULTS／INPUT_PANEL_NODE_TYPES／
+ * PREFS_* 等子集此前声明为 `Record<string, X>` 或裸 `as const` ⇒ 写错类型名（幽灵类型）
+ * 编译期静默通过。收口为 `Partial<Record<NodeTypeKey, X>>` / `type: NodeTypeKey` 后，
+ * **写错类型名 → 编译不过**（比对账闸更早、零运行成本）。
+ */
+export type NodeTypeKey = keyof typeof NODE_TYPES;
 // 注：原 templateNode 登记项已于 2026-09-11 删除（TD-04-5）——TemplateNode 是「新建节点参考蓝本」，
 // 非活节点，已迁至 src/components/nodes/_template/ 且不再占用 registry（详见该文件头 JSDoc）。
 

@@ -44,6 +44,18 @@ export function isAssetContentType(t: string | null | undefined): t is AssetCont
 }
 
 /**
+ * 是否为**可引用媒体**类型（`image`/`video`/`audio`）—— 目录 `mediaRef` 标记的**唯一运行时守卫**。
+ *
+ * 【为什么必须有它（TD-04-60）】「哪几类算可引用媒体」此前各消费方手写同形判断：
+ *   `assetType.ts` resolveAssetType 内联三值判 · `useConnectedInputs.ts` 两处内联三值判 ·
+ *   `nodeMedia.ts` 本地联合 + 两值判 —— 新增媒体形态要逐处补，漏一处即静默分叉。
+ * 现一律委托本函数（集合与顺序由目录 `mediaRef` 标记决定，此谓词自身零判据）。
+ */
+export function isMediaRefType(t: unknown): t is MediaRefAssetType {
+  return typeof t === 'string' && isAssetContentType(t) && ASSET_TYPE_META[t].mediaRef === true;
+}
+
+/**
  * 资产类型 → 中文显示名（唯一取用口；目录未收录的状态回退 `fallback`）。
  *
  * 【TD-02-49】此前各显示出口手写中文名（`AssetNode` 的三元链甚至把 text 叫"文本文件"），

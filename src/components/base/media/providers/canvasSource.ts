@@ -26,6 +26,7 @@ import {
 } from '@/components/base/utils/media/assetUrl';
 // 媒体类型判定的**唯一真值源**（禁在此内联重写扩展名嗅探；check-arch 有反向判据）
 import { classifyAssetUrlKind } from '@/components/base/utils/media/assetType';
+import { isMediaRefType } from '@/types';
 import { toAbsoluteFileUrl } from '../../core/utils.ts';
 import { logger } from '@/components/base/core/log/logger';
 import { getResources } from '@/components/resource/resourceStore';
@@ -88,8 +89,7 @@ export const canvasSourceProvider: MediaRefProvider = {
       // 类型：节点自报/嗅探优先；文件型节点（只持 contentId）由**唯一判型入口**按地址判。
       // 判不出（无扩展名且非 data:）→ **不猜**：留痕 + 跳过（猜一个类型会让下游按错类型渲染）。
       const candidate = media.type || classifyAssetUrlKind(toAbsoluteFileUrl(rawUrl));
-      const type: MediaRefType | null =
-        candidate === 'image' || candidate === 'video' || candidate === 'audio' ? candidate : null;
+      const type: MediaRefType | null = isMediaRefType(candidate) ? candidate : null;
       if (!type) {
         logger.warn('可引用媒体源·画布', '节点媒体类型判不出来，未纳入画布来源', {
           nodeId: node.id,

@@ -32,12 +32,21 @@ import { openExternal } from '../utils/openExternal.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import { getSkillsDir } from '../db/database.js';
+import { isSafeSegment } from '../utils/skillSegment.js';
 import { json, sendError, parseJsonBody, HttpStatusError } from '../utils/helpers.js';
 
-const MAX_SEGMENT_LEN = 64;
-const MAX_REL_DEPTH = 8;
-const MAX_REL_SEGMENT_LEN = 128;
-const MAX_FILES = 200;
+/**
+ * 技能包结构上限 —— 三个**跨栈契约常量**（前端 `src/components/agent/skill/write/skillImport.ts`
+ * 同名常量，由 `check:arch` 的跨栈对账保证相等；**字面数字**：闸按 `NAME = <数字>` 抓取，
+ * 写成表达式会抓不到）。
+ * 【为什么必须双写】前后端是两个独立构建产物、无共享模块 ⇒ 双写是结构必然；缺口在**机器对账**
+ * （此前前端既无同名常量也无预检 ⇒ 必然被拒的包要等提交后才 400，且上限单边改会静默分叉 ——
+ * TD-11-80）。
+ * 注：目录名单段上限 `SKILL_MAX_DIR_SEGMENT_LEN` 随 `isSafeSegment` 住在 `utils/skillSegment.ts`。
+ */
+const SKILL_MAX_REL_DEPTH = 8;
+const SKILL_MAX_REL_SEGMENT_LEN = 128;
+const SKILL_MAX_FILES = 200;
 /**
  * 单个技能文件字节上限 —— **跨栈契约常量**（前端 `src/components/agent/skill/write/skillImport.ts`
  * 同名常量，由 `check:arch` 的「跨栈契约常量对账」保证两侧相等；**字面数字**：闸按 `NAME = <数字>`
@@ -77,32 +86,16 @@ function ensureSkillsRoot(): string {
   return root;
 }
 
-/**
- * 分类名 / 名称段的合法性。
- * 判据刻意**排除了以 `.` 开头的名字** —— `.tmp` 与 `.trash` 是 facade 内部工作目录，
- * 若允许用户段以 `.` 开头，就能写进内部目录（脏数据 + 列目录时被跳过，用户看不见自己写的东西）。
- */
-function isSafeSegment(v: unknown): v is string {
-  if (typeof v !== 'string' || !v) return false;
-  if (v !== v.trim()) return false; // 前后空白：多半是复制粘贴带来的，拒绝而非静默裁剪
-  if (v.length > MAX_SEGMENT_LEN) return false;
-  if (v === '.' || v === '..') return false;
-  if (v.startsWith('.')) return false;
-  // eslint-disable-next-line no-control-regex
-  if (/[/\\:\u0000-\u001f]/.test(v)) return false;
-  return true;
-}
-
 /** 包内相对路径归一（唯一函数，写侧读侧共用；非法 → null，调用方须拒绝而非回退）。 */
 function safeRelPath(rel: unknown): string | null {
   if (typeof rel !== 'string' || !rel) return null;
   if (rel.startsWith('/') || rel.includes('\\')) return null;
   const parts = rel.split('/');
-  if (parts.length > MAX_REL_DEPTH) return null;
+  if (parts.length > SKILL_MAX_REL_DEPTH) return null;
   for (const p of parts) {
     if (!p || p === '.' || p === '..') return null;
     if (p.startsWith('.')) return null; // 隐藏文件（.git 等）不进包
-    if (p.length > MAX_REL_SEGMENT_LEN) return null;
+    if (p.length > SKILL_MAX_REL_SEGMENT_LEN) return null;
     // eslint-disable-next-line no-control-regex
     if (/[\u0000-\u001f]/.test(p)) return null;
   }
@@ -377,7 +370,8 @@ export async function handleSkillsSave(
     const body = (await parseJsonBody(req)) as { files?: unknown } | null;
     if (!body || !Array.isArray(body.files))
       return sendError(res, 'body 需为 { files: [...] }', 400);
-    if (body.files.length > MAX_FILES) return sendError(res, `文件数超过上限（${MAX_FILES}）`, 400);
+    if (body.files.length > SKILL_MAX_FILES)
+      return sendError(res, `文件数超过上限（${SKILL_MAX_FILES}）`, 400);
     const written = writePackageAtomic(seg.category, seg.slug, body.files as SkillFileInput[]);
     json(res, { code: 0, data: { category: seg.category, slug: seg.slug, written } });
   } catch (e) {

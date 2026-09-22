@@ -17,10 +17,21 @@ import { extractImageSpans, type ImageSpan } from './markdownImages';
 import { logger } from '@/components/base/core/log/logger';
 import { toastError } from '@/components/base/core/event/toastStore';
 import { copyText } from '@/components/base/utils/net/clipboard';
+import { CHIP_PATTERN_SOURCE } from '@/components/canvas/shell/promptChipFormat';
 
-/** 行内匹配模式（含 markdown 图片，由外层切图先处理） */
-const INLINE_PATTERN =
-  /(@\{[^:}\r\n]+:[^}\r\n]+\}|@model\{[^|}\r\n]+\|[^}\r\n]*\}|@skill\{[^|}\r\n]+\|[^}\r\n]*\}|`[^`\r\n]+`|\[[^\]\r\n]+\]\([^)\s]+\)|\*\*[^*\r\n]+\*\*|~~[^~\r\n]+~~|\*[^*\r\n]+\*)/g;
+/**
+ * 行内匹配模式（含 markdown 图片，由外层切图先处理）。
+ *
+ * 【芯片段从真源派生（TD-11-81）】`@{id:label}` 的匹配复用 `promptChipFormat.CHIP_PATTERN_SOURCE`
+ * —— 此前此处**手写了第二份** `@\{…\}` 正则（且漏了 `|thumb` 段）：格式一改两处必分叉，
+ * 而分叉是静默的（只表现为"有的芯片不高亮"）。
+ * 其余 `@model{}` / `@skill{}` / 行内代码 / 链接 / 强调是**本渲染器私有语法**，仍就地声明。
+ */
+const INLINE_PATTERN = new RegExp(
+  `(${CHIP_PATTERN_SOURCE}|@model\\{[^|}\\r\\n]+\\|[^}\\r\\n]*\\}|@skill\\{[^|}\\r\\n]+\\|[^}\\r\\n]*\\}|` +
+    '`[^`\\r\\n]+`|\\[[^\\]\\r\\n]+\\]\\([^)\\s]+\\)|\\*\\*[^*\\r\\n]+\\*\\*|~~[^~\\r\\n]+~~|\\*[^*\\r\\n]+\\*)',
+  'g',
+);
 
 interface ChatMarkdownProps {
   value: string;

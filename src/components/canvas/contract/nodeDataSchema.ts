@@ -23,6 +23,7 @@
  * ════════════════════════════════════════════════════════════════
  */
 import { INPUT_PANEL_NODE_TYPES } from './nodeDefaults.ts';
+import type { NodeTypeKey } from '@/components/base/core/contracts';
 // 深拷贝走**唯一入口** `deepClone`（ADR-0005 决议 1 / 判据 3）：本文件此前直呼 `structuredClone`，
 // 等于在入口之外又留一处实现 —— 将来改拷贝策略（或给它加约束）时，这里会被漏改。
 // 2026-09-19 · TD-18-15 收口（`base/canvas` → `../core/` 已有 idGen / config / logger 等多处先例，不成环）。
@@ -38,7 +39,7 @@ import { deepClone } from '@/components/base/core/utils';
  *    就属此类，2026-09-11 数据体检已删（见 `scripts/check-node-data.mjs`）；
  *  - 字段名必须与该节点文件的本地 `interface XxxData` 对齐（`check:node-data` 对账，--strict 门禁）。
  */
-export const NODE_DATA_DEFAULTS: Record<string, Record<string, unknown>> = {
+export const NODE_DATA_DEFAULTS: Partial<Record<NodeTypeKey, Record<string, unknown>>> = {
   // ── 图片工具 ──
   imageBoxNode: { images: [], activeIndex: 0, expanded: false },
   gridSplitNode: {
@@ -116,7 +117,7 @@ export function defaultNodeData(type: string): Record<string, unknown> {
   const injected = INPUT_PANEL_NODE_TYPES.includes(type as (typeof INPUT_PANEL_NODE_TYPES)[number])
     ? { expanded: false }
     : {};
-  const defaults = NODE_DATA_DEFAULTS[type];
+  const defaults = NODE_DATA_DEFAULTS[type as NodeTypeKey];
   if (!defaults) return { ...injected };
   // 【必须深拷贝】NODE_DATA_DEFAULTS 的数组/对象字面量是**共享实例**：浅合并（{...defaults}）会让
   // 所有新建节点共用同一个 `images: []` / `timelineTracks: []` 数组——任一节点就地 push 即污染

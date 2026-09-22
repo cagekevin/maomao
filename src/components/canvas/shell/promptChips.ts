@@ -39,7 +39,7 @@ import { logger } from '@/components/base/core/log/logger';
  * 【不在此转发】原 `export { promptChipRe }` 已撤：域外消费者（`creativePresets`）改直连叶子，
  * 经本文件转发即无人消费的冗余出口（死代码闸会如实报）。
  */
-import { promptChipRe } from './promptChipFormat.ts';
+import { buildChipText, promptChipRe } from './promptChipFormat.ts';
 
 /** 芯片 token 的素材元信息（renderPromptToNodes 的 metaMap 值形态；导出供调用方标注 Map 泛型） */
 export interface ChipMeta {
@@ -51,8 +51,7 @@ export interface ChipMeta {
 /** 零宽空格：芯片前后光标落点占位 */
 export const ZWSP: string = '\u200B';
 
-/** 缩略图 URL ↔ 字符串片段的编解码（集中处理，避免散落 try/catch） */
-const encodeThumb = (url: string): string => (url ? encodeURIComponent(url) : '');
+/** 缩略图字符串片段 → URL 解码（编码侧在 `promptChipFormat.buildChipText`；集中处理，避免散落 try/catch） */
 const decodeThumb = (s: string): string => {
   if (!s) return '';
   try {
@@ -129,7 +128,7 @@ export function serializeDOM(root: HTMLElement): string {
       const label = el.getAttribute('data-ref-label') || '';
       const thumb = el.getAttribute('data-ref-thumb');
       // 缩略图 URL 编码进字符串，刷新/重建后可自恢复；无 thumb 时回落旧格式（向后兼容）
-      result += thumb ? `@{${id}:${label}|${encodeThumb(thumb)}}` : `@{${id}:${label}}`;
+      result += buildChipText(id ?? '', label, thumb ?? undefined);
       return;
     }
     if (el.tagName === 'BR') {
@@ -436,8 +435,7 @@ export function autoLinkAssetsByName(
   for (const occ of occs) {
     result += text.slice(last, occ.start);
     const a = occ.asset;
-    const thumb = a.url ? `|${encodeThumb(a.url)}` : '';
-    result += `@{${a.id}:${a.label}${thumb}}`;
+    result += buildChipText(a.id, a.label, a.url);
     last = occ.end;
   }
   result += text.slice(last);

@@ -21,6 +21,7 @@ import {
 } from '../components/base/utils/media/assetUrl.ts';
 import { getResources } from '../components/resource/resourceStore.ts';
 import { NODE_TYPES, parseShotHandle } from '../components/base/core/contracts.ts';
+import { isMediaRefType } from '../types/index.ts';
 
 /**
  * ════════════════════════════════════════════════════════════════
@@ -204,9 +205,9 @@ function singleOutput(
     const url = d[field];
     // 控制流收窄（非 as）：只有真是非空 string 才生效。
     if (typeof url !== 'string' || !url) continue;
-    // assetType 只认白名单枚举：非已知值视为未声明（undefined），交 resolveAssetType 按 URL 判。
+    // assetType 只认可引用媒体白名单：非已知值视为未声明（undefined），交 resolveAssetType 按 URL 判。
     const at = d.assetType;
-    const assetType = at === 'image' || at === 'video' || at === 'audio' ? at : undefined;
+    const assetType = isMediaRefType(at) ? at : undefined;
     const kind = resolveAssetType(url, assetType);
     const item: NodeOutputItem = { id, url, label: str(d.label) };
     if (kind === 'video') return { ...empty, videos: [item] };
@@ -224,7 +225,7 @@ function singleOutput(
   const resolved = resolveAssetDisplayUrl(d, buildContentUrlResolver(getResources()));
   if (resolved.kind !== 'ok' || !resolved.url) return empty;
   const rAt = d.assetType;
-  const rAssetType = rAt === 'image' || rAt === 'video' || rAt === 'audio' ? rAt : undefined;
+  const rAssetType = isMediaRefType(rAt) ? rAt : undefined;
   const rKind = resolveAssetType(resolved.url, rAssetType);
   const rItem: NodeOutputItem = { id, url: resolved.url, label: str(d.label) };
   if (rKind === 'video') return { ...empty, videos: [rItem] };

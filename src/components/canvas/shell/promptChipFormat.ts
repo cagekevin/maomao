@@ -44,3 +44,29 @@
  * 从结构上消除共享可变状态。内部 `exec` 循环亦改用局部实例。
  */
 export const promptChipRe = (): RegExp => /@\{([^:]+):([^|}]*)(?:\|([^}]+))?\}/g;
+
+/**
+ * 芯片格式的**正则源片段**（无 `g` 标志）—— 供需要把芯片匹配**嵌进更大 alternation** 的消费方复用
+ * （如 `agent/panels/ChatMarkdown` 的行内模式），避免同一格式被第二次手写（TD-11-81）。
+ * 【与 `promptChipRe()` 同源】取它的 `.source`：改格式时两侧同时跟上，不再各自维护一份。
+ */
+export const CHIP_PATTERN_SOURCE = promptChipRe().source;
+
+/** 缩略图 URL 编码（格式契约的一部分：`|` 段必须是 encodeURIComponent 后的值，见上方 group3 说明）。 */
+const encodeThumb = (url: string): string => (url ? encodeURIComponent(url) : '');
+
+/**
+ * 芯片串的**唯一构造函数**（写侧唯一入口，与 `promptChipRe` 读侧成对）。
+ *
+ * 【为什么必须有它（TD-04-65）】格式 `@{id:label|thumb}` 此前在 `promptChips.ts`
+ * 手工拼两处（`serializeDOM` 与 `autoLinkAssetsByName`）—— 格式变更会漏改一处且**不报错**。
+ * 现与正则同住本文件，读 / 写两个方向共享同一份格式知识。
+ *
+ * @param id       素材 id（不含 `:` 与 `}`）
+ * @param label    显示名（不含 `|` 与 `}`）
+ * @param thumbUrl 原始缩略图 URL（内部编码）；空则省略 `|thumb` 段（回落旧格式）
+ */
+export function buildChipText(id: string, label: string, thumbUrl?: string): string {
+  const thumb = encodeThumb(thumbUrl ?? '');
+  return thumb ? `@{${id}:${label}|${thumb}}` : `@{${id}:${label}}`;
+}

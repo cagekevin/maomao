@@ -671,15 +671,15 @@ body,
  * 注：官方另有 viewport-moving / pan-performance-mode / is-large-canvas
  * 的预留 CSS，但官方代码从未添加这些 class，故原型不引入（避免死样式）。
  * ===================================================================== */
-/* lod-1（zoom <= 0.5）：视频解码代价最高，先隐藏 */
+/* lod-1：视频解码代价最高，先隐藏（分级阈值真源 = canvas/shell/lod.tsx，勿在此复述数值） */
 .react-flow.lod-1 .react-flow__node video {
   display: none;
 }
-/* lod-2（zoom <= 0.3）：再隐藏图片，节点保留外形与 handle 用于连线 */
+/* lod-2：再隐藏图片，节点保留外形与 handle 用于连线 */
 .react-flow.lod-2 .react-flow__node img {
   visibility: hidden;
 }
-/* lod-3（zoom <= 0.2）：兜底全局降级 */
+/* lod-3：兜底全局降级 */
 .react-flow.lod-3 .react-flow__node iframe {
   display: none;
 }

@@ -51,16 +51,16 @@ describe('nodeDataSchema.defaultNodeData', () => {
     (a.images as unknown[]).push('polluted');
     expect((b.images as unknown[]).length).toBe(0);
     // 默认值真源本身也不得被污染
-    expect((NODE_DATA_DEFAULTS.imageBoxNode.images as unknown[]).length).toBe(0);
+    expect(NODE_DATA_DEFAULTS.imageBoxNode, 'NODE_DATA_DEFAULTS 应登记 imageBoxNode').toBeDefined();
+    expect((NODE_DATA_DEFAULTS.imageBoxNode?.images as unknown[]).length).toBe(0);
   });
 
   it('登记表的每个类型都能解析出对象（键名与真源一致，防登记名拼错）', () => {
-    for (const type of Object.keys(NODE_DATA_DEFAULTS)) {
+    for (const type of Object.keys(NODE_DATA_DEFAULTS) as (keyof typeof NODE_DATA_DEFAULTS)[]) {
       const d = defaultNodeData(type);
-      for (const k of Object.keys(NODE_DATA_DEFAULTS[type])) {
-        expect(d[k], `${type}.${k} 应出现在 defaultNodeData 结果中`).toEqual(
-          NODE_DATA_DEFAULTS[type][k],
-        );
+      const src = NODE_DATA_DEFAULTS[type] ?? {};
+      for (const k of Object.keys(src)) {
+        expect(d[k], `${type}.${k} 应出现在 defaultNodeData 结果中`).toEqual(src[k]);
       }
     }
   });

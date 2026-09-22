@@ -37,6 +37,18 @@ import type { SkillPackageFile } from '../skillTypes.ts';
 export const SKILL_MAX_FILE_BYTES = 2097152; // 2 MiB（字面数字：闸按 `NAME = <数字>` 抓取，别写成表达式）
 
 /**
+ * 技能**包结构**上限 —— 三个**跨栈契约常量**（后端 `localTool/src/routes/skills.ts` 同名常量，
+ * 由 `check:arch` 的跨栈对账保证两侧相等）。
+ *
+ * 【为什么前端也要有（TD-11-80）】后端超限即 400、**整包失败**；前端若等提交后才被拒，
+ * 用户看到的是"写入失败"而非"这个包太大/太深"（错误离成因太远）。故在**提交前**用**同一常量**预检。
+ * 【头数口径】与后端一致：后端收到的是**含** `SKILL.md` 的最终集合 ⇒ 前端按「包内文件数 + 1」计。
+ */
+export const SKILL_MAX_FILES = 200;
+export const SKILL_MAX_REL_DEPTH = 8;
+export const SKILL_MAX_REL_SEGMENT_LEN = 128;
+
+/**
  * 单文件导入的扩展名白名单 —— **唯一实现**（判定、去扩展名、文件选择框的 `accept` 全从它派生）。
  *
  * （2026-09-16 收口 TD-16-8；2026-09-22 从 legacy 壳搬进模块，TD-11-52：域内实现不许住壳里）
@@ -123,6 +135,29 @@ export function isImportablePackageFile(relPath: string): boolean {
   return isTextPackageFile(relPath);
 }
 
+/**
+ * 包结构是否超出后端上限（返回**可展示原因**；`null` = 通过）。
+ * 【判据与后端同源】一律用同名跨栈常量，禁在此另写数字（TD-11-80）。
+ */
+function packageLimitError(packageFiles: SkillPackageFile[]): string | null {
+  // 后端收到的 files 含 `SKILL.md`（本层提交时会前置加入）⇒ 头数按 +1 计
+  if (packageFiles.length + 1 > SKILL_MAX_FILES) {
+    return `包内文件过多（上限 ${SKILL_MAX_FILES} 个，含 SKILL.md）`;
+  }
+  for (const f of packageFiles) {
+    const parts = f.relPath.split('/');
+    if (parts.length > SKILL_MAX_REL_DEPTH) {
+      return `目录层级过深（上限 ${SKILL_MAX_REL_DEPTH} 层）：${f.relPath}`;
+    }
+    for (const p of parts) {
+      if (p.length > SKILL_MAX_REL_SEGMENT_LEN) {
+        return `路径单段过长（上限 ${SKILL_MAX_REL_SEGMENT_LEN} 字符）：${f.relPath}`;
+      }
+    }
+  }
+  return null;
+}
+
 function dirOf(relPath: string): string {
   const i = relPath.lastIndexOf('/');
   return i < 0 ? '' : relPath.slice(0, i);
@@ -199,6 +234,13 @@ export async function importSkillPackages(
         encoding: 'utf8' as const,
         content: f.content,
       }));
+
+    // 【提交前预检（TD-11-80）】超后端上限的包在这里就说清原因，不让用户等一个必然失败的提交
+    const limitError = packageLimitError(packageFiles);
+    if (limitError) {
+      failed.push({ target: folderName, message: limitError });
+      continue;
+    }
 
     // 作者写进 frontmatter 的东西一律带过（含未知字段）—— 导入不是"重写成我们的格式"
     const { manifest, body } = parseSkillMarkdown(md.content);

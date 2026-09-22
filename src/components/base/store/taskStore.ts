@@ -200,20 +200,6 @@ export function statusLabel(status?: string, progress = 0): string {
   return status || '';
 }
 
-// 类型 → 文案（对齐官方 Tn 映射 + 补充）
-export function typeLabel(type?: string): string {
-  const MAP: Record<string, string> = {
-    text: '文本',
-    image: '生图',
-    video: '视频',
-    sd2Video: 'SD2视频',
-    discountVideo: '视频生成',
-    custom: '万能',
-    rhWebapp: 'AI应用',
-  };
-  return (type && MAP[type]) || type || '任务';
-}
-
 /**
  * 任务结果的媒体形态（唯一判据 · 与 typeLabel/statusLabel 同层原语族）。
  *
@@ -225,20 +211,50 @@ export function typeLabel(type?: string): string {
  * `GET /<URL 编码的正文>` 打到 localTool 18080 → 未命中具名路由 → catch-all 转发外网
  * （每条白等 ~10.5s 后 fetch failed）。它每次作图都复发：开始生成会自动弹出任务中心。
  *
- * 【契约（fail-safe）】只有**显式登记为媒体**的 type 才返回媒体形态；其余（text/audio/未知）
+ * 【契约（fail-safe）】只有**显式登记为媒体**的 type 才返回媒体形态；其余（text／未知）
  * 一律 `'none'` —— 宁可少一个缩略图，也不为未知 type 制造媒体请求。
- * 新增产出媒体的任务类型 → 只在本词表登记一处，全部渲染出口零改动。
  */
 export type TaskMediaKind = 'image' | 'video' | 'none';
 
-/** 视频类 type（同一媒体形态的多个别名，与 typeLabel 词表同源） */
-const VIDEO_TASK_TYPES = new Set(['video', 'sd2Video', 'discountVideo']);
+/**
+ * 任务类型目录（**唯一真源**）：type → 展示文案 + 结果媒体形态。
+ *
+ * 【为什么收口（TD-04-63）】此前同一 type 集合写在两处：`typeLabel` 函数内的 MAP（文案）
+ * 与 `VIDEO_TASK_TYPES`（媒体形态）—— 新增视频类 type 须改两处，漏一处即「形态判定与文案
+ * 分叉」（`video`／`sd2Video`／`discountVideo` 双写）。现只在本表登记一处，两个取用口皆由它派生。
+ *
+ * 新增产出媒体的任务类型 → 只加一行；全部渲染出口与文案零改动。
+ */
+const TASK_TYPE_META = {
+  text: { label: '文本', media: 'none' },
+  image: { label: '生图', media: 'image' },
+  video: { label: '视频', media: 'video' },
+  sd2Video: { label: 'SD2视频', media: 'video' },
+  discountVideo: { label: '视频生成', media: 'video' },
+  custom: { label: '万能', media: 'none' },
+  rhWebapp: { label: 'AI应用', media: 'none' },
+} as const satisfies Record<string, { label: string; media: TaskMediaKind }>;
+
+/** 查目录（表外值返回 undefined —— 由各取用口决定「原样透出 / 归 none」）。 */
+function taskTypeMeta(type?: string) {
+  return type && Object.prototype.hasOwnProperty.call(TASK_TYPE_META, type)
+    ? TASK_TYPE_META[type as keyof typeof TASK_TYPE_META]
+    : undefined;
+}
+
+// 类型 → 文案（对齐官方 Tn 映射 + 补充；表外值原样透出，不吞）
+export function typeLabel(type?: string): string {
+  return taskTypeMeta(type)?.label || type || '任务';
+}
 
 /** type → 结果媒体形态（唯一实现，禁止在任何渲染端再写第二份判据） */
 export function taskMediaKind(type?: string): TaskMediaKind {
-  if (type === 'image') return 'image';
-  if (type && VIDEO_TASK_TYPES.has(type)) return 'video';
-  return 'none';
+  return taskTypeMeta(type)?.media || 'none';
+}
+
+/** 结果媒体形态 → 下载文件扩展名（与 `taskMediaKind` 同源；渲染端禁再写 `kind === 'video' ? '.mp4' : '.png'`）。 */
+export function taskResultExt(kind: TaskMediaKind): string {
+  return kind === 'video' ? '.mp4' : '.png';
 }
 
 function genId(): string {

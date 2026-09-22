@@ -14,7 +14,7 @@
  *  - image / video / audio / text：本模块判定的四类（AssetType）
  *  - other：非以上类型的文件（如压缩包）；empty：无 URL/文件
  */
-import type { AssetType } from '@/types';
+import { isMediaRefType, type AssetType, type MediaRefAssetType } from '@/types';
 
 /**
  * 扩展名 → 媒体类别（唯一真值源；新增媒体格式只改这张表）。
@@ -98,7 +98,7 @@ export function detectFileType(file: TypeProbeLike | null | undefined): AssetTyp
  * 见 VideoProcessNode extractAudio spawn 的 assetNode），否则按 URL 判型；
  * text / 未识别归 image（产出结果只有图/视频/音频三种）。
  */
-export function classifyUrl(url: string | null | undefined): AssetType {
+export function classifyUrl(url: string | null | undefined): MediaRefAssetType {
   const kind = classifyAssetUrlKind(url);
   return kind === 'video' || kind === 'audio' ? kind : 'image';
 }
@@ -107,8 +107,8 @@ export function classifyUrl(url: string | null | undefined): AssetType {
 export function resolveAssetType(
   url: string | null | undefined,
   assetType: AssetType | null | undefined,
-): AssetType {
-  if (assetType === 'image' || assetType === 'video' || assetType === 'audio') return assetType;
+): MediaRefAssetType {
+  if (isMediaRefType(assetType)) return assetType;
   return classifyUrl(url);
 }
 

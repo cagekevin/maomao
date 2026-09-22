@@ -1,0 +1,23 @@
+{
+  "note": "跨栈判据「技能目录/分类名单段合法性」的共享向量 —— 前端 isLegalDirSegment 与后端 isSafeSegment 各自断言同一份期望，任一侧漂移即该侧测试变红（TD-11-79）。判据本体：非空字符串 / 无前后空白 / 长度 ≤ SKILL_MAX_DIR_SEGMENT_LEN / 非 `.` `..` / 非前导点 / 不含 / \\ : 与控制字符。",
+  "vectors": [
+    { "input": "正常名字", "legal": true },
+    { "input": "a", "legal": true },
+    { "input": "带 空格 的名字", "legal": true },
+    { "input": "with-dash_and.dot", "legal": true },
+    { "input": "12345", "legal": true },
+    { "input": "", "legal": false },
+    { "input": " 前导空格", "legal": false },
+    { "input": "尾随空格 ", "legal": false },
+    { "input": ".hidden", "legal": false },
+    { "input": ".", "legal": false },
+    { "input": "..", "legal": false },
+    { "input": "a/b", "legal": false },
+    { "input": "a\\b", "legal": false },
+    { "input": "a:b", "legal": false },
+    { "input": "a\tb", "legal": false },
+    { "input": "a\u0000b", "legal": false },
+    { "input": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "legal": true },
+    { "input": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "legal": false }
+  ]
+}
