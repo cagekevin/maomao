@@ -36,7 +36,7 @@ vi.mock('../../src/components/base/core/log/logger.ts', () => ({
 
 // Skill 的正文与磁盘落点住在缓存（`agent_skills`）—— 冻结按 id 现查 ⇒ 测试必须把技能**写进缓存**，
 // 不能把对象传进 hook（那样测的是"UI 镜像字段"那条已被删除的老路，正是 TD-11-16 的根因）
-import { writeSkillList } from '../../src/components/agent/skill/skillRepository.ts';
+import { writeSkillList } from '../../src/components/agent/skill/store/skillRepository.ts';
 
 // ── mock 会话数据层：内存独立，避免跨测试污染 ──
 // 【阶段1A 消息单源】useAgentChat 渲染走 useStoreSelector(subscribe, getState)（conversationState），
@@ -289,7 +289,7 @@ import {
 import { agentChatMessage } from '../../src/components/agent/runtime/agentCore.ts';
 import type { SSEAccumulator } from '../../src/components/agent/runtime/agentCore.ts';
 // 块② 文本的生产者（agentCore 收预拼字符串 ⇒ 测试须先经它拼，见 agentCore 头注释）
-import { buildBoundSkillBlocks } from '../../src/components/agent/skill/skillInjectText.ts';
+import { buildBoundSkillBlocks } from '../../src/components/agent/skill/model/skillInjectText.ts';
 import * as convStore from '../../src/components/agent/conversation/conversationStore.ts';
 
 // 【类型消化】src 侧 useAgentChat().messages 已是 ChatMessage[]，但测试 fixture 会在消息上挂

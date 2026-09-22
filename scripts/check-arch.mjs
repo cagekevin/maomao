@@ -1718,7 +1718,7 @@ const MEDIA_SSOT = new Set([
   'src/components/base/core/utils.ts', // fileNameFromUrl / relativePathFromFileUrl（URL 提取真源）
   'src/components/base/api/filesApi.ts', // relativePathFromUrl（薄委托，保留同名导出）
   'src/components/base/utils/media/assetUrl.ts', // toRelativeFileUrl 等 URL 归一化出口
-  'src/components/agent/skill/skillImport.ts', // isSkillImportFile / skillNameFromFile（Skill 白名单真源；TD-16-8 收口，2026-09-22 随 TD-11-52 从 runtime/skillStore.ts 迁入本模块）
+  'src/components/agent/skill/write/skillImport.ts', // isSkillImportFile / skillNameFromFile（Skill 白名单真源；TD-16-8 收口，2026-09-22 随 TD-11-52 从 runtime/skillStore.ts 迁入本模块）
 ]);
 // ① 媒体扩展名「列举」正则：`\.(png|jpe?g|gif|…)` —— ≥2 个分支才算列举（单个 `\.(mp4)$` 不算表）。
 //    ⚠️ 只拦**与 EXT_KIND 真值源重叠**的列举（媒体/文本类）；域专用扩展名（如 3D 模型的 glb/gltf、
@@ -2143,13 +2143,13 @@ const CROSS_STACK_CONSTS = [
   },
   {
     name: 'SKILL_MAX_FILE_BYTES',
-    fe: 'src/components/agent/skill/skillImport.ts',
+    fe: 'src/components/agent/skill/write/skillImport.ts',
     be: 'localTool/src/routes/skills.ts',
     why: '单个技能文件上限（前端据此不把必然被拒的文件读进内存、后端超限即 400；取值同一事实 —— TD-11-27）',
   },
   {
     name: 'SKILL_ENTRY_FILE',
-    fe: 'src/components/agent/skill/skillEntry.ts',
+    fe: 'src/components/agent/skill/rules/skillEntry.ts',
     be: 'localTool/src/routes/skills.ts',
     why:
       '技能包入口文件名（**跨栈协议名**：前端建包/解析、后端落盘/供数都按它找文件；' +
@@ -2205,7 +2205,7 @@ if (crossStackViol === 0) {
 // ─────────────────────────────────────────────────────────────────
 console.log('\n📄 技能包入口文件名只许住定义文件（反向判据）');
 const SKILL_ENTRY_OWNERS = new Set([
-  'src/components/agent/skill/skillEntry.ts',
+  'src/components/agent/skill/rules/skillEntry.ts',
   'localTool/src/routes/skills.ts',
 ]);
 let entryLiteralViol = 0;
@@ -2305,7 +2305,7 @@ if (shellViol === 0) {
 //   整体搬到 `skillGroup.ts`（列表与下拉**共用**它）⇒ 闸的归属跟着定义走，不然唯一住处就成了旧文件。
 // ─────────────────────────────────────────────────────────────────
 console.log('\n🏷️  Skill 组哨兵字面量只许住在 skillGroup.ts（反向判据）');
-const SENTINEL_OWNER = 'src/components/agent/skill/skillGroup.ts';
+const SENTINEL_OWNER = 'src/components/agent/skill/rules/skillGroup.ts';
 let sentinelViol = 0;
 for (const base of [SRC]) {
   if (!existsSync(base)) continue;

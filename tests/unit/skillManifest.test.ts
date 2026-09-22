@@ -4,7 +4,7 @@ import {
   serializeSkillMarkdown,
   splitFrontmatter,
   sanitizeSkillLabel,
-} from '../../src/components/agent/skill/skillManifest.ts';
+} from '../../src/components/agent/skill/rules/skillManifest.ts';
 
 const ID = '6f1c2a90-3b7e-4d51-9a02-8c4f5b1d7e33';
 
@@ -27,22 +27,26 @@ const DOC = [
 const fm = (...lines: string[]): string => ['---', ...lines, '---', '正文'].join('\n');
 
 describe('parseSkillMarkdown', () => {
-  it('解析出已知字段，正文剥掉 frontmatter', () => {
+  it('解析出已知字段（id/name/description/version），正文剥掉 frontmatter', () => {
     const { manifest, body } = parseSkillMarkdown(DOC);
 
     expect(manifest.id).toBe(ID);
     expect(manifest.name).toBe('漫画生成');
     expect(manifest.description).toBe('生成分镜式漫画页');
-    expect(manifest.whenToUse).toBe('用户要求画漫画时');
     expect(manifest.version).toBe('2');
     expect(body).toContain('# 工作流');
     expect(body).not.toContain('name:');
   });
 
-  it('未知字段原样保留（外部 skill 包能直接放进来用）', () => {
+  it('已退役字段（when-to-use 等）走 unknown 原样保留：不再"假装懂"，但一个字不丢', () => {
     const { manifest } = parseSkillMarkdown(DOC);
 
-    expect(manifest.unknown).toEqual({ 'x-extra': 'keep-me' });
+    // 【2026-09-22 · docs/plan/142 §3.10】when-to-use / allowed-tools / user-invocable /
+    // disable-model-invocation 已从"已知集合"删除（没有任何行为读它们）⇒ 落入 unknown 保真通道。
+    expect(manifest.unknown).toEqual({
+      'when-to-use': '用户要求画漫画时',
+      'x-extra': 'keep-me',
+    });
   });
 
   it('无 frontmatter → 整文件当正文，不丢内容（安全阀）', () => {
@@ -61,57 +65,47 @@ describe('parseSkillMarkdown', () => {
     expect(body).toBe(unclosed);
   });
 
-  it('安全字段多行 → 整体作废且留痕（防用续行伪造权限声明）', () => {
-    const { manifest } = parseSkillMarkdown(fm('name: x', 'allowed-tools: a', 'b, c'));
-
-    expect(manifest.allowedTools).toBeUndefined();
-    expect(manifest.rejectedMultiLine).toContain('allowed-tools');
-  });
-
-  it('非安全字段的多行续行会并入值', () => {
+  it('非已知字段的多行续行会并入值（含已退役字段）', () => {
     const { manifest } = parseSkillMarkdown(fm('description: 第一行', '第二行'));
+    const retired = parseSkillMarkdown(fm('name: x', 'allowed-tools: a', 'b, c')).manifest;
 
     expect(manifest.description).toBe('第一行\n第二行');
+    // 已退役字段不再做"多行 ⇒ 作废"（那条防护的守护对象已不存在），一律按 unknown 原样带过
+    expect(retired.unknown['allowed-tools']).toBe('a\nb, c');
   });
 
-  it('引号值去引号；allowed-tools 按逗号切；布尔认多种写法', () => {
+  it('引号值去引号（仍适用的唯一类型处理）', () => {
     const quoted = parseSkillMarkdown(fm('name: "带 空格 的名"')).manifest;
-    const tools = parseSkillMarkdown(fm('name: x', 'allowed-tools: a, b ,c')).manifest;
-    const bools = parseSkillMarkdown(
-      fm('name: x', 'user-invocable: YES', 'disable-model-invocation: false'),
-    ).manifest;
 
     expect(quoted.name).toBe('带 空格 的名');
-    expect(tools.allowedTools).toEqual(['a', 'b', 'c']);
-    expect(bools.userInvocable).toBe(true);
-    expect(bools.disableModelInvocation).toBe(false);
   });
 
-  it('空值行 = 不存在：可选标量/空逗号表/unknown 都由空折成"无"（TD-11-37）', () => {
+  it('空格/逗号/布尔写法这些"以前要按类型切"的字段，现在原样进 unknown（不再假装懂类型）', () => {
+    const m = parseSkillMarkdown(
+      fm(
+        'name: x',
+        'allowed-tools: a, b ,c',
+        'user-invocable: YES',
+        'disable-model-invocation: false',
+      ),
+    ).manifest;
+
+    expect(m.unknown['allowed-tools']).toBe('a, b ,c');
+    expect(m.unknown['user-invocable']).toBe('YES');
+    expect(m.unknown['disable-model-invocation']).toBe('false');
+  });
+
+  it('空值行 = 不存在：可选标量/unknown 都由空折成"无"（TD-11-37）', () => {
     const { manifest } = parseSkillMarkdown(
       fm('name: x', 'description:', 'when-to-use:', 'version:', 'allowed-tools:', 'x-empty:'),
     );
 
-    expect(manifest.whenToUse).toBeUndefined();
     expect(manifest.version).toBeUndefined();
-    expect(manifest.allowedTools).toBeUndefined();
     // unknown 与已知字段**同口径**：空值不占位（此前 unknown 照写 `x-empty: `，是两副样子）
     expect(manifest.unknown).toEqual({});
     // name/description 是必填字段，回落空串（"写了空行"与"没有这一行"本来就同值）
     expect(manifest.name).toBe('x');
     expect(manifest.description).toBe('');
-  });
-
-  it('布尔字段的空值也**不许**被物化成 false（TD-11-49：否则保存时会把"空"改写成显式 false）', () => {
-    const { manifest } = parseSkillMarkdown(
-      fm('name: x', 'user-invocable:', 'disable-model-invocation:'),
-    );
-
-    expect(manifest.userInvocable).toBeUndefined();
-    expect(manifest.disableModelInvocation).toBeUndefined();
-    // 显式 false 仍要保住（"说了 false"与"没说"不同）
-    const explicit = parseSkillMarkdown(fm('name: x', 'user-invocable: false')).manifest;
-    expect(explicit.userInvocable).toBe(false);
   });
 });
 

@@ -10,14 +10,14 @@
 import { describe, it, expect } from 'vitest';
 // 【故意**不**导入两个组哨兵】它们已不是导出面（TD-11-62）：消费者拿 `kind`（语义）。
 // 本文件若还要 import 哨兵才能断言，就说明"外面还在比哨兵"这件事没被修掉。
-import { buildSkillLibraryView } from '../../src/components/agent/skill/skillLibraryView.ts';
+import { buildSkillLibraryView } from '../../src/components/agent/skill/view/skillLibraryView.ts';
 // 选用入口（下拉）已独立成文件（TD-11-68）—— 它与列表是**两个用例**，但共用同一套组语义
-import { buildSkillPickerGroups } from '../../src/components/agent/skill/skillPickerView.ts';
+import { buildSkillPickerGroups } from '../../src/components/agent/skill/view/skillPickerView.ts';
 import type {
   SkillLibrary,
   SkillPackageFile,
 } from '../../src/components/agent/skill/skillTypes.ts';
-import { UNSORTED_GROUP as UNSORTED } from '../../src/components/agent/skill/skillGroup.ts';
+import { UNSORTED_GROUP as UNSORTED } from '../../src/components/agent/skill/rules/skillGroup.ts';
 
 const fm = (fields: Record<string, string>, body = '正文'): string =>
   `---\n${Object.entries(fields)

@@ -17,7 +17,7 @@ import {
   kindOfGroup,
   labelOfGroup,
   skillGroupLabel,
-} from '../../src/components/agent/skill/skillGroup.ts';
+} from '../../src/components/agent/skill/rules/skillGroup.ts';
 
 describe('labelOfGroup（组名 → 显示名：**完整映射的唯一措辞源**）', () => {
   it('两个伪组各有自己的措辞；真实磁盘组名原样透传；兜底组走最后一步兜底', () => {

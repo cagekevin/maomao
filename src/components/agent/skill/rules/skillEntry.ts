@@ -13,7 +13,7 @@
  * `localTool/src/routes/skills.ts` 的同名常量，由 `check:arch` 的 `CROSS_STACK_CONSTS` **对账**
  * （必须都存在且值相等），并由同一份闸禁止"字面量在两侧定义文件之外再出现"。
  */
-import type { SkillPackageFile } from './skillTypes.ts';
+import type { SkillPackageFile } from '../skillTypes.ts';
 
 /** 入口文件名（**跨栈协议名**：与后端 `localTool/src/routes/skills.ts` 的 `SKILL_ENTRY_FILE` 必须相等） */
 export const SKILL_ENTRY_FILE = 'SKILL.md';

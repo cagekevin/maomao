@@ -10,14 +10,14 @@
  *  - 块②（本次启用正文）：**发送起点冻结**（`freezeSkillTurn`）——一次发送内所有工具轮次共用同一份文本。
  */
 import { contentFingerprint } from '@/components/base/core/utils.ts';
-import { readSkillConfig } from './skillRepository.ts';
+import { readSkillConfig } from '../store/skillRepository.ts';
 import { listAllSkills } from './skillRegistry.ts';
 import {
   buildBoundSkillBlocks,
   buildSkillIndexText,
   type SkillIndexItem,
 } from './skillInjectText.ts';
-import type { SkillBinding } from './skillTypes.ts';
+import type { SkillBinding } from '../skillTypes.ts';
 
 /**
  * 块①（可用 Skill 清单）文本。开关关闭 ⇒ `''`（调用方据此判断"本块不注入"）。

@@ -2,12 +2,12 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import {
   freezeSkillTurn,
   getSkillIndexText,
-} from '../../src/components/agent/skill/skillInject.ts';
+} from '../../src/components/agent/skill/model/skillInject.ts';
 import {
   SKILLS_KEY,
   writeSkillConfig,
   writeSkillList,
-} from '../../src/components/agent/skill/skillRepository.ts';
+} from '../../src/components/agent/skill/store/skillRepository.ts';
 import { contentClearCache } from '../../src/components/base/core/contentStore.ts';
 
 beforeEach(() => {

@@ -3,16 +3,16 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 // skillApi 是唯一网络边界：桩掉它，本测试锁的是**安全判据与回报话术**（不外发、不猜）。
 const api = vi.hoisted(() => ({ read: vi.fn() }));
 
-vi.mock('../../src/components/agent/skill/skillApi.ts', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('../../src/components/agent/skill/skillApi.ts')>()),
+vi.mock('../../src/components/agent/skill/store/skillApi.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../src/components/agent/skill/store/skillApi.ts')>()),
   readSkillPackage: api.read,
 }));
 
 import {
   readSkillResource,
   setSkillTurnBindings,
-} from '../../src/components/agent/skill/skillResource.ts';
-import { writeSkillConfig } from '../../src/components/agent/skill/skillRepository.ts';
+} from '../../src/components/agent/skill/model/skillResource.ts';
+import { writeSkillConfig } from '../../src/components/agent/skill/store/skillRepository.ts';
 import { contentClearCache } from '../../src/components/base/core/contentStore.ts';
 import type { SkillBinding } from '../../src/components/agent/skill/skillTypes.ts';
 

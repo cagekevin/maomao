@@ -11,7 +11,7 @@ import {
   SKILL_ENTRY_FILE,
   findSkillEntryFile,
   skillEntryRelPath,
-} from '../../src/components/agent/skill/skillEntry.ts';
+} from '../../src/components/agent/skill/rules/skillEntry.ts';
 import type { SkillPackageFile } from '../../src/components/agent/skill/skillTypes.ts';
 
 const f = (

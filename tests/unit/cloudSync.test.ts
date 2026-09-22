@@ -243,7 +243,6 @@ describe('cloudSync — uploadConfig / downloadConfig 边界', () => {
     contentSet('agent_split_width', '420');
     contentSet('agent_input_mode', 'agent');
     contentSet('canvasAgentGenParams', { steps: 30 });
-    contentSet('agent_skill_usage', { foo: 1 }); // 使用统计（痕迹，非设置）
     contentSet('yimao_node_prefs', { n: 1 }); // 节点参数记忆（本机 UI 偏好）
     // 工程数据 / 本机 / 临时
     contentSet('lastOpenedProject', 'p1');
@@ -264,7 +263,6 @@ describe('cloudSync — uploadConfig / downloadConfig 边界', () => {
     expect(ls.agent_split_width).toBeUndefined();
     expect(ls.agent_input_mode).toBeUndefined();
     expect(ls.canvasAgentGenParams).toBeUndefined();
-    expect(ls.agent_skill_usage).toBeUndefined();
     expect(ls.yimao_node_prefs).toBeUndefined();
     expect(ls.lastOpenedProject).toBeUndefined();
     expect(ls.yimao_asset_library).toBeUndefined(); // 工程数据

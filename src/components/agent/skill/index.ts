@@ -27,7 +27,7 @@ export {
   discardSkillFromIndex,
   restoreSkillFromIndex,
   skillMarkdownForExport,
-} from './skillPersist.ts';
+} from './write/skillPersist.ts';
 export {
   SKILL_IMPORT_ACCEPT,
   SKILL_MAX_FILE_BYTES,
@@ -36,30 +36,34 @@ export {
   isImportablePackageFile,
   isSkillImportFile,
   skillNameFromFile,
-} from './skillImport.ts';
-export { repairMojibakeText } from './skillText.ts';
-export { listAllSkills } from './skillRegistry.ts';
-export { readSkillResource, setSkillTurnBindings } from './skillResource.ts';
-export { applyCloudSkillsToDisk } from './skillCloudSync.ts';
-export { getSkillIndexText, freezeSkillTurn } from './skillInject.ts';
-export { getBuiltinSkills } from './skillBuiltins.ts';
-export { SKILL_LIMIT_SUGGESTED_MAX } from './skillBudget.ts';
-export { UNTRUSTED_SKILL_TEXT_RULE } from './skillInjectText.ts';
+} from './write/skillImport.ts';
+export { repairMojibakeText } from './rules/skillText.ts';
+export { listAllSkills } from './model/skillRegistry.ts';
+export { readSkillResource, setSkillTurnBindings } from './model/skillResource.ts';
+export { applyCloudSkillsToDisk } from './write/skillCloudSync.ts';
+export { getSkillIndexText, freezeSkillTurn } from './model/skillInject.ts';
+export { getBuiltinSkills } from './model/skillBuiltins.ts';
+export { SKILL_LIMIT_SUGGESTED_MAX } from './model/skillBudget.ts';
+export { UNTRUSTED_SKILL_TEXT_RULE } from './model/skillInjectText.ts';
 export {
   createSkillGroup,
   openSkillFolder,
   readDiskSkillPackages,
   readSkillLibrary,
-} from './skillApi.ts';
-export { backfillMissingIds, detectSkillDrift, reloadSkillsFromDisk } from './skillHydrate.ts';
+} from './store/skillApi.ts';
+export {
+  backfillMissingIds,
+  detectSkillDrift,
+  reloadSkillsFromDisk,
+} from './store/skillHydrate.ts';
 // 【两个组哨兵**不导出**（TD-11-62）】消费者读 `SkillGroupView.kind` / `SkillPickGroup.kind`（语义），
 // 不是哨兵字符串；从前导出过 ⇒ 设置页直接比 `g.name === OFFICIAL_GROUP` 做渲染判定 ⇒ 改哨兵值即静默失效。
-export { buildSkillLibraryView } from './skillLibraryView.ts';
-export { buildSkillPickerGroups } from './skillPickerView.ts';
+export { buildSkillLibraryView } from './view/skillLibraryView.ts';
+export { buildSkillPickerGroups } from './view/skillPickerView.ts';
 // 只导出**真被域外命名**的类型（`SkillGroupKind`/`SkillPick*` 由调用方靠推导使用 ⇒ 导出即幽灵，ADR-0053）
-export type { SkillGroupView, SkillRow } from './skillLibraryView.ts';
+export type { SkillGroupView, SkillRow } from './view/skillLibraryView.ts';
 export type { SkillLibrary } from './skillTypes.ts';
-export { migrateSkillsToDiskIfNeeded } from './skillMigration.ts';
+export { migrateSkillsToDiskIfNeeded } from './store/skillMigration.ts';
 export {
   CONFIG_KEY as SKILL_CONFIG_KEY,
   readSkillConfig as getSkillConfig,
@@ -72,6 +76,5 @@ export {
   // 键常量（订阅用）：与读取入口配套，避免消费方再写一份字面量（TD-13-7）
   SKILLS_KEY,
   ENABLED_KEY,
-} from './skillRepository.ts';
-export { markSkillUsed, getSkillUsage } from './skillUsage.ts';
+} from './store/skillRepository.ts';
 export type { SkillConfig } from './skillTypes.ts';

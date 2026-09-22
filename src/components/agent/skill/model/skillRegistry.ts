@@ -14,7 +14,7 @@
  * `{ ok, list, error }` —— "读不到"与"本来就没有"必须分得开（黑话：不得用空清单否定真值）。
  */
 import { getBuiltinSkills } from './skillBuiltins.ts';
-import { readSkillList } from './skillRepository.ts';
+import { readSkillList } from '../store/skillRepository.ts';
 
 /** 「当前全部可用 Skill」的最小形状（正文与落点都在这里，UI 与注入共用） */
 export interface AllSkill {

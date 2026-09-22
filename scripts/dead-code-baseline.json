@@ -1,7 +1,7 @@
 {
-  "_comment": "死代码闸基线（scripts/check-dead-code.mjs 消费）。基线内=存量（不阻塞，可逐步清偿）；基线外新增=闸红。重生成：node scripts/check-dead-code.mjs --update-baseline。【2026-09-19 手改留痕（≠塞新债）】域归位搬迁后，按「件随搬迁/改名走」同步 5 条**已存量**的键：conversationState/conversationStore 的 flushPersist→agentFlushPersist（改名）· canvas/nodeMedia→canvas/lib/nodeMedia · base/prompt/promptChips→canvas/shell/promptChips · base/store/nodeRuntimeStore→task/nodeRuntimeStore；另删 3 条 base/storage/kvStore.ts::{kvDelete,kvGet,kvSet}（该浅壳文件已不存在）。**基线外的「真新增」另案裁决，未混入本文件**（闸自述禁令：用 --update-baseline 把新增塞进基线 = 把闸弄瞎）。【2026-09-20 重生成】移除 1 条已消失项 base/utils/media/assetUrl.ts::exports::normalizeAssetUrl（已清偿）；新增 0 条。注：本 `_comment` 由人手写，`--update-baseline` 只继承、不覆盖（原实现硬编码覆盖 ⇒ 2026-09-20 已修，见该脚本文件头【★改】）。",
+  "_comment": "死代码闸基线（scripts/check-dead-code.mjs 消费）。基线内=存量（不阻塞，可逐步清偿）；基线外新增=闸红。重生成：node scripts/check-dead-code.mjs --update-baseline。【2026-09-19 手改留痕（≠塞新债）】域归位搬迁后，按「件随搬迁/改名走」同步 5 条**已存量**的键：conversationState/conversationStore 的 flushPersist→agentFlushPersist（改名）· canvas/nodeMedia→canvas/lib/nodeMedia · base/prompt/promptChips→canvas/shell/promptChips · base/store/nodeRuntimeStore→task/nodeRuntimeStore；另删 3 条 base/storage/kvStore.ts::{kvDelete,kvGet,kvSet}（该浅壳文件已不存在）。**基线外的「真新增」另案裁决，未混入本文件**（闸自述禁令：用 --update-baseline 把新增塞进基线 = 把闸弄瞎）。【2026-09-20 重生成】移除 1 条已消失项 base/utils/media/assetUrl.ts::exports::normalizeAssetUrl（已清偿）；新增 0 条。【2026-09-22 手改】移除 1 条 agent/runtime/skillStore.ts::exports::getSkillUsage（`docs/plan/142 §3.10`：使用计数整体退役，是删能力，不是「把新增塞进基线」）。注：本 `_comment` 由人手写，`--update-baseline` 只继承、不覆盖（原实现硬编码覆盖 ⇒ 2026-09-20 已修，见该脚本文件头【★改】）。",
   "knipVersion": "6.35.1",
-  "count": 68,
+  "count": 67,
   "items": [
     "src/components/agent/assistantTable/assistantTable.ts::exports::addColumn",
     "src/components/agent/assistantTable/assistantTable.ts::exports::deleteRow",
@@ -19,7 +19,6 @@
     "src/components/agent/conversation/conversationStore.ts::exports::setCurrentGlobalContract",
     "src/components/agent/runtime/projectMemoryStore.ts::exports::__resetProjectMemoryCacheForTest",
     "src/components/agent/runtime/projectMemoryStore.ts::exports::removeProjectMemory",
-    "src/components/agent/runtime/skillStore.ts::exports::getSkillUsage",
     "src/components/agent/runtime/useAgentChat.ts::exports::CANVAS_AGENT_RULES",
     "src/components/agent/runtime/useAgentChat.ts::exports::TABLE_AGENT_RULES",
     "src/components/agent/runtime/useAgentChat.ts::exports::classifyLocalIntent",

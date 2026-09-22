@@ -8,9 +8,9 @@ import { describe, it, expect } from 'vitest';
 import {
   assertSafeSkillRelativePath,
   extractResourcePaths,
-} from '../../src/components/agent/skill/skillResourcePath.ts';
+} from '../../src/components/agent/skill/rules/skillResourcePath.ts';
 // 导入侧准入：与读侧共用同一张扩展名表（本文件断的就是"两边取值一致"）
-import { isImportablePackageFile } from '../../src/components/agent/skill/skillImport.ts';
+import { isImportablePackageFile } from '../../src/components/agent/skill/write/skillImport.ts';
 
 describe('assertSafeSkillRelativePath（读资料的唯一准入判据）', () => {
   it('放行包内文本资料', () => {

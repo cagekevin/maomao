@@ -14,24 +14,28 @@
 import { contentFingerprint } from '@/components/base/core/utils.ts';
 import { logger } from '@/components/base/core/log/logger.ts';
 import { generateUUID } from '@/components/base/core/idGen.ts';
-import { emptyManifest, parseSkillMarkdown, serializeSkillMarkdown } from './skillManifest.ts';
-import { isLegalDirSegment, slugifySkillName, uniqueSlugIn } from './skillDirName.ts';
-import { UNSORTED_GROUP } from './skillGroup.ts';
+import {
+  emptyManifest,
+  parseSkillMarkdown,
+  serializeSkillMarkdown,
+} from '../rules/skillManifest.ts';
+import { isLegalDirSegment, slugifySkillName, uniqueSlugIn } from '../rules/skillDirName.ts';
+import { UNSORTED_GROUP } from '../rules/skillGroup.ts';
 import {
   deleteSkillPackage,
   listSkillPackages,
   readSkillPackage,
   saveSkillPackage,
-} from './skillApi.ts';
-import { SKILL_ENTRY_FILE, findSkillEntryFile } from './skillEntry.ts';
-import { readSkillList, writeSkillList } from './skillRepository.ts';
+} from '../store/skillApi.ts';
+import { SKILL_ENTRY_FILE, findSkillEntryFile } from '../rules/skillEntry.ts';
+import { readSkillList, writeSkillList } from '../store/skillRepository.ts';
 import type {
   SkillApiResult,
   SkillLibrary,
   SkillManifest,
   SkillPackageFile,
   UserSkill,
-} from './skillTypes.ts';
+} from '../skillTypes.ts';
 
 export interface SaveSkillInput {
   /** 既有条目的 id（新建时留空） */
@@ -56,7 +60,7 @@ export interface SaveSkillInput {
    * 给的值**原样使用**：它是磁盘上曾经存在的目录名（可能与安全化结果不同），改名/换组那一套口径不适用于"恢复原位"。
    */
   slug?: string;
-  /** 额外要保留的 frontmatter 字段（导入时原样带过：whenToUse / version / allowedTools / unknown…） */
+  /** 额外要保留的 frontmatter 字段（导入时原样带过：version / unknown（含已退役的 when-to-use 等声明）…） */
   manifest?: Partial<SkillManifest>;
   /**
    * **整包导入**语义：调用方给的是完整文件集合（含 `references/**`）⇒ 它就是最终状态（覆盖写）。
@@ -247,7 +251,6 @@ export async function saveSkillToDisk(input: SaveSkillInput): Promise<SaveSkillR
     name,
     description,
     unknown: { ...(diskManifest?.unknown ?? {}), ...(input.manifest?.unknown ?? {}) },
-    rejectedMultiLine: input.manifest?.rejectedMultiLine ?? diskManifest?.rejectedMultiLine ?? [],
   });
   const nextMd = serializeSkillMarkdown(manifest, input.content);
   const mdFile = findSkillEntryFile(files);
@@ -276,7 +279,6 @@ export async function saveSkillToDisk(input: SaveSkillInput): Promise<SaveSkillR
     slug,
     name,
     description,
-    whenToUse: typeof exist?.whenToUse === 'string' ? exist.whenToUse : undefined,
     version: typeof exist?.version === 'string' ? exist.version : undefined,
     content: input.content,
     contentHash: contentFingerprint(input.content),
@@ -285,8 +287,7 @@ export async function saveSkillToDisk(input: SaveSkillInput): Promise<SaveSkillR
     createdAt: exist?.createdAt,
     updatedAt: Date.now(),
   };
-  // 内容字段以本次 manifest 为准（导入时可能带来 when-to-use / version）
-  if (manifest.whenToUse !== undefined) skill.whenToUse = manifest.whenToUse;
+  // 内容字段以本次 manifest 为准（导入时可能带来 version）
   if (manifest.version !== undefined) skill.version = manifest.version;
 
   const nextList = exist ? entries.map((e) => (e.id === id ? skill : e)) : [...entries, skill];
@@ -341,7 +342,7 @@ export async function deleteSkillEverywhere(
  * 【为什么复用 `saveSkillToDisk`】它本来就处理"既有条目在磁盘上不存在 ⇒ 按新建写"这一支，
  * 且整包原子写、写盘成功才回写索引 —— 恢复 = "用索引的内容重建那个包"，语义完全重合；
  * 写盘只许有一个实现，不另写一份。
- * 【代价要如实说】只能恢复**正文与声明**（name/description/when-to-use/version）；
+ * 【代价要如实说】只能恢复**正文与声明**（name/description/version）；
  * `references/**` 随磁盘删除而丢失 —— 界面在确认框里要写明。
  */
 export async function restoreSkillFromIndex(id: string): Promise<SaveSkillResult> {
@@ -356,7 +357,7 @@ export async function restoreSkillFromIndex(id: string): Promise<SaveSkillResult
     content: typeof row.content === 'string' ? row.content : '',
     category: typeof row.category === 'string' ? row.category : '',
     slug: typeof row.slug === 'string' ? row.slug : undefined, // 落回原路径（否则会让位成 -2）
-    manifest: { whenToUse: row.whenToUse, version: row.version },
+    manifest: { version: row.version },
   });
 }
 
@@ -371,8 +372,8 @@ export function discardSkillFromIndex(id: string): { ok: boolean; message?: stri
 /**
  * 导出用：给**完整 `SKILL.md`**（含 frontmatter）。
  *
- * 【为什么读磁盘、而不是从缓存重拼（TD-11-70）】此前拿缓存条目重拼 frontmatter，而缓存只带 5 个字段
- * （id/name/description/when-to-use/version）⇒ `allowed-tools`、布尔字段、`unknown`（未识别字段）**全丢**。
+ * 【为什么读磁盘、而不是从缓存重拼（TD-11-70）】此前拿缓存条目重拼 frontmatter，而缓存只带 4 个字段
+ * （id/name/description/version）⇒ `unknown`（未识别字段，含 `when-to-use`/`allowed-tools` 等已退役声明）**全丢**。
  * 导入侧明明"原样带过"，导出侧却丢 ⇒ **"导出→再导入"一轮就悄悄少声明**（用户还拿它当备份）。
  * 磁盘上那个文件才是真相源 ⇒ 导出就是**把那个文件给你**。
  * 【读不到就 `null`】调用方（设置页）有"降级必须如实说"的分支：宁可能说清，不许悄悄给一份残缺 frontmatter。

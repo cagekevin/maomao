@@ -1,10 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import {
-  findSkill,
-  markSkillUsed,
-  getSkillUsage,
-  type Skill,
-} from '../../src/components/agent/runtime/skillStore.ts';
+import { findSkill, type Skill } from '../../src/components/agent/runtime/skillStore.ts';
 // 白名单/乱码修复已搬进模块（TD-11-52）；组合与内置从门面取（TD-11-51）
 import {
   getBuiltinSkills,
@@ -13,7 +8,10 @@ import {
   repairMojibakeText,
 } from '../../src/components/agent/skill/index.ts';
 // 写入口已收口到 skillRepository（唯一）；本文件用它**造数据**，不再有"只写缓存"的旁路 API
-import { readSkillList, writeSkillList } from '../../src/components/agent/skill/skillRepository.ts';
+import {
+  readSkillList,
+  writeSkillList,
+} from '../../src/components/agent/skill/store/skillRepository.ts';
 import { contentClearCache } from '../../src/components/base/core/contentStore.ts';
 import { sGet } from '@/components/base/storage/storageAdapter.ts';
 
@@ -66,15 +64,6 @@ describe('Skill 系统 §2.19', () => {
     expect(findSkill('skill_ecommerce_detail')).toBeTruthy();
     seedSkill({ id: 'f1', name: 'Y' });
     expect(findSkill('f1')?.name).toBe('Y');
-  });
-
-  it('markSkillUsed 计数递增，getSkillUsage 读取', () => {
-    expect(getSkillUsage('skill_ecommerce_detail')).toBe(0);
-    const n1 = markSkillUsed('skill_ecommerce_detail');
-    expect(n1).toBe(1);
-    const n2 = markSkillUsed('skill_ecommerce_detail');
-    expect(n2).toBe(2);
-    expect(getSkillUsage('skill_ecommerce_detail')).toBe(2);
   });
 });
 

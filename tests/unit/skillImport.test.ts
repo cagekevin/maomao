@@ -3,8 +3,8 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 // skillApi 是唯一网络边界：桩掉它，本测试锁的是**切包规则 + 整包提交语义**。
 const api = vi.hoisted(() => ({ list: vi.fn(), read: vi.fn(), save: vi.fn() }));
 
-vi.mock('../../src/components/agent/skill/skillApi.ts', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('../../src/components/agent/skill/skillApi.ts')>()),
+vi.mock('../../src/components/agent/skill/store/skillApi.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../src/components/agent/skill/store/skillApi.ts')>()),
   listSkillPackages: api.list,
   readSkillPackage: api.read,
   saveSkillPackage: api.save,
@@ -17,9 +17,12 @@ import {
   isImportablePackageFile,
   isSkillImportFile,
   skillNameFromFile,
-} from '../../src/components/agent/skill/skillImport.ts';
-import { UNSORTED_GROUP } from '../../src/components/agent/skill/skillGroup.ts';
-import { readSkillList, writeSkillList } from '../../src/components/agent/skill/skillRepository.ts';
+} from '../../src/components/agent/skill/write/skillImport.ts';
+import { UNSORTED_GROUP } from '../../src/components/agent/skill/rules/skillGroup.ts';
+import {
+  readSkillList,
+  writeSkillList,
+} from '../../src/components/agent/skill/store/skillRepository.ts';
 import { contentClearCache } from '../../src/components/base/core/contentStore.ts';
 
 const saveOk = { ok: true, data: { category: 'x', slug: 'y', written: 1 } };

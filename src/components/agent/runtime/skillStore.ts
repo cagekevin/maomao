@@ -4,15 +4,18 @@
  * 【它现在还剩什么】
  *  · `findSkill`：按 id 查（内联到模块的 `listAllSkills().list`）；
  *  · `SKILLS_KEY` / `ENABLED_KEY`：订阅键转发；`isSkillEnabled`：转发模块的启用判据；
- *  · 使用计数 `markSkillUsed` / `getSkillUsage`：转发。
  *  · `getAllSkills` 已删（TD-11-66）：面板改用门面的 `listAllSkills()`（要 `ok/error` 才能如实提示读失败）。
  *
+ * 【已退役的转发项（不要再加回来）】
+ *  · 使用计数 `markSkillUsed` / `getSkillUsage`（2026-09-22 · `docs/plan/142 §3.10`）：`getSkillUsage`
+ *    全仓零显示点 ⇒ 连存储键 `agent_skill_usage` 一起退役，本壳不再转发它们。
+ *
  * 【已经搬走的（不要再搬回来）】
- *  · 单文件导入白名单 `isSkillImportFile` / `skillNameFromFile` → `agent/skill/skillImport.ts`（TD-11-52）
- *  · 乱码修复 `repairMojibakeText` → `agent/skill/skillText.ts`（TD-11-52：域内实现不许住壳里）
- *  · 内置常量 → `agent/skill/skillBuiltins.ts`；**"全部可用 skill"的组合** → `agent/skill/skillRegistry.ts`
+ *  · 单文件导入白名单 `isSkillImportFile` / `skillNameFromFile` → `agent/skill/write/skillImport.ts`（TD-11-52）
+ *  · 乱码修复 `repairMojibakeText` → `agent/skill/rules/skillText.ts`（TD-11-52：域内实现不许住壳里）
+ *  · 内置常量 → `agent/skill/model/skillBuiltins.ts`；**"全部可用 skill"的组合** → `agent/skill/model/skillRegistry.ts`
  *    （TD-11-51：组合是生产者职责，不许每个消费者各拼一遍）
- *  · 启用态判据「没记过 ⇒ 默认启用」→ `agent/skill/skillRepository.isSkillEnabledIn`（TD-11-50）
+ *  · 启用态判据「没记过 ⇒ 默认启用」→ `agent/skill/store/skillRepository.isSkillEnabledIn`（TD-11-50）
  *  · `setSkillEnabled`（单个）/ `getAllEnabledMap`：与门面的 `setSkillsEnabled` / `readSkillEnabledMap`
  *    是同一件事的两种写法 ⇒ 删（TD-11-44）
  *  · `readCustomSkills` / `getCustomSkills`：零生产消费者（组合与形状都已有更好的归属）⇒ 删
@@ -23,10 +26,8 @@
 import {
   ENABLED_KEY,
   SKILLS_KEY,
-  getSkillUsage as readSkillUsage,
   isSkillEnabledIn,
   listAllSkills,
-  markSkillUsed as countSkillUse,
   readSkillEnabledMap,
 } from '../skill/index.ts';
 
@@ -76,16 +77,6 @@ export function findSkill(id: string): Skill | null {
  *   `saveSkillToDisk`（先落盘成功才回写缓存）· `deleteSkillEverywhere` · `importSkillText` / `importSkillPackages`
  * ⛔ 不要再在这里加回任何"只改缓存"的写函数 —— 那不是缺便利，而是缺一个不该存在的入口。
  * ─────────────────────────────────────────────────────────────────────────── */
-
-/* ── Skill 使用次数（语义已归模块 `skillUsage.ts`；本处只转发，消费方零改动）── */
-/** 记录一次 Skill 使用（+1），返回最新次数 */
-export function markSkillUsed(id: string): number {
-  return countSkillUse(id);
-}
-/** 读某 Skill 使用次数 */
-export function getSkillUsage(id: string): number {
-  return readSkillUsage(id);
-}
 
 /**
  * 判断某 skill 是否启用（默认启用）。

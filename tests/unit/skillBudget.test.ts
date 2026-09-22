@@ -8,7 +8,7 @@ import {
   SKILL_LIMIT_SUGGESTED_MAX,
   SKILL_TRUNCATION_NOTICE,
   truncateSkillContent,
-} from '../../src/components/agent/skill/skillBudget.ts';
+} from '../../src/components/agent/skill/model/skillBudget.ts';
 
 describe('truncateSkillContent', () => {
   it('未超限 → 原样返回且 truncated=false', () => {

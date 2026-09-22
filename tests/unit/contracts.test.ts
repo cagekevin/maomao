@@ -118,7 +118,7 @@ describe('STORAGE_KEYS 语义检查', () => {
 });
 
 describe('STORAGE_KEYS 内容验证', () => {
-  it('当前共有 45 个登记键', () => {
+  it('当前共有 44 个登记键', () => {
     // 计数护栏：登记表增删键时必须同步此处。
     //   G0 新增 video-editor-project-{projectId} → 34→35
     //   2026-09-14 多工程改造（docs/134 T1）→ 35→37（删旧键 1：video-editor-project-{projectId}；
@@ -134,8 +134,10 @@ describe('STORAGE_KEYS 内容验证', () => {
     //     与 AI 面板的 agent_panel_width 同性质但宿主不同 ⇒ 两把键，见 contracts 内该键注释）。
     //   2026-09-21 Skill 模块设置（docs/plan/140 · D8/D9）→ 44→45（加 agent_skill_config：
     //     「清单是否常驻发给 AI」+ 3 个预算；`sync:true`，换设备跟随）。
+    //   2026-09-22 技能库重设计（docs/plan/142 §3.10 幽灵清扫）→ 45→44（删 agent_skill_usage：
+    //     读侧零显示点，连 skillUsage.ts 一并退役；这是删能力，不是"登记表漏了一行"）。
     // 它是有意保留的"变更需被看见"金丝雀，非行为契约——不要改成派生计数（派生即失效）。
-    expect(Object.keys(STORAGE_KEYS).length).toBe(45);
+    expect(Object.keys(STORAGE_KEYS).length).toBe(44);
   });
 
   it('云同步台账键已登记（防覆盖保护的本地基线，不进云端）', () => {
@@ -152,7 +154,6 @@ describe('STORAGE_KEYS 内容验证', () => {
     expect(keys).toContain('lastOpenedProject');
     expect(keys).toContain('app_settings');
     expect(keys).toContain('agent_skills');
-    expect(keys).toContain('agent_skill_usage');
     expect(keys).toContain('agent_skill_enabled');
     expect(keys).toContain('agent_chat_model');
     expect(keys).toContain('yimao_preset_prompts');

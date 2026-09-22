@@ -308,7 +308,6 @@ export const KEY_ACTIVE_API_ENDPOINT = 'active_api_endpoint';
 export const KEY_AGENT_CHAT_MODEL = 'agent_chat_model';
 export const KEY_AGENT_HISTORY_TURNS = 'agent_history_turns';
 export const KEY_AGENT_SKILLS = 'agent_skills';
-export const KEY_AGENT_SKILL_USAGE = 'agent_skill_usage';
 export const KEY_AGENT_SKILL_ENABLED = 'agent_skill_enabled';
 export const KEY_AGENT_SKILL_CONFIG = 'agent_skill_config';
 export const KEY_AGENT_PANEL_WIDTH = 'agent_panel_width';
@@ -407,26 +406,21 @@ export const STORAGE_KEYS: Record<string, StorageKeyMeta> = {
     note: 'AI 助手历史回传轮数（默认 6，非负整数）',
   },
 
-  // ── Skill（**唯一读写口** = agent/skill/skillRepository.ts，见 ADR-0056 Q2）──────────
-  // 四个键只准经 skillRepository 读写；`store` 指向**真实写入者**（skillStore.ts 已降为转发层）。
+  // ── Skill（**唯一读写口** = agent/skill/store/skillRepository.ts，见 ADR-0056 Q2）──────────
+  // 三个键只准经 skillRepository 读写；`store` 指向**真实写入者**（skillStore.ts 已降为转发层）。
+  // 【更新(2026-09-22 · docs/plan/142 §3.10)】原第四键 `agent_skill_usage`（Skill 使用统计）已删 ——
+  // 读侧**零显示点**（不是"暂未接显示"，是没有任何消费者）⇒ 连键带 `skillUsage.ts` 一并退役。
   [KEY_AGENT_SKILLS]: {
     domain: 'agent',
-    store: 'agent/skill/skillRepository.ts',
+    store: 'agent/skill/store/skillRepository.ts',
     backend: 'local',
     sync: true,
     label: '自定义 Skill',
     note: '用户自定义 Skill 列表 [{id, name, description, content}]。**正文照旧上云、不加密**（ADR-0056 Q4：GAS 部署 URL 即凭据，同通道已载账号/API key）',
   },
-  [KEY_AGENT_SKILL_USAGE]: {
-    domain: 'agent',
-    store: 'agent/skill/skillRepository.ts',
-    backend: 'local',
-    label: 'Skill 使用统计',
-    note: 'Skill 使用次数统计：{ [skillId]: count }。**刻意不进云**（高频变动，同步只会造 rev 噪音与假冲突）',
-  },
   [KEY_AGENT_SKILL_ENABLED]: {
     domain: 'agent',
-    store: 'agent/skill/skillRepository.ts',
+    store: 'agent/skill/store/skillRepository.ts',
     backend: 'local',
     sync: true,
     label: 'Skill 启用状态',
@@ -434,7 +428,7 @@ export const STORAGE_KEYS: Record<string, StorageKeyMeta> = {
   },
   [KEY_AGENT_SKILL_CONFIG]: {
     domain: 'agent',
-    store: 'agent/skill/skillRepository.ts',
+    store: 'agent/skill/store/skillRepository.ts',
     backend: 'local',
     sync: true,
     label: 'Skill 设置',

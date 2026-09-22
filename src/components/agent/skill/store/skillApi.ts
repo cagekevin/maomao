@@ -17,10 +17,15 @@
  */
 import { API_BASE, LOCAL_CRUD_TIMEOUT } from '@/components/base/core/config.ts';
 import { httpRequest } from '@/components/base/api/httpClient.ts';
-import { SKILL_ENTRY_FILE } from './skillEntry.ts';
+import { SKILL_ENTRY_FILE } from '../rules/skillEntry.ts';
 import type { ApiEnvelope } from '@/components/base/api/localToolApi.ts';
 import { logger } from '@/components/base/core/log/logger.ts';
-import type { SkillApiResult, SkillLibrary, SkillPackage, SkillPackageFile } from './skillTypes.ts';
+import type {
+  SkillApiResult,
+  SkillLibrary,
+  SkillPackage,
+  SkillPackageFile,
+} from '../skillTypes.ts';
 
 interface CallOptions {
   method?: string;

@@ -6,21 +6,22 @@
  *
  * 【四条硬规则】
  *  ① **幂等**：技能库里已有任何 `SKILL.md` ⇒ 直接跳过（不重复迁、不产生副本）；
- *  ② **不改写旧键**：旧 `skill_${now}` id 登记进新条目的 `aliases`；旧 `agent_skill_enabled` /
- *     `agent_skill_usage` 键**原样保留**（运行时按 alias 命中）—— 改写旧键是身份断裂风险；
+ *  ② **不改写旧键**：旧 `skill_${now}` id 登记进新条目的 `aliases`；旧 `agent_skill_enabled` 键
+ *     **原样保留**（运行时按 alias 命中）—— 改写旧键是身份断裂风险；
+ *     （注：`agent_skill_usage` 已于 2026-09-22 整体退役，见 `docs/plan/142 §3.10`，此处不再涉及它。）
  *  ③ **先落盘成功才回写缓存**：只有真的写进磁盘的条目才进新缓存（否则会出现"缓存说有、磁盘没有"）；
  *  ④ **失败不删旧数据**：任一条失败 ⇒ 该条**原样保留**在缓存里并如实上报（不清、不覆盖；缓存回写失败也如实报）。
  */
 import { contentFingerprint } from '@/components/base/core/utils.ts';
 import { logger } from '@/components/base/core/log/logger.ts';
 import { generateUUID } from '@/components/base/core/idGen.ts';
-import { emptyManifest, serializeSkillMarkdown } from './skillManifest.ts';
-import { slugifySkillName, uniqueSlugIn } from './skillDirName.ts';
-import { UNSORTED_GROUP } from './skillGroup.ts';
+import { emptyManifest, serializeSkillMarkdown } from '../rules/skillManifest.ts';
+import { slugifySkillName, uniqueSlugIn } from '../rules/skillDirName.ts';
+import { UNSORTED_GROUP } from '../rules/skillGroup.ts';
 import { listSkillPackages, saveSkillPackage } from './skillApi.ts';
-import { SKILL_ENTRY_FILE } from './skillEntry.ts';
+import { SKILL_ENTRY_FILE } from '../rules/skillEntry.ts';
 import { readSkillList, writeSkillList } from './skillRepository.ts';
-import type { UserSkill } from './skillTypes.ts';
+import type { UserSkill } from '../skillTypes.ts';
 
 export interface MigrationResult {
   ok: boolean;

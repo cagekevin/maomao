@@ -39,13 +39,13 @@ const MAX_REL_DEPTH = 8;
 const MAX_REL_SEGMENT_LEN = 128;
 const MAX_FILES = 200;
 /**
- * 单个技能文件字节上限 —— **跨栈契约常量**（前端 `src/components/agent/skill/skillImport.ts`
+ * 单个技能文件字节上限 —— **跨栈契约常量**（前端 `src/components/agent/skill/write/skillImport.ts`
  * 同名常量，由 `check:arch` 的「跨栈契约常量对账」保证两侧相等；**字面数字**：闸按 `NAME = <数字>`
  * 抓取，写成表达式会抓不到 ⇒ 闸会报"缺失"）。
  */
 const SKILL_MAX_FILE_BYTES = 2097152; // 2 MiB
 /**
- * 技能包**入口文件名** —— **跨栈协议名**，与前端 `src/components/agent/skill/skillEntry.ts` 的
+ * 技能包**入口文件名** —— **跨栈协议名**，与前端 `src/components/agent/skill/rules/skillEntry.ts` 的
  * `SKILL_ENTRY_FILE` 必须相等（两侧各留一份是结构必然：两个独立构建产物无法共享模块；
  * 由 `check:arch` 的 `CROSS_STACK_CONSTS` 机器对账，见 TD-11-59）。
  */

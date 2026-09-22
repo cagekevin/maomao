@@ -14,7 +14,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 // 【深引真源（门面桩不覆盖它）】`accept` 必须与白名单同源：写死字符串就会与真源漂移，而漂移**不报错**
 // —— 只会让用户在系统选择框里被挡住或被钓（TD-11-63 顺带：本页此前写死了 `.json,.yaml,.yml,.csv`，
 // 那四类在 `handleMdImport` 里一律被拒）。
-import { SKILL_IMPORT_ACCEPT } from '../../src/components/agent/skill/skillImport.ts';
+import { SKILL_IMPORT_ACCEPT } from '../../src/components/agent/skill/write/skillImport.ts';
 
 const h = vi.hoisted(() => ({
   disk: {

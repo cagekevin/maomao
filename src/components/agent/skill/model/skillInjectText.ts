@@ -9,7 +9,7 @@
  *
  * 【历史上它与另外四类一起住在 `skillCatalog.ts`（TD-11-60 六类混居）】
  */
-import { sanitizeSkillLabel } from './skillManifest.ts';
+import { sanitizeSkillLabel } from '../rules/skillManifest.ts';
 import {
   SKILL_CONTENT_LIMITS,
   SKILL_INDEX_LIMITS,

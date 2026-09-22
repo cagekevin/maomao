@@ -14,7 +14,7 @@ import { SSE_MALFORMED_MESSAGE } from '@/components/agent/runtime/agentCore.ts';
 import {
   buildBoundSkillBlocks,
   buildSkillIndexText,
-} from '../../src/components/agent/skill/skillInjectText.ts';
+} from '../../src/components/agent/skill/model/skillInjectText.ts';
 
 // buildRequestMessages 输出的 content 块类型（测试按块读 type/text）
 type ContentBlock = { type: string; text?: string; image_url?: { url: string } };

@@ -9,7 +9,7 @@ import {
   isLegalDirSegment,
   slugifySkillName,
   uniqueSlugIn,
-} from '../../src/components/agent/skill/skillDirName.ts';
+} from '../../src/components/agent/skill/rules/skillDirName.ts';
 
 describe('slugifySkillName（只用于**新造**名字；产出必须被后端 isSafeSegment 接受）', () => {
   it('路径敌意字符 / 控制字符被剥、前导点去掉、空白压平', () => {

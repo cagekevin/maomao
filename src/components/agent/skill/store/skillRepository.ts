@@ -1,6 +1,10 @@
 /**
- * Skill 的**存储唯一入口** —— `agent_skills` / `agent_skill_enabled` / `agent_skill_usage` /
- * `agent_skill_config` 四个键**只允许本文件读写**（`ADR-0056` Q2：唯一可写处即真相源）。
+ * Skill 的**存储唯一入口** —— `agent_skills` / `agent_skill_enabled` /
+ * `agent_skill_config` 三个键**只允许本文件读写**（`ADR-0056` Q2：唯一可写处即真相源）。
+ *
+ * 【更新(2026-09-22 · 142 §3.10)】原第四个键 `agent_skill_usage` 连同 `skillUsage.ts` 一并删除：
+ * `getSkillUsage` 全仓**零显示点**（不是"暂时没显示"，是没有任何消费者）⇒ 写进去就是死数据。
+ * 删的是**读写通道**；历史残留值自然失效，不做迁移（ADR-0053：零消费的实现不许预留）。
  *
  * 【为什么必须收口】此前四个键的直读写散在 `agent/runtime/skillStore.ts`。P1 起磁盘 `SKILL.md` 成为
  * 内容真相源 ⇒「网页保存 → 落盘 → 回写缓存」与「磁盘 → 缓存（hydrate）」**都会写 `agent_skills`**；
@@ -20,15 +24,13 @@ import { logger } from '@/components/base/core/log/logger';
 import {
   KEY_AGENT_SKILLS,
   KEY_AGENT_SKILL_ENABLED,
-  KEY_AGENT_SKILL_USAGE,
   KEY_AGENT_SKILL_CONFIG,
 } from '@/components/base/core/contracts';
-import type { SkillConfig } from './skillTypes.ts';
+import type { SkillConfig } from '../skillTypes.ts';
 
 /** 键名转发（消费方订阅用；值 = contracts 真源，避免各处再写一份字面量） */
 export const SKILLS_KEY: string = KEY_AGENT_SKILLS;
 export const ENABLED_KEY: string = KEY_AGENT_SKILL_ENABLED;
-export const USAGE_KEY: string = KEY_AGENT_SKILL_USAGE;
 export const CONFIG_KEY: string = KEY_AGENT_SKILL_CONFIG;
 
 /** 默认设置真源。`catalogToModel=false` = 「可用 Skill 清单」默认**不发**（只有手动选中才发，D8） */
@@ -120,7 +122,7 @@ export function writeSkillList(list: unknown[]): { ok: boolean; error?: string }
   };
 }
 
-/* ────────────────────── 键值小对象：enabled / usage / config ────────────────────── */
+/* ────────────────────── 键值小对象：enabled / config ────────────────────── */
 
 /** 读「键 → 值」小对象（三形态处置同 `readSkillList`） */
 function readMap<T>(key: string, layer: string): Record<string, T> {
@@ -173,16 +175,6 @@ export function writeEnabledMany(ids: string[], enabled: boolean): void {
   const m = readEnabledMap(); // readEnabledMap 已返回新对象，可安全就地改
   for (const id of ids) if (id) m[id] = !!enabled;
   writeEnabledMap(m);
-}
-
-/** 读使用次数 map（返回**新对象**，同 `readEnabledMap`） */
-export function readUsageMap(): Record<string, number> {
-  return { ...readMap<number>(USAGE_KEY, 'skillRepository') };
-}
-
-/** 写使用次数 map（统计类：失败留痕，不阻断） */
-export function writeUsageMap(map: Record<string, number>): void {
-  confirmPersist(contentSet(USAGE_KEY, map), { layer: 'skillRepository', key: USAGE_KEY });
 }
 
 /** 读 Skill 设置（缺省 / 非法值一律回落默认值 —— 设置项是偏好，坏值不该让功能瘫掉） */

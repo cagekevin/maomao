@@ -11,11 +11,11 @@ import {
   UNTRUSTED_SKILL_TEXT_RULE,
   buildBoundSkillBlocks,
   buildSkillIndexText,
-} from '../../src/components/agent/skill/skillInjectText.ts';
+} from '../../src/components/agent/skill/model/skillInjectText.ts';
 import {
   SKILL_INDEX_LIMITS,
   SKILL_TRUNCATION_NOTICE,
-} from '../../src/components/agent/skill/skillBudget.ts';
+} from '../../src/components/agent/skill/model/skillBudget.ts';
 
 describe('buildSkillIndexText（块①：默认关，文案逐字不可改写）', () => {
   const skill = (id: string, name: string, description: string) => ({ id, name, description });

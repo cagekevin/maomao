@@ -20,18 +20,21 @@ export type SkillOrigin = 'builtin' | 'user';
 export interface SkillManifest {
   name: string;
   description: string;
-  whenToUse?: string;
   version?: string;
   /** 稳定 UUID（由本模块在创建时写入 frontmatter，不在用户手填） */
   id?: string;
-  /** 声明了但**不生效**：本仓工具集固定，skill 开关只有 `agent_skill_enabled` */
-  allowedTools?: string[];
-  userInvocable?: boolean;
-  disableModelInvocation?: boolean;
-  /** 未识别字段原样保留（往返幂等 + 外部 skill 包可直接放入） */
+  /**
+   * 未识别字段原样保留（往返幂等 + 外部 skill 包可直接放入）。
+   *
+   * 【更新(2026-09-22 · `docs/plan/142 §3.10` 幽灵清扫)】原 4 个"已知字段"——`when-to-use` /
+   * `allowed-tools` / `user-invocable` / `disable-model-invocation`——**已从已知集合删除**：
+   * 它们的读点全在"存取转发"路径，**没有任何行为读它们**（不进块①、不影响工具权限、不影响能否被调用），
+   * 属"解析了、写了，却没人看"。删后它们走本字段 `unknown` 保留 ⇒ **磁盘往返不丢数据**，
+   * 只是我们不再"假装懂"它们。随之删除的还有 `rejectedMultiLine`（它唯一的存在理由就是给那 3 个
+   * "安全字段"做多行作废留痕，字段不解析了，它也就没有保护对象）。
+   * ⇒ 技能的真身 = **名字 + 描述 + 正文**（外加 `id`/`version` 与 `unknown` 保真通道）。
+   */
   unknown: Record<string, string>;
-  /** 因多行写法被整体作废的安全字段名（可见，不静默） */
-  rejectedMultiLine: string[];
 }
 
 /** 导入来源追踪（跨仓库去重与"可检查更新"用；本期只存） */
@@ -50,7 +53,6 @@ export interface UserSkill {
   slug: string;
   name: string;
   description: string;
-  whenToUse?: string;
   version?: string;
   content: string;
   /** 正文指纹（变更检测权威基线；持久化在索引项里，重启不失） */

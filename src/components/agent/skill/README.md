@@ -10,24 +10,36 @@ Skill 的**全部**：磁盘技能包的读写、`SKILL.md` frontmatter 解析�
 
 ## 2. 文件职责（内部件，域外**不得** import）
 
+> **目录分组（2026-09-22）** —— 判据 =「**变更理由 + IO 边界**」：
+>
+> | 目录 | 判据 | 装了谁 |
+> | --- | --- | --- |
+> | `rules/` | 纯规则：无 IO、无状态、可单测 | `skillManifest` · `skillEntry` · `skillDirName` · `skillGroup` · `skillResourcePath` · `skillText` |
+> | `store/` | 有后端 / 存储 IO | `skillRepository` · `skillApi` · `skillHydrate` · `skillMigration` |
+> | `view/` | 界面判定纯函数（事实 → 界面形状） | `skillLibraryView` · `skillPickerView` |
+> | `write/` | 有副作用（落盘 / 网络），且必须"先落盘成功才回写缓存" | `skillPersist` · `skillImport` · `skillCloudSync` |
+> | `model/` | 给模型：文本从哪来、给多少 | `skillBuiltins` · `skillRegistry` · `skillBudget` · `skillInject` · `skillInjectText` · `skillResource` |
+> | （顶层） | **门面** 与 **类型真源**（域外 import 路径不变 = `@/components/agent/skill`） | `index.ts` · `skillTypes.ts` |
+>
+> 下表按「文件 → 职责」列；**文件名不带目录前缀**，目录见上表。
+
 | 文件 | 职责 |
 |---|---|
 | `skillTypes.ts` | 类型真源：`SkillBinding`（P2 冻结）· `SkillConfig` · 包数据形状 · `SkillApiResult`（`RuntimeSkill` 判别联合已按 ADR-0053 删除 —— 零消费者不许预留） |
 | `skillBuiltins.ts` | **内置 Skill 的唯一家**（代码常量）。冻结要按 id 找正文 ⇒ 内置与缓存必须**都在模块可达范围内**（它此前住 legacy 层，那正是 P4 装配断裂的根） |
-| `skillManifest.ts` | `SKILL.md` frontmatter 解析/序列化（零依赖手写 · 未知字段保留 · 安全字段禁多行 · 解析失败整文件当正文） |
+| `skillManifest.ts` | `SKILL.md` frontmatter 解析/序列化（零依赖手写 · **已知字段只有 `id`/`name`/`description`/`version`**，其余一律走 `unknown` 原样保留 · 解析失败整文件当正文） |
 | `skillBudget.ts` | 纯函数：**注入预算**（`SKILL_CONTENT_LIMITS` / `SKILL_LIMIT_SUGGESTED_MAX` / `SKILL_INDEX_LIMITS`）+ 截断（`truncateSkillContent`，`limit<=0` = 一点都不给）。只管"给多少" |
 | `skillInjectText.ts` | 纯函数：**发给模型的两块文本**（块① 可用清单 / 块② 本次启用正文）+ 不可信条款（唯一一份字面文本，与「读资料」工具描述共用）。只管"怎么写" |
 | `skillResourcePath.ts` | 纯函数：**模型能读哪些文件**的唯一判据（`assertSafeSkillRelativePath`，含 `scripts/**` 整目录拒）+ `TEXT_RESOURCE_EXT`（与导入侧共用一张表）+ `extractResourcePaths` |
 | `skillDirName.ts` | 纯函数：**磁盘目录名规则**（`slugifySkillName` 新造 / `isLegalDirSegment` 围栏 / `uniqueSlugIn` 去重）—— 与后端 `isSafeSegment` 同族，必须被它接受 |
 | `skillGroup.ts` | **分组的唯一语义家**：`UNSORTED_GROUP` · 两个伪组哨兵（**门下不转发**）· `SkillGroupKind` · `labelOfGroup`（完整措辞）· `kindOfGroup` · `categoryInputOf` · `compareSkillGroups`。列表与下拉**共用**它 |
 | `skillApi.ts` | 技能库后端 facade 的调用层（6 端点，返回判别联合，不抛） |
-| `skillRepository.ts` | `agent_skills` / `agent_skill_enabled` / `agent_skill_usage` / `agent_skill_config` 四个键的**唯一读写口** |
+| `skillRepository.ts` | `agent_skills` / `agent_skill_enabled` / `agent_skill_config` 三个键的**唯一读写口**（`agent_skill_usage` 已于 2026-09-22 退役：读侧零显示点，见 `docs/plan/142 §3.10`） |
 | `skillHydrate.ts` | 磁盘 → 缓存的收敛（含"空目录=未决不写空"）+ 「补齐 frontmatter id」 |
 | `skillPersist.ts` | 网页保存/删除/导入/导出 → **先落盘成功才回写缓存**；换分组 = 新位置写成功后才删旧包；`packageFiles` = **整包导入**语义（提交集合即最终状态） |
 | `skillImport.ts` | 整目录导入：按「谁直接含 `SKILL.md`」切包 → 交给 `saveSkillToDisk` 的整包语义写盘（`isImportablePackageFile` = 准入唯一判据；**扩展名表与读侧共用 `TEXT_RESOURCE_EXT`**、单文件上限 = 跨栈常量 `SKILL_MAX_FILE_BYTES`，由 `check:arch` 对账） |
 | `skillMigration.ts` | localStorage → 磁盘的一次性迁移（幂等 · 不改写旧键 · 失败原样保留） |
 | `skillInject.ts` | 用例①：`getSkillIndexText`（块① 可用清单）+ `freezeSkillTurn`（块②：发送起点**冻结**，正文与留痕同源；**入参只有 id**） |
-| `skillUsage.ts` | 用例⑧：使用计数（`markSkillUsed` / `getSkillUsage`）—— 语义跟着键走：键的唯一读写口在本模块 |
 | `skillResource.ts` | 用例⑤：`setSkillTurnBindings`（发送起点写/结束清）+ `readSkillResource`（模型按需读**本轮启用**且**正文显式引用**的文本资料） |
 | `skillCloudSync.ts` | 用例⑦：`applyCloudSkillsToDisk`（云拉取后把正文**写回磁盘**，让磁盘/缓存/云收敛；`protectIds` 保护未回灌的本地磁盘改动） |
 | `skillLibraryView.ts` | 用例①（新）：**列表视图纯函数** —— "行 = 磁盘包 ∪ 索引状态"的唯一判定中枢（行状态全集 · 组三态 · 组计数 · 可用性判据）。只管"行怎么判、组怎么摆" |
@@ -81,9 +93,11 @@ Skill 的**全部**：磁盘技能包的读写、`SKILL.md` frontmatter 解析�
    给一个真实存在的目录改名 = 技能落到另一个目录（"明明有这个分组却进了别处"）；`*?"<>|` 这类
    slugify 会剥掉的字符，POSIX/Finder 都能建出来（TD-11-25）。另：`slugifySkillName` 产出后必须再 trim
    一次 —— 截断切在空格上会被后端判"前后空白"直接 400。
-17. **frontmatter 空值行 = 不存在**（解析与序列化**同一口径**，`unknown` 也一样）：`when-to-use:`（空）
+17. **frontmatter 空值行 = 不存在**（解析与序列化**同一口径**，`unknown` 也一样）：`version:`（空）
    解析成 `undefined`、序列化省略它 ⇒ 语义幂等对空值样例也成立（TD-11-37：此前只守了已知字段、
    `unknown` 照写带尾空格的空占位，且口径声明的强于实现）。
+   注：`when-to-use` / `allowed-tools` / `user-invocable` / `disable-model-invocation` 已于 2026-09-22
+   退役为 `unknown`（`docs/plan/142 §3.10`），本口径对它们同样成立（空值不占位）。
 18. **能编辑的行，磁盘上一定存在**（`row.editable = state === 'ok'`）：界面保存 = 直接写那个包；
    `saveSkillToDisk` 的"磁盘上没有这个包 ⇒ 按新建写"这一支在界面上**不可达** ⇒ 结构上不存在
    "点保存把已删的技能静默重建"。仅索引的行只能**显式**「恢复（写回磁盘）」或「丢弃」。
@@ -105,7 +119,7 @@ Skill 的**全部**：磁盘技能包的读写、`SKILL.md` frontmatter 解析�
    否则消费者看到的只是"我的技能没了"（真相是"读不到"）。据此：注入侧直接拦住并回报、面板画横幅、
    **且不许拿"只剩内置"的清单去剔已选 id**（一次瞬时读失败 = 用户的选择被抹掉，那是最坏的一种"静默"）。
 23. **导出 = 磁盘那个文件逐字**（TD-11-70）：`skillMarkdownForExport` **读磁盘**的 `SKILL.md` 原样给出，
-   不从缓存重拼 —— 缓存只留 5 个字段，重拼会让 `allowed-tools` / 布尔 / `unknown` 静默消失，
+   不从缓存重拼 —— 缓存只留 4 个字段，重拼会让 `unknown`（含已退役的 `when-to-use`/`allowed-tools` 等）静默消失，
    于是"导出→再导入"一轮就缺声明（而导入侧明明"原样带过"，两侧不对称）。读不到 ⇒ `null`，由调用方
    **如实说**降级（"仅正文：frontmatter 声明已丢"），不许悄悄给一份残缺 frontmatter。
 
@@ -134,7 +148,7 @@ Skill 的**全部**：磁盘技能包的读写、`SKILL.md` frontmatter 解析�
   读不到磁盘 ⇒ 快照保持**未决** ⇒ 按索引列出（**不把下拉变空**：读不到 ≠ 磁盘上没有技能）。
 - **`runtime/skillStore.ts` 的旧写路径已删除**（`upsertCustomSkill` / `deleteCustomSkill` /
   `saveCustomSkills`）：它们只写缓存不碰磁盘，是"能绕过真相源的写入口"。现在写路径只剩本模块门面，
-  `skillStore.ts` 只保留读与运行态（启用/用量）。
+  `skillStore.ts` 只保留读与运行态（启用态；用量计数已于 2026-09-22 退役，见 `docs/plan/142 §3.10`）。
 - ✅ **两个"什么都能放"的文件已按变更理由拆开（2026-09-22 · TD-11-60/68）**：
   `skillCatalog.ts`（332 行 / 五类）→ `skillBudget` · `skillInjectText` · `skillResourcePath` · `skillDirName`（+ 组那类并入 `skillGroup`）；
   `skillLibraryView.ts`（518 行 / 行机＋组语义＋选择器）→ `skillLibraryView`（行机）· `skillGroup`（组语义，**两个用例共用**）· `skillPickerView`（选择器）。

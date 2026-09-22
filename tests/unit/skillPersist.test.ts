@@ -8,8 +8,8 @@ const api = vi.hoisted(() => ({
   del: vi.fn(),
 }));
 
-vi.mock('../../src/components/agent/skill/skillApi.ts', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('../../src/components/agent/skill/skillApi.ts')>()),
+vi.mock('../../src/components/agent/skill/store/skillApi.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../src/components/agent/skill/store/skillApi.ts')>()),
   listSkillPackages: api.list,
   readSkillPackage: api.read,
   saveSkillPackage: api.save,
@@ -22,12 +22,15 @@ import {
   restoreSkillFromIndex,
   saveSkillToDisk,
   skillMarkdownForExport,
-} from '../../src/components/agent/skill/skillPersist.ts';
+} from '../../src/components/agent/skill/write/skillPersist.ts';
 // `importSkillText` 已搬到 `skillImport.ts`（与"可导入扩展名白名单 + 去扩展名"同住，一份口径）
 // —— 它的用例也随之搬到 `skillImport.test.ts`（测试住在被断对象旁边）。
 import { contentFingerprint } from '../../src/components/base/core/utils.ts';
-import { UNSORTED_GROUP } from '../../src/components/agent/skill/skillGroup.ts';
-import { readSkillList, writeSkillList } from '../../src/components/agent/skill/skillRepository.ts';
+import { UNSORTED_GROUP } from '../../src/components/agent/skill/rules/skillGroup.ts';
+import {
+  readSkillList,
+  writeSkillList,
+} from '../../src/components/agent/skill/store/skillRepository.ts';
 import { contentClearCache } from '../../src/components/base/core/contentStore.ts';
 
 const existing = (over: Record<string, unknown> = {}) => ({
@@ -598,7 +601,7 @@ describe('导出 = 磁盘那个文件逐字（导出/导入对称 · TD-11-70）
     const md = await skillMarkdownForExport('id-1');
 
     expect(md).toBe(diskMd); // 逐字：导出的是**那个文件**，不是我们重拼的一份
-    // 下面这些字段在"从缓存重拼"的旧实现下**全都会丢**（缓存只留 5 个字段）⇒ 导出→再导入即残缺
+    // 下面这些字段在"从缓存重拼"的旧实现下**全都会丢**（缓存只留 4 个字段）⇒ 导出→再导入即残缺
     expect(md).toContain('allowed-tools: a, b');
     expect(md).toContain('user-invocable: false');
     expect(md).toContain('x-keep: v');

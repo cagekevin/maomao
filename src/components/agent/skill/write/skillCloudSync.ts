@@ -18,11 +18,11 @@
  */
 import { contentFingerprint } from '@/components/base/core/utils.ts';
 import { logger } from '@/components/base/core/log/logger.ts';
-import { readDiskSkillPackages } from './skillApi.ts';
-import { parseSkillMarkdown } from './skillManifest.ts';
+import { readDiskSkillPackages } from '../store/skillApi.ts';
+import { parseSkillMarkdown } from '../rules/skillManifest.ts';
 import { saveSkillToDisk } from './skillPersist.ts';
-import { findSkillEntryFile } from './skillEntry.ts';
-import { readSkillList } from './skillRepository.ts';
+import { findSkillEntryFile } from '../rules/skillEntry.ts';
+import { readSkillList } from '../store/skillRepository.ts';
 
 export interface CloudSkillApplyResult {
   ok: boolean;
@@ -78,7 +78,6 @@ export async function applyCloudSkillsToDisk(
       description?: unknown;
       content?: unknown;
       category?: unknown;
-      whenToUse?: unknown;
       version?: unknown;
     };
     const id = typeof e.id === 'string' ? e.id : '';
@@ -108,10 +107,7 @@ export async function applyCloudSkillsToDisk(
       content,
       // 用条目自己的分组；缺省留空 ⇒ saveSkillToDisk 落 `_未分类`（旧条目顺便被补上落点）
       category: typeof e.category === 'string' && e.category ? e.category : undefined,
-      manifest: {
-        whenToUse: typeof e.whenToUse === 'string' ? e.whenToUse : undefined,
-        version: typeof e.version === 'string' ? e.version : undefined,
-      },
+      manifest: { version: typeof e.version === 'string' ? e.version : undefined },
     });
     if (r.ok) result.written++;
     else result.failed.push({ name, message: r.message });

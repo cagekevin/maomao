@@ -64,7 +64,6 @@ import {
 } from '@/components/agent/runtime/agentModelStore';
 import {
   findSkill,
-  markSkillUsed,
   isSkillEnabled,
   SKILLS_KEY,
   ENABLED_KEY,
@@ -450,7 +449,6 @@ function AgentPanel({
   const applySkill = (id: string) => {
     setActiveSkills((prev) => {
       if (prev.includes(id)) return prev;
-      markSkillUsed(id);
       return [...prev, id];
     });
   };

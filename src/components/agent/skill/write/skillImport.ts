@@ -16,13 +16,13 @@
  * 不是偷懒：模型侧读资料本来就只允许文本（`assertSafeSkillRelativePath`），带二进制进来只是
  * 让包变大且永远读不到。等真有"必须保全二进制"的用例再做 base64 通道（ADR-0053：不提前预留）。
  */
-import { parseSkillMarkdown } from './skillManifest.ts';
-import { TEXT_RESOURCE_EXT } from './skillResourcePath.ts';
+import { parseSkillMarkdown } from '../rules/skillManifest.ts';
+import { TEXT_RESOURCE_EXT } from '../rules/skillResourcePath.ts';
 import { saveSkillToDisk } from './skillPersist.ts';
 import type { SaveSkillResult } from './skillPersist.ts';
-import { SKILL_ENTRY_FILE } from './skillEntry.ts';
-import { readSkillList } from './skillRepository.ts';
-import type { SkillPackageFile } from './skillTypes.ts';
+import { SKILL_ENTRY_FILE } from '../rules/skillEntry.ts';
+import { readSkillList } from '../store/skillRepository.ts';
+import type { SkillPackageFile } from '../skillTypes.ts';
 
 /**
  * 单个技能文件的字节上限 —— **跨栈契约常量**（后端 `localTool/src/routes/skills.ts` 同名常量，
@@ -89,14 +89,7 @@ export async function importSkillText(fileName: string, text: string): Promise<S
     name: manifest.name || skillNameFromFile(String(fileName || '')),
     description: manifest.description || '',
     content: body,
-    manifest: {
-      whenToUse: manifest.whenToUse,
-      version: manifest.version,
-      allowedTools: manifest.allowedTools,
-      userInvocable: manifest.userInvocable,
-      disableModelInvocation: manifest.disableModelInvocation,
-      unknown: manifest.unknown,
-    },
+    manifest: { version: manifest.version, unknown: manifest.unknown },
   });
 }
 
@@ -225,14 +218,7 @@ export async function importSkillPackages(
       description: manifest.description || '',
       content: body,
       category: opts.category,
-      manifest: {
-        whenToUse: manifest.whenToUse,
-        version: manifest.version,
-        allowedTools: manifest.allowedTools,
-        userInvocable: manifest.userInvocable,
-        disableModelInvocation: manifest.disableModelInvocation,
-        unknown: manifest.unknown,
-      },
+      manifest: { version: manifest.version, unknown: manifest.unknown },
       packageFiles,
     });
 

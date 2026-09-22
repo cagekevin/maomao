@@ -20,10 +20,10 @@
  * 变更理由因此独立：新增一个**行状态**不许碰到下拉的契约；改下拉的契约也不许动行状态机。
  */
 import { contentFingerprint } from '@/components/base/core/utils.ts';
-import { parseSkillMarkdown } from './skillManifest.ts';
-import { findSkillEntryFile, skillEntryRelPath } from './skillEntry.ts';
-import { isSkillEnabledIn } from './skillRepository.ts';
-import { extractResourcePaths } from './skillResourcePath.ts';
+import { parseSkillMarkdown } from '../rules/skillManifest.ts';
+import { findSkillEntryFile, skillEntryRelPath } from '../rules/skillEntry.ts';
+import { isSkillEnabledIn } from '../store/skillRepository.ts';
+import { extractResourcePaths } from '../rules/skillResourcePath.ts';
 import {
   INDEX_ONLY_GROUP,
   OFFICIAL_GROUP,
@@ -32,9 +32,9 @@ import {
   compareSkillGroups,
   kindOfGroup,
   labelOfGroup,
-} from './skillGroup.ts';
-import type { SkillGroupKind } from './skillGroup.ts';
-import type { SkillLibrary } from './skillTypes.ts';
+} from '../rules/skillGroup.ts';
+import type { SkillGroupKind } from '../rules/skillGroup.ts';
+import type { SkillLibrary } from '../skillTypes.ts';
 
 /** 行状态（**状态在行上**，不需要第二个列表来告诉你"磁盘上没有这个"） */
 export type SkillRowState =

@@ -14,8 +14,8 @@
  */
 import { asText, buildSkillLibraryView } from './skillLibraryView.ts';
 import type { BuiltinLike, IndexRow } from './skillLibraryView.ts';
-import type { SkillGroupKind } from './skillGroup.ts';
-import type { SkillLibrary } from './skillTypes.ts';
+import type { SkillGroupKind } from '../rules/skillGroup.ts';
+import type { SkillLibrary } from '../skillTypes.ts';
 
 /** 选用入口的一行 —— **只要 id 与名字**：选定只传 id，正文由冻结层按 id 现查 */
 export interface SkillPickRow {

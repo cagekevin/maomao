@@ -8,7 +8,7 @@
  * 断言的是**拼出来的 URL**（"只取入口文件"就落在 `only=` 这个查询参数上）。
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { SKILL_ENTRY_FILE } from '../../src/components/agent/skill/skillEntry.ts';
+import { SKILL_ENTRY_FILE } from '../../src/components/agent/skill/rules/skillEntry.ts';
 
 const http = vi.hoisted(() => ({ request: vi.fn() }));
 vi.mock('../../src/components/base/api/httpClient.ts', async (importOriginal) => ({
@@ -20,7 +20,7 @@ import {
   listSkillPackages,
   readDiskSkillPackages,
   readSkillLibrary,
-} from '../../src/components/agent/skill/skillApi.ts';
+} from '../../src/components/agent/skill/store/skillApi.ts';
 
 const env = (data: unknown) => ({ code: 0, data });
 

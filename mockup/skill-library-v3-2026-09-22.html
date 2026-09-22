@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>技能库 · v3（卡片平铺 + 右滑编辑 · 补 5 处）</title>
+<style>
+/* 色值全部取自 src/index.css 的 --mao-* 令牌（与 mockup/maomao-kit.css 一致），禁裸色 */
+:root{
+  --bg:#0d0d0c;            /* --mao-canvas */
+  --panel:#151514;         /* --mao-input：面板/弹窗容器底 */
+  --card:#1b1b1a;          /* --mao-surface */
+  --card-hover:#2b2b29;    /* --mao-surface-hover */
+  --menu:#1d1d1c;          /* --mao-surface-menu */
+  --input:#171716;         /* --mao-surface-strong：编辑型输入框 */
+  --border:#2b2b29;        /* --mao-edge-faint */
+  --border-hover:#343433;  /* --mao-edge */
+  --t-main:#e6e6e6;        /* --mao-text-primary */
+  --t-sub:#aaaaaa;         /* --mao-text-secondary */
+  --t-disabled:#767676;    /* --mao-text-muted */
+  --t-placeholder:#747474; /* --mao-text-muted-2 */
+  --danger:#ef4444;        /* --mao-danger */
+  --danger-bg:rgba(239,68,68,.1);
+  --warn:#fbbf24;          /* amber-400（设置页在用） */
+  --sw-off:#20201f;        /* --mao-surface-2 */
+  --sw-on:#22d3ee;         /* cyan-400：Toggle.tsx 的开启色 */
+  --sw-thumb:#ffffff;
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"PingFang SC","Microsoft YaHei",sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--t-main);height:100vh;overflow:hidden;display:flex;flex-direction:column;user-select:none}
+::-webkit-scrollbar{width:6px}
+::-webkit-scrollbar-thumb{background:#333;border-radius:3px}
+
+/* 顶栏 */
+.header{padding:24px 32px 16px;display:flex;justify-content:space-between;align-items:center;flex-shrink:0}
+.header h1{font-size:15px;font-weight:600;letter-spacing:.3px}   /* base-sm */
+.count{margin-left:8px;font-size:12px;color:var(--t-sub);background:#222;padding:2px 7px;border-radius:10px}
+.hctrl{display:flex;gap:10px;align-items:center}
+.search{position:relative;width:220px}
+.search svg{position:absolute;left:10px;top:50%;transform:translateY(-50%);fill:var(--t-sub);width:14px;height:14px}
+.search input{width:100%;background:var(--input);border:1px solid var(--border);color:var(--t-main);
+  padding:6px 12px 6px 30px;border-radius:8px;font-size:12px;outline:none}
+.search input::placeholder{color:var(--t-placeholder)}
+.search input:focus{border-color:#555}
+/* 主按钮：对齐 ApiSettings/StorageMonitor —— 白底黑字 rounded-xl(12) h-9(36) text-xs(12) */
+.btn-p{background:#fff;color:#000;border:0;height:36px;padding:0 16px;border-radius:12px;font-size:12px;
+  font-weight:500;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
+.btn-p:hover{opacity:.9}
+.iconbtn{width:30px;height:30px;border-radius:6px;border:1px solid var(--border);background:var(--card);
+  color:var(--t-sub);display:flex;align-items:center;justify-content:center;cursor:pointer}
+.iconbtn:hover{color:var(--t-main);border-color:var(--border-hover)}
+
+/* 读盘失败横幅（不顶掉列表） */
+.banner{display:none;margin:0 32px 8px;padding:9px 12px;border-radius:8px;
+  border:1px solid rgba(216,154,74,.3);background:rgba(216,154,74,.08);color:var(--warn);
+  font-size:12px;align-items:center;gap:10px}
+.banner.show{display:flex}
+.banner u{color:var(--t-main);cursor:pointer}
+.banner .x{margin-left:auto;color:var(--t-sub);cursor:pointer}
+
+/* 拖入条 */
+.drop{margin:0 32px 20px;height:38px;border:1px dashed var(--border);border-radius:8px;
+  display:flex;align-items:center;justify-content:center;gap:7px;color:var(--t-disabled);font-size:12px}
+.drop b{color:var(--t-sub);font-weight:400}
+
+.container{flex:1;overflow-y:auto;padding:0 32px 32px}
+.state-view{display:none;height:100%;flex-direction:column;justify-content:center;align-items:center;
+  text-align:center;color:var(--t-sub);font-size:14px}
+.state-view.active{display:flex}
+.state-view svg{width:32px;height:32px;margin-bottom:12px;opacity:.6;fill:currentColor}
+.state-error{color:var(--t-sub)}
+
+/* 分组 */
+.group-header{display:flex;align-items:center;cursor:pointer;padding:16px 0 8px;color:var(--t-sub);
+  font-size:12px;font-weight:500;letter-spacing:.5px}
+.group-header:hover{color:var(--t-main)}
+.group-header svg{width:12px;height:12px;margin-right:6px;fill:currentColor;transition:transform .2s}
+.group-collapsed .group-header svg{transform:rotate(-90deg)}
+.group-collapsed .grid{display:none}
+.group-count{margin-left:8px;background:#222;padding:2px 6px;border-radius:10px;font-size:11px}
+.gop{margin-left:auto;width:20px;height:20px;border-radius:5px;display:flex;align-items:center;
+  justify-content:center;color:var(--t-sub);opacity:.55}   /* 常显：不靠 hover 冒出来 */
+.group-header:hover .gop{opacity:1}
+.gop:hover{background:var(--card-hover);color:var(--t-main)}
+
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px;margin-bottom:24px}
+.card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:16px;
+  transition:all .2s;position:relative;display:flex;flex-direction:column;cursor:default}
+.card:hover:not(.card-error){background:var(--card-hover);border-color:var(--border-hover)}
+.card-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px}
+.card-title{font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-right:12px}
+.card-desc{font-size:12px;color:var(--t-sub);line-height:1.5;flex:1;display:-webkit-box;
+  -webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+
+/* 开关：照 src/components/base/ui/form/Toggle.tsx —— h-5 w-9(36×20) · 开=cyan-400 · 关=surface-2 · 白点 14px */
+.switch{position:relative;display:inline-flex;align-items:center;width:36px;height:20px;flex-shrink:0}
+.switch input{opacity:0;width:0;height:0}
+.slider{position:absolute;cursor:pointer;inset:0;background:var(--sw-off);border:none;
+  border-radius:999px;transition:.2s}
+.slider:before{position:absolute;content:"";height:14px;width:14px;top:3px;left:0;
+  background:var(--sw-thumb);transition:.2s;border-radius:50%;transform:translateX(4px)}
+input:checked+.slider{background:var(--sw-on)}
+input:checked+.slider:before{transform:translateX(20px)}
+input:disabled+.slider{cursor:not-allowed;opacity:.5}
+/* 卡片上不摆任何 hover 才出现的控件：唯一的常显控件 = 右上开关 */
+
+.card-error{border-color:rgba(204,67,67,.3);background:rgba(204,67,67,.05)}
+.card-error .card-title{color:var(--t-sub)}
+.card-error .card-desc{color:var(--t-disabled)}
+.error-msg{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--danger);margin-top:12px;
+  padding-top:12px;border-top:1px dashed rgba(204,67,67,.2)}
+.error-msg svg{width:12px;height:12px;fill:currentColor}
+.error-msg u{margin-left:auto;color:var(--t-main);cursor:pointer;text-decoration:underline}
+.error-msg .d{color:var(--t-sub);cursor:pointer}
+
+/* 菜单 */
+#menu{position:fixed;background:var(--menu);border:1px solid var(--border);border-radius:6px;width:150px;
+  box-shadow:0 4px 12px rgba(0,0,0,.5);z-index:1000;display:none;padding:4px}
+#menu li{list-style:none;padding:6px 12px;font-size:13px;color:var(--t-main);cursor:pointer;border-radius:4px}
+#menu li:hover{background:var(--card-hover)}
+#menu li.danger{color:var(--danger)}
+#menu li.danger:hover{background:var(--danger-bg)}
+#menu li.div{height:1px;background:var(--border);margin:4px 6px;padding:0}
+
+/* 右滑编辑面板 */
+#panel{position:fixed;top:0;right:-420px;width:420px;height:100%;background:var(--panel);
+  border-left:1px solid var(--border);transition:right .3s cubic-bezier(.16,1,.3,1);z-index:100;
+  padding:24px;box-shadow:-4px 0 24px rgba(0,0,0,.5);overflow-y:auto;user-select:text}
+#panel.open{right:0}
+.p-head{display:flex;align-items:center;margin-bottom:18px}
+.p-head h2{font-size:16px;font-weight:500}
+.p-head .x{margin-left:auto;background:none;border:0;color:var(--t-sub);cursor:pointer;font-size:18px}
+.fld{margin-bottom:12px}
+.fld label{display:block;font-size:11px;color:var(--t-sub);margin-bottom:5px}
+.fld-row{display:flex;gap:12px}          /* 名称 + 分组 同一排 */
+.fld-row .fld{margin-bottom:12px}
+.hintline{font-size:11px;color:var(--t-disabled);margin:-4px 0 12px}
+.inp{width:100%;background:var(--input);border:1px solid var(--border);color:var(--t-main);
+  padding:7px 10px;border-radius:8px;font-size:13px;outline:none;font-family:inherit}
+.sel{height:32px;padding:0 10px;background:var(--input);border:1px solid var(--border);border-radius:8px;
+  color:var(--t-main);font-size:13px;display:inline-flex;align-items:center;gap:8px;cursor:pointer}
+.ta{width:100%;height:260px;background:var(--input);border:1px solid var(--border);color:var(--t-main);
+  padding:10px;border-radius:6px;font:12px/1.75 ui-monospace,Menlo,Consolas,monospace;resize:vertical;outline:none}
+.p-foot{display:flex;align-items:center;gap:8px;margin-top:14px}
+.p-foot .btn-p{padding:7px 16px}
+.btn-t{background:none;border:1px solid transparent;color:var(--t-sub);padding:7px 10px;border-radius:6px;
+  font-size:13px;cursor:pointer;font-family:inherit}
+.btn-t:hover{background:var(--card);border-color:var(--border)}
+.btn-t.danger{color:var(--danger)}
+.path{margin-top:14px;font-size:11px;color:var(--t-disabled)}
+.path u{color:var(--t-sub);cursor:pointer}
+
+/* 状态切换器（演示用） */
+.dev{position:fixed;bottom:20px;right:20px;background:#222;border:1px solid #333;border-radius:20px;
+  padding:4px;display:flex;gap:4px;z-index:9999}
+.dev button{background:none;border:0;color:#888;padding:4px 12px;font-size:11px;border-radius:16px;cursor:pointer}
+.dev button.active{background:#444;color:#fff}
+</style>
+</head>
+<body>
+
+<header class="header">
+  <h1>技能库<span class="count" id="total">14</span></h1>
+  <div class="hctrl">
+    <div class="search">
+      <svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27A6.5 6.5 0 109.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 5 1.5-1.5-5-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+      <input id="q" placeholder="搜索技能名称或描述">
+    </div>
+    <button class="btn-p" id="addBtn">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>添加
+    </button>
+    <div class="iconbtn" id="topMore" title="更多">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg>
+    </div>
+  </div>
+</header>
+
+<div class="banner" id="banner">
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L2 20h20L12 2zm1 14h-2v2h2v-2zm0-7h-2v5h2V9z"/></svg>
+  读不到技能库，下面是上次读到的内容 · <u>重试</u> · <u>打开所在位置</u>
+</div>
+
+<div class="drop" id="drop">
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 16V4m0 0L8 8m4-4l4 4M4 16v3h16v-3"/></svg>
+  把 <b>.md</b> 或<b>技能包</b>拖到这里，或点右上「添加」
+</div>
+
+<div class="container">
+  <div id="view-normal" class="state-view active" style="display:block"><div id="list"></div></div>
+  <div id="view-empty" class="state-view">
+    <svg viewBox="0 0 24 24"><path d="M20 6h-8l-2-2H4c-1.1 0-2 .9-2 2l.01 12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm0 12H4V8h16v10z"/></svg>
+    <p>还没有技能 · 把 .md 或技能包拖进来，或点右上「添加」自己写一个</p>
+  </div>
+</div>
+
+<ul id="menu"></ul>
+
+<div id="panel">
+  <div class="p-head"><h2 id="p-title">编辑技能</h2><button class="x" onclick="closePanel()">×</button></div>
+  <div class="fld-row">
+    <div class="fld" style="flex:1"><label>名称</label><input class="inp" id="p-name"></div>
+    <div class="fld" style="width:170px"><label>分组</label><span class="sel" id="p-group" style="width:100%;justify-content:space-between"></span></div>
+  </div>
+  <div class="hintline">没有想要的分组？右上 ⋯ → 新建分组</div>
+  <div class="fld"><label>一句话说明</label><input class="inp" id="p-desc"></div>
+  <div class="fld"><label>正文（SKILL.md）</label><textarea class="ta" id="p-body"></textarea></div>
+  <div class="p-foot">
+    <button class="btn-p">保存</button>
+    <button class="btn-t" onclick="closePanel()">取消</button>
+    <button class="btn-t">导出</button>
+    <button class="btn-t danger">删除</button>
+  </div>
+  <div class="path" id="p-path"></div>
+</div>
+
+<div class="dev">
+  <button class="active" onclick="dev('normal',this)">正常态</button>
+  <button onclick="dev('empty',this)">空态</button>
+  <button onclick="dev('error',this)">读盘失败</button>
+</div>
+
+<script>
+const DATA = [
+  {group:'文本处理', skills:[
+    {id:'s1',name:'润色大师',desc:'优化文章结构与措辞，使其更专业。',active:true},
+    {id:'s2',name:'摘要提取',desc:'快速提炼长文的核心观点。',active:false},
+    {id:'s3',name:'翻译引擎',desc:'精准的中英互译工具。',active:true},
+    {id:'s4',name:'语气转换',desc:'将非正式文本转为商务口吻。',active:false}]},
+  {group:'代码辅助', skills:[
+    {id:'s5',name:'代码审查',desc:'检查代码潜在漏洞与规范。',active:true},
+    {id:'s6',name:'正则生成',desc:'用自然语言生成正则表达式。',active:false},
+    {id:'s7',name:'SQL 编写',desc:'根据表结构生成复杂的 SQL 查询。',active:false}]},
+  {group:'创意构思', skills:[
+    {id:'s8',name:'命名工具',desc:'为产品或项目起有创意的好名字。',active:false},
+    {id:'s9',name:'头脑风暴',desc:'围绕特定主题发散思维。',active:true},
+    {id:'s10',name:'故事骨架',desc:'搭建小说或剧本的初始框架。',active:false,
+      error:'SKILL.md 缺失或损坏',acts:['重新载入','删除条目']},
+    {id:'s11',name:'营销文案',desc:'撰写吸引人的社交媒体推文。',active:true}]},
+  {group:'未分组', skills:[
+    {id:'s12',name:'随手记的',desc:'临时写的，还没归组。',active:true},
+    {id:'s13',name:'直播间话术',desc:'按品类写 3 分钟循环话术。',active:false},
+    {id:'s14',name:'竞品拆解',desc:'按卖点 / 价格 / 评价三段拆。',active:true}]},
+];
+const DOTS = '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg>';
+let q = '', cur = null;
+
+const list = document.getElementById('list');
+const menu = document.getElementById('menu');
+
+function findSkill(id){ for(const g of DATA){ const s = g.skills.find(x => x.id === id); if(s) return {s, g}; } }
+
+function render(){
+  list.innerHTML = '';
+  DATA.forEach(g => {
+    const fs = g.skills.filter(s => !q || (s.name + s.desc).toLowerCase().includes(q));
+    if(!fs.length && q) return;
+    const wrap = document.createElement('div'); wrap.className = 'group';
+    const head = document.createElement('div'); head.className = 'group-header';
+    head.innerHTML = `<svg viewBox="0 0 24 24"><path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6z"/></svg>
+      ${g.group}<span class="group-count">${fs.length}</span>
+      <span class="gop" data-g="${g.group}" title="重命名 / 删除分组">${DOTS}</span>`;
+    head.onclick = e => { if(e.target.closest('[data-g]')) return; wrap.classList.toggle('group-collapsed'); };
+    head.querySelector('[data-g]').onclick = e => { e.stopPropagation(); openMenu(e.currentTarget, groupMenu(g.group)); };
+    wrap.appendChild(head);
+
+    const grid = document.createElement('div'); grid.className = 'grid';
+    fs.forEach(s => {
+      const card = document.createElement('div');
+      card.className = 'card' + (s.error ? ' card-error' : '');
+      card.dataset.id = s.id;
+      card.onclick = e => { if(e.target.closest('.switch') || e.target.closest('u')) return;
+        if(s.error) return; openPanel(s.id); };
+      card.oncontextmenu = e => { e.preventDefault(); cur = s; openMenu({getBoundingClientRect:()=>({
+        left:e.clientX, top:e.clientY, bottom:e.clientY, right:e.clientX, width:0, height:0})}, cardMenu(s)); };
+      card.innerHTML = `
+        <div class="card-header">
+          <div class="card-title">${s.name}</div>
+          <label class="switch" title="对话里能不能选到它">
+            <input type="checkbox" ${s.active ? 'checked' : ''} ${s.error ? 'disabled' : ''}
+              onchange="toggle('${s.id}', this.checked)"><span class="slider"></span>
+          </label>
+        </div>
+        <div class="card-desc">${s.desc}</div>
+        ${s.error ? `<div class="error-msg">
+            <svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 100 20 10 10 0 000-20zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
+            ${s.error}<u>${s.acts[0]}</u><span class="d">${s.acts[1]}</span></div>` : ''}`;
+      grid.appendChild(card);
+    });
+    wrap.appendChild(grid); list.appendChild(wrap);
+  });
+  document.getElementById('total').textContent = DATA.reduce((n,g) => n + g.skills.length, 0);
+  if(!list.innerHTML && q) list.innerHTML = `<div style="text-align:center;padding:40px;color:var(--t-sub);font-size:13px">没有找到匹配的技能</div>`;
+}
+
+function toggle(id, v){ const f = findSkill(id); if(f) f.s.active = v; }
+function cardMenu(s){
+  return s.error
+    ? [{t:'重新载入'}, {t:'打开所在位置'}, {div:1}, {t:'删除条目', danger:1}]
+    : [{t:'编辑内容'}, {t:'移动到…'}, {t:'重命名'}, {t:'导出 SKILL.md'}, {div:1}, {t:'删除', danger:1}];
+}
+function groupMenu(g){ return [{t:'新建分组'}, {div:1}, {t:'重命名分组'}, {t:'删除分组（技能回到未分组）', danger:1}]; }
+
+function openMenu(anchor, items){
+  menu.innerHTML = items.map(m => m.div ? '<li class="div"></li>'
+    : `<li class="${m.danger ? 'danger' : ''}">${m.t}</li>`).join('');
+  menu.style.display = 'block';
+  const r = anchor.getBoundingClientRect();
+  const w = menu.offsetWidth, h = menu.offsetHeight;
+  menu.style.left = Math.min(r.left, innerWidth - w - 12) + 'px';
+  menu.style.top = (r.bottom + 4 + h > innerHeight ? r.top - h - 4 : r.bottom + 4) + 'px';
+  if(anchor.classList) { if(menu._a) menu._a.classList.remove('open'); anchor.classList.add('open'); menu._a = anchor; }
+  menu._x = r.left; menu._y = r.bottom;
+}
+// 右键时 anchor 是伪对象：直接用光标位置
+function openMenuAt(x, y, items){
+  menu.innerHTML = items.map(m => m.div ? '<li class="div"></li>' : `<li class="${m.danger ? 'danger' : ''}">${m.t}</li>`).join('');
+  menu.style.display = 'block';
+  menu.style.left = Math.min(x, innerWidth - menu.offsetWidth - 12) + 'px';
+  menu.style.top = Math.min(y, innerHeight - menu.offsetHeight - 12) + 'px';
+}
+document.addEventListener('click', () => { menu.style.display = 'none'; if(menu._a){ menu._a.classList.remove('open'); menu._a = null; } });
+menu.onclick = e => { const li = e.target.closest('li'); if(!li || li.classList.contains('div')) return;
+  if(li.textContent === '编辑内容' && cur) openPanel(cur.id); };
+
+function openPanel(id){
+  const f = findSkill(id); if(!f) return; const s = f.s;
+  cur = s;
+  document.getElementById('p-title').textContent = s.name;
+  document.getElementById('p-name').value = s.name;
+  document.getElementById('p-desc').value = s.desc;
+  document.getElementById('p-group').textContent = f.g.group + ' ▾';
+  document.getElementById('p-body').value = `# ${s.name}\n\n${s.desc}\n\n## 用法\n1. …\n2. …\n`;
+  document.getElementById('p-path').innerHTML = `~/.maomao/skills/${f.g.group}/${s.name}/SKILL.md · <u>打开所在位置</u>`;
+  document.getElementById('panel').classList.add('open');
+}
+function closePanel(){ document.getElementById('panel').classList.remove('open'); }
+
+document.getElementById('q').addEventListener('input', e => { q = e.target.value.trim().toLowerCase(); render(); });
+
+document.getElementById('addBtn').onclick = e => { e.stopPropagation();
+  openMenuAt(e.currentTarget.getBoundingClientRect().left - 20, e.currentTarget.getBoundingClientRect().bottom + 4,
+    [{t:'新建空白技能'}, {t:'从 .md 导入'}, {t:'从文件夹导入（整包）'}]); };
+document.getElementById('topMore').onclick = e => { e.stopPropagation();
+  openMenuAt(e.currentTarget.getBoundingClientRect().left - 120, e.currentTarget.getBoundingClientRect().bottom + 4,
+    [{t:'新建分组'}, {t:'打开技能库'}, {t:'重新扫描'}, {t:'清理空分组'}, {div:1}, {t:'高级'}]); };
+
+function dev(state, btn){
+  document.querySelectorAll('.dev button').forEach(b => b.classList.remove('active')); btn.classList.add('active');
+  document.querySelectorAll('.state-view').forEach(v => { v.style.display = 'none'; v.classList.remove('active'); });
+  const v = document.getElementById('view-' + (state === 'error' ? 'normal' : state));
+  if(v){ v.classList.add('active'); v.style.display = 'block'; }
+  document.getElementById('banner').classList.toggle('show', state === 'error');
+  document.getElementById('drop').style.display = state === 'empty' ? 'none' : '';
+}
+const drop = document.getElementById('drop');
+['dragenter','dragover'].forEach(t => drop.addEventListener(t, e => { e.preventDefault();
+  drop.style.borderColor = '#555'; drop.style.color = 'var(--t-main)'; }));
+['dragleave','drop'].forEach(t => drop.addEventListener(t, e => { e.preventDefault();
+  drop.style.borderColor = ''; drop.style.color = ''; }));
+
+render();
+</script>
+</body>
+</html>

@@ -4,8 +4,8 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 // 用 vi.hoisted 拿 mock 句柄（vi.mock 会被提升到 import 之前，普通 const 会踩 TDZ）。
 const api = vi.hoisted(() => ({ list: vi.fn(), read: vi.fn(), save: vi.fn() }));
 
-vi.mock('../../src/components/agent/skill/skillApi.ts', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('../../src/components/agent/skill/skillApi.ts')>()),
+vi.mock('../../src/components/agent/skill/store/skillApi.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../src/components/agent/skill/store/skillApi.ts')>()),
   listSkillPackages: api.list,
   // 「只取入口文件」是同一个读的轻量形态（TD-11-55 起漂移侦测也走它）⇒ 桩复用 `api.list`，
   // 但**参数照实现给**（用例要断"只取 SKILL.md"，参数若被桩吞掉那条断言就没意义了）。
@@ -17,14 +17,14 @@ vi.mock('../../src/components/agent/skill/skillApi.ts', async (importOriginal) =
 import {
   detectSkillDrift,
   reloadSkillsFromDisk,
-} from '../../src/components/agent/skill/skillHydrate.ts';
-import { migrateSkillsToDiskIfNeeded } from '../../src/components/agent/skill/skillMigration.ts';
-import { UNSORTED_GROUP } from '../../src/components/agent/skill/skillGroup.ts';
+} from '../../src/components/agent/skill/store/skillHydrate.ts';
+import { migrateSkillsToDiskIfNeeded } from '../../src/components/agent/skill/store/skillMigration.ts';
+import { UNSORTED_GROUP } from '../../src/components/agent/skill/rules/skillGroup.ts';
 import {
   SKILLS_KEY,
   readSkillList,
   writeSkillList,
-} from '../../src/components/agent/skill/skillRepository.ts';
+} from '../../src/components/agent/skill/store/skillRepository.ts';
 import { contentClearCache, contentSet } from '../../src/components/base/core/contentStore.ts';
 
 const ID = '11111111-1111-4111-8111-111111111111';

@@ -6,7 +6,7 @@
  *  - 消息发送（回车 / 快捷 chip / 空输入禁用）
  *  - 图像模式（直连生图走 sendImageMode，不经过 LLM）
  *  - sending 态（思考中 + 停止按钮）
- *  - Skill 应用与移除（markSkillUsed / setCurrentSnapshot 同步 / 标题更新）
+ *  - Skill 应用与移除（setCurrentSnapshot 同步 / 标题更新）
  *  - 对话管理（新建 / 切换 / 清空）
  *  - 错误展示、消息渲染、待引用图确认并入附件
  *
@@ -27,7 +27,7 @@ import { render, screen, fireEvent, within, act, waitFor } from '@testing-librar
 import {
   SKILL_IMPORT_ACCEPT,
   SKILL_MAX_FILE_BYTES,
-} from '../../src/components/agent/skill/skillImport.ts';
+} from '../../src/components/agent/skill/write/skillImport.ts';
 
 // ── 可控 hoisted 状态 ──
 const h = vi.hoisted(() => {
@@ -82,7 +82,6 @@ const h = vi.hoisted(() => {
   const newChat = vi.fn();
   const switchChat = vi.fn();
   const deleteChat = vi.fn();
-  const markSkillUsed = vi.fn();
   const showToast = vi.fn();
   const setCurrentSnapshot = vi.fn((s) => snapshotSetter(s));
   // 【TD-17】AgentPanel 改收 useAgentChat 的语义化 action（不再收 store 原子函数透传）。
@@ -141,7 +140,6 @@ const h = vi.hoisted(() => {
     setConfirmAnswer: (a: any) => {
       confirmAnswer = a;
     },
-    markSkillUsed,
     showToast,
     setCurrentSnapshot,
     saveDraft,
@@ -241,7 +239,6 @@ vi.mock('../../src/components/agent/runtime/skillStore.ts', async (importOrigina
   // 【装配契约】选中态只存 id ⇒ 显示名要现查。桩必须给 findSkill，
   // 否则 chip 标题退化成裸 id（测试会因此变红 —— 那正是"现查"这条链的存在感）。
   findSkill: (id: string) => h.skills.find((s: { id: string }) => s.id === id) ?? null,
-  markSkillUsed: h.markSkillUsed,
   isSkillEnabled: () => true,
   repairMojibakeText: (t: any) => t,
   // AgentPanel 订阅「设置页改 Skill/开关启用态」用的两键（resync 里 contentSubscribe 用）。
@@ -548,12 +545,11 @@ describe('AgentPanel — Skill 应用与移除', () => {
     expect(within(picker!).getByText('分镜脚本')).toBeTruthy();
   });
 
-  it('应用 Skill → markSkillUsed 调用 + 按钮标题带 Skill 名 + 同步 setCurrentSnapshot', () => {
+  it('应用 Skill → 按钮标题带 Skill 名 + 同步 setCurrentSnapshot', () => {
     h.setSkills(SKILLS);
     render(<AgentPanel {...OPEN_PROPS} />);
     const picker = openSkillPicker();
     fireEvent.click(within(picker!).getByText('赛博朋克风格'));
-    expect(h.markSkillUsed).toHaveBeenCalledWith('s1');
     // 按钮标题变为已启用 Skill 名
     expect(screen.getByTitle('已启用 赛博朋克风格')).toBeTruthy();
     // skills 同步到 conversationStore：**存 id 列表**（不是"对象副本" —— 副本就是第二份真相）
@@ -573,7 +569,7 @@ describe('AgentPanel — Skill 应用与移除', () => {
     expect(passed.skills).toEqual(['s1']);
   });
 
-  it('再次点击已应用 Skill → 移除（不重复 markSkillUsed）', () => {
+  it('再次点击已应用 Skill → 移除', () => {
     h.setSkills(SKILLS);
     render(<AgentPanel {...OPEN_PROPS} />);
     // 先应用
@@ -587,7 +583,6 @@ describe('AgentPanel — Skill 应用与移除', () => {
     const pop = picker2!.querySelector('.agent-pop') as HTMLElement | null;
     if (!pop) throw new Error('skill 下拉容器 .agent-pop 未找到');
     fireEvent.click(within(pop).getByText('赛博朋克风格'));
-    expect(h.markSkillUsed).toHaveBeenCalledTimes(1); // 移除不计数
     expect(screen.getByTitle('应用 Skill')).toBeTruthy(); // 回到未应用态
   });
 
@@ -596,7 +591,6 @@ describe('AgentPanel — Skill 应用与移除', () => {
     render(<AgentPanel {...OPEN_PROPS} />);
     // 空态下方展示前 3 个 Skill chips
     fireEvent.click(screen.getByText('分镜脚本'));
-    expect(h.markSkillUsed).toHaveBeenCalledWith('s2');
     expect(screen.getByTitle('已启用 分镜脚本')).toBeTruthy();
   });
 });

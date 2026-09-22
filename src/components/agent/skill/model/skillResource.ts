@@ -15,11 +15,11 @@
  * 模型读到后能自己改对；只回"失败"会让它反复瞎试。
  */
 import { logger } from '@/components/base/core/log/logger.ts';
-import { readSkillPackage } from './skillApi.ts';
+import { readSkillPackage } from '../store/skillApi.ts';
 import { truncateSkillContent } from './skillBudget.ts';
-import { assertSafeSkillRelativePath, extractResourcePaths } from './skillResourcePath.ts';
-import { readSkillConfig } from './skillRepository.ts';
-import type { SkillBinding } from './skillTypes.ts';
+import { assertSafeSkillRelativePath, extractResourcePaths } from '../rules/skillResourcePath.ts';
+import { readSkillConfig } from '../store/skillRepository.ts';
+import type { SkillBinding } from '../skillTypes.ts';
 
 /** 本轮冻结的绑定（模块级；发送起点写、结束清） */
 let turnBindings: SkillBinding[] = [];

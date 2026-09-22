@@ -20,17 +20,17 @@
 import { contentFingerprint } from '@/components/base/core/utils.ts';
 import { logger } from '@/components/base/core/log/logger.ts';
 import { generateUUID } from '@/components/base/core/idGen.ts';
-import { parseSkillMarkdown, serializeSkillMarkdown } from './skillManifest.ts';
-import { extractResourcePaths } from './skillResourcePath.ts';
+import { parseSkillMarkdown, serializeSkillMarkdown } from '../rules/skillManifest.ts';
+import { extractResourcePaths } from '../rules/skillResourcePath.ts';
 import {
   listSkillPackages,
   readDiskSkillPackages,
   readSkillPackage,
   saveSkillPackage,
 } from './skillApi.ts';
-import { findSkillEntryFile } from './skillEntry.ts';
+import { findSkillEntryFile } from '../rules/skillEntry.ts';
 import { readSkillList, writeSkillList } from './skillRepository.ts';
-import type { SkillPackageFile, UserSkill } from './skillTypes.ts';
+import type { SkillPackageFile, UserSkill } from '../skillTypes.ts';
 
 export interface HydrateResult {
   ok: boolean;
@@ -164,7 +164,6 @@ export async function reloadSkillsFromDisk(): Promise<HydrateResult> {
       slug: pkg.slug,
       name: manifest.name || pkg.slug,
       description: manifest.description || '',
-      whenToUse: manifest.whenToUse,
       version: manifest.version,
       content: body, // 只存正文：frontmatter 是声明，不进注入上下文
       contentHash: contentFingerprint(body),
