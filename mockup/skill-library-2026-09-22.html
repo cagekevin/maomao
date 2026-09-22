@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="dark">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>技能库 · 线框（一页平铺卡片 + 分区可折叠）· 2026-09-22</title>
+<link rel="stylesheet" href="./maomao-kit.css" />
+<style>
+  /* 本 mockup 只写局部样式；颜色一律走 maomao-kit.css 的令牌（禁裸色值） */
+  :root{
+    --canvas: rgb(var(--mao-canvas));
+    --surface: rgb(var(--mao-surface));
+    --surface-1: rgb(var(--mao-surface-1));
+    --surface-2: rgb(var(--mao-surface-2));
+    --surface-3: rgb(var(--mao-surface-3));
+    --surface-hover: rgb(var(--mao-surface-hover));
+    --surface-hover-2: rgb(var(--mao-surface-hover-2));
+    --surface-active: rgb(var(--mao-surface-active));
+    --edge: rgb(var(--mao-edge));
+    --edge-faint: rgb(var(--mao-edge-faint));
+    --edge-subtle: rgb(var(--mao-edge-subtle));
+    --t-strong: rgb(var(--mao-text-strong));
+    --t-primary: rgb(var(--mao-text-primary));
+    --t-body: rgb(var(--mao-text-body));
+    --t-secondary: rgb(var(--mao-text-secondary));
+    --t-muted: rgb(var(--mao-text-muted));
+    --t-faint: rgb(var(--mao-text-faint));
+    --live: rgb(var(--mao-live));
+    --danger: rgb(var(--mao-danger));
+    --accent: #3b82f6;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+    background:#080807;color:var(--t-primary);padding:34px 28px 90px;
+    display:flex;flex-direction:column;gap:30px;align-items:flex-start;font-size:13px;
+    -webkit-font-smoothing:antialiased;
+  }
+  .ic{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0;}
+
+  /* ── 说明抬头 ── */
+  .sec{width:100%;max-width:952px;display:flex;flex-direction:column;gap:10px;}
+  .sec-h{display:flex;align-items:baseline;gap:10px;}
+  .sec-h .no{font-size:10px;font-weight:700;letter-spacing:.1em;color:var(--t-faint);padding-top:3px;}
+  .sec-h h2{font-size:15px;font-weight:600;color:var(--t-strong);letter-spacing:.2px;}
+  .sec-h .why{font-size:11.5px;color:var(--t-muted);margin-left:auto;text-align:right;line-height:1.6;}
+  .sec-p{font-size:12px;color:var(--t-muted);line-height:1.85;max-width:880px;}
+  .sec-p b{color:var(--t-primary);font-weight:600;}
+  .sec-p code{background:var(--surface-1);border:1px solid var(--edge-faint);border-radius:5px;padding:1px 5px;font-size:11px;
+    color:var(--t-body);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;}
+
+  /* ── 面板外壳 ── */
+  .app{width:896px;background:var(--surface);border:1px solid var(--edge-subtle);border-radius:14px;overflow:hidden;
+    box-shadow:0 24px 60px rgba(0,0,0,.55);position:relative;}
+  .top{display:flex;align-items:center;gap:10px;padding:13px 16px;border-bottom:1px solid var(--edge-subtle);}
+  .top .t{font-size:13.5px;font-weight:600;color:var(--t-strong);}
+  .badge{font-size:11px;color:var(--t-muted);background:var(--surface-1);border:1px solid var(--edge-faint);
+    border-radius:7px;padding:1px 7px;}
+  .spacer{flex:1;}
+  .search{display:flex;align-items:center;gap:6px;height:28px;padding:0 9px;background:var(--canvas);
+    border:1px solid var(--edge);border-radius:9px;color:var(--t-muted);font-size:11.5px;width:190px;}
+  .iconbtn{width:28px;height:28px;border-radius:9px;background:var(--surface-1);border:1px solid var(--edge-faint);
+    display:flex;align-items:center;justify-content:center;color:var(--t-body);cursor:pointer;}
+  .iconbtn:hover{background:var(--surface-hover);}
+
+  /* 唯一拖入入口 */
+  .drop{margin:10px 16px 0;padding:9px;border:1px dashed var(--edge);border-radius:11px;text-align:center;
+    color:var(--t-muted);font-size:11.5px;background:var(--surface-1);}
+  .drop b{color:var(--t-secondary);font-weight:600;}
+
+  /* 分区表头（= 分组；可折叠；≥2 个分区才出现） */
+  .grp{display:flex;align-items:center;gap:8px;padding:14px 16px 6px;}
+  .grp .name{font-size:12px;font-weight:600;color:var(--t-secondary);}
+  .grp .cnt{font-size:11px;color:var(--t-faint);}
+  .grp .all{margin-left:auto;font-size:11px;color:var(--t-muted);border:1px solid var(--edge-faint);
+    background:var(--surface-1);border-radius:7px;padding:2px 8px;cursor:pointer;}
+  .grp-drop{border:1px dashed var(--accent);border-radius:10px;margin:0 16px;background:rgba(59,130,246,.07);}
+  .grp-drop .name{color:var(--accent);}
+
+  /* 卡片网格 */
+  .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;padding:8px 16px 4px;}
+  .card{position:relative;background:var(--surface-1);border:1px solid var(--edge-subtle);border-radius:12px;
+    padding:10px;min-height:116px;display:flex;flex-direction:column;gap:7px;cursor:default;}
+  .card:hover{border-color:var(--edge);background:var(--surface-hover-2);}
+  .card.sel{border-color:var(--accent);background:var(--surface-active);}
+  .card-top{display:flex;align-items:center;gap:8px;}
+  .cb{width:14px;height:14px;border-radius:4px;border:1.5px solid var(--edge);flex-shrink:0;}
+  .cb.on{background:var(--accent);border-color:var(--accent);}
+  .av{width:22px;height:22px;border-radius:7px;display:flex;align-items:center;justify-content:center;
+    font-size:10.5px;font-weight:700;flex-shrink:0;}
+  .nm{font-size:12.5px;font-weight:600;color:var(--t-strong);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .sw{margin-left:auto;width:30px;height:17px;border-radius:99px;background:var(--surface-3);position:relative;flex-shrink:0;cursor:pointer;}
+  .sw::after{content:"";position:absolute;top:2px;left:2px;width:13px;height:13px;border-radius:99px;background:#fff;opacity:.85;}
+  .sw.on{background:var(--live);}
+  .sw.on::after{left:auto;right:2px;}
+  .desc{font-size:11px;line-height:1.55;color:var(--t-muted);flex:1;}
+  .warn{font-size:10.5px;color:#f0b45e;display:flex;align-items:center;gap:5px;}
+  .warn b{color:#f0b45e;text-decoration:underline;cursor:pointer;font-weight:600;}
+  .newcard{border:1px dashed var(--edge);background:transparent;align-items:center;justify-content:center;
+    color:var(--t-muted);font-size:11.5px;gap:6px;}
+
+  /* 批量条（勾选后才出现） */
+  .batch{display:flex;align-items:center;gap:10px;margin:0 16px;padding:7px 10px;background:var(--surface-2);
+    border:1px solid var(--edge-faint);border-radius:10px;font-size:11.5px;color:var(--t-muted);}
+  .batch .l{color:var(--t-body);}
+  .batch .a{color:var(--t-secondary);text-decoration:underline;cursor:pointer;}
+  .batch .btns{margin-left:auto;display:flex;gap:6px;}
+  .bbtn{height:24px;padding:0 9px;border-radius:7px;background:var(--surface-1);border:1px solid var(--edge-faint);
+    color:var(--t-body);font-size:11px;cursor:pointer;}
+  .bbtn.danger{color:var(--danger);border-color:rgba(220,80,80,.35);}
+
+  /* 卡片 ⋯ 菜单 */
+  .menu{position:absolute;right:8px;top:38px;z-index:5;min-width:132px;background:var(--surface-2);
+    border:1px solid var(--edge);border-radius:10px;padding:4px;box-shadow:0 14px 30px rgba(0,0,0,.5);}
+  .mi{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:7px;font-size:11.5px;color:var(--t-body);}
+  .mi:hover{background:var(--surface-hover);}
+  .mi.danger{color:var(--danger);}
+  .mi .k{margin-left:auto;font-size:10px;color:var(--t-faint);}
+
+  /* 高级 */
+  .adv{margin:8px 16px 14px;border:1px solid var(--edge-subtle);border-radius:11px;overflow:hidden;}
+  .adv-h{display:flex;align-items:center;gap:8px;padding:9px 11px;background:var(--surface-1);font-size:11.5px;color:var(--t-body);}
+  .adv-b{padding:4px 11px 10px;display:flex;flex-direction:column;gap:9px;}
+  .row{display:flex;align-items:flex-start;gap:10px;font-size:11.5px;color:var(--t-secondary);line-height:1.6;}
+  .row .t{margin-left:auto;flex-shrink:0;}
+  .row .hint{display:block;font-size:10.5px;color:var(--t-faint);margin-top:2px;}
+  .sel-box{height:26px;min-width:60px;padding:0 8px;border-radius:8px;background:var(--canvas);
+    border:1px solid var(--edge);color:var(--t-body);font-size:11.5px;display:flex;align-items:center;gap:6px;}
+
+  /* 空/失败态 + 注释 */
+  .empty{padding:26px 16px;text-align:center;color:var(--t-faint);font-size:11.5px;line-height:2;}
+  .banner{margin:10px 16px 0;padding:8px 10px;border-radius:9px;border:1px solid rgba(240,180,94,.3);
+    background:rgba(240,180,94,.08);color:#f0b45e;font-size:11.5px;display:flex;align-items:center;gap:8px;}
+  .note{font-size:11px;color:var(--t-faint);line-height:1.8;max-width:880px;}
+  .note b{color:var(--t-muted);}
+</style>
+</head>
+<body>
+
+<!-- ══════════ 说明 ══════════ -->
+<div class="sec">
+  <div class="sec-h">
+    <span class="no">142</span>
+    <h2>技能库 · 线框（一页平铺卡片 + 分区可折叠）</h2>
+    <span class="why">形态基准 = 同行（WorkBuddy 技能页）<br/>我们唯一多出来的：分组（A 组 / B 组）</span>
+  </div>
+  <p class="sec-p">
+    三条定稿：<b>① 一页平铺，无"文件夹 / 进入 / 返回"</b>（分区表头只是<b>可折叠</b>的分段，不是层级）；
+    <b>② 卡片 = 复选框 + 字母头像 + 名字 + 右上开关 + 一句话</b>；
+    <b>③ 分组最轻</b>：卡上不写分组（表头已表达），<b>把卡拖到某个分区表头 = 归进那组</b>。
+  </p>
+</div>
+
+<!-- ══════════ 1 默认视图 ══════════ -->
+<div class="sec">
+  <div class="sec-h"><span class="no">01</span><h2>默认视图</h2><span class="why">两个分区 ⇒ 出现表头；只有一个分区时<b>不出现</b>表头（见 05）</span></div>
+  <div class="app">
+    <div class="top">
+      <span class="t">技能</span>
+      <span class="badge">我安装的 12</span>
+      <span class="spacer"></span>
+      <span class="search"><svg class="ic" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>搜索已安装的技能</span>
+      <span class="iconbtn" title="更多：打开技能库文件夹 / 清理空分类 / 重新扫描 / 高级">⋯</span>
+    </div>
+
+    <div class="drop">⬒&nbsp; 拖入 <b>.md</b> 或<b>技能包</b>（拖文件夹 = 整包导入）</div>
+
+    <!-- 分区 A -->
+    <div class="grp">
+      <span class="name">A 组</span><span class="cnt">3</span>
+      <span style="color:var(--t-faint);font-size:10px">▾</span>
+      <span class="all" title="组级批量：全开 / 全关">全开</span>
+    </div>
+    <div class="grid">
+      <div class="card">
+        <div class="card-top">
+          <span class="cb"></span>
+          <span class="av" style="background:#1d2a3f;border:1px solid #2c3f5c;color:#a8c6ff">电</span>
+          <span class="nm">电商详情页套图</span>
+          <span class="sw on" title="在对话里可选"></span>
+        </div>
+        <span class="desc">根据产品信息与产品图，生成电商主图 + 详情页套图（数量靠你说）</span>
+      </div>
+      <div class="card">
+        <div class="card-top">
+          <span class="cb"></span>
+          <span class="av" style="background:#2c2418;border:1px solid #4a3c26;color:#f0c98a">漫</span>
+          <span class="nm">漫画生成</span>
+          <span class="sw on"></span>
+        </div>
+        <span class="desc">按网点风格出图，三种网点对比可选</span>
+      </div>
+      <div class="card">
+        <div class="card-top">
+          <span class="cb"></span>
+          <span class="av" style="background:#1d3328;border:1px solid #2d5340;color:#9fe0bd">分</span>
+          <span class="nm">分镜脚本</span>
+          <span class="sw"></span>
+        </div>
+        <span class="desc">把一段剧情拆成 12 格分镜（含镜头说明与台词）</span>
+        <div class="warn">⚠ 未就绪（磁盘上找不到这个包）· <b>修复</b></div>
+      </div>
+    </div>
+
+    <!-- 分区 B（折叠） -->
+    <div class="grp">
+      <span class="name">B 组</span><span class="cnt">2</span>
+      <span style="color:var(--t-faint);font-size:10px">▸</span>
+      <span style="font-size:10.5px;color:var(--t-faint)">（已折叠 —— 折叠是收起这一段，不是换页）</span>
+      <span class="all">全开</span>
+    </div>
+
+    <!-- 第三分区：含首格新建卡 -->
+    <div class="grp">
+      <span class="name">未分类</span><span class="cnt">7</span>
+      <span style="color:var(--t-faint);font-size:10px">▾</span>
+      <span class="all">全开</span>
+    </div>
+    <div class="grid">
+      <div class="card newcard">
+        <svg class="ic" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+        新建技能
+      </div>
+      <div class="card">
+        <div class="card-top">
+          <span class="cb"></span>
+          <span class="av" style="background:#2a1f33;border:1px solid #46325a;color:#d3b6f0">小</span>
+          <span class="nm">小红书爆款标题</span>
+          <span class="sw on"></span>
+        </div>
+        <span class="desc">给一个主题，起 10 个候选标题并标注钩子类型</span>
+      </div>
+      <div class="card">
+        <div class="card-top">
+          <span class="cb"></span>
+          <span class="av" style="background:#2b2320;border:1px solid #4a3b34;color:#f0b9a0">详</span>
+          <span class="nm">详情页文案</span>
+          <span class="sw"></span>
+        </div>
+        <span class="desc">按卖点优先级排段落，输出可直接粘贴的文案</span>
+      </div>
+    </div>
+  </div>
+  <p class="note">
+    <b>为什么卡上不写"分组"</b>：分区表头已经表达了它在哪组 —— 卡上再写一遍是同一信息两处（我们刚砍掉的那种重复）。<br/>
+    <b>正常卡片零状态</b>：只有异常那张多一行小字 + 一个动作（这里先示意"修复"；其中"写回磁盘 / 删除条目"这两条**不可逆**的，
+    会展开成两个带后果的明确选项，不让一个"修复"替你做决定）。
+  </p>
+</div>
+
+<!-- ══════════ 2 勾选批量 ══════════ -->
+<div class="sec">
+  <div class="sec-h"><span class="no">02</span><h2>勾选 → 批量</h2><span class="why">同行同款：勾选后出现工具条；没勾选时<b>不占地方</b></span></div>
+  <div class="app">
+    <div class="top">
+      <span class="t">技能</span><span class="badge">我安装的 12</span>
+      <span class="spacer"></span>
+      <span class="search"><svg class="ic" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>搜索已安装的技能</span>
+      <span class="iconbtn">⋯</span>
+    </div>
+    <div class="batch" style="margin-top:10px">
+      <span class="l">已选 2 项</span>
+      <span class="a">全选</span><span class="a">清空</span>
+      <span class="btns">
+        <span class="bbtn">启用</span><span class="bbtn">停用</span><span class="bbtn danger">删除</span><span class="bbtn">取消</span>
+      </span>
+    </div>
+    <div class="grp"><span class="name">A 组</span><span class="cnt">3</span><span style="color:var(--t-faint);font-size:10px">▾</span><span class="all">全开</span></div>
+    <div class="grid" style="padding-bottom:14px">
+      <div class="card sel">
+        <div class="card-top">
+          <span class="cb on"></span>
+          <span class="av" style="background:#1d2a3f;border:1px solid #2c3f5c;color:#a8c6ff">电</span>
+          <span class="nm">电商详情页套图</span><span class="sw on"></span>
+        </div>
+        <span class="desc">根据产品信息与产品图，生成电商主图 + 详情页套图</span>
+      </div>
+      <div class="card sel">
+        <div class="card-top">
+          <span class="cb on"></span>
+          <span class="av" style="background:#2c2418;border:1px solid #4a3c26;color:#f0c98a">漫</span>
+          <span class="nm">漫画生成</span><span class="sw on"></span>
+        </div>
+        <span class="desc">按网点风格出图，三种网点对比可选</span>
+      </div>
+      <div class="card">
+        <div class="card-top">
+          <span class="cb"></span>
+          <span class="av" style="background:#1d3328;border:1px solid #2d5340;color:#9fe0bd">分</span>
+          <span class="nm">分镜脚本</span><span class="sw"></span>
+        </div>
+        <span class="desc">把一段剧情拆成 12 格分镜</span>
+      </div>
+    </div>
+  </div>
+  <p class="note">批量动作只有三个动词：<b>启用 / 停用 / 删除</b>（同行的"卸载"= 我们的删除；删除仍二次确认）。</p>
+</div>
+
+<!-- ══════════ 3 ⋯ 菜单 + 拖拽归组 ══════════ -->
+<div class="sec">
+  <div class="sec-h"><span class="no">03</span><h2>卡片 ⋯ 与"拖进去就是分组"</h2><span class="why">平常一个都不显示；用到才展开</span></div>
+  <div class="app">
+    <div class="grp" style="padding-top:14px"><span class="name">A 组</span><span class="cnt">3</span><span class="all">全开</span></div>
+    <div class="grid">
+      <div class="card" style="z-index:6">
+        <div class="card-top">
+          <span class="cb"></span>
+          <span class="av" style="background:#1d2a3f;border:1px solid #2c3f5c;color:#a8c6ff">电</span>
+          <span class="nm">电商详情页套图</span><span class="sw on"></span>
+        </div>
+        <span class="desc">根据产品信息与产品图，生成电商主图 + 详情页套图</span>
+        <div class="menu">
+          <div class="mi"><svg class="ic" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h10"/></svg>移动到…</div>
+          <div class="mi"><svg class="ic" viewBox="0 0 24 24"><path d="M12 3v12M7 12l5 5 5-5M5 21h14"/></svg>导出 SKILL.md</div>
+          <div class="mi"><svg class="ic" viewBox="0 0 24 24"><path d="M3 7h6l2 2h10v10H3z"/></svg>打开该包</div>
+          <div class="mi danger"><svg class="ic" viewBox="0 0 24 24"><path d="M4 7h16M9 7V5h6v2M6 7l1 13h10l1-13"/></svg>删除</div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-top">
+          <span class="cb"></span>
+          <span class="av" style="background:#2c2418;border:1px solid #4a3c26;color:#f0c98a">漫</span>
+          <span class="nm">漫画生成</span><span class="sw on"></span>
+        </div>
+        <span class="desc">按网点风格出图</span>
+      </div>
+      <div class="card">
+        <div class="card-top">
+          <span class="cb"></span>
+          <span class="av" style="background:#1d3328;border:1px solid #2d5340;color:#9fe0bd">分</span>
+          <span class="nm">分镜脚本</span><span class="sw"></span>
+        </div>
+        <span class="desc">拆 12 格分镜</span>
+      </div>
+    </div>
+    <!-- 拖拽落点示意 -->
+    <div class="grp grp-drop" style="padding:9px 10px;margin-top:6px">
+      <span class="name">B 组</span>
+      <span style="font-size:10.5px;color:var(--t-muted)">松手 ⇒ 归进 B 组</span>
+      <span class="all" style="margin-left:auto">全开</span>
+    </div>
+    <div class="grid" style="padding-bottom:14px;opacity:.55">
+      <div class="card" style="border-style:dashed">
+        <div class="card-top">
+          <span class="cb"></span>
+          <span class="av" style="background:#2b2320;border:1px solid #4a3b34;color:#f0b9a0">详</span>
+          <span class="nm">详情页文案</span><span class="sw"></span>
+        </div>
+        <span class="desc">按卖点优先级排段落</span>
+      </div>
+      <div class="card" style="border-style:dashed;opacity:.6">
+        <div class="card-top">
+          <span class="cb"></span><span class="av" style="background:#2a1f33;border:1px solid #46325a;color:#d3b6f0">小</span>
+          <span class="nm">小红书爆款标题</span><span class="sw on"></span>
+        </div>
+        <span class="desc">起 10 个候选标题</span>
+      </div>
+    </div>
+  </div>
+  <p class="note">
+    <b>⋯ 里只放"偶尔才用"的</b>：移动到… / 导出 / 打开该包 / 删除。<b>卡片上只有两个控件</b>（右上开关 + 这个 ⋯）。
+    <b>移动=拖</b>：把卡拖到某个<b>分区表头</b>上松手即可归组（不用"进文件夹再返回"）；触屏/键盘走 ⋯ 里的「移动到…」（同一个动作的等价入口）。
+  </p>
+</div>
+
+<!-- ══════════ 4 高级 ══════════ -->
+<div class="sec">
+  <div class="sec-h"><span class="no">04</span><span class="no" style="padding-top:0">（顶部 ⋯ → 高级）</span><h2>高级：必须有、但你不必懂</h2><span class="why">默认折叠；打开也只看到"自动"</span></div>
+  <div class="app">
+    <div class="adv">
+      <div class="adv-h"><svg class="ic" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>高级</div>
+      <div class="adv-b">
+        <div class="row">
+          <span>让 AI 自动知道有哪些技能<span class="hint">开着：每轮多约 500 字清单，AI 能自己挑；关着：只有你手动选中的才会发（默认关）</span></span>
+          <span class="t"><span class="sw" style="width:30px"></span></span>
+        </div>
+        <div class="row">
+          <span>单个技能最多发多少<span class="hint">超了会截断，并在本轮消息上如实标注「已截断」（不静默丢）</span></span>
+          <span class="t"><span class="sel-box">自动 ▾</span></span>
+        </div>
+      </div>
+    </div>
+  </div>
+  <p class="note">
+    <b>这里只有两项</b>：一个提示词开关（默认关）+ 一个"自动"档的额度。原先把"单个字数 / 合计字数 / 最多带几个"
+    三个数字摆在用户面前，还配一段"等于没有防线"的警告 —— 那一整块（含警告文案）**删掉**：
+    <b>需要配警告来解释的旋钮，就不该在用户面前</b>；而"一次最多带几个"在改成**单选**之后压根不存在了。
+  </p>
+</div>
+
+<!-- ══════════ 5 边界 ══════════ -->
+<div class="sec">
+  <div class="sec-h"><span class="no">05</span><h2>边界：只有一个分区 / 空库 / 读不到</h2><span class="why">正常态零状态；异常必须说话</span></div>
+  <div class="app">
+    <div class="top">
+      <span class="t">技能</span><span class="badge">我安装的 3</span><span class="spacer"></span>
+      <span class="search"><svg class="ic" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>搜索已安装的技能</span>
+      <span class="iconbtn">⋯</span>
+    </div>
+    <div class="drop">⬒&nbsp; 拖入 <b>.md</b> 或<b>技能包</b></div>
+    <!-- 只有一个分区：不显示表头 -->
+    <div class="grid" style="padding-top:12px;padding-bottom:14px">
+      <div class="card">
+        <div class="card-top"><span class="cb"></span><span class="av" style="background:#1d2a3f;border:1px solid #2c3f5c;color:#a8c6ff">电</span><span class="nm">电商详情页套图</span><span class="sw on"></span></div>
+        <span class="desc">根据产品信息与产品图，生成电商主图 + 详情页套图</span>
+      </div>
+      <div class="card">
+        <div class="card-top"><span class="cb"></span><span class="av" style="background:#2c2418;border:1px solid #4a3c26;color:#f0c98a">漫</span><span class="nm">漫画生成</span><span class="sw on"></span></div>
+        <span class="desc">按网点风格出图</span>
+      </div>
+      <div class="card newcard"><svg class="ic" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>新建技能</div>
+    </div>
+  </div>
+  <div class="app" style="margin-top:12px">
+    <div class="top"><span class="t">技能</span><span class="badge">我安装的 0</span><span class="spacer"></span><span class="iconbtn">⋯</span></div>
+    <div class="banner">⚠ 读不到磁盘技能库（本地服务没起来？）—— 这里只显示已缓存的清单，<b style="color:inherit">不代表磁盘上没有技能</b>。</div>
+    <div class="empty">把 <b>.md</b> 或技能包拖进来就能用<br/>（一个技能 = 名字 + 一句话 + 正文，没有别的要配）</div>
+  </div>
+  <p class="note">
+    <b>空库不是错误</b>，但要说清"下一步做什么"；<b>读不到 ≠ 没有</b> —— 两种状态文案必须分开（不许用空清单否定真值）。
+  </p>
+</div>
+
+</body>
+</html>
