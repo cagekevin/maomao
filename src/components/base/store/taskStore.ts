@@ -342,11 +342,13 @@ export function reportGenerate(
 ): TaskController {
   // 对齐官方：提交生成任务时自动弹出任务中心
   openTaskCenter();
-  // 结束同 nodeId 之前未完成的任务
-  const old = tasks.find(
-    (t) => t.nodeId === nodeId && (t.status === 'running' || t.status === 'pending'),
-  );
-  tasks = tasks.filter((t) => t !== old);
+  // 【不筛除 · 2026-09-23 ADR-0059】此处原有「结束同 nodeId 之前未完成的任务」——它只做
+  // `tasks = tasks.filter(t => t !== old)`，**只删内存**：不取消后端、不删 DB 行、不清轮询句柄。
+  // 后果：后端明明还在跑的旧行被镜像抹掉 ⇒ 旧行终态到达时 `completeTask` 找不到承载、静默丢弃
+  //（实测：同节点连生 3 次，第 2 次结果未上屏；后端 DB completed + 磁盘 21.2MB 都在，丢的只是镜像一行 + 一次广播）。
+  // 正确形态：**前端是后端 tasks 表的只读反映，不得替真源做减法** —— 后端有几条，前端就有几条
+  //（任务中心是扁平列表，本来就不按节点分组；节点是单结果槽，末次广播胜出）。
+  // 「结束」若确有需要，属**提交/取消层**（真取消后端句柄 / 置终态），不在镜像层做。
   const task: Task = {
     id: genId(),
     nodeId,
@@ -405,6 +407,49 @@ export function reportGenerate(
 const progressCancels = new Map<string, () => void>();
 
 /**
+ * 会话内**被显式删除过**的任务 id 集合（ADR-0059 · 本批 P0）。
+ *
+ * 【它区分什么】终态落地时"行不在镜像"有**两类事实**，此前被一条 `if (!cur)` 合并成一句失实 warn：
+ *  · 在集合里 = **用户主动删除**（清会话 / 删卡 / 清理全部）⇒ 不复活、不刷 warn（这条语义不变）；
+ *  · 不在集合里 = **镜像缺行**（未水合 / 竞态）⇒ **不得静默**，warn 留痕（不许伪装成"可能已被删除"）。
+ *
+ * 【为什么必须分】`removeTask` 不清 `stopPolling` ⇒ 被删掉的 running 任务其 poller 仍会走到终态
+ * 命中 `!cur`；不分流的话**每次删掉一个正在跑的任务都会刷一条 warn**，且把正常删除与真缺行混为一谈。
+ *
+ * 【取舍】只增不落（存 string id，量级可忽略）—— 与 `progressCancels` 同款：**不做回收**，
+ * 防长会话里"只涨不落"的隐患已在 removeTask 的注释里明示过，此处同口径。
+ */
+const deletedIds = new Set<string>();
+
+/**
+ * 终态落地时「行不在镜像」的统一处置 —— **唯一实现**（ADR-0059 判据 5；判据登记表 §八 #13 的真源就在此处）。
+ *
+ * 【为什么要抽】`completeTask` / `failTask` 的 `!cur` 分支是**同一判据**（本会话是否显式删除过该 id）：
+ * 改前那句 warn 各写一遍，本批补二分后若继续各写一份就变成 9 行 × 2 的复制 —— 同一判据两份 = 改一处漏一处。
+ *
+ * 【两类事实（可机判，不靠猜）】
+ *  · 已显式删除（`removeTask` / `clearTasksBy` / `clearAllTasks` 登记）→ 不复活、`debug`（免刷屏，语义不变）；
+ *  · 未删除（未水合 / 竞态）→ `warn` + `reason: 'not-in-mirror'`，**不许伪装成"可能已被删除"**。
+ *
+ * 调用方一律 `return`（不写行 / 不落库 / 不广播）；本函数不产生副作用行，故恒不凭空造行。
+ */
+function onTerminalRowMissing(id: string): void {
+  if (deletedIds.has(id)) {
+    logger.debug(
+      '任务',
+      '[任务] 终态落地：该任务已被用户删除，跳过',
+      { taskId: id },
+      { module: 'image' },
+    );
+    return;
+  }
+  logger.warn('taskStore', '终态落地时镜像缺行（非用户删除）→ 跳过写回', {
+    taskId: id,
+    reason: 'not-in-mirror',
+  });
+}
+
+/**
  * 终态落地唯一原语：**完成**（TD-01-20）。
  *
  * 【谁调】① live：`createTask()` 返回的 `ctl.done(url)`；② 恢复：`pollTask` 的 attach 闭环。
@@ -418,8 +463,9 @@ export function completeTask(id: string, resultUrl: string): void {
   const safeUrl = typeof resultUrl === 'string' ? resultUrl : '';
   const cur = tasks.find((t) => t.id === id);
   if (!cur) {
-    // 任务已被删除（清会话 / 用户删卡）→ 不凭空复活；留痕供排查"为什么结果没上屏"
-    logger.warn('taskStore', '终态落地时任务已不在（可能已被删除），跳过写回', { taskId: id });
+    // 【两类事实分开 · ADR-0059 / ADR-0048】原实现只有一句「可能已被删除」的 warn：
+    // 把"用户删了"与"镜像缺行"混成一句，既失实又不可机判 ⇒ 处置收口在 onTerminalRowMissing（唯一实现）。
+    onTerminalRowMissing(id);
     return;
   }
   // 【排障埋点 · 2026-09-03 任务不结束排查】任何任务 done 时打印 id/type/resultUrl，断「卡进度 vs 卡 done 未触发」。
@@ -453,7 +499,8 @@ export function failTask(id: string, errorMsg?: string): void {
   const msg = errorMsg || '生成失败';
   const cur = tasks.find((t) => t.id === id);
   if (!cur) {
-    logger.warn('taskStore', '终态落地时任务已不在（可能已被删除），跳过写回', { taskId: id });
+    // 与 completeTask 同一判据、同一处置（onTerminalRowMissing 唯一实现）
+    onTerminalRowMissing(id);
     return;
   }
   logger.debug(
@@ -497,6 +544,7 @@ export function patchTask(id: string, patch: Partial<Task>): void {
 export function removeTask(id: string): void {
   tasks = tasks.filter((t) => t.id !== id);
   progressCancels.delete(id); // 终态取消登记同生命周期清理（防长会话里 Map 只涨不落）
+  deletedIds.add(id); // 【ADR-0059】登记"用户显式删除"：此后该 id 的终态到达只 debug、不刷 warn
   notify();
   // 【失败可见 TD-02-16】后端删除失败不得静默：前端已移除但后端仍残留，需留痕（下次列表刷新会"复活"）
   deleteTask(id).catch((e) => {
@@ -842,7 +890,10 @@ export function clearTasksBy(predicate: (t: Task) => boolean): void {
   const removed = tasks.filter((t) => predicate(t));
   if (removed.length > 0) {
     tasks = tasks.filter((t) => !predicate(t));
-    for (const t of removed) progressCancels.delete(t.id); // 同 removeTask：清理终态取消登记
+    for (const t of removed) {
+      progressCancels.delete(t.id); // 同 removeTask：清理终态取消登记
+      deletedIds.add(t.id); // 【ADR-0059】同 removeTask：登记"用户显式删除"
+    }
     notify();
     // 【失败可见 TD-02-16】fire-and-forget 但失败须留痕（后端残留 → 下次拉到已删任务）
     batchDeleteTasks(removed.map((t) => t.id)).catch((e) => {
@@ -855,6 +906,7 @@ export function clearTasksBy(predicate: (t: Task) => boolean): void {
 }
 export function clearAllTasks(): void {
   if (tasks.length > 0) {
+    for (const t of tasks) deletedIds.add(t.id); // 【ADR-0059】清空前登记：全部视为用户显式删除
     tasks = [];
     notify();
     // 【失败可见 TD-02-16】fire-and-forget 但失败须留痕（否则"已清空"是假的，刷新后重现）

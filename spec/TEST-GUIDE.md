@@ -99,7 +99,7 @@
 
 ```bash
 npm test                 # 等价 npm run test:all：跑统一测试门禁（推荐）
-npm run check:health     # 工程健康度全量检查（含构建 + 测试 + TDZ + dist 基线）
+npm run check:health     # 工程健康度全量检查（manifest 全部闸 + 静态资产存在性 / build / 全量测试）
 npm run build            # 构建插件包（dist/）
 ```
 
@@ -128,16 +128,26 @@ npm run build            # 构建插件包（dist/）
 
 ## 三、check:health 检查项
 
-`scripts/health-check.cjs` 一键检查 6 大项：
+`npm run check:health` = `node scripts/gates-run.mjs health` = **`gates.manifest.json` 的全部 `gates` + `healthOnly`**（api / node-types / node-handles / node-data / keys / upload-dirs / type-check / any / events / strict-src / arch / dead-code / gates / gate-vitals + healthOnly）。
 
-1. **文件存在性** —— 16 个关键文件（源码 / 插件 manifest / background / 图标 / 测试脚本）
-2. **npm scripts 完整性** —— `dev/build/test:*` 是否齐全
-3. **构建** —— `npm run build` 能否成功
-4. **统一测试门禁** —— `test:all` 是否通过
-5. **TDZ 风险扫描** —— 扫 `src` 下所有 `.jsx/.js` 的 TDZ / 未定义 / 非函数调用（防 `Cannot access 'x' before initialization`）
-6. **dist 构建产物基线** —— 借鉴原产品 `safety-net.cjs`：对比 `dist/` 各文件大小，防意外增删 / 体积异常（基线存于 `scripts/dist-snapshot.json`，dist 有意义的更新后需重新生成基线）
+其中 **healthOnly（`scripts/health-check.cjs`）只剩 3 节**（2026-09-23 瘦身）：
 
-> ⚠️ **dist 基线**：首次运行自动生成快照（仅记录）。之后每次对比；若你**刻意改了构建产物**（新增资源/插件文件），运行后会有差异提示，确认没问题后删除 `scripts/dist-snapshot.json` 重新生成即可。
+1. **静态资产存在性** —— **只列"没有别的东西能抓到"的 12 项**：① 插件产物（`manifest.json` / `background.js` / 3 个图标 / `manifest.webmanifest`：vite 只是原样拷贝，全仓无脚本读，缺了要到 Chrome 装载才炸）；② 会**静默回退默认值**的配置（`vite/vitest/playwright/tailwind.config`）；③ 2 个 vitest 用例文件（删一个文件 vitest 不会失败 ⇒ 唯一防「覆盖静默缩水」）。被 build / tsc 覆盖的源码入口**一律不收**。
+2. **构建** —— `npm run build`（含 prebuild 的 6 道构建契约闸）
+3. **统一测试门禁** —— `scripts/run_all_tests.cjs`（冒烟 + 前端 vitest 全量 + localtool）
+
+> 其余判据**不在 `health-check.cjs` 里重复维护**：契约闸与架构闸由 `gates.manifest.json` 单源消费，避免第二份真相。
+
+**2026-09-23 已删四节（用户裁定「删」）**：
+
+| 删掉的 | 为什么（取证） |
+|---|---|
+| npm scripts 完整性 | 判 `package.json` 文本而非行为：`build` 由该文件自跑、`test:regression`/`test:tools` 由 `.husky/pre-commit` 那行自身兜底、`dev`/`test:smoke`/`test:all` 无人调用 |
+| 横切契约静态校验（keys/events/node-types/node-handles/node-data） | 与 manifest 闸**逐条重复**（同一脚本一字不差）：同一次 health 里 node-types/node-handles/node-data/keys 各跑 3 遍、events 2 遍，覆盖 0 新增 |
+| 架构校验（check-arch） | 同上（manifest `arch` 闸已跑一遍，此处又跑一遍 = 白付 9.3s） |
+| TDZ 风险扫描 | 三个模式都是**运行期报错文案**，静态文本匹配不可能发现 TDZ；且走 `warn` 不改退出码 ⇒ 假防线 + 永不失败（实测 0 命中） |
+
+> ⚠️ **dist 基线已与 `check:health` 无关**（2026-09-23 回改过期自述）：`scripts/dist-snapshot.json` 目前只有归档脚本 `1mao-scripts/safety-net.cjs` 在读，`health-check.cjs` **不比对 dist**。
 
 ## 四、测试文件结构
 
@@ -149,7 +159,7 @@ scripts/
 ├── test_agent_tools.cjs    # 已删除：Agent 工具单测迁至 vitest（与 canvasAgentTools.test.ts 合并）
 ├── run_all_tests.cjs       # 统一门禁聚合脚本（smoke + vitest + regression + tools）
 ├── health-check.cjs        # 工程健康度全量检查
-└── dist-snapshot.json      # dist 基线快照（自动生成，勿手改）
+└── dist-snapshot.json      # dist 基线快照（**已无在用消费者**：仅归档脚本 1mao-scripts/safety-net.cjs 读它；check:health 不比对）
 
 # ✅ 已移除孤儿脚本（2026-08-17）：test_workflow_runtime.mjs / test_workflow_complete.mjs /
 #   test_backup_store.mjs 未被门禁引用且内容已被 vitest 覆盖，已删除收敛架构。
@@ -309,7 +319,7 @@ describe('MyNode', () => {
 确认是合法 API 后，把方法名加进白名单（如 `deleteElements`）。
 
 ### 3. 改代码触发 TDZ / 未定义
-`check:health` 的 TDZ 扫描会提示。典型场景：在 `const x = useState(...)` 定义前就 `useXxx(x)` 调用（参考 DiscountVideoNode 的修复：把依赖的 hook 调用移到 state 定义之后）。
+`check:health` 的「TDZ 文本扫描」**已于 2026-09-23 删除**——它匹配的是**运行期报错文案字符串**，不可能发现 TDZ（属假防线）。这类问题改由 `type-check`(tsc) / vitest / 浏览器实测暴露。典型场景：在 `const x = useState(...)` 定义前就 `useXxx(x)` 调用（参考 DiscountVideoNode 的修复：把依赖的 hook 调用移到 state 定义之后）。
 
 ## 八、已补 / 后续可补
 

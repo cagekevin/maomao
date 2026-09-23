@@ -203,7 +203,7 @@ setCurrentAssistantTable({ columns: p.resultCols, rows: p.resultRows });
 
 - `spec/AI-ASSISTANT-TABLE-PROMPT-DESIGN.md`：表格人格 / 意图协议全貌（`mode='table'` 切换、`TABLE_RULES` 五段结构、判定分流表、排错对照表）。**改提示词前必读，勿推翻已定决策**。注：其引用的 `spec/TABLE-WORKSPACE-INDEPENDENT-PANEL.md` 当前不存在于仓库，仅代码注释里留名。
 
-- `spec/CONTEXT.md` §五 数据一致性防线：任务中心权威源、节点不回写等通用红线。
+- `spec/CONTEXT.md` §五 数据一致性防线：结果权威源（后端 `tasks` 表；前端「任务中心」为其镜像）、节点不回写等通用红线。
 
 - 关键代码：`src/components/agent/assistantTable/*`（表格模型 + 解析纯函数）、`src/components/agent/runtime/agentCore.ts`（`buildRequestMessages` mode 切换）、`src/components/agent/runtime/useAgentChat.ts`（`tableOpen`→mode）、`src/components/agent/panels/AgentPanel.tsx`（表格现状注入 / 探测 / 取消选中）。
 

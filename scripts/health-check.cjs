@@ -2,30 +2,56 @@
 /**
  * health-check.cjs — 原型工程健康度全量检查（借鉴 1mao scripts/health-check.cjs）。
  *
- * 覆盖：
- *   1. 文件存在性（核心源码 / 插件文件 / 测试脚本）
- *   2. npm scripts 完整性
- *   3. npm run build（能构建）
- *   4. npm run test:all（统一测试门禁：smoke + regression + tools）
- *   4.1~4.3b 横切契约静态校验（check:keys 存储键 / check:events 事件名 / check:node-types 节点类型 / check:node-handles 节点端口）
- *   4.4 check:node-data --strict（node.data 字段缺口 / 结果字段命名对账，对应 TD-8）
- *   5. TDZ 风险扫描（扫 src 下所有源码 .jsx/.js/.ts/.tsx，防「Cannot access before initialization」；
- *      逐行跳过注释——源码注释常引用报错文案作决策留痕，整文件盲扫会误报，见 depthUrls.ts:35 案例）
+ * 覆盖（2026-09-23 瘦身后只剩三节）：
+ *   1. 静态资产存在性 —— **只列"没有别的东西能抓到"的那些**（判据见 §1 注释）
+ *   2. npm run build（能构建）
+ *   3. 统一测试门禁（scripts/run_all_tests.cjs：冒烟 + 前端 vitest 全量 + localtool）
+ *
+ * 【门禁分工（2026-09-23 定）——为什么本文件只留这三节】
+ *   各闸已经在**四条路上反复跑**了，health 不该再手写一遍：
+ *     · pre-commit（日常钩子）：lint-staged + test-affected + smoke + regression + tools
+ *     · pre-push（类型/代码闸）：全量 lint + `check:push`（type-check/any/events/strict-src/arch/dead-code/gates/gate-vitals）
+ *     · CI（云端兜底）：同一个 `check:push` + `test:coverage`（+ localtool job）
+ *     · **check:health（最终防线 / 交付前）**：manifest 全部闸（经 gates-run 各一次）+ 本文件三节
+ *   ⇒ 本文件独有的、别处**都没有**的只有三件：**真·vite 生产构建**（CI 与 hook 均不跑）、
+ *      **全量统一测试**（run_all_tests.cjs：smoke + vitest 全量 + localtool tsc/test）、**静态资产存在性**。
+ *      这三件正是"最终防线"该管的事，其余判据一律回 gates.manifest.json 单源。
+ *
+ * 【2026-09-23 删四节（用户裁定「删」）——逐条理由，防回潮】
+ *   ①「npm scripts 完整性」：判的是 `package.json` 文本，不是行为。`build` 由本文件 §2 自跑、
+ *      `test:regression`/`test:tools` 由 `.husky/pre-commit` 直接调用（缺脚本那行自身即非 0）、
+ *      `dev`/`test:smoke`/`test:all` 在闸/hook/CI 里**无人调用** ⇒ 删掉后任何真实失效路径的结论不变。
+ *   ②「横切契约静态校验」（原 §4.1~4.4：keys/events/node-types/node-handles/node-data）与
+ *      「架构校验」（原 §5.5 check-arch）：与 `scripts/gates.manifest.json` **逐条重复**（同一脚本一字不差）。
+ *      health 分组 = 全部 gates + healthOnly（见 gates-run.mjs:92-95），本文件再手写一遍 ⇒ 同一次 health 里
+ *      node-types/node-handles/node-data/keys 各跑 **3 遍**（闸循环 + §2 `npm run build` 的 prebuild + 原 §4.x）、
+ *      events/arch 各 2 遍。实测单次耗时 check-arch 9.3s / check-keys 2.2s / check-events 2.0s
+ *      ⇒ 纯重复 ≈ 20s、新增覆盖 0；且直接违反本文件 Q3 自述「闸清单本身是 gates.manifest.json 单一真源，
+ *      此处不得重复写（只消费）」。
+ *   ③「TDZ 风险扫描」：三个模式全是**运行期报错文案**，匹配的是源码文本，而 TDZ 是运行期现象
+ *      ⇒ 不可能命中 TDZ（唯一命中途径 = 把报错文案写进字符串字面量；注释已被逐行跳过）。
+ *      且它走 warn（不改退出码）⇒ 命中也不拦。实测 0 命中 ⇒ 假防线 + 永不失败。
+ *   ④ 原「文件存在性」19 项里的 8 项冗余（src/main · src/App · src/index.css · base/core/config ·
+ *      storageAdapter · groupNodes + scripts/run_all_tests · scripts/smoke_test）：缺席时 build / tsc /
+ *      本文件「构建」「测试」两节会以**更好**的报错暴露（有栈、有原因）；收进来只会把诊断降级成
+ *      一行「❌ 冒烟测试 (scripts/smoke_test.cjs)」。
  *
  * 【2026-09-20 删除「决策渠道门禁」整节（用户裁定）】原节断言 `docs/adr/` 为空（2026-08-18 立），
  *   该约定已于 2026-09-18 被 ADR-0017 推翻 ⇒ 该节此后**恒假红**（健康态判红）。修法不是"翻正判据"，
  *   而是**删掉**：**文档不需要任何测试**（用户裁定 2026-09-20）—— 文档内容不属闸的管辖面，
  *   文档写错就改文档，不靠断言守。本文件自此只做「编排既有闸 + 源码级检查」，不判任何文档内容。
+ *   （2026-09-23 瘦身后，本文件只剩「静态资产存在性 + 构建 + 测试」三节。）
  *
  * 【★闸的申诉口 · 三问（2026-09-14 入规 → 架构师心法 §零.4.2）】
- *   Q1 守什么：**编排器（非判定闸）** —— 它自己不判红，只按既有脚本 / 清单编排全量巡检；
- *               真正的判定在各 `check:*` 闸里（判据不在此重复维护，避免第二份真相）。
+ *   Q1 守什么：**编排器（半判定闸）** —— 只判 §1 静态资产存在性 + 编排「构建 / 测试」两节；
+ *               其余判据**一律不在此维护**，由各 `check:*` 闸经 gates.manifest.json 单源消费
+ *               （避免第二份真相 —— 见上方 2026-09-23 第②条）。
  *   Q2 何时该改：巡检覆盖面变化时同步（新增核心文件 / 新脚本 / 基线项）。
  *   Q3 怎么改：改本文件的覆盖面清单；**闸清单本身是 `scripts/gates.manifest.json` 单一真源，
  *               此处不得重复写**（只消费）。本闸无豁免清单。
  *
  * 用法: node scripts/health-check.cjs        （或 npm run check:health）
- * 退出码: 有错误 → 1；仅警告 → 0
+ * 退出码: 有错误 → 1
  */
 const fs = require('fs');
 const path = require('path');
@@ -35,15 +61,10 @@ const { resolveSourceFile } = require('./ts-exts.cjs');
 
 const ROOT = path.resolve(__dirname, '..');
 
-let errors = 0,
-  warns = 0;
+let errors = 0;
 const check = (label, ok, detail = '') => {
   console.log(`  ${ok ? '✅' : '❌'} ${label}${detail ? '  ' + detail : ''}`);
   if (!ok) errors++;
-};
-const warn = (label, ok, detail = '') => {
-  console.log(`  ${ok ? '✅' : '⚠️'} ${label}${detail ? '  ' + detail : ''}`);
-  if (!ok) warns++;
 };
 
 /**
@@ -94,32 +115,32 @@ console.log('═'.repeat(54));
 console.log('  原型工程健康度全量检查（react-nodes）');
 console.log('═'.repeat(54));
 
-// ── 1. 文件存在性 ──
-console.log('\n📁 文件存在性');
+// ── 1. 静态资产存在性 ──
+console.log('\n📁 静态资产存在性（只列"没有别的东西能抓到"的那些）');
+// 判据（2026-09-23 立）：**只收 build / tsc / 本文件「构建」「测试」两节抓不到的**。
+//   被 build 或 tsc 覆盖的一律不收 —— 它们的缺席会以**更好**的报错（有栈、有原因、指出谁在引用）暴露，
+//   收进来只会把诊断降级成一行「❌ XXX」。同理：本文件下面就要跑的脚本（run_all_tests/smoke_test）不收。
 // 说明：源码条目【不写扩展名】——后缀会随 TS 化漂移（storageAdapter.js→.ts、groupNodes.js→.ts
-// 已经把这项检查搞红过一次），统一走扩展名无关解析；非源码条目（css/插件文件/脚本）照旧写全名。
+// 已经把这项检查搞红过一次），统一走扩展名无关解析；非源码条目（插件文件/配置）照旧写全名。
 const files = [
-  ['src/main', '入口'],
-  ['src/App', '画布壳'],
-  ['src/index.css', '全局样式'],
-  ['src/components/base/core/config', 'API 地址统一入口（原 apiBase.js 已合并至此）'],
-  ['src/components/base/storage/storageAdapter', '存储适配（chrome.storage）'],
-  ['src/components/canvas/structure/groupNodes', '编组算法'],
+  // ① 插件产物：vite 只是把 public/ 原样拷进 dist，全仓**没有任何脚本读** manifest.json /
+  //    background.js / 图标（已 grep scripts/ 确认）⇒ 缺了要到 Chrome 装载时才发现（拒绝安装），
+  //    属「静默到装机才炸」，只有这里的 existsSync 能提前抓到。
   ['public/manifest.json', '插件 manifest'],
   ['public/background.js', '插件 background'],
   ['public/icon16.png', '插件图标 16'],
   ['public/icon48.png', '插件图标 48'],
   ['public/icon128.png', '插件图标 128'],
-  ['scripts/smoke_test.cjs', '冒烟测试'],
+  ['public/manifest.webmanifest', 'PWA manifest（index.html 引用；2026-09-23 补登记，原清单漏项）'],
+  // ② 配置文件：**被删时工具会静默回退默认配置、构建照样"成功"** ⇒ 存在性检查是唯一抓得到的手段。
+  //    vite 少了 `base:'./'` ⇒ 插件侧相对路径失效；tailwind 少了 config ⇒ 主题令牌全丢。
+  ['vite.config', '构建配置（缺 → base/chunk 切分静默回退默认值）'],
+  ['vitest.config', '单测配置（缺 → 环境/别名静默回退默认值）'],
+  ['playwright.config', 'E2E 配置'],
+  ['tailwind.config', '样式令牌真相源（缺 → 主题静默回退默认值）'],
+  // ③ 测试文件：vitest 少一个用例文件**不会失败**（其余用例仍绿）⇒ 这里是唯一防「覆盖静默缩水」的。
   ['tests/unit/nodes/ssrRegression.test', 'SSR 结构回归 (vitest)'],
   ['tests/unit/canvasAgentTools.test', 'Agent 工具单测 (vitest)'],
-  ['scripts/run_all_tests.cjs', '统一门禁'],
-  // 扩展名无关：根配置已随全仓 TS 化（.js→.ts，2026-09-02）。写死 .js 会在改名那刻误红，
-  // 与上面源码条目同一处理（resolveSourceFile 自动命中 .ts/.js）。
-  ['vite.config', '构建配置'],
-  ['vitest.config', '单测配置'],
-  ['playwright.config', 'E2E 配置'],
-  ['tailwind.config', '样式令牌真相源'],
   // 注：postcss.config 刻意保持 .js（postcss-load-config@6 加载 .ts 需 ts-node），不加进清单。
 ];
 const relOf = (p) => path.relative(ROOT, p).split(path.sep).join('/');
@@ -136,110 +157,17 @@ for (const [f, name] of files) {
   check(`${name} (${hit === f ? f : hit ? relOf(hit) : f})`, !!hit);
 }
 
-// ── 2. npm scripts ──
-console.log('\n🔧 npm scripts');
-const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf-8'));
-['dev', 'build', 'test:smoke', 'test:regression', 'test:tools', 'test:all'].forEach((s) =>
-  // detail 仅在失败时给（原实现无条件传「缺 xxx」文案，成功时也打印，自相矛盾）
-  check(`scripts.${s}`, !!pkg.scripts[s], pkg.scripts[s] ? '' : `package.json 缺 scripts.${s}`),
-);
-
-// ── 3. 构建 ──
+// ── 2. 构建 ──
+// 注：`npm run build` 会先触发 prebuild（= gates-run build 的 6 道构建契约闸），这是**闸循环之外**的
+// 第二遍；原 §4.1~4.4 又手写了第三遍，已于 2026-09-23 删除（见文件头第②条）。
 console.log('\n🏗️ 构建（npm run build）');
 runGate('npm run build', 'npm run build', { timeout: 120000 });
 
-// ── 4. 统一测试门禁 ──
+// ── 3. 统一测试门禁 ──
 console.log('\n🧪 统一测试门禁（test:all）');
 runGate('test:all (smoke+regression+tools)', 'node scripts/run_all_tests.cjs');
 
-// ── 4.1 存储键契约静态校验（裸 key 编译期拦截，对应架构 P0-1）──
-console.log('\n🔑 存储键契约校验（npm run check:keys）');
-runGate('check:keys (STORAGE_KEYS 裸 key 拦截)', 'npm run check:keys');
-
-// ── 4.2 事件契约静态校验（裸事件名编译期拦截，对应架构 P0-1）──
-console.log('\n📡 事件契约校验（npm run check:events）');
-runGate('check:events (EVENTS 裸事件名拦截)', 'npm run check:events');
-
-// ── 4.3 节点类型契约静态校验（useNodePrefs 裸命名空间编译期拦截，对应架构 P0-1）──
-console.log('\n🏷️ 节点类型契约校验（npm run check:node-types）');
-runGate('check:node-types (NODE_TYPES 裸 useNodePrefs 命名空间拦截)', 'npm run check:node-types');
-
-// ── 4.3b 节点端口契约对账（节点文件声明 ⊆ contracts.NODE_HANDLE_CONTRACT，对应 TD-04-1）──
-// 与 check:node-types 对称的「契约表 ↔ 代码」一致性闸：节点声明了非默认端口但契约表漏登记
-// → App 补边漏 handle → 连线静默不渲染。已挂 prebuild/pretest，此处再列一次保证 check:health 也覆盖。
-console.log('\n🔌 节点端口契约对账（npm run check:node-handles）');
-runGate(
-  'check:node-handles (节点文件端口声明 ⊆ NODE_HANDLE_CONTRACT)',
-  'npm run check:node-handles',
-);
-
-// ── 4.4 node.data 契约对账（字段缺口 / 结果字段命名，对应 TD-8）──
-// 为什么只挂 check:health 不挂 prebuild/pretest：它治的是「数据契约漂移」（node.data 五处各自表述），
-// 不是编译/构建必需项；且失败信息面向数据治理（该补声明还是该登记豁免），不适合每次提交都拦。
-// --strict 口径：字段缺口 ≠ 0 或「结果字段读侧不认」≠ 0 即失败；本节点自用的例外走脚本内 RESULT_EXEMPT（需带原因）。
-console.log('\n🧬 节点 data 契约对账（npm run check:node-data --strict）');
-runGate(
-  'check:node-data (node.data 字段缺口 / 结果字段命名，--strict)',
-  'npm run check:node-data -- --strict',
-);
-
-// ── 5. TDZ 风险扫描（扫 src 下 .jsx/.js/.ts/.tsx）──
-console.log('\n🛡️ TDZ 风险扫描（src/*.jsx|js|ts|tsx）');
-const tdzPatterns = [
-  [/Cannot access '(\w+)' before initialization/g, 'TDZ 引用错误'],
-  [/'(\w+)' is not defined/g, '未定义变量引用'],
-  [/(\w+) is not a function/g, '非函数调用'],
-];
-let tdzHits = 0;
-(function walkDir(d) {
-  if (!fs.existsSync(d)) return;
-  for (const e of fs.readdirSync(d, { withFileTypes: true })) {
-    const p = path.join(d, e.name);
-    if (e.isDirectory()) {
-      walkDir(p);
-      continue;
-    }
-    if (!/\.(jsx|js|ts|tsx)$/.test(e.name)) continue;
-    const code = fs.readFileSync(p, 'utf-8');
-    // 逐行扫描并跳过注释（2026-09-04 修误报）：源码注释常引用报错文案（如 "xxx is not a function"）
-    // 作决策留痕，整文件盲扫会把它们当风险（depthUrls.ts:35 / scriptBoxEngine.ts:1151）。
-    //  - /* */ 块注释（跨行状态机）、// 行注释、JSDoc 的 * 行 → 整体跳过；
-    //  - 代码行先剥行内 // 注释再匹配（URL 里的 // 也会被截断，但 TDZ 三模式不命中 URL，无影响）。
-    let inBlock = false;
-    for (const rawLine of code.split('\n')) {
-      const trimmed = rawLine.trim();
-      if (inBlock) {
-        if (trimmed.includes('*/')) inBlock = false;
-        continue;
-      }
-      if (trimmed.startsWith('/*')) {
-        if (!trimmed.includes('*/')) inBlock = true;
-        continue;
-      }
-      if (trimmed.startsWith('//') || trimmed.startsWith('*')) continue;
-      const codePart = rawLine.split('//')[0];
-      for (const [pattern, label] of tdzPatterns) {
-        const m = [...codePart.matchAll(pattern)];
-        if (m.length) {
-          tdzHits += m.length;
-          console.log(`  ⚠️ ${path.relative(ROOT, p)}: ${label} ${m.length} 处`);
-        }
-      }
-    }
-  }
-})(path.join(ROOT, 'src'));
-if (tdzHits === 0) console.log('  ✅ 未扫描到典型 TDZ / 未定义 / 非函数调用');
-else warn('TDZ 扫描', false, `${tdzHits} 处风险（仅提醒，不阻断）`);
-
-// ── 5.5 架构校验（循环依赖 + base 分层，check-arch.mjs）──
-console.log('\n🏛 架构校验（no-circular + base 分层）');
-if (runGate('架构校验 (check-arch)', 'node scripts/check-arch.mjs')) {
-  console.log('  ✅ 架构校验通过');
-}
-
 console.log('\n═'.repeat(54));
-console.log(
-  `  结论: ${errors ? `❌ ${errors} 处错误` : '✅ 无错误'}${warns ? `，⚠️ ${warns} 处警告` : ''}`,
-);
+console.log(`  结论: ${errors ? `❌ ${errors} 处错误` : '✅ 无错误'}`);
 console.log('═'.repeat(54));
 process.exit(errors ? 1 : 0);

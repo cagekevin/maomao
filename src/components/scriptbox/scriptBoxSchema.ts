@@ -241,9 +241,14 @@ export function normalizeScriptBoxData(raw: Record<string, unknown> = {}): Scrip
 /* ════════════════════════════════════════════════════════════════
  * 剧本盒「多任务」的伪 nodeId 契约（**单源**：引擎生成 / hook recover 解析共用）
  * ────────────────────────────────────────────────────────────────
- * 剧本盒一个节点会发起多类独立生成任务（每张资产一张图 / 每镜一张尾帧综合图）。任务中心以
- * nodeId 为卡片粒度且 reportGenerate 会结束**同 nodeId**的旧 running 任务 → 若都用剧本盒自身
- * nodeId，任务会互相顶掉。故每类任务用独立伪 nodeId：
+ * 剧本盒一个节点会发起多类独立生成任务（每张资产一张图 / 每镜一张尾帧综合图）。**广播载荷只带
+ * nodeId**（`agent:task-completed` 的 `{taskId, nodeId, resultUrl, type}`）⇒ 回填要知道「哪张图归哪个
+ * asset / 哪一镜」，只能靠伪 nodeId 前缀反解（见 `useScriptBoxEngine` 的 parse*）；顺带任务中心
+ * 每张一卡、可读。故每类任务用独立伪 nodeId：
+ *
+ * 【2026-09-23 理由订正 · ADR-0059】原文写的是「任务中心以 nodeId 为卡片粒度且 reportGenerate 会
+ *   结束同 nodeId 的旧 running 任务 → 任务会互相顶掉」。该"结束"行为已**删除**（镜像不得筛除真源），
+ *   故规则**继续成立、但理由换成上面这条**（回填路由），代码注释别再引用"会被顶掉"。
  *   - 资产图：`${nodeId}-asset-${assetId}`（批量时每张一卡）
  *   - 尾帧综合图：`${nodeId}-tailframe-${shotId}`（每镜一卡）
  * 引擎上报与 hook 回填**必须用同一规则** → 收在此处，禁止各自拼字符串（否则改一处漏一处）。

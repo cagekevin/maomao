@@ -13,6 +13,9 @@ vi.mock('../../src/components/base/api/localToolApi.ts', async (importOriginal) 
 import { saveTask } from '@/components/base/api/localToolApi.ts';
 // saveTask 的入参在 src 侧是 unknown（①类偏宽）；测试侧按落库形状用 Task 收敛，便于断言字段
 import type { Task } from '@/components/base/store/taskStore.ts';
+import { logger } from '@/components/base/core/log/logger.ts';
+import { subscribe } from '@/components/base/core/event/eventBus.ts';
+import { TASK_COMPLETED_EVENT } from '@/components/base/core/contracts.ts';
 
 const {
   statusLabel,
@@ -32,6 +35,7 @@ const {
   getTasks,
   completeTask,
   failTask,
+  removeTask,
   computeTaskCounts,
   isTaskActive,
   isTaskNeedsAttention,
@@ -298,6 +302,69 @@ describe('taskStore §P4 进度落库节流', () => {
     completeTask('no-such-task', '/files/x.png');
     failTask('no-such-task', 'boom');
     expect(getTasks()).toHaveLength(before);
+  });
+});
+
+// ════════════════════════════════════════════════════════════════
+// ADR-0059 · 任务行真源与镜像越权删行收口（2026-09-23 · plan 144）
+// 锁三件事：
+//  ① 镜像**不筛除**真源 —— 同 nodeId 的旧行不许被 reportGenerate 抹掉；
+//  ② 「行不在」的两类事实必须**可分**（用户删除 → debug；镜像缺行 → warn + reason）；
+//  ③ 缺行时**不造行**（既有语义不变，见上一条用例）。
+// 反证：把 reportGenerate 的 `tasks.filter(t => t !== old)` 放回去 ⇒ ①红；
+//       把 `!cur` 的二分合回一句 ⇒ ②红。
+// ════════════════════════════════════════════════════════════════
+describe('taskStore · 镜像不筛除真源（ADR-0059）', () => {
+  it('同 nodeId 再提交：旧行仍在镜像（2 条并存），且旧行终态仍写回 + 广播', () => {
+    const a = reportGenerate('n-dup', 'video', 'p1');
+    const b = reportGenerate('n-dup', 'video', 'p2');
+    const sameNode = getTasks().filter((t) => t.nodeId === 'n-dup');
+    // 后端真有两支在跑（前端"停"≠ 后端"停"）⇒ 镜像就该有两条；原实现在此处把旧的 filter 掉了
+    expect(sameNode).toHaveLength(2);
+    expect(sameNode.map((t) => t.id).sort()).toEqual([a.taskId, b.taskId].sort());
+
+    vi.mocked(saveTask).mockClear();
+    const got: unknown[] = [];
+    const off = subscribe(TASK_COMPLETED_EVENT, (p) => got.push(p));
+    a.done('/files/a.mp4'); // 旧行终态：行仍在 ⇒ 必须写回，不许走 `!cur` 丢弃分支
+    off();
+
+    const rowA = getTasks().find((t) => t.id === a.taskId);
+    expect(rowA?.status).toBe('completed');
+    expect(rowA?.resultUrl).toBe('/files/a.mp4');
+    expect(vi.mocked(saveTask)).toHaveBeenCalledTimes(1);
+    expect(got).toEqual([
+      {
+        taskId: a.taskId,
+        nodeId: 'n-dup',
+        resultUrl: '/files/a.mp4',
+        type: 'video',
+        status: 'completed',
+      },
+    ]);
+  });
+
+  it('镜像缺行（非用户删除）→ warn 且 reason=not-in-mirror（不伪装成"可能已被删除"）', () => {
+    const warn = vi.spyOn(logger, 'warn').mockImplementation(() => {});
+    completeTask('no-such-task', '/files/x.png');
+    expect(warn).toHaveBeenCalledWith('taskStore', '终态落地时镜像缺行（非用户删除）→ 跳过写回', {
+      taskId: 'no-such-task',
+      reason: 'not-in-mirror',
+    });
+    warn.mockRestore();
+  });
+
+  it('用户显式删除后终态到达 → 不复活、不造行，且不刷 warn（降为 debug）', () => {
+    const h = reportGenerate('n-del', 'image', 'p');
+    removeTask(h.taskId);
+    expect(getTasks().find((t) => t.id === h.taskId)).toBeUndefined();
+
+    const warn = vi.spyOn(logger, 'warn').mockImplementation(() => {});
+    completeTask(h.taskId, '/files/y.png');
+    failTask(h.taskId, 'boom');
+    expect(warn).not.toHaveBeenCalled(); // 正常删除不该刷噪音
+    expect(getTasks().find((t) => t.id === h.taskId)).toBeUndefined(); // 不凭空造行
+    warn.mockRestore();
   });
 });
 

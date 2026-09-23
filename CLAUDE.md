@@ -30,7 +30,7 @@ npm run build         # 构建校验 + 回灌 dist/
 npm test              # 统一测试门禁（= test:all：smoke + vitest全量单测 + regression + tools）
 npm run test:unit     # vitest 全量单元测试（tests/unit/ 下数十个文件，纯逻辑/引擎/store 为主）
 npm run test:smoke    # AI 默认自检：冒烟质量门（极快）
-npm run check:health  # 工程健康全量检查（文件存在性 + npm scripts 完整性 + build + test:all + check:keys/check:events/check:node-types/check-arch + TDZ 扫描 + dist 基线；**不含** `npm run check:api` 契约双向校验，需另跑）
+npm run check:health  # 工程健康全量检查（= gates-run health：manifest **全部闸 + healthOnly**，**含** check:api 契约双向校验）。healthOnly 只剩三节：静态资产存在性 / build / 全量测试。2026-09-23 已删：与 manifest 重复的 5 道契约闸调用 + check-arch、npm scripts 完整性、TDZ 文本扫描
 npm run check:events  # 事件契约双向校验：① 裸事件名必须登记 EVENTS；② EVENTS 的 to/from 须与代码实测 subscribe/publish 自洽（防 to:[] 误判死事件）。挂 prebuild+pretest
 npm run check:node-types  # 节点类型静态校验：NODE_TYPES 裸 nodePrefs 命名空间拦截（useNodePrefs 首参必须登记）
 npm run check:api     # API 契约双向校验：contracts.ts apiRegistry ↔ localTool router.ts 互检（防白实现/镜像漂移/信封不符），挂 prebuild+pretest

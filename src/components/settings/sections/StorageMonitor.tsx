@@ -639,7 +639,7 @@ function DonutChart({ segments, total, size = 150 }: DonutChartProps) {
             textAnchor="middle"
             className="st-chart-value"
             fontSize="13"
-            fontWeight="600"
+            fontWeight="400"
           >
             0 B
           </text>
@@ -691,8 +691,8 @@ function DonutChart({ segments, total, size = 150 }: DonutChartProps) {
               y={cy - 10}
               textAnchor="middle"
               className="st-chart-value"
-              fontSize="18"
-              fontWeight="bold"
+              fontSize="16"
+              fontWeight="400"
             >
               {slices[hoverIdx].pct.toFixed(0)}%
             </text>
@@ -702,7 +702,7 @@ function DonutChart({ segments, total, size = 150 }: DonutChartProps) {
               textAnchor="middle"
               className="st-chart-label"
               fontSize="12"
-              fontWeight="600"
+              fontWeight="400"
             >
               {formatBytes(slices[hoverIdx].value)}
             </text>
@@ -716,7 +716,7 @@ function DonutChart({ segments, total, size = 150 }: DonutChartProps) {
               dominantBaseline="middle"
               className="st-chart-value"
               fontSize="14"
-              fontWeight="600"
+              fontWeight="400"
             >
               {totalParts ? totalParts.value : '—'}
             </text>

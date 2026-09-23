@@ -35,12 +35,32 @@
 8. 复核别人轮次先 `git show <sha> --stat` 拿完整改动面再对照覆盖表，勿接受"不归本轮"结论（归属判错=漏审）。易漏面：类型层SSOT（同枚举多份定义TS同构不报）、"不同判据不冲突"须反证、注释复述已移出数值（回潮）、注释论证与实现互斥。动别人账本行前先 `show` 看凭证。
 9. **"已排期/排在 X 之后"是排序、不是依赖**：动手前先判"X 真的挡着它吗"（实证：`plan142` 把删壳排 B 批后，而 B 批动的是设置页、与面板不撞车 ⇒ 前提从未被锁住）。**别把"待办已排期"当成"不能动"**。
 10. **桩比生产乐观 = 测试给假保证**：改/删被桩覆盖的路径时，红的可能是"桩的假象"而非回归 —— 先读**生产**那条链再决定改代码还是改断言（实证：mock 的 `findSkill` 直读夹具、绕过了 `listAllSkills()` 的降级）。同族：测试的订阅桩 `cbs[key]=cb` **后者覆盖前者**，同键注册两处时打不到想打的那个。
+11. **判"谁能触发 X / 某开关是否恒假"要两级取证，缺一级就会误判**（2026-09-23 审 plan145，我为此来回推翻了两次）：
+   ① **grep 全量触发源**（不能只数 UI 传参）；② **逐个判生产可达性** —— 有调用点 ≠ 可达，还要看
+   它**有没有 UI 消费者**、**是否被更早的超时先覆盖**。实证：`scriptBoxEngine` 的 `onStopScriptItem`
+   看着是"剧本盒停止"，实际全仓只有 schema 声明 + 2 个测试 mock，**UI 里没有任何停止按钮**；
+   同处 `withTimeout` 兜底（360s）也被 image `budgetMs`（300s）先覆盖 ⇒ 两个 abort 源**生产上都不可达**
+   ⇒ 二稿"删节点停止后无人能触发 cancel"**是对的**，我一度判它错。**教训：只 grep 到调用点就当"可达"，
+   是最容易把对的判成错的一种假证据。**
+12. **判"前端写不动某字段"先看它是不是「改内存 + persist」两段式**：`taskStore.failTask/patchTask` 先 `tasks.map` + `notify()`（**UI 立即变**）再 `persist()`（落库才可能被 `EXECUTION_OWNED_COLUMNS` 拦）。只看落库那段会误判成"UI 无反馈"（我 09-23 就误判过，已推翻留档）。
+13. **看见 `cond ? f(x) : undefined` 别急着判"可为 undefined ⇒ 出事"**（09-23 审 plan145）：要追到 `f` 的**返回契约**与**调用链可达性**再判。实证：`rowBudgetMs = cap ? budgetMsFor(cap) : undefined` 看着像"预算可缺失"，但 `DEFAULT_BUDGET_MS: Record<RelayCapability, number>` 类型上恒有值、非法 override 也兜回默认，且 live 路径的 `timeoutMs` 来自 POST 响应（缺则 fail-fast）⇒ **正常路径必掐点**；undefined 只在快照 capability 非法（= TD-08-51 既有情形）。我据此把人家写对的结论判成"事实错误"，已推翻。
+14. **断言"某类对象也出现在 X 处"前先查它的唯一生产者**（grep 生产函数的所有调用方）：我断言"任务中心含本地处理/遗留 running 行"，实际 `reportGenerate` **唯一调用方**就是 `generationOrchestration`，`VideoExtractNode`/`VideoProcessNode` 根本不建任务行 ⇒ 差异只有 text。
 
 ## 六 · 工具债（A10）
 - 归属区=**17 审计工具链治理**（非25）。范围 `scripts/**`·`.codebuddy/commands/**`·`package.json`；红线🚫`src/**`·`localTool/**`·借机重构·改对外契约/持久化。判不准→按业务债处理（只登记不动手）。
 - 收尾：`node --check`+实跑+先红后绿+账本一行 `已解决`（`add`→`resolve`→`archive`）。
 
-## 七 · 沟通
+## 七 · 样式纪律（字体栈 · 2026-09-23 立的规）
+- **正文字体栈必须与 `src/index.css`（html/body）同口径**：`ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Microsoft YaHei', sans-serif`。**禁写"苹果优先"栈**（`-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', 'PingFang SC', ...`）—— 它是 Mac/Windows 观感分裂的根源，已修掉唯一一处（`settings.css` 的 `.st-root`）。
+- **为什么**：Windows 上苹果优先栈前 5 个字体全落空 ⇒ 整页（含拉丁/数字）走雅黑，而全站走 `system-ui`⇒Segoe UI ⇒ 两页字体不同；且**雅黑非 UI 版只有 300/400/700**，CSS 字体匹配会把 500/600 **直接顶到 Bold**（标题/当前项/数字变粗糊黑体）。Segoe UI 有真 Semibold 不跳档。Mac 上两栈都落 SF ⇒ 差异被抹平，所以 Mac 看不出来 —— **跨平台观感问题必须按 Windows 口径查**。
+- 面板级 CSS 跟着补 `font-synthesis: none`（与 `director3d/styles.css` 同口径）：禁浏览器合成伪粗/伪斜。
+- 等宽字体（`ui-monospace, SFMono-Regular, Menlo, Consolas, monospace`）是代码块专用例外，不算违反。
+- **字号刻度纪律**：面板/整页 CSS 的字号令牌值必须落在 `tailwind.config.ts` → `theme.extend.fontSize` 的那组刻度上（8/9/10/11/12/13/15 + 默认 xs12/sm14/base16/lg18/xl20），**禁另立档位**；逐行注释标出对应 Tailwind 档名。`settings.css` 的 `--st-fs-*` 已按此标注（xs=caption-sm · sm=body-xs · md=body-sm · lg=base-sm · xl=lg）。
+- **全站字号分布实测（2026-09-23，grep 全 src）**：`caption-sm(11px) 212 · caption(10px) 130 · xs(12px) 107 · 裸12px 86 · sm(14px) 84 · 裸11px 76 · body-xs(12px) 30 · meta(9px) 29 · body-sm(13px) 23 · lg(18px) 8 · xl(20px) 2 · 3xl(30px) 1`。⇒ 判「某页字号脱节」就用这张表比，别凭印象。20px 是全站第二大、仅 2 处 ⇒ 页面标题用 20px 必显重，已把 settings 的 `--st-fs-xl` 收到 18px。
+- 排查同类问题的三步：`grep -rn apple-system src` 找非同口径栈 → 对比 `font-weight` 档位是否超出雅黑可用字重（300/400/700）→ 拿上面的分布表比字号档位。行高/正文色差异多为设计选择（settings 1.55 vs 全局 1.2-1.4），用户明确说过「行高没问题」，别顺手改。
+- ⚠️ `-webkit-font-smoothing: antialiased` **只在 macOS 生效**，Windows 完全无效 —— 别拿它当跨平台观感的解释或手段。
+
+## 八 · 沟通
 - 收口=建真源+销副本，两步缺一即半态。副本四型，按**判据**清点（不只数值）。多一层间接而副本没归零=复杂度净增。
 - 审计口径（用户裁定）：只查①文件吻合度②复杂度降低③SSOT④生产者消费者关系。**不查数值**、**不查运行时库**（db对账非审计取证）。裁定过的照做不反复验证。
 - 🔴 先分析再判断；账本"解法"是上一执行者假设非最优解——引用前自按复杂度+SSOT重判。SOP/skill写了命令就**直接跑命令**，别先读一堆文件猜。

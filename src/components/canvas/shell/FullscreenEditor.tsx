@@ -50,7 +50,7 @@ interface FullscreenEditorProps {
  *  - onInsert      点击素材 @插入 回调
  *  - onDisconnect  素材断线回调
  *  - maxWidth      弹层最大宽度（px）。**不传 = 不设上限，全跟视口**；传值才收窄
- *  - widthRatio    宽度占屏比（默认 0.9）
+ *  - widthRatio    宽度占屏比（默认 0.7；原为 0.9，宽屏下弹层过宽像横带，收窄）
  *  - richText      false=textarea（默认）| true=富文本芯片（仅生图节点试水时开启）
  */
 export default function FullscreenEditor({
@@ -65,7 +65,7 @@ export default function FullscreenEditor({
   onInsert,
   onDisconnect,
   maxWidth, // 不设默认值：全屏层不该有硬编码宽度天花板，交给 FullscreenModal 跟视口
-  widthRatio = 0.9,
+  widthRatio = 0.7,
   richText = false,
 }: FullscreenEditorProps) {
   const showMaterials = variant === 'prompt';
@@ -127,7 +127,7 @@ export default function FullscreenEditor({
             onReady={(fn) => {
               insertAssetRef.current = fn;
             }}
-            inputHeight={538}
+            inputHeight={640}
             richText
             autoFocus
             portalTarget={null} // 全屏弹窗已是最高层级，@候选层保持内联，避免被自己的弹窗盖住
@@ -135,7 +135,7 @@ export default function FullscreenEditor({
         ) : (
           <textarea
             autoFocus
-            className="w-full h-[538px] min-h-0 bg-transparent text-primary outline-none custom-scrollbar resize-none rounded"
+            className="w-full h-[640px] min-h-0 bg-transparent text-primary outline-none custom-scrollbar resize-none rounded"
             style={{ fontSize: '14px', lineHeight: 1.8, color: 'rgb(var(--mao-text-primary))' }}
             placeholder={placeholder}
             value={value}

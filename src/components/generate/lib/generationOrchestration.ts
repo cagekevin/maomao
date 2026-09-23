@@ -23,8 +23,9 @@ import { showToast, toastInfo } from '@/components/base/core/event/toastStore';
  *  R2 收完整结果：`settle/onPersisted` 收完整 `GenerationResult`（尾帧图等需复杂特化写回）。
  *  R3 persist 顺序固化：**本地化 → settle(应显示 URL) → 落盘 tasks → onPersisted(持久 URL) → done(最终)**
  *     禁止调用方乱序（防临时 URL 进任务中心）。
- *  R4 mutex 不在本原语内：节点侧单节点锁（claimNodeRun）与剧本盒伪 nodeId 各自在调用方，本原语只保证
- *     「同 taskNodeId 的旧 running 任务被 reportGenerate 自然结束」。
+ *  R4 mutex 不在本原语内：节点侧单节点锁（claimNodeRun）与剧本盒伪 nodeId 各自在调用方。
+ *     【2026-09-23 订正 · ADR-0059】原写「本原语保证同 taskNodeId 的旧 running 任务被 reportGenerate
+ *     自然结束」——该行为已删（镜像不得筛除真源）；同一 nodeId 的旧行**如实留在镜像里**、跑到自己的终态。
  *  R5 失败三分支内聚：abort（warn，不扰用户）/ 业务 fail（toast）/ 异常（classifyError 记录 + toast）。
  *  R6 超时不在本原语内：底层请求自带超时（chat 用 `CHAT_TOTAL_TIMEOUT` 任务总预算；image/video 的等待上限由**后端** `budgetMs` 给）
  *     + 调用方总闸（剧本盒 withTimeout）。

@@ -47,8 +47,11 @@
 
 ## 一 · 生成链路（意图 → 出站 → 任务 → 结果 → 回填）★主链路
 
-**一句话**：数据从画布节点发起，经统一生成入口，结果以「任务中心」为权威源回填节点。
-**红线**：结果权威源 = 任务中心，`node.data` 是渲染缓存副本（见 CONTEXT §五）。
+**一句话**：数据从画布节点发起，经统一生成入口，结果以**后端 `tasks` 表**为真源、经「任务中心」（前端镜像）回填节点。
+**红线**：结果权威源 = **后端 `tasks` 表**（前端「任务中心」是它的**镜像**，只反映不筛除）；`node.data` 是渲染缓存副本（见 CONTEXT §五 · ADR-0059）。
+**任务行真源（ADR-0059）**：任务行的真源是**后端 `tasks` 表**；「任务中心」是它的**前端镜像**（`taskStore.tasks`），
+镜像**只反映、不筛除** —— 后端有几条就几条（同一 nodeId 可出现多条：任务中心是扁平列表、不按节点分组）。
+节点是**单结果槽**：末次广播胜出，「被旧结果覆盖」属正常性质，**不加新旧判据**。
 
 ### 现状
 
@@ -60,12 +63,16 @@
           → generate/lib/generate.ts  (单门面：generateImage / generateVideo / chatCompletions / chatStream)
               → generate/lib/relayProxy.ts (relaySubmit / relayAttachUntilDone / relayChat / relayChatStream)
                   → POST :18080 /api/generate（chat→同步快路径 / image/video→relay-poll 异步句柄）
-  → store/taskStore.reportGenerate / progress / done / fail    （任务中心权威源）
+  → store/taskStore.reportGenerate / progress / done / fail    （前端镜像；真源 = 后端 tasks 表）
   → 落盘唯一出口 filesApi.saveResultToTasks（**唯一调用点 = generationOrchestration.ts**，契约内无条件一步；节点与剧本盒**共用同一次**，故不存在双落盘）
+    live 顺序：`settle`(节点先显示) → 落盘 → `onPersisted`(持久 URL 覆盖) → `done`(任务行最后落)
+      ⇒ 「权威源最后才落」；`done` = 终态原语 `completeTask`，其广播在 `!cur` 守卫**之后**
   → 刷新恢复 generate/lib/pollTask.ts ─→ 复用 relayProxy.relayAttachUntilDone（只 attach 不 cancel）
-      → taskStore.patchTask + taskCompletionBus.publishTaskCompleted（唯一发布入口）
+      → taskStore.patchTask（进度）+ 终态原语 completeTask/failTask（唯一发布入口就在原语内）
           → 广播 agent:task-completed → useNodeGeneration 精准回填 node.data（detail.nodeId===本节点）
    回填 node.data ◄── src/hooks/useNodeGeneration ◄── taskCompletionBus 广播
+  ⚠️ **回填的前提**：该任务行**当时在镜像里**（广播在 `!cur` 守卫之后）。行不在一律不写回、不广播
+      ⇒ 镜像**不得筛除**真源（ADR-0059）；万一缺行也必须 warn 可见（不许静默丢弃）。
 
 ─ 剧本盒子生成（第二入口：不经过 useGenerateNode，直接消费 generate 门面）
 scriptbox/scriptBoxEngine.ts（ScriptBoxNode 挂载）
@@ -97,7 +104,7 @@ scriptbox/scriptBoxEngine.ts（ScriptBoxNode 挂载）
 
 `relayProxy` ← `generate.ts` / `pollTask.ts`（无节点/agent · scriptbox 直连，门面收口）；
 `generate.ts` 直接消费方 = 4 生成节点（经 `useGenerateNode`）+ `scriptBoxEngine` + `agentRuntime` + `contextCompression`；
-`taskCompletionBus` ← `pollTask.ts` / `taskStore.ts`（均发布方）；
+`taskCompletionBus` ← 唯一发布点 = `taskStore.ts` 的 `completeTask`/`failTask` 内（`pollTask.ts` 只是**调用原语**，不是发布方）；
 `useNodeGeneration` ← `useGenerateNode` + 节点测试；
 `degrade` ← `useNodeGeneration` / `TextGenerate` / `conversationState` / `contentStore`。
 

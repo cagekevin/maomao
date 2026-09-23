@@ -79,17 +79,32 @@
   --st-r-xl: 16px;
   --st-r-full: 999px;
 
-  /* ── 字号 / 行高 / 字重 ── */
-  --st-fs-xs: 11px;
-  --st-fs-sm: 12px;
-  --st-fs-md: 13px;
-  --st-fs-lg: 15px;
-  --st-fs-xl: 20px;
+  /* ── 字号 / 行高 / 字重 ──
+     【刻度纪律】字号一律落在 `tailwind.config.ts` → theme.extend.fontSize 的那组刻度上
+     （唯一真源在那边），**禁止本文件另立档位**。下方逐行标注了对应的 Tailwind 档名。
+     分工：xs/sm = 说明与元信息，md = 正文与控件，lg = 卡片/弹窗标题，xl = 分区标题与统计数字。 */
+  --st-fs-xs: 11px; /* = caption-sm（全站 212 处，最主流档） */
+  --st-fs-sm: 12px; /* = body-xs（说明 / 标签 / 表格 / 提示条） */
+  --st-fs-md: 13px; /* = body-sm（正文 / 控件 / 行标题） */
+  --st-fs-lg: 15px; /* = base-sm（卡片标题 / 弹窗标题） */
+  --st-fs-xl: 16px; /* = base（分区标题 / 统计数字）——本页最大字号。
+     2026-09-23 两轮下调：20px（= text-xl，全站仅 2 处）→ 18px（= lg）→ **16px（= base，全站 11 处）**。
+     用户反馈 20px / 18px 在 Windows 上都偏大 —— 因 Windows 上雅黑字面比 Segoe UI 宽、
+     x-height 更大，同 px 值的视觉体积比 Mac 上大一档，故按 Windows 口径定档。
+     ⚠️ 与 `--st-fs-lg`(15px) 仅差 1px：卡片标题与分区标题的层级改由**颜色**承担
+     （--st-text-1 分区 vs --st-text-1 卡片）+ 位置（分区标题独占一行、上方留白 32px），
+     不再靠字号差。若日后觉得两者分不开，先把 lg 降到 14px(= text-sm)，不要再把 xl 加回去。 */
   --st-lh-tight: 1.3;
   --st-lh-base: 1.55;
+  /* 【字重纪律 · 2026-09-23 用户裁定：设置页不要加粗】
+     本页**全篇只用 400**，不用字重做层级 —— 层级由字号（11/12/13/15/18）与颜色（--st-text-1…5）承担。
+     为什么取消 medium(500) / semibold(600) 两档：
+       ① Windows 上雅黑非 UI 版只有 300/400/700 三档，500/600 会被 CSS 字体匹配**直接顶到 Bold**
+          —— 标题 / 当前项 / 统计数字变成又粗又糊的黑体；
+       ② 拉丁字符走 Segoe UI（有真 Semibold，不跳档）⇒ 同一行里中文比英文粗，混排观感更乱；
+       ③ Mac 上 500/600 是正常字重看不出问题 ⇒ 这是典型的「Mac 顺眼、Windows 别扭」。
+     统一 400 后跨平台一致，且不再依赖字体是否有中间字重。 */
   --st-fw-normal: 400;
-  --st-fw-medium: 500;
-  --st-fw-semibold: 600;
 
   /* ── 控件尺度（高度不成倍数关系，故单列一组，不与间距混用） ── */
   --st-ctl-h: 34px; /* 标准控件高（输入框 / 按钮） */
@@ -104,7 +119,10 @@
 
   /* ── 布局尺度 ── */
   --st-side-w: 216px; /* 侧栏宽 */
-  --st-content-w: 800px; /* 内容最大宽（苹果式窄栏） */
+  --st-content-w: 896px; /* 内容最大宽 = Tailwind max-w-4xl（全站亦有 1 处用此类）。
+     2026-09-23 由 800px 加宽：800 是本文件自定的裸值，不在任何刻度上；896 落在 Tailwind
+     max-w 刻度（4xl）且全站已有调用点。再往上可选 1024（5xl）/ 1152（6xl），
+     但超过 1024 后「标签 : 控件」的行会被拉得过长，故此处取 896。 */
   --st-page-y: var(--st-sp-8); /* 内容区上下留白 */
   --st-page-x: var(--st-sp-9); /* 内容区左右留白 */
   --st-pane-gap: var(--st-sp-5); /* 分栏间距 */
@@ -144,9 +162,25 @@
   overflow: hidden;
   background: var(--st-bg);
   color: var(--st-text-3);
+  /* 【字体栈 · 与全站同口径 · 2026-09-23 修】
+     原苹果优先栈（-apple-system → SF Pro Text → Helvetica Neue → PingFang SC → Microsoft YaHei）
+     在 Windows 上前 5 个字体**全部落空** ⇒ 整页（含拉丁字母与数字）走 Microsoft YaHei，
+     而任务中心等处走 `system-ui` ⇒ Segoe UI（拉丁）+ 雅黑（仅中文回退）⇒ 两页字体明显不同。
+     更严重的是**字重跳档**：雅黑非 UI 版只有 300/400/700 三档，本页的 --st-fw-medium(500) /
+     --st-fw-semibold(600) 按 CSS 字体匹配会直接命中 Bold —— 标题 / 当前项 / 统计数字在 Windows 上
+     变成又粗又糊的黑体。Segoe UI 有真 Semibold，不跳档。
+     故改为与 `src/index.css`（html/body）及 `director3d/styles.css` 完全一致的栈。
+     Mac 上仍落 -apple-system（SF），观感不变。
+     `font-synthesis: none`：禁浏览器合成伪粗/伪斜（缺字重时会糊），与 director3d 同口径。 */
   font-family:
-    -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', 'PingFang SC',
-    'Microsoft YaHei', sans-serif;
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    Roboto,
+    'Microsoft YaHei',
+    sans-serif;
+  font-synthesis: none;
   font-size: var(--st-fs-md);
   line-height: var(--st-lh-base);
   -webkit-font-smoothing: antialiased;
@@ -313,7 +347,7 @@
 }
 .st-side-title {
   font-size: var(--st-fs-sm);
-  font-weight: var(--st-fw-medium);
+  font-weight: var(--st-fw-normal);
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--st-text-5);
@@ -346,7 +380,7 @@
 .st-nav-item.is-active {
   background: var(--st-bg-active);
   color: var(--st-text-1);
-  font-weight: var(--st-fw-medium);
+  font-weight: var(--st-fw-normal);
 }
 .st-nav-icon {
   flex-shrink: 0;
@@ -386,7 +420,7 @@
   align-items: center;
   gap: var(--st-sp-2);
   font-size: var(--st-fs-xl);
-  font-weight: var(--st-fw-semibold);
+  font-weight: var(--st-fw-normal);
   letter-spacing: -0.01em;
   color: var(--st-text-1);
 }
@@ -434,7 +468,7 @@
 }
 .st-card-title {
   font-size: var(--st-fs-lg);
-  font-weight: var(--st-fw-medium);
+  font-weight: var(--st-fw-normal);
   color: var(--st-text-1);
 }
 .st-card-sub {
@@ -446,7 +480,7 @@
   padding: 0 var(--st-sp-1);
   margin-bottom: var(--st-sp-2);
   font-size: var(--st-fs-sm);
-  font-weight: var(--st-fw-medium);
+  font-weight: var(--st-fw-normal);
   color: var(--st-text-5);
 }
 /* 相邻子项之间加发丝线（"多行设置"的分隔唯一写法） */
@@ -550,7 +584,7 @@
 }
 .st-stat-value {
   font-size: var(--st-fs-xl);
-  font-weight: var(--st-fw-semibold);
+  font-weight: var(--st-fw-normal);
   color: var(--st-text-1);
   font-variant-numeric: tabular-nums;
   overflow: hidden;
@@ -583,7 +617,7 @@
 }
 .st-label {
   font-size: var(--st-fs-sm);
-  font-weight: var(--st-fw-medium);
+  font-weight: var(--st-fw-normal);
   color: var(--st-text-3);
   white-space: nowrap;
 }
@@ -716,7 +750,7 @@
   background: var(--st-inverse);
   border-color: transparent;
   color: var(--st-on-inverse);
-  font-weight: var(--st-fw-medium);
+  font-weight: var(--st-fw-normal);
 }
 .st-btn--primary:hover:not(:disabled) {
   background: var(--st-inverse);
@@ -939,7 +973,7 @@
   padding: var(--st-sp-2) var(--st-sp-3);
   border-bottom: 1px solid var(--st-line-strong);
   color: var(--st-text-4);
-  font-weight: var(--st-fw-medium);
+  font-weight: var(--st-fw-normal);
   text-align: left;
 }
 .st-table td {
@@ -1036,7 +1070,7 @@
 .st-modal-title {
   flex: 1;
   font-size: var(--st-fs-lg);
-  font-weight: var(--st-fw-medium);
+  font-weight: var(--st-fw-normal);
   color: var(--st-text-1);
 }
 .st-modal-body {

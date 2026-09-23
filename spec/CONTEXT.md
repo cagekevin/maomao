@@ -229,7 +229,7 @@
 
 * **降级透明度（P1-3 红线）**：关键降级（画布 KV→localStorage 等）统一走 `base/core/log/degrade.ts` 的 `reportDegrade`（集中日志 + 可选 toast 节流），禁止各处散写 `logger.warn` 后静默，也禁止手写高频 toast 刷屏。
 
-* **生成链路真相源契约（红线，所有生成节点必守）**：任务中心为结果权威源，node.data 为渲染缓存副本。① `onSuccess` 必须把结果写回 node.data（`data.imageUrl`/`data.videoUrl`），否则刷新丢结果；② 异步可恢复节点必须传 `onRecover`，收到 `agent:task-completed` 广播回填 `resultUrl`；③ **文本类节点例外**——结果本体在 `data.text`、任务中心 `resultUrl` 为空，不套用 onRecover，由 data.text 随画布快照落盘恢复；④ 方向单向：写只走 `useNodeGeneration`，刷新后任务中心→节点回填，节点不回写任务中心。样板：PromptNode / DiscountVideoNode；机制见 `src/hooks/useNodeGeneration.ts` 文件头。
+* **生成链路真相源契约（红线，所有生成节点必守）**：结果权威源 = **后端 `tasks` 表**（前端「任务中心」是它的镜像，**只反映不筛除** —— ADR-0059），node.data 为渲染缓存副本。① `onSuccess` 必须把结果写回 node.data（`data.imageUrl`/`data.videoUrl`），否则刷新丢结果；② 异步可恢复节点必须传 `onRecover`，收到 `agent:task-completed` 广播回填 `resultUrl`；③ **文本类节点例外**——结果本体在 `data.text`、任务中心 `resultUrl` 为空，不套用 onRecover，由 data.text 随画布快照落盘恢复；④ 方向单向：写只走 `useNodeGeneration`，刷新后任务中心→节点回填，节点不回写任务中心。样板：PromptNode / DiscountVideoNode；机制见 `src/hooks/useNodeGeneration.ts` 文件头。⑤ **任务行真源 = 后端 `tasks` 表**：「任务中心」是它的前端**镜像**，**只反映、不筛除**（同一 nodeId 可出现多条，不是重复提交）；节点是**单结果槽**、末次广播胜出。判据本体见 **ADR-0059**。
 
 * **复制安全隔离 + 瞬态归属（阶段一二收口，2026-09-04）**：节点动画/进行中状态「复制后相互干扰」根因是①克隆节点共享原 `data` 引用（`duplicateSelectedWithEdges` 曾 `{...n}` 复用 data）+②瞬态两处存（`useNodeGeneration` 组件 `useState` vs `VideoProcessNode` 的 `data.loading`）。收口两条，已落地：
   ① **复制必深拷（阶段一）**：`duplicateSelectedWithEdges` 克隆节点强制 `data:{...n.data}` 断原引用，克隆体为干净副本，后续各自 patch 互不影响。⚠️ `data` 内会被写者原地改的顶层集合字段（images\[]/texts\[]/outputs\[] 等）若仍串扰，再逐一浅拷新数组（非无脑递归深拷）。

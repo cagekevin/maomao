@@ -3,6 +3,28 @@ import react from '@vitejs/plugin-react';
 import path from 'path';
 import { fileURLToPath } from 'node:url';
 
+/**
+ * Vite 构建配置唯一真源（别名 · 产物输出 · chunk 拆分）。
+ *
+ * 更新(2026-09-23)：显式关闭「构建前清空 outDir」—— `build.emptyOutDir: false`。
+ *
+ *   背景（实测复现）：`public/mj-styles/` 有 986 个静态文件，经 Vite 原样拷进 `dist/mj-styles`；
+ *   而 Vite 每次 build 前都会 `emptyDir(outDir)`，于是**连续第二次构建**必然要删这 986 个文件，
+ *   超过编辑器安全删除防护的批量阈值（500）⇒ 被拦死在清目录这一步：
+ *     [safe-delete][SAFE_DELETE_BULK_CONFIRM_REQUIRED] {"count":987,"threshold":500,...}
+ *   现象极具误导性：`3432 modules transformed` 全部完成，报错却来自「构建」——
+ *   实为环境防护拦截 `fs.rmSync`，与源码无关。手动清空 `dist` 后可正常构建
+ *   （`✓ built in 25.46s`），故根因只在「清空 outDir」这一动作。
+ *
+ *   代价（已知并接受）：`dist/` 不再自动清空 ⇒ `dist/assets/` 会残留旧 hash 产物
+ *   （文件名带 hash，不影响加载，但会累积、且 `scripts/1mao-scripts/verify-chunks.cjs`
+ *   会连旧 chunk 一起逐个 import）。需要干净产物时**手动**执行（走系统删除，不经 Node 防护）：
+ *     PowerShell: `Remove-Item -Recurse -Force dist`
+ *
+ *   为什么不选别的路：改回 `emptyOutDir: true` 即回到被拦状态；只在脚本里删 dist 也是 Node 进程，
+ *   同样会被防护拦（阈值 500 只看文件数）。故此开关是唯一不依赖环境的稳定解。
+ */
+
 // 更新(2026-09-02)：配置随全仓 TS 化，.js→.ts。__dirname 是 CJS 全局，在 ESM 配置里之所以能用，
 // 靠的是 Vite 打包配置时注入的 esbuild define——换个加载器（或直接 node 跑）就会变 undefined。
 // 改用标准 ESM 写法，不依赖任何打包器注入，tsc 也能真校验（此前 .js + checkJs:false = 零检查）。
@@ -33,6 +55,9 @@ export default defineConfig({
   base: './', // 相对路径：兼容 Chrome 插件（side panel 通过 chrome-extension:// 加载）
   build: {
     outDir: 'dist',
+    // 见文件头「更新(2026-09-23)」：禁止清空 dist —— public/mj-styles 的 986 个文件会让
+    // emptyDir 触发 IDE 批量删除防护（阈值 500），把构建拦在清目录这一步。代价：assets 残留旧 hash。
+    emptyOutDir: false,
     // 插件 CSP（manifest content_security_policy: script-src 'self'）不允许内联，交给 vite 外部化
     cssCodeSplit: false,
     sourcemap: false,
