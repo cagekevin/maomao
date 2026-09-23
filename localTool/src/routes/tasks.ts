@@ -23,6 +23,7 @@ import {
 } from '../utils/helpers.js';
 import { runReferenceGc } from '../utils/orphanGc.js';
 import { logDebug } from '../utils/logDebug.js';
+import { readRelaySnapshot } from '../db/relaySnapshot.js';
 
 const SNAKE_TO_CAMEL: Record<string, string> = {
   task_id: 'taskId',
@@ -226,18 +227,16 @@ function blocksRealDamage(
  * 一行有没有句柄是可判的事实，故判据用它，而不是全局假定。
  *
  * 解析不了（脏值）按**无句柄**处理并留痕：拿不到句柄事实时不得据此剥夺前端的写权。
+ * ⚠️ 判据走 db 层 `readRelaySnapshot`（唯一实现，ADR-0057）—— 本文件不再自写 JSON.parse。
  */
 function hasRelayPollHandle(existing: Record<string, unknown> | undefined): boolean {
-  const raw = existing?.request_data;
-  if (typeof raw !== 'string') return false;
-  try {
-    return Boolean((JSON.parse(raw) as { _relayPoll?: unknown } | null)?._relayPoll);
-  } catch {
+  const r = readRelaySnapshot(existing);
+  if (!r.ok && r.reason === 'unparsable') {
     console.warn('[upsertTask:request_data-unparsable] request_data 非合法 JSON，按"无句柄"处理', {
       task_id: existing?.task_id,
     });
-    return false;
   }
+  return r.ok;
 }
 
 export function upsertTask(

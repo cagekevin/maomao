@@ -79,11 +79,7 @@ import {
   handleAdminStorageHealth,
   handleAdminDeleteFile,
 } from './routes/admin.js';
-import {
-  handleGenerateSubmit,
-  handleGenerateGet,
-  handleGenerateCancel,
-} from './routes/generate.js';
+import { handleGenerateSubmit, handleGenerateGet } from './routes/generate.js';
 import {
   handleProvidersGet,
   handleProvidersPut,
@@ -153,9 +149,8 @@ export const routes: Route[] = [
   { method: 'GET', pattern: '/api/logs/stream', handler: handleLogsStream },
 
   // ── Generate（统一生成入口：按 capability 分流聊天/图片/视频；submit 即返 taskId + GET attach，
-  //   句柄由 relay-poll 常驻轮询。/api/relay 已于 2026-09-03 并入本端点，路由删除）──
+  //   句柄由 relay-poll 常驻轮询。无取消端点 —— 生成链路不提供中止入口，ADR-0061）──
   { method: 'POST', pattern: '/api/generate', handler: handleGenerateSubmit },
-  { method: 'POST', pattern: /^\/api\/generate\/[^/]+\/cancel$/, handler: handleGenerateCancel },
   { method: 'GET', pattern: /^\/api\/generate\/[^/]+$/, handler: handleGenerateGet },
 
   // ── Providers（配置型：一个平台一个 JSON，读 config/providers/；测连/拉模型委托 ai-relay）──

@@ -1182,15 +1182,6 @@ export const apiRegistry: Record<string, ApiRegistryEntry> = {
     consumer: 'relayProxy.relayAttachUntilDone',
     note: '按 taskId 拉取生成结果（常驻轮询 attach）',
   },
-  generateCancel: {
-    fn: 'relayProxy.relayCancel',
-    method: 'POST',
-    path: '/api/generate/{x}/cancel',
-    envelope: 'code-data',
-    status: 'ACTIVE',
-    note: '按 taskId 取消生成',
-  },
-
   // ── KV（localToolApi 薄壳）──────────────────────────────────────────
   kvGet: {
     fn: 'localToolApi.kvGet',

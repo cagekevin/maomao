@@ -8,7 +8,7 @@
  * 拿到终态 → 把持久 /files/ url 回填任务记录并广播节点。
  *
  * 【唯一查询协议】恢复不再自建轮询/落盘：复用 relayProxy.relayAttachUntilDone（和 in-flight
- * relayGenerate 同一 attach 循环），只 attach 不 cancel。结果 url = 后端已落盘 /files/，
+ * relayGenerate 同一 attach 循环），只 attach（生成链路不提供中止入口，ADR-0061）。结果 url = 后端已落盘 /files/，
  * 前端无需再 saveResultToTasks（旧网关 task 协议分支已删，恢复统一走 GET /api/generate/:id attach）。
  *
  * 【候选判定】旧实现依赖 pollTaskId（需 setTaskPollId 写入，relay 下无人写 → 候选空、恢复失效）。
@@ -72,7 +72,6 @@ async function pollOneTaskAttach(task: PollableTask): Promise<boolean> {
     st = await relayAttachUntilDone({
       frontTaskId,
       // 【143 · S4′】不传 `timeoutMs` ⇒ 由 attach 循环从后端 `budgetMs` 学（本路径无 POST 响应可读）。
-      cancelOnAbort: false, // 恢复不取消，让后端句柄续跑到终态
       onProgress: (p) => {
         if (p !== undefined) patchTask(task.id, { status: 'running', progress: p });
       },

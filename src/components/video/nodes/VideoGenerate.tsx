@@ -213,7 +213,6 @@ function VideoGenerate({ id, data, selected }: VideoGenerateProps) {
     models,
     loading,
     error,
-    stop: onStop,
     start: handleGenerate,
   } = useGenerateNode({
     nodeId: id,
@@ -539,13 +538,8 @@ function VideoGenerate({ id, data, selected }: VideoGenerateProps) {
               <CreativeLibraryButton initialTab="style" onApply={handleCreativeApply} />
             </div>
 
-            {/* 生成 / 停止（基座 GenerateButton） */}
-            <GenerateButton
-              loading={loading}
-              onGenerate={handleGenerate}
-              onStop={onStop}
-              onRefresh={onStop}
-            />
+            {/* 生成（基座 GenerateButton） */}
+            <GenerateButton loading={loading} onGenerate={handleGenerate} />
           </div>
         </div>
 

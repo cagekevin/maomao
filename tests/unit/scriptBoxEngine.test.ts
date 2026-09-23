@@ -408,42 +408,6 @@ describe('scriptBoxEngine · 引擎编排', () => {
     expect(toastStore.toastError).toHaveBeenCalled();
   });
 
-  it('onStopScriptItem 全停：中止所有 AbortController', async () => {
-    const { chatCompletions } = await import('@/components/generate/lib/generate');
-    vi.mocked(chatCompletions).mockImplementationOnce(() => new Promise(() => {})); // 永不 resolve，保持运行
-    const { engine, store: _store } = makeEngine({ story: '长跑剧情' });
-    const p = engine.onGenerateScript(); // 触发一次生成并挂起
-    // 等待引擎进入请求（abortMap 注册 'script'）
-    await new Promise((r) => setTimeout(r, 20));
-    engine.onStopScriptItem(); // 全停
-    // 不应抛错；await 让挂起的 promise 在 abort 后结束（catch 静默）
-    await Promise.race([p, new Promise((r) => setTimeout(r, 50))]);
-    expect(true).toBe(true); // 能安全中止即达标
-  });
-
-  it('onStopScriptItem 单项：合并视频按稳定实体键注册，可被 `merge-video-${nodeId}` 中止（TD-18-18）', async () => {
-    const { chatCompletions } = await import('@/components/generate/lib/generate');
-    let seenSignal: AbortSignal | undefined;
-    vi.mocked(chatCompletions).mockImplementationOnce((args) => {
-      seenSignal = args?.signal;
-      return new Promise(() => {}); // 永不 resolve，保持运行
-    });
-    const { engine } = makeEngine({
-      shots: [
-        { id: 's1', index: 1, description: 'x', prompt: 'p1', videoPrompt: 'v1' },
-        { id: 's2', index: 2, description: 'y', prompt: 'p2', videoPrompt: 'v2' },
-      ],
-      assets: [],
-    });
-    const p = engine.onGenerateMergedVideo(['s1', 's2'], 'video');
-    await new Promise((r) => setTimeout(r, 20));
-    // 注册键必须可由中止入口重建（`onStopScriptItem(kind,id)` 按 `${kind}-${id}` 反查 abortMap）：
-    // 旧实现 `merge-video-${Date.now()}` 带时间戳 ⇒ 重建不出该键 ⇒ 下面这行掐不掉任务（seenSignal.aborted 仍为 false）。
-    engine.onStopScriptItem('merge-video', 'node-1');
-    expect(seenSignal?.aborted).toBe(true);
-    await Promise.race([Promise.resolve(p), new Promise((r) => setTimeout(r, 50))]);
-  });
-
   it('onConnectShot 建下游 imageGenerateNode 并自动连线', async () => {
     const { engine, store, addNodes } = makeEngine({
       shots: [{ id: 's1', index: 1, prompt: 'p', videoPrompt: 'v' }],

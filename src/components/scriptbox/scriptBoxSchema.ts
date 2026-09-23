@@ -126,8 +126,6 @@ export interface ScriptBoxCallbacks {
     feedback?: string,
   ) => Promise<{ ok: boolean; text?: string } | undefined>;
   onGenerateTailFrameVariants?: (shotId: string | number) => void;
-  /** 停止某个进行中的剧本盒任务（kind: 'asset' | 'shot'，或直接传 key） */
-  onStopScriptItem?: (kind?: string, id?: string) => void;
   /** 重试单张资产图「上传素材库」（此前落盘失败 → imageStatus='failed'） */
   onRetryAssetImageUpload?: (assetId: string) => Promise<void> | void;
   /** 批量上传资产图到素材库 */

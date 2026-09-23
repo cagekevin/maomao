@@ -291,7 +291,6 @@ function ImageGenerate({ id, data, selected }: ImageGenerateProps) {
     models,
     loading,
     error,
-    stop: onStop,
     start: handleGenerate,
     writeResult, // 【TD-25-1】唯一写回实现（冷启动恢复也走它，不自己 patchData）
   } = useGenerateNode({
@@ -848,7 +847,7 @@ function ImageGenerate({ id, data, selected }: ImageGenerateProps) {
                   />
                 </div>
 
-                {/* 批量 xN + 生成/停止 */}
+                {/* 批量 xN + 生成 */}
                 <div className="flex items-center gap-2 flex-shrink-0 ml-2">
                   {!loading && (
                     <div ref={countMenuRef} className="relative nodrag flex items-center">
@@ -884,7 +883,7 @@ function ImageGenerate({ id, data, selected }: ImageGenerateProps) {
                       )}
                     </div>
                   )}
-                  <GenerateButton loading={loading} onGenerate={handleGenerate} onStop={onStop} />
+                  <GenerateButton loading={loading} onGenerate={handleGenerate} />
                 </div>
               </div>
             </div>

@@ -188,7 +188,6 @@ function TextGenerate({ id, data, selected }: TextGenerateProps) {
     models,
     loading,
     error,
-    stop: onStop,
     start: handleGenerate,
   } = useGenerateNode({
     nodeId: id,
@@ -524,13 +523,8 @@ function TextGenerate({ id, data, selected }: TextGenerateProps) {
               <CreativeLibraryButton initialTab="prompt" onApply={handleCreativeApply} />
             </div>
 
-            {/* 生成 / 停止（基座 GenerateButton） */}
-            <GenerateButton
-              loading={loading}
-              onGenerate={handleGenerate}
-              onStop={onStop}
-              showCost={false}
-            />
+            {/* 生成（基座 GenerateButton） */}
+            <GenerateButton loading={loading} onGenerate={handleGenerate} showCost={false} />
           </div>
         </div>
 

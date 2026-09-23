@@ -49,7 +49,7 @@ import {
   SCRIPT_IMAGE_TIMEOUT,
 } from '../base/core/config.ts';
 // 任务级总耗时兜底（R2 边界守卫）：给整段生成任务加超时，杜绝「转圈永不结束」
-import { withTimeout, releaseQuietly } from '../base/utils/net/asyncGuard.ts';
+import { withTimeout } from '../base/utils/net/asyncGuard.ts';
 import { drawVideoFrame, setCrossOriginForReadable } from '../base/utils/captureFrame.ts';
 // 【L3c】中止判定统一走 classifyError（唯一入口 genErrors.ts:24），替代原 /abort/i message 关键词判点（脆依赖）
 import { classifyError } from '../base/utils/genErrors.ts';
@@ -153,15 +153,14 @@ export function useJsonObject(modelId?: string): boolean {
  *  - 上传 / 连线：保留原有 addNodes/连线能力。
  *
  * 并发安全：所有请求都是独立 fetch，无共享可变状态（generate 门面的 chatCompletions/generateImage 同为纯函数）；
- * 每个可中止的生成都注册独立 AbortController 到 abortMap，互不影响（对齐官方 zt.current）。
+ * 每个生成各持一个 AbortController，只服务自身 `withTimeout`（**无外部中止入口**，ADR-0061）。
  *
- * 10 个回调端点（挂到 node.data，由 useScriptBoxEngine 注入）：
+ * 回调端点（挂到 node.data，由 useScriptBoxEngine 注入）：
  *  - onGenerateScript()              生成分镜 + 资产（剧情/风格/镜头数）
  *  - onGenerateAssetImage(id)        生成单个资产参考图
  *  - onGenerateAllAssetImages(ids?)  批量生成资产参考图
  *  - onGenerateShotPrompts(shotIds?) 生成全部/选中分镜的生图/生视频提示词
  *  - onGenerateShotImage(shotId, type) AI 生成图提示词（关键帧/宫格/俯视调度）
- *  - onStopScriptItem(kind?, id?)    中止对应生成（AbortController）
  *  - onRetryAssetImageUpload(id)     重试资产参考图上传
  *  - onUploadAllAssetImages()        上传全部资产素材
  *  - onUploadAssetImage(id, file)    上传本地图片设为资产参考图
@@ -189,9 +188,6 @@ export function createScriptBoxEngine({
   getProviderState,
   captureVideoFrame: cf = captureVideoFrame,
 }: ScriptBoxEngineDeps) {
-  // ── AbortController 注册表（onStopScriptItem 真中止用，对齐官方 zt.current）──
-  const abortMap = new Map<string, AbortController>();
-
   // ═══════════════════════════════════════════════════════════════
   // 公共工具（纯函数，无副作用）
   // ═══════════════════════════════════════════════════════════════
@@ -272,28 +268,26 @@ export function createScriptBoxEngine({
   }
 
   /**
-   * 统一「可中止生成」骨架（收口 AbortController 注册/注销 + catch 分级样板，7 处复用）。
+   * 统一「可中止生成」骨架（收口 catch 分级样板，7 处复用）。
    * 职责（只收敛脚手架，不改任何业务写回语义）：
-   *  - 建 AbortController 注册到 abortMap（供 onStopScriptItem 真中止），finally 统一注销；
+   *  - 建 AbortController **只服务本任务的 `withTimeout`**（到点 abort 同一 signal）——
+   *    脚本盒不提供外部中止入口（ADR-0061），故无注册表、无 key；
    *  - 总耗时兜底：整段 task 受 withTimeout 保护（见下方实现注释），超时即 abort 并复位；
    *  - 成功/业务失败分支由调用方 task 内部自行 return（各写回逻辑差异大，留在调用点）；
    *  - 仅当 task 抛出未捕获异常时按 /abort/ 分级：中止→logger.warn（不扰用户）；
    *    真错误→toast + logger.error（真实透传，见 CONTEXT §0 轻量兜底）；
    *  - onReset：异常时清 loading 的写回落点（各调用点写回语义不同）。
-   * @param {string} key   abortMap 注册键（onStopScriptItem 真中止用，如 `shot-${id}`）
    * @param {()=>void} onReset  异常/中止时复位 loading
    * @param {(signal)=>Promise} task  业务异步任务（拿 signal 传给 API）
    * @param {{logLabel:string,toastFail:string,ctx:object,timeoutMs?:number}} info 分级日志/提示文案；
    *   timeoutMs=整段任务耗时上限，默认 SCRIPT_TEXT_TIMEOUT，走生图的任务显式传 SCRIPT_IMAGE_TIMEOUT。
    */
   const runAbortable = async (
-    key: string,
     onReset: (() => void) | undefined,
     task: (signal: AbortSignal) => Promise<unknown>,
     info: { logLabel: string; toastFail: string; ctx: Record<string, unknown>; timeoutMs?: number },
   ) => {
     const ac = new AbortController();
-    abortMap.set(key, ac);
     try {
       // 【总耗时兜底】内层段超时（chat 的 120s 段值）只覆盖「等上游响应」阶段，
       // 卡在响应体读取（res.json / SSE 累积）、发图前图片归一、结果落盘等阶段时无人管 → 动画永不结束。
@@ -319,8 +313,6 @@ export function createScriptBoxEngine({
           error: (e as { message?: string })?.message,
         });
       }
-    } finally {
-      abortMap.delete(key);
     }
   };
 
@@ -380,7 +372,6 @@ export function createScriptBoxEngine({
       shotCount,
     });
     return runAbortable(
-      'script',
       () => updateData({ genMask: false }),
       async (signal) => {
         const r = await chatCompletions({
@@ -560,7 +551,6 @@ export function createScriptBoxEngine({
     // 本处只负责 loading 状态、signal，以及「本地化 / 写回」两个业务回调。
     // signal 经原语 R1 贯穿到 generateImage 第 3 位 → 真中止（TD-01-10）。
     return await runAbortable(
-      `asset-${assetId}`,
       () => setAssetLoading(false),
       async (signal) =>
         runGenerationOrchestration({
@@ -726,7 +716,6 @@ export function createScriptBoxEngine({
         ),
       }));
       return runAbortable(
-        `shot-${shot.id}`,
         () =>
           enqueuePatch((latest) => ({
             shots: (latest.shots || []).map((s) =>
@@ -923,7 +912,6 @@ export function createScriptBoxEngine({
     });
     logger.info('scriptBox', 'AI生图提示词·开始', { nodeId, shotId, type });
     return runAbortable(
-      `shotimg-${shotId}`,
       () =>
         updateData({
           shots: getData().shots.map((s) => (s.id === shotId ? { ...s, imgGenLoading: false } : s)),
@@ -1034,7 +1022,6 @@ export function createScriptBoxEngine({
       feedback: String(feedback).trim(),
     });
     runAbortable(
-      `shot-review-${shotId}`,
       () =>
         updateData({
           shots: getData().shots.map((s) => (s.id === shotId ? { ...s, promptLoading: false } : s)),
@@ -1085,45 +1072,6 @@ export function createScriptBoxEngine({
       { logLabel: '审计改写提示词', toastFail: '审计改写失败', ctx: { nodeId, shotId, field } },
     );
     return done;
-  };
-
-  // ═══════════════════════════════════════════════════════════════
-  // 停止生成（对齐官方 Un）：中止指定 AbortController + 清对应 loading
-  // ═══════════════════════════════════════════════════════════════
-  const onStopScriptItem = (kind?: string, id?: string) => {
-    // 兼容多种调用：onStopScriptItem('asset', assetId) / ('shot', shotId) / 直接传 key
-    let key;
-    if (kind && id != null) key = `${kind}-${id}`;
-    else if (kind) key = kind;
-    if (!key) {
-      // 全停：中止所有
-      abortMap.forEach((ac, _k) => {
-        releaseQuietly(() => ac.abort());
-      });
-      abortMap.clear();
-      const d = getData();
-      updateData({
-        genMask: false,
-        shots: (d.shots || []).map((s) => ({ ...s, promptLoading: false, imgGenLoading: false })),
-        assets: (d.assets || []).map((a) => ({ ...a, loading: false })),
-      });
-      return;
-    }
-    const ac = abortMap.get(key);
-    if (ac) {
-      releaseQuietly(() => ac.abort());
-      abortMap.delete(key);
-    }
-    const d = getData();
-    if (String(kind) === 'asset') {
-      updateData({
-        assets: (d.assets || []).map((a) => (a.id === id ? { ...a, loading: false } : a)),
-      });
-    } else if (String(kind) === 'shot') {
-      updateData({
-        shots: (d.shots || []).map((s) => (s.id === id ? { ...s, promptLoading: false } : s)),
-      });
-    }
   };
 
   // ═══════════════════════════════════════════════════════════════
@@ -1503,10 +1451,6 @@ export function createScriptBoxEngine({
       seconds,
     });
     return runAbortable(
-      // 键必须**可被调用方重建**（`onStopScriptItem(kind,id)` 按 `${kind}-${id}` 反查 abortMap）：
-      // 原 `merge-video-${Date.now()}` 带时间戳 ⇒ 中止入口永远重建不出该键 ⇒ 合并任务在单项中止
-      // 路径上掐不掉（只有「全停」能兜）。改稳定实体键，与 `shot-${shot.id}` 同构（TD-18-18 · 2026-09-18）。
-      `merge-video-${nodeId}`,
       () => {},
       async (signal) => {
         const r = await chatCompletions({
@@ -1625,7 +1569,6 @@ export function createScriptBoxEngine({
       hasVideo: !!videoUrl,
     });
     return runAbortable(
-      `tailframe-${shotId}`,
       () => patchShot((s) => ({ ...s, tailFrameVariantsLoading: false })),
       async (signal) => {
         // 1) 抽上一镜尾帧 → dataURL → 本地化「原版尾帧」（落 migrated/脚本/尾帧变体，对齐官方）。
@@ -1798,7 +1741,6 @@ export function createScriptBoxEngine({
     onGenerateShotPrompts,
     onGenerateShotImage,
     onReviewShotPrompt,
-    onStopScriptItem,
     onRetryAssetImageUpload,
     onUploadAllAssetImages,
     onUploadAssetImage,

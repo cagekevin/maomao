@@ -86,14 +86,15 @@
   --st-fs-xs: 11px; /* = caption-sm（全站 212 处，最主流档） */
   --st-fs-sm: 12px; /* = body-xs（说明 / 标签 / 表格 / 提示条） */
   --st-fs-md: 13px; /* = body-sm（正文 / 控件 / 行标题） */
-  --st-fs-lg: 15px; /* = base-sm（卡片标题 / 弹窗标题） */
+  --st-fs-lg: 14px; /* = sm（卡片标题 / 弹窗标题）。2026-09-23 由 15px 降到 14px：
+     与 xl(16px) 拉开 2px 层级；且 14px = text-sm 是全站主力档（84 处）。 */
   --st-fs-xl: 16px; /* = base（分区标题 / 统计数字）——本页最大字号。
-     2026-09-23 两轮下调：20px（= text-xl，全站仅 2 处）→ 18px（= lg）→ **16px（= base，全站 11 处）**。
-     用户反馈 20px / 18px 在 Windows 上都偏大 —— 因 Windows 上雅黑字面比 Segoe UI 宽、
-     x-height 更大，同 px 值的视觉体积比 Mac 上大一档，故按 Windows 口径定档。
-     ⚠️ 与 `--st-fs-lg`(15px) 仅差 1px：卡片标题与分区标题的层级改由**颜色**承担
-     （--st-text-1 分区 vs --st-text-1 卡片）+ 位置（分区标题独占一行、上方留白 32px），
-     不再靠字号差。若日后觉得两者分不开，先把 lg 降到 14px(= text-sm)，不要再把 xl 加回去。 */
+     2026-09-23 三轮下调：20px（= text-xl，全站仅 2 处）→ 18px（= lg）→ **16px（= base，全站 11 处）**。
+     用户反馈 20/18 在 Windows 上都偏大 —— Windows 上雅黑字面比 Segoe UI 宽、x-height 更大，
+     同 px 值的视觉体积比 Mac 上大一档，故一律按 **Windows 口径**定档。
+     ⚠️ 本页字号阶梯现为 **11 / 12 / 13 / 14 / 16**。相邻档只差 1px 时，层级靠**颜色与位置**区分
+     （卡片标题 = --st-text-1 + 独占一行；分区标题 = --st-text-1 + 上方留白 32px），不靠字号差。
+     **不要再把任何一档加回去** —— 已两轮实测「Windows 上偏大」。 */
   --st-lh-tight: 1.3;
   --st-lh-base: 1.55;
   /* 【字重纪律 · 2026-09-23 用户裁定：设置页不要加粗】
@@ -138,11 +139,26 @@
   --st-bg-sunken: rgb(var(--mao-surface-2));
   --st-line: rgb(var(--mao-edge-subtle)); /* 发丝线（分隔/描边默认值） */
   --st-line-strong: rgb(var(--mao-edge)); /* 控件描边 */
-  --st-text-1: rgb(var(--mao-text-strong)); /* 标题 */
-  --st-text-2: rgb(var(--mao-text-primary)); /* 正文 */
-  --st-text-3: rgb(var(--mao-text-secondary)); /* 次级正文 */
-  --st-text-4: rgb(var(--mao-text-muted)); /* 说明 */
-  --st-text-5: rgb(var(--mao-text-faint)); /* 弱化（分组名） */
+  /* ── 文字别名（5 档）· 2026-09-23 整体上移一档 ──
+     【为什么】原映射把色阶压得比全站低两档（基准取 secondary 170、说明取 muted 118），
+     实测对比度（卡片底 #161615 / 页面底 #0d0d0c）：
+       原 --st-text-4 = #767676 → **3.79 / 4.28**，低于 WCAG AA 正文要求的 4.5 ⇒ 说明文字看不清；
+       原 --st-text-5 = #676767 → **3.05 / 3.44**，更糟。
+     而全站正文主力是 text-body #cecece（10.95–12.36）与 text-white #ffffff（17.24–19.44），
+     设置页比它们暗两档，这就是「设置页看着灰、别处看着白」的根因。
+     现按全站档位对齐：基准 → body(206)，说明 → secondary(170)，弱化 → muted(118)。
+     【色温】保持中性灰（R=G=B）。index.css 文件头 2026-08-24 定稿：文字层必须中性，
+     偏色在大段文本上会被放大。观感上的「暖」来自暖背景（--mao-canvas 13 13 12）的衬托，
+     不要靠给文字加暖来解决。 */
+  --st-text-1: rgb(var(--mao-text-strong)); /* 255 · 标题 */
+  --st-text-2: rgb(var(--mao-text-primary)); /* 230 · 正文 / 行标题 */
+  --st-text-3: rgb(
+    var(--mao-text-body)
+  ); /* 206 · 基准：次级正文 / 控件 / 列表（= 全站 text-body） */
+  --st-text-4: rgb(
+    var(--mao-text-secondary)
+  ); /* 170 · 说明 / 标签 / 表头（原 118，对比度不达标） */
+  --st-text-5: rgb(var(--mao-text-muted)); /* 118 · 弱化：分组名 / 侧栏标题（原 103） */
   --st-inverse: rgb(var(--mao-inverse));
   --st-on-inverse: rgb(var(--mao-inverse-strong));
 

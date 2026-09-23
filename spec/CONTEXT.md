@@ -231,6 +231,8 @@
 
 * **生成链路真相源契约（红线，所有生成节点必守）**：结果权威源 = **后端 `tasks` 表**（前端「任务中心」是它的镜像，**只反映不筛除** —— ADR-0059），node.data 为渲染缓存副本。① `onSuccess` 必须把结果写回 node.data（`data.imageUrl`/`data.videoUrl`），否则刷新丢结果；② 异步可恢复节点必须传 `onRecover`，收到 `agent:task-completed` 广播回填 `resultUrl`；③ **文本类节点例外**——结果本体在 `data.text`、任务中心 `resultUrl` 为空，不套用 onRecover，由 data.text 随画布快照落盘恢复；④ 方向单向：写只走 `useNodeGeneration`，刷新后任务中心→节点回填，节点不回写任务中心。样板：PromptNode / DiscountVideoNode；机制见 `src/hooks/useNodeGeneration.ts` 文件头。⑤ **任务行真源 = 后端 `tasks` 表**：「任务中心」是它的前端**镜像**，**只反映、不筛除**（同一 nodeId 可出现多条，不是重复提交）；节点是**单结果槽**、末次广播胜出。判据本体见 **ADR-0059**。
 
+* **生成链路不提供中止入口（红线，ADR-0061）**：节点生成中**不渲染任何按钮**（无「停止」/「刷新」），任务中心**不提供「取消」**；「不再等待」由编排的 `pending` 分支承担（预算耗尽 ⇒ 清 loading，行留 `running` ⇒ 恢复轮询续 attach），「不再显示」用任务中心的**删除任务**。前端 `relayCancel` 与后端 `POST /api/generate/:id/cancel` 已全链删除（后端 `cancelGenerateTask` 仅测试观测点）；后端对「**不归自己跟踪的任务行**」必须诚实给 `not-found`／`unknown`，**不得报 `running`**（那是谎报进度，会让消费者无限等）。判据本体见 **ADR-0061**。
+
 * **复制安全隔离 + 瞬态归属（阶段一二收口，2026-09-04）**：节点动画/进行中状态「复制后相互干扰」根因是①克隆节点共享原 `data` 引用（`duplicateSelectedWithEdges` 曾 `{...n}` 复用 data）+②瞬态两处存（`useNodeGeneration` 组件 `useState` vs `VideoProcessNode` 的 `data.loading`）。收口两条，已落地：
   ① **复制必深拷（阶段一）**：`duplicateSelectedWithEdges` 克隆节点强制 `data:{...n.data}` 断原引用，克隆体为干净副本，后续各自 patch 互不影响。⚠️ `data` 内会被写者原地改的顶层集合字段（images\[]/texts\[]/outputs\[] 等）若仍串扰，再逐一浅拷新数组（非无脑递归深拷）。
   ② **瞬态统一拥有者（阶段二）**：loading/error/progress 归 `nodeRuntimeStore`（§二④b 内存 Map，按 nodeId），不入 `node.data`/画布快照 → 复制天然隔离、杜绝「半个 loading 被复制走」。`useNodeGeneration` 的 loading/error + `VideoProcessNode` 的 `data.loading/progress` 均已迁入（对外 `loading` 接口不变），`node.data` 只留持久字段。**禁止再往** **`node.data`** **写 loading/progress，禁止组件各自** **`useState`** **管瞬态**。阶段三「媒体播放互斥调度」（`playMedia`/`pauseAll`）为可选，无真实需求前不预埋。

@@ -1,30 +1,24 @@
 import React from 'react';
-import { ArrowUp, Square, RefreshCw } from 'lucide-react';
+import { ArrowUp } from 'lucide-react';
 
 /**
- * 生成/停止按钮（复刻各节点底部「生成」胶囊按钮）。
+ * 生成按钮（复刻各节点底部「生成」胶囊按钮）。
  *
  * @param props
- *  - loading      是否生成中
+ *  - loading      是否生成中（生成中不渲染按钮）
  *  - onGenerate   生成点击
- *  - onStop       停止点击
- *  - onRefresh    生成中时的「刷新」按钮（可选，视频生成有）
  *  - cost         币消耗（可选，显示在生成按钮内）
  *  - costColor    币颜色（默认橙 yellow）
  *  - label        按钮文字（默认「生成」）
  *  - showCost     cost 是否显示（默认 true）
  */
 
-/** 生成/停止按钮 Props。 */
+/** 生成按钮 Props。 */
 interface GenerateButtonProps {
-  /** 是否生成中（生成中显示停止 + 刷新，否则显示生成） */
+  /** 是否生成中（生成中不渲染按钮 —— 生成链路不提供中止入口，ADR-0061） */
   loading: boolean;
   /** 生成点击 */
   onGenerate: () => void;
-  /** 停止点击 */
-  onStop: () => void;
-  /** 生成中时的「刷新」按钮（可选，视频生成有） */
-  onRefresh?: () => void;
   /** 币消耗（可选，显示在生成按钮内） */
   cost?: React.ReactNode;
   /** 币颜色（默认橙 yellow） */
@@ -38,46 +32,14 @@ interface GenerateButtonProps {
 export default function GenerateButton({
   loading,
   onGenerate,
-  onStop,
-  onRefresh,
   cost,
   costColor = 'text-orange-400',
   label = '生成',
   showCost = true,
 }: GenerateButtonProps) {
-  if (loading) {
-    return (
-      <div className="flex items-center gap-3 flex-shrink-0 ml-2">
-        {onRefresh && (
-          <button
-            className="flex items-center gap-1 text-secondary hover:text-white bg-surface-1 hover:bg-surface-hover-strong border border-edge hover:border-edge-strong rounded-full px-2.5 py-1 transition-colors"
-            title="刷新状态"
-            onClick={(e) => {
-              e.stopPropagation();
-              onRefresh();
-            }}
-          >
-            <RefreshCw size={12} />
-            <span className="text-caption">刷新</span>
-          </button>
-        )}
-        <div
-          className="flex items-center bg-red-500/10 rounded-full p-1 pl-3 border border-red-500/30 hover:border-red-500/50 transition-colors cursor-pointer group/btn"
-          onClick={(e) => {
-            e.stopPropagation();
-            onStop();
-          }}
-        >
-          <span className="flex items-center gap-1 mr-3 text-xs text-red-400 group-hover/btn:text-red-300">
-            停止
-          </span>
-          <span className="bg-red-500/20 text-red-400 w-6 h-6 rounded-full flex items-center justify-center hover:bg-red-500/30 transition-colors">
-            <Square size={10} fill="currentColor" />
-          </span>
-        </div>
-      </div>
-    );
-  }
+  // 生成中不渲染任何按钮：前端不拥有「中止」（既不掌握上游句柄，也无法影响上游计费）⇒ 无中止入口。
+  // 「不再等待」由编排的 pending 分支承担（预算耗尽自动清 loading），结果由后端终态经 pollTask 回填。
+  if (loading) return null;
 
   return (
     <div

@@ -96,7 +96,6 @@ export interface NodeGenerationApi {
   error: string;
   /** 【TD-01-6】`false` = 未触发（loading 忙 / 校验不过）；对象 = 已触发结果。两者勿混。 */
   start: () => Promise<NodeGenerationStartResult | false>;
-  stop: () => void;
   /**
    * 【TD-25-1 · ADR-0009】**`data[resultKey]` 的唯一写回实现**（`writeBackResult` 本身）。
    * 节点若自己拿到结果（如挂载时从任务中心冷启动恢复）**必须调它**，不许自己 `patchData({ [resultKey]: … })`。
@@ -171,9 +170,9 @@ function promptPreview(p: string | undefined): string {
  *   { ok: false, pending: true, error? }    → 【2026-09-21】前端停止等待（任务仍 running）：**不** setError、
  *                                              不 taskCtl.fail，交恢复轮询续 read 终态（见 start 的 pending 透传）
  *
- * 【中止说明】
- *   stop() 目前只清 loading/error，不中断网络请求（真 API 的中断需 AbortController，
- *   待接真引擎时在 run 内用 AbortSignal 实现，start/stop 对外接口不变）。
+ * 【中止说明】本契约**不提供中止出口**（生成链路不提供中止入口，ADR-0061）：
+ *   前端不拥有「中止」（既不掌握上游句柄，也无法影响上游计费）；`abortRef` 仅用于 start 时取消旧请求。
+ *   不再等待由编排的 pending 分支承担，结果由后端终态经恢复轮询回填。
  */
 export function useNodeGeneration({
   nodeId,
@@ -203,7 +202,7 @@ export function useNodeGeneration({
   // 【瞬态收口·阶段二】loading/error 统一归 nodeRuntimeStore（内存级，按 nodeId 键，
   // 复制天然隔离）。对外接口不变：本 hook 仍返回 { loading, error }，节点代码几乎不动。
   const { loading, error } = useNodeRuntime(nodeId);
-  // AbortController：stop() 真中断请求（Step C）。run 执行器接收 signal 并传给底层 API（Step A 已支持）。
+  // AbortController：仅用于 start 时取消**旧请求**（每次 start 重建，避免并发）。
   const abortRef = useRef<AbortController | null>(null);
   // 【TD-01-5 · 2026-09-13】原 `runningRef` 同步防重已删：`claimNodeRun`（taskStore 同步 Map 锁，
   // 本函数第一句）已覆盖同 tick 重入——claim 成功即证明无在跑（唯一置位点就是本函数，各退出路径皆复位），
@@ -294,12 +293,6 @@ export function useNodeGeneration({
     }
   }, [loading, nodeId, writeBackResult]);
 
-  // stop：真中断底层请求（Step C）。请求经 signal 传到 imageApi/videoApi，abort 后 fetch/轮询中断。
-  const stop = useCallback(() => {
-    abortRef.current?.abort();
-    updateNodeRuntime(nodeId, { loading: false });
-  }, [nodeId]);
-
   // 重生成回调注册：让 Agent runNodeGeneration（generate_node 工具）能驱动本节点重新生成
   // （任务中心「再来一次」入口已于 2026-09-12 删除——第二入口剧本盒资产任务未接 retry，点必失败，故整体移除）
   const startRef = useRef(start);
@@ -333,5 +326,5 @@ export function useNodeGeneration({
   // 【TD-25-1】把**唯一写回实现**露给节点用：节点若自己拿到结果（如挂载时从任务中心冷启动恢复），
   //   必须**问机制要写回**，不许自己 `patchData({ [resultKey]: … })`（ADR-0009：`data[resultKey]`
   //   只经 `writeBackResult` 一处写）。触发器可以在节点，**写回实现只有这一份**。
-  return { loading, error, start, stop, writeResult: writeBackResult };
+  return { loading, error, start, writeResult: writeBackResult };
 }

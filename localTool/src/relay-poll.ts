@@ -48,6 +48,7 @@ import {
   buildLovartDirectProfile,
 } from './providerConfigStore.js';
 import { getDb, queryAll, debouncedSaveDb, flushSaveDb } from './db/database.js';
+import { readRelaySnapshot } from './db/relaySnapshot.js';
 
 /** /api/generate 提交意图（与 /api/relay body 同源 + frontTaskId/nodeId/type 关联） */
 export interface RelaySubmitInput {
@@ -104,7 +105,8 @@ export type RelayTaskStatus =
    * 「失败」⇒ 用户手动重提 ⇒ **重复计费**（且旧任务仍在跑，白花钱）。
    * 对齐外部 AIFISHER B.1 铁律：**提交确认丢失绝不直接重提，须 unknown + 远端核对**。
    *
-   * 【与 failed 的差别（务必区分，勿合并）】`failed` = 确定没跑（本地前置失败/上游明确报错/已取消）；
+   * 【与 failed 的差别（务必区分，勿合并）】`failed` = 确定没跑（本地前置失败/上游明确报错）；
+   *   **"已取消"不属此档** —— 取消时上游可能仍在跑，不得与"确定没跑"同档。
    *   `unknown` = **可能已在跑**，判 failed 会诱导重复付费。前端据此给「需确认」语义而非「红失败」。
    */
   // 【TD-08-55】**保留** `threadId?`，并把缺的**生产者**补上（原先是"消费方在、生产者缺"）：
@@ -114,7 +116,12 @@ export type RelayTaskStatus =
   //   ⇒ 按 Step 4：**消费者要而生产者没给 ⇒ 回生产者补契约**（禁止改消费端/删字段）。
   //   可选是因为它**本就可能未知**（sendChat 失败时拿不到 threadId，见 `upsertUnknown` 注释）。
   | { status: 'unknown'; error: string; threadId?: string }
-  | { status: 'not-found' };
+  /**
+   * 【D16】`not-found` = 后端**没有可跟踪的记录**。带可选 `error` 给**可展示文案**（生产者给全）——
+   * 它有两种成因（"行根本不存在" vs "行存在但后端从未持有"），各自文案不同，
+   * 前端原样透出，**不自己拼错误文案**（三铁律：消费者只转发）。
+   */
+  | { status: 'not-found'; error?: string };
 
 // 【编译期一致性守卫】判别联合的 status 集合 ⟷ `RELAY_TASK_STATUSES` 必须**双向相等**：
 // 任一侧多/少一个状态 ⇒ 下面类型约束不满足 ⇒ **编译报错**（比任何运行时断言都早、且不可绕过）。
@@ -858,17 +865,13 @@ async function updateProgress(
  * ⚠️ 该路径**取不到本次任务的 override**（快照不存它）⇒ 报的是 capability 默认值。
  *   两个方向的偏差都无害：报小了 ⇒ 前端只声明"我不再等"（`pending` 非终态）+ 恢复轮询续接；
  *   报大了 ⇒ 前端多等一会儿。**都不会造成任务被判死**。
+ * ⚠️ 取快照走 `readRelaySnapshot`（db 层唯一实现，ADR-0057）—— 本文件不再自写 JSON.parse。
  */
 function capabilityFromRow(row: { request_data?: unknown }): RelayCapability | undefined {
-  try {
-    const snap =
-      typeof row.request_data === 'string' ? JSON.parse(row.request_data) : row.request_data;
-    const cap = (snap as { _relayPoll?: { capability?: unknown } } | undefined)?._relayPoll
-      ?.capability;
-    return isRelayCapability(cap) ? cap : undefined;
-  } catch {
-    return undefined; // 快照损坏：不给预算（前端据此保持 running，不判失败）
-  }
+  const r = readRelaySnapshot<{ capability?: unknown }>(row);
+  if (!r.ok) return undefined;
+  const cap = r.snapshot.capability;
+  return isRelayCapability(cap) ? cap : undefined;
 }
 
 export async function getGenerateStatus(frontTaskId: string): Promise<RelayTaskStatus> {
@@ -907,7 +910,7 @@ export async function getGenerateStatus(frontTaskId: string): Promise<RelayTaskS
     'SELECT status, progress, result_url, error_msg, poll_task_id, request_data FROM tasks WHERE task_id = ?',
     [frontTaskId],
   )[0];
-  if (!row) return { status: 'not-found' };
+  if (!row) return { status: 'not-found', error: '后端无此任务记录' };
   // 【143 · S3′】无句柄时按快照 capability 报默认预算（取不到 override，见 capabilityFromRow 注释）
   const cap = capabilityFromRow(row);
   const rowBudgetMs = cap ? budgetMsFor(cap) : undefined;
@@ -939,6 +942,16 @@ export async function getGenerateStatus(frontTaskId: string): Promise<RelayTaskS
       budgetMs: rowBudgetMs,
     };
   }
+  // 【D16】后端**从未持有**该行（无上游 task_id、也无 relay 快照）⇒ 它不归后端跟踪，永远不会有终态。
+  // 报 running 会让前端 `pollTask` 无限 attach（幽灵行）；报 not-found 让它立即收敛为 failed。
+  // ⚠️ 必须放在上面的终态分支（completed/failed/unknown）**之后** —— 历史行可能既无 task_id 也无快照。
+  // ⚠️ 判据收口：`readRelaySnapshot`（db 层）是"有无快照"的唯一实现（与 capabilityFromRow / 恢复扫描共用）。
+  if (!row.poll_task_id && !readRelaySnapshot(row).ok) {
+    return {
+      status: 'not-found',
+      error: '后端未持有此任务（可能未提交成功），已标记失败',
+    };
+  }
   return {
     status: 'running',
     progress: typeof row.progress === 'number' ? row.progress : undefined,
@@ -946,7 +959,11 @@ export async function getGenerateStatus(frontTaskId: string): Promise<RelayTaskS
   };
 }
 
-/** cancel：停句柄 → 置 failed（供前端取消，不静默）。 */
+/**
+ * cancel：停句柄 → 置 failed。
+ * ⚠️ **无生产调用方** —— 前端取消入口与对外 HTTP 端点已删（ADR-0061）。
+ *   保留仅供测试观测「停句柄」语义（recovery/segment 用例）；不再对用户暴露。
+ */
 export async function cancelGenerateTask(frontTaskId: string): Promise<{ ok: boolean }> {
   const h = handles.get(frontTaskId);
   if (h) {
@@ -955,6 +972,26 @@ export async function cancelGenerateTask(frontTaskId: string): Promise<{ ok: boo
     return { ok: true };
   }
   return { ok: false };
+}
+
+/**
+ * 【D17】"我再也跟踪不了它"必须写下来 —— 否则该行永久 `running`（幽灵），用户零出口。
+ * 落 `unknown`（而非 `failed`）：上游**可能已生成**，判 failed 会诱导重提 ⇒ 重复计费（TD-08-24）。
+ * ⚠️ 这些路径**没有 handle**（正因如此才跳过）⇒ 只能直接 `upsertTask`，不能走 `upsertUnknown(handle, …)`；
+ *    与 `upsertUnknown`/`upsertFailed` 同口径：终态必须 `flushSaveDb`（TD-08-39，不能停在内存）。
+ */
+async function markUnrecoverable(
+  db: Awaited<ReturnType<typeof getDb>>,
+  frontTaskId: string,
+  reason: string,
+): Promise<void> {
+  await upsertTask(db, {
+    task_id: frontTaskId,
+    status: 'unknown',
+    progress: 0,
+    error_msg: `重启后无法恢复该任务（${reason}），可能已生成，请到任务中心确认`,
+  });
+  flushSaveDb();
 }
 
 /**
@@ -979,24 +1016,26 @@ export async function initRelayPoller(opts: { overrideMs?: number } = {}): Promi
     for (const row of rows) {
       const frontTaskId = row.task_id as string;
       if (handles.has(frontTaskId)) continue;
-      let snap: RelayPollSnapshot | undefined;
-      try {
-        snap =
-          typeof row.request_data === 'string' ? JSON.parse(row.request_data) : row.request_data;
-      } catch {
-        snap = undefined;
+      // 【D16 收口】"有无快照"只经 db 层 `readRelaySnapshot` 判一次（此处原自写一份 JSON.parse + 取 _relayPoll）。
+      const snapRead = readRelaySnapshot<RelayPollSnapshot['_relayPoll']>(row);
+      if (!snapRead.ok) {
+        // 【D17】跳过 = "我再也跟踪不了它" ⇒ 必须写终态，否则该行永久 running（幽灵），用户零出口。
+        await markUnrecoverable(db, frontTaskId, '无 relay 快照');
+        continue;
       }
-      const core = snap?._relayPoll;
-      if (!core) continue; // 无 relay 快照，跳过
+      const core = snapRead.snapshot;
       // 【TD-08-51】快照 `capability` 必须过守卫才能进 `registerHandle` —— 它来自 `JSON.parse`，
       //   类型层（`RelayPollSnapshot`）管不到运行时。域外值会让 `budgetMsFor` 返 `undefined`
       //   ⇒ `handle.budgetMs = undefined` ⇒ `runOnce` 的 `now - startedAt > timeoutMs` **恒 false**
       //   ⇒ 任务**永不判死**（且 GET 同报 undefined ⇒ 前端也不掐点 = 双侧静默互等）。
-      //   处置：**留痕跳过**（不重建 —— 重建出来就是个空转的僵尸句柄）。下方两条重建路径都经本处。
+      //   处置：**不重建**（重建出来就是个空转的僵尸句柄），但**必须写终态** —— 见下方 D17。
       if (!isRelayCapability(core.capability)) {
         console.warn(
           `[relay-poll] 恢复跳过 ${frontTaskId}：快照 capability 非法（${String(core.capability)}）—— 重建也只会得到一个永不判死的句柄`,
         );
+        // 【D17】原「留痕跳过」只 `continue` ⇒ 该行永久 running。改为写终态 unknown：
+        // 跳过 = "我再也跟踪不了它"；unknown（非 failed）= 上游**可能已生成**，避免用户重提 ⇒ 重复计费。
+        await markUnrecoverable(db, frontTaskId, '快照不完整/能力非法');
         continue;
       }
       // 【段边界恢复】已交出（taskId 非空）⇒ 段② 从 `submit_ack_at` 起算；未交出 ⇒ 段① 从 `startedAt` 起算。
@@ -1033,8 +1072,16 @@ export async function initRelayPoller(opts: { overrideMs?: number } = {}): Promi
         continue;
       }
       // 已提交任务：需 thread_id(=taskId) 才能续轮询
-      if (!core.taskId) continue; // 无 taskId（脏数据），跳过
-      if (!core.poll && !core.direct) continue; // 非 direct 但缺 poll → 旧/脏数据，跳过
+      if (!core.taskId) {
+        // 【D17】无 taskId（脏数据）⇒ 跟踪不了 ⇒ 写终态（理由同上方 unknown）。
+        await markUnrecoverable(db, frontTaskId, '快照缺上游任务号');
+        continue;
+      }
+      if (!core.poll && !core.direct) {
+        // 【D17】非 direct 但缺 poll（旧/脏数据）⇒ 跟踪不了 ⇒ 写终态（理由同上方 unknown）。
+        await markUnrecoverable(db, frontTaskId, '快照缺轮询配置');
+        continue;
+      }
       const apiKey = resolveProviderApiKey(core.providerId);
       registerHandle(
         frontTaskId,

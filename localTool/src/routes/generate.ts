@@ -11,11 +11,10 @@
  *   - image/video → 图片/视频数据流：异步句柄，submit 即返 {code:0,data:{taskId}}，GET attach 收结果
  *
  *   GET  /api/generate/:frontTaskId  attach 查询 → progress / completed(url) / failed / not-found（仅 image/video）
- *   POST /api/generate/:frontTaskId/cancel   取消 → 置 failed（仅 image/video）
  */
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { json, parseJsonBody, sendError } from '../utils/helpers.js';
-import { submitGenerateTask, getGenerateStatus, cancelGenerateTask } from '../relay-poll.js';
+import { submitGenerateTask, getGenerateStatus } from '../relay-poll.js';
 import { normalizeOverrideMs } from '../budget.js';
 import { isRelayCapability, type RelayCapability } from '../capability.js';
 import { relayGenerate, relayChatStream } from '../generateEngine.js';
@@ -147,7 +146,7 @@ export async function handleGenerateGet(
   url: URL,
 ): Promise<void> {
   const frontTaskId = url.pathname.replace(/^\/api\/generate\//, '');
-  if (!frontTaskId || frontTaskId === 'cancel' || frontTaskId.includes('/')) {
+  if (!frontTaskId || frontTaskId.includes('/')) {
     return sendError(res, 'Missing frontTaskId', 400);
   }
   const st = await getGenerateStatus(frontTaskId);
@@ -183,23 +182,13 @@ export async function handleGenerateGet(
     // ⚠️ **不折成 `unknown`**：`unknown` =「可能已生成，请到任务中心确认」，与「我这儿没这个任务」
     //   是**两个不同事实**，合并即撒谎（会把"无从判断"说成"可能已生成"）。
     case 'not-found':
-      return json(res, { code: 0, data: { status: 'not-found' } });
+      // 【D16】带可展示文案（生产者给全）：`not-found` 有两种成因（行不存在 / 后端从未持有该行），
+      // 由后端各自给出，前端原样透出 —— 前端不再自拼错误文案（消费者只转发，三铁律）。
+      return json(res, { code: 0, data: { status: 'not-found', error: st.error } });
     default: {
       // 【穷尽性守卫】走到这里 ⇒ `RelayTaskStatus` 新增了状态而本函数漏处理（此时 `st` 不是 `never` ⇒ 编译红）。
       const _exhaustive: never = st;
       return _exhaustive;
     }
   }
-}
-
-/** POST /api/generate/:frontTaskId/cancel —— 取消（停句柄 + 置 failed）。 */
-export async function handleGenerateCancel(
-  req: IncomingMessage,
-  res: ServerResponse,
-  url: URL,
-): Promise<void> {
-  const frontTaskId = url.pathname.replace(/^\/api\/generate\//, '').replace(/\/cancel$/, '');
-  if (!frontTaskId) return sendError(res, 'Missing frontTaskId', 400);
-  const out = await cancelGenerateTask(frontTaskId);
-  return json(res, { code: 0, data: { ok: out.ok } });
 }

@@ -690,7 +690,6 @@ function VideoExtractNode({ id, data, selected }: VideoExtractNodeProps) {
                   if (videoUrl && !loading) startExtract();
                   else if (!videoUrl) showToast('请先连接视频节点');
                 }}
-                onStop={() => setLoading(false)}
               />
             )}
           </div>

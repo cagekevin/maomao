@@ -67,7 +67,7 @@
   → 落盘唯一出口 filesApi.saveResultToTasks（**唯一调用点 = generationOrchestration.ts**，契约内无条件一步；节点与剧本盒**共用同一次**，故不存在双落盘）
     live 顺序：`settle`(节点先显示) → 落盘 → `onPersisted`(持久 URL 覆盖) → `done`(任务行最后落)
       ⇒ 「权威源最后才落」；`done` = 终态原语 `completeTask`，其广播在 `!cur` 守卫**之后**
-  → 刷新恢复 generate/lib/pollTask.ts ─→ 复用 relayProxy.relayAttachUntilDone（只 attach 不 cancel）
+  → 刷新恢复 generate/lib/pollTask.ts ─→ 复用 relayProxy.relayAttachUntilDone（只 attach；**无中止入口**，ADR-0061）
       → taskStore.patchTask（进度）+ 终态原语 completeTask/failTask（唯一发布入口就在原语内）
           → 广播 agent:task-completed → useNodeGeneration 精准回填 node.data（detail.nodeId===本节点）
    回填 node.data ◄── src/hooks/useNodeGeneration ◄── taskCompletionBus 广播
@@ -93,6 +93,10 @@ scriptbox/scriptBoxEngine.ts（ScriptBoxNode 挂载）
 ```
 
 **当前约束**：任务中心**无「再来一次」入口**（已删）；剧本盒 asset 生图不接 `useNodeGeneration` 的 retry 注册。
+生成链路**不提供中止入口**（ADR-0061）：节点生成中**无任何按钮**（无「停止」/「刷新」）、任务中心**无「取消」**；
+「不再等待」由编排的 `pending` 分支承担（预算耗尽 ⇒ 清 loading，行留 `running` ⇒ `pollTask` 续 attach ⇒ 后端终态回填），
+「不再显示」用任务中心的**删除任务**。后端 `cancelGenerateTask` 保留但**无生产调用方**（仅测试观测点）。
+幽灵行（前端建行但后端从未持有）由后端 `not-found`／`unknown` 收敛，不靠前端判死。
 
 ### 关键边
 
@@ -549,7 +553,7 @@ task/nodeRuntimeStore.ts（纯内存瞬态 map，不落盘）
 - 异步任务句柄：`src/relay-poll.ts`（attach + 落库 + 重启恢复；红线：**chat 绝不进 poller**）
 - provider 框架：`src/ai-relay/`（protocol/engine 协议注入、generate.ts 各模态能力、providerCatalog/baseUrl/Endpoints、manifests 模型目录）
 - 配置/路径：`src/providerConfigStore.ts`（每平台一 JSON）、`src/paths.ts`（文件路径单源）、`src/version.ts`
-- 持久化：`src/db/database.ts`（tasks）、`src/utils/fileStore.ts` + `/files/` 落盘、`routes/kv.ts`
+- 持久化：`src/db/database.ts`（tasks）、`src/db/relaySnapshot.ts`（「有无 relay 快照」唯一实现，供 tasks ↔ relay-poll 共同消费）、`src/utils/fileStore.ts` + `/files/` 落盘、`routes/kv.ts`
 
 ### 生成数据流（服务端）
 
@@ -557,7 +561,7 @@ task/nodeRuntimeStore.ts（纯内存瞬态 map，不落盘）
 前端 generate/lib/relayProxy ─→ POST :18080 /api/generate
    → routes/generate.ts（capability 分流，端点无 fetch/落盘，只透传）
        ├─ chat：generateEngine.relayChatStream(SSE 打字机) / relayChat（同步）
-       └─ image/video：relay-poll 注册句柄（submit 即返 taskId，GET attach 收结果）
+       └─ image/video：relay-poll 注册句柄（submit 即返 taskId，GET attach 收结果；**无取消端点** — ADR-0061）
    → generateEngine → ai-relay/（protocol kit + providerCatalog + generate.ts 能力）
    → 出站：厂商直连 lgw.lovart.ai（Lovart 需 VPN，经 fetchWithProxy 代理）
    → 结果：saveRemoteUrl 落盘成本地 /files/ url（内容寻址 sha1(字节) + contentId 去重，contentId 随 {code,data} 信封回传）→ 统一 {code,data} 回前端
@@ -776,6 +780,7 @@ docs/audit-archive/*.md（历史报告归档保留，非活配置）
 | `videoEditor/export/pipeline.ts` | 分解进 `videoEditor/engine/lib/export.ts` 等（导出单入口；判别联合 `OpResult`/`AudioOutcome` 已撤销） |
 | `videoEditor/data/projectRepository.ts` | 并入 `videoEditor/engine/core/managers/project-manager.ts`（工程 CAS） |
 | `videoEditor/panels/dock/useEditorExport.ts` | 并入 `videoEditor/ui/editor/export-button.tsx`（失败返 `null` → toast「导出失败」） |
+| `POST /api/generate/:id/cancel` · 前端 `relayCancel` · 契约登记 `generateCancel` · 剧本盒 `onStopScriptItem` | 全链已删（ADR-0061：生成链路不提供中止入口）；后端 `cancelGenerateTask` 保留但**无生产调用方**（仅测试观测点） |
 
 ---
 

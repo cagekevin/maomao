@@ -30,14 +30,13 @@ const h = vi.hoisted(() => {
     videos: unknown[];
     audios: unknown[];
   } = { images: [], texts: [], videos: [], audios: [] };
-  // 引擎实例：10 个回调（含 onStopScriptItem），与真实 createScriptBoxEngine 返回一致
+  // 引擎实例：回调与真实 createScriptBoxEngine 返回一致（无中止入口，ADR-0061）
   const engine = {
     onGenerateScript: vi.fn(),
     onGenerateAssetImage: vi.fn(),
     onGenerateAllAssetImages: vi.fn(),
     onGenerateShotPrompts: vi.fn(),
     onGenerateShotImage: vi.fn(),
-    onStopScriptItem: vi.fn(),
     onRetryAssetImageUpload: vi.fn(),
     onUploadAllAssetImages: vi.fn(),
     onConnectShot: vi.fn(),

@@ -429,8 +429,8 @@ function TemplateNode({ id, data, selected }: TemplateNodeProps) {
               <ModelSelect value={selectedModel} onChange={handleModelChange} models={gen.models} />
             </div>
 
-            {/* 生成 / 停止（通用 GenerateButton） */}
-            <GenerateButton loading={gen.loading} onGenerate={gen.start} onStop={gen.stop} />
+            {/* 生成（通用 GenerateButton） */}
+            <GenerateButton loading={gen.loading} onGenerate={gen.start} />
           </div>
         </div>
 

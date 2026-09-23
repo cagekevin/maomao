@@ -245,3 +245,58 @@ test('[TD-08-51 反向] 合法 capability 的快照仍须照常重建（防加�
   const r = await poll.cancelGenerateTask(id);
   assert.equal(r.ok, true, '合法 capability 必须照常重建句柄（否则守卫变成了拒绝恢复）');
 });
+
+/**
+ * 【146 · D16】后端**从未持有**的行（既无 `poll_task_id` 也无 `_relayPoll` 快照）⇒ `getGenerateStatus`
+ *   必须返 `not-found`，**不得报 running**。
+ *
+ * 【这条行为什么会存在（不是假想）】前端 `reportGenerate` 建行即 `status:'running'` 并 persist 到
+ *   **后端同一个 tasks 表**；若 POST 未达/失败前用户刷新或关页面 ⇒ 后端从未收到该任务 ⇒ 行在、句柄无。
+ *   （且它不满足恢复扫描的 WHERE：无 `poll_task_id`、`request_data` 里也没有 `_relayPoll` ⇒ 永远拿不到终态。）
+ * 【不修会怎样】前端 `pollTask` 无限 attach（候选只认 running），任务中心永久「生成中」，用户零出口
+ *   —— 而删掉「停止」后连那条蹩脚出口都没了。
+ */
+test('[146 D16] 后端从未持有的 running 行 ⇒ getGenerateStatus 返 not-found（幽灵行出口）', async () => {
+  const db = await getDb();
+  const id = 'task_orphan_running';
+  await upsertTask(db, {
+    task_id: id,
+    status: 'running',
+    progress: 0,
+    // 无 poll_task_id、无 request_data ⇒ 后端没有任何可跟踪的事实
+  });
+  const st = await poll.getGenerateStatus(id);
+  assert.equal(
+    st.status,
+    'not-found',
+    '后端从未持有的 running 行必须报 not-found —— 报 running 会让前端无限等（幽灵行）',
+  );
+  assert.match(st.error, /未持有/, 'not-found 必须带可展示文案（生产者给全，前端只转发）');
+});
+
+/**
+ * 【146 · D17】恢复扫描的跳过路径必须**写终态 `unknown`**，不能只 `continue`。
+ *
+ * 【判据】跳过 = 「我再也跟踪不了它」—— 这件事没被写下来 ⇒ 该行永久 running（幽灵），用户零出口。
+ * 【为什么落 `unknown` 而不是 `failed`】上游**可能已生成**，判 failed 会诱导用户重提 ⇒ 重复计费（TD-08-24）。
+ * 【观测路径】取「快照 capability 非法」（TD-08-51 那条）—— 它同时是"跳过不重建"的既有路径。
+ */
+test('[146 D17] 扫描跳过（快照 capability 非法）⇒ 该行落 unknown（不再永久 running）', async () => {
+  const db = await getDb();
+  const id = 'task_d17_bad_cap';
+  await upsertTask(db, {
+    task_id: id,
+    status: 'running',
+    progress: 0,
+    thread_id: 'thread-x',
+    request_data: snapshotWithCapability('text'), // 域外 capability ⇒ 跳过（不重建句柄）
+  });
+  await poll.initRelayPoller();
+  const st = await poll.getGenerateStatus(id);
+  assert.equal(
+    st.status,
+    'unknown',
+    '跟踪不了的任务必须把这件事写下来（unknown）—— 只 continue ⇒ 该行永久 running',
+  );
+  assert.match(st.error, /无法恢复/, '文案要说明「重启后无法恢复」并指向任务中心');
+});

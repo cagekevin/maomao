@@ -4,7 +4,7 @@
  *
  * 覆盖（纯契约，不测 UI）：
  *  - relayAttachUntilDone：低频 attach → 终态信封映射（completed→{ok,url} / failed→{ok,error} / running→续）；
- *    cancelOnAbort 语义（in-flight 通知后端 cancel / 恢复不 cancel）。
+ *    abort 只停本地等待（**不发任何取消请求** —— 生成链路不提供中止入口，ADR-0061）。
  *  - relayGenerate = submit + attach 到终态。
  *
  * mock：httpRequest（httpClient）接 /api/generate 的 {code,data} 信封。
@@ -117,38 +117,16 @@ describe('relayProxy §R6 — relayAttachUntilDone（统一 attach 契约）', (
     expect(r.value!.error).toContain('3 秒');
   });
 
-  it('cancelOnAbort=true → signal abort 时通知后端 cancel 并抛 AbortError（in-flight）', async () => {
+  it('【146 · ADR-0061】signal abort 只抛 AbortError，**不发任何取消请求**（前端无中止入口）', async () => {
     const ctl = new AbortController();
     h.mockHttpRequest.mockImplementation(async () => envResp({ status: 'running', progress: 10 }));
-    const p = relayAttachUntilDone({
-      frontTaskId: 'task-1',
-      signal: ctl.signal,
-      cancelOnAbort: true,
-    });
-    // 先推进一轮让循环进入等待，再 abort
+    const p = relayAttachUntilDone({ frontTaskId: 'task-1', signal: ctl.signal });
     ctl.abort();
     const r = await runWithTimers(p);
     expect(r.ok).toBe(false);
     expect(r.error).toMatchObject({ name: 'AbortError' });
-    // 通知了后端 cancel
-    expect(h.mockHttpRequest).toHaveBeenCalledWith(
-      expect.stringContaining('/api/generate/task-1/cancel'),
-      expect.any(Object),
-    );
-  });
-
-  it('运行中已到终态后 abort 晚到 → 不再 cancel（settled 守卫）', async () => {
-    const ctl = new AbortController();
-    h.mockHttpRequest.mockResolvedValue(
-      envResp({ status: 'completed', url: '/files/tasks/done.png' }),
-    );
-    const r = await runWithTimers(
-      relayAttachUntilDone({ frontTaskId: 'task-1', signal: ctl.signal, cancelOnAbort: true }),
-    );
-    expect(r.value!.ok).toBe(true);
-    // 终态返回后 abort 不再触发额外 cancel（已完成任务不应误 cancel）
-    ctl.abort();
-    expect(h.mockHttpRequest.mock.calls.some(([u]) => u.includes('/cancel'))).toBe(false);
+    // 取消端点已随 D7/D10 删除：任何 `/cancel` 请求 = 中止链路回潮
+    expect(h.mockHttpRequest.mock.calls.some(([u]) => String(u).includes('/cancel'))).toBe(false);
   });
 });
 

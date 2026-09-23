@@ -14,12 +14,7 @@
  */
 
 import type { GenerationResult } from '@/types';
-import {
-  API_BASE,
-  GEN_POLL_INTERVAL,
-  CHAT_TOTAL_TIMEOUT,
-  LOCAL_TOOL_PING_TIMEOUT,
-} from '@/components/base/core/config';
+import { API_BASE, GEN_POLL_INTERVAL, CHAT_TOTAL_TIMEOUT } from '@/components/base/core/config';
 import { httpRequest } from '@/components/base/api/httpClient';
 import { logger } from '@/components/base/core/log/logger';
 import { timeoutMessage } from '@/components/base/utils/genErrors';
@@ -159,29 +154,15 @@ export async function relayPoll(frontTaskId: string): Promise<RelayPollData> {
     // 【143 · S3′】`not-found` = **后端明确说"我这儿没这个任务"**（生产者给全）——
     // 后端已由 404 改为 200 + 该状态。此前它被折成 `running` ⇒ 与「连不上」同形 ⇒ 空等到超时。
     // ⚠️ 与 `unknown` 不同：`unknown` 是"可能已生成"；这里是"无从判断，后端无记录"。
+    // 【D16】文案由**后端给**（生产者给全）——"行不存在"与"行存在但后端从未持有"是两种事实，
+    // 后端各自给可展示文案，前端原样透出（**不再自拼**，三铁律：消费者只转发）。
+    // 收敛兜底留在 `relayAttachUntilDone` 的 not-found 分支（既有，保证"有 error 才 fail"这条收敛链不断）。
     if (d?.status === 'not-found') {
-      return { status: 'not-found', error: '后端无此任务记录（句柄与任务行都不存在）' };
+      return { status: 'not-found', error: d.error };
     }
     return { status: 'running', progress: d?.progress ?? 0, budgetMs: d?.budgetMs };
   } catch (e) {
     return { status: 'running', error: e instanceof Error ? e.message : '查询异常' }; // 网络抖动/HTTP错：下轮续查
-  }
-}
-
-/** 取消：POST /api/generate/:frontTaskId/cancel（后端停句柄 → 置 failed）。 */
-export async function relayCancel(frontTaskId: string): Promise<{ ok: boolean }> {
-  try {
-    // parseJson:true 默认 → 成功返纯 data（非 2xx 抛 HttpError 进 catch → ok:false）；无异常视为成功
-    await httpRequest(`${API_BASE}/api/generate/${encodeURIComponent(frontTaskId)}/cancel`, {
-      method: 'POST',
-      retries: 0,
-      // 取消是本机端点的即时操作，用短时限即可（原不掐点 ⇒ 后端假死时取消也会永久挂起）
-      timeoutMs: LOCAL_TOOL_PING_TIMEOUT,
-      label: 'relayCancel',
-    });
-    return { ok: true };
-  } catch {
-    return { ok: false };
   }
 }
 
@@ -207,16 +188,14 @@ export interface RelayAttachOptions {
   onProgress?: (percent: number, message?: string) => void;
   /** 起始进度（放弃初始 submit 后的 20；恢复时直接开始映射后端 progress） */
   startProgress?: number;
-  /** 是否在 abort 时通知后端 cancel（image/video in-flight 置 failed 停句柄；刷新恢复不 cancel） */
-  cancelOnAbort?: boolean;
 }
 
 /**
  * 统一「低频 GET attach 直到终态」循环（2026-09-03 收敛）。
  * 后端 relay-poll 常驻句柄在 localTool 进程，DB 是真相；本循环只是「重 attach 拿状态」。
  *  - 返回 { ok:true, url }（url = 后端已落盘 /files/，前端无需 saveResultToTasks）｜{ ok:false, error }；
- *  - signal abort：cancelOnAbort=true 时先通知后端 cancel（置 failed 停句柄）再抛 AbortError。
- * 供 relayGenerate（in-flight，cancelOnAbort=true）与刷新恢复（pollTask，不 cancel）复用，
+ *  - **本循环只 attach，不提供取消**（生成链路不提供中止入口，ADR-0061）：signal abort 只停本地等待。
+ * 供 relayGenerate（in-flight）与刷新恢复（pollTask）复用，
  * 保证「唯一查询协议 = /api/generate/:id attach」，不再各写一套轮询。
  */
 export async function relayAttachUntilDone(
@@ -229,28 +208,6 @@ export async function relayAttachUntilDone(
   const pollInterval = Math.max(1000, GEN_POLL_INTERVAL);
   const startedAt = Date.now();
 
-  // 取消对齐：signal abort 时按需通知后端 cancel（置 failed 停句柄），否则后端句柄续跑到终态。
-  // settled 守卫：终态返回后即使 signal 晚到 abort 也不再 cancel（不误杀已完成任务）。
-  let settled = false;
-  const onAbort = () => {
-    if (settled || !opts.cancelOnAbort) return;
-    settled = true;
-    // 【失败可见 TD-02-16】取消失败留痕：后端句柄会续跑到终态（用户已中止却仍烧算力）
-    void relayCancel(frontTaskId).catch((e) => {
-      logger.warn('relayProxy', '中止后通知后端 cancel 失败（后端句柄可能续跑）', {
-        taskId: frontTaskId,
-        reason: e?.message || e,
-      });
-    });
-  };
-  signal?.addEventListener('abort', onAbort, { once: true });
-
-  const finish = (r: RelayGenerationResult): RelayGenerationResult => {
-    settled = true;
-    signal?.removeEventListener('abort', onAbort);
-    return r;
-  };
-
   // 低频 GET attach（后端句柄在 localTool 进程，前端刷新=重 attach，不丢）
   let lastProgress = opts.startProgress ?? 30;
   // 【失败可见】transport 层错误（连不上/HTTP 错）在 relayPoll 里被折成 running 以便续查；
@@ -259,7 +216,6 @@ export async function relayAttachUntilDone(
   let consecutiveErrors = 0;
   while (true) {
     if (signal?.aborted) {
-      onAbort();
       const err = new Error('Aborted');
       err.name = 'AbortError';
       throw err;
@@ -276,13 +232,13 @@ export async function relayAttachUntilDone(
     // error 文案走 `timeoutMessage`（本仓超时文案唯一出口，禁自写「生成超时」变体）；它只是排障字段。
     if (budgetMs !== undefined && Date.now() - startedAt >= budgetMs) {
       const budgetMsg = timeoutMessage(budgetMs);
-      return finish({
+      return {
         ok: false,
         pending: true,
         error: lastTransportError
           ? `${budgetMsg}（最后一次错误：${lastTransportError}）`
           : budgetMsg,
-      });
+      };
     }
     if (st.status === 'completed' && st.url) {
       opts.onProgress?.(100, '完成');
@@ -292,23 +248,23 @@ export async function relayAttachUntilDone(
         { frontTaskId, urlHead: st.url.slice(0, 80) },
         { module: 'image' },
       );
-      return finish({ ok: true, url: st.url });
+      return { ok: true, url: st.url };
     }
     if (st.status === 'failed') {
       logger.debug('生成', '[relay] 失败', { frontTaskId, error: st.error }, { module: 'image' });
-      return finish({ ok: false, error: st.error || '生成失败' });
+      return { ok: false, error: st.error || '生成失败' };
     }
     // 【TD-08-24】unknown = 终态且**可能已生成**：立即结束（不再空等超时），错误文案由后端给
     // （含「可能已开始生成…请到任务中心确认」），前端原样透出，不以「生成失败」误导用户重提。
     if (st.status === 'unknown') {
       logger.warn('生成', '[relay] 提交结果未知', { frontTaskId, error: st.error });
-      return finish({ ok: false, error: st.error || '提交结果未知，请到任务中心确认' });
+      return { ok: false, error: st.error || '提交结果未知，请到任务中心确认' };
     }
     // 【143 · S3′】`not-found` = 后端明确无此任务 ⇒ **立即终态**，不再空等到超时。
     // 判据：它是**生产者给的确定事实**（后端查过句柄与任务行都没有），不是"查询失败" ⇒ 不许当 transport 错误续查。
     if (st.status === 'not-found') {
       logger.warn('生成', '[relay] 任务不存在', { frontTaskId, error: st.error });
-      return finish({ ok: false, error: st.error || '后端无此任务记录' });
+      return { ok: false, error: st.error || '后端无此任务记录' };
     }
     if (st.error) {
       // transport 错误：续查但留痕；连续到阈值 → 直接以真实原因失败（不再等到超时误报）
@@ -321,7 +277,7 @@ export async function relayAttachUntilDone(
           { frontTaskId, error: lastTransportError },
           { module: 'image' },
         );
-        return finish({ ok: false, error: lastTransportError });
+        return { ok: false, error: lastTransportError };
       }
     } else {
       consecutiveErrors = 0;
@@ -357,11 +313,10 @@ export async function relayGenerate(opts: RelayGenerateOptions): Promise<RelayGe
       signal,
       onProgress: opts.onProgress,
       startProgress: 20,
-      cancelOnAbort: true, // in-flight：用户停止 → 通知后端 cancel 停句柄
     });
     return r;
   } catch (e) {
-    // attach 阶段 AbortError（cancelOnAbort 已通知后端 cancel）——透传给调用方按既有契约处理
+    // attach 阶段 AbortError —— 透传给调用方按既有契约处理
     if (e instanceof Error && e.name === 'AbortError') throw e;
     return { ok: false, error: e instanceof Error ? e.message : '生成失败' };
   }
