@@ -18,14 +18,12 @@ import {
 import SkillSettings from './SkillSettings';
 
 /**
- * 设置分区 · AI 助手（样式对齐 SkillSettings 的 zinc 黑白系）。
+ * 设置分区 · AI 助手。
  *  - 聊天模型：全局指定 AI 助手对话用哪个供应商 + 模型
  *  - Skill 管理：合并在此分区（左列表 + 右编辑）
- * 逻辑不变，仅样式统一到 Skill 面板风格。
+ * 更新(2026-09-23)：原写「样式对齐 SkillSettings 的 zinc 黑白系 / 仅样式统一到 Skill 面板风格」
+ *   已失效 —— 设置页视觉整体重写，统一由 `settings.css`（前缀 `st-`）承担，本文件只写结构类名。
  */
-const selectCls =
-  'w-full bg-canvas border border-edge text-body text-sm px-3 py-2 rounded-xl outline-none focus:border-blue-500 transition-colors disabled:opacity-50';
-
 export default function AgentChatSettings() {
   const { providers } = useProviders();
   const saved = loadAgentChatModel();
@@ -104,31 +102,31 @@ export default function AgentChatSettings() {
 
   return (
     <>
-      <section className="bg-surface border border-edge-subtle rounded-xl overflow-hidden">
-        <div className="px-6 py-3.5 border-b border-edge-subtle flex items-baseline justify-between">
-          <h3 className="settings-page-title flex items-center gap-2">
-            <Bot size={15} className="text-secondary" /> AI 助手聊天模型
+      <section className="st-section">
+        <div>
+          <h3 className="st-section-title">
+            <Bot size={15} /> AI 助手聊天模型
           </h3>
-          <p className="text-xs text-muted">选择画布 AI 助手的对话模型</p>
+          <p className="st-section-sub">选择画布 AI 助手的对话模型</p>
         </div>
-        <div className="px-6 py-4">
-          <p className="text-xs text-muted mb-4">
+        <div className="st-card">
+          <p className="st-hint">
             AI
             助手在画布右侧面板的对话会用这里指定的模型。默认取聊天供应商的第一个模型；可在此手动指定。
           </p>
 
           {chatProviders.length === 0 ? (
-            <div className="text-xs text-muted py-6 text-center border border-dashed border-edge rounded-xl">
+            <div className="st-notice">
               暂无可用的聊天供应商，请先在「第三方 API 配置」添加并拉取聊天模型
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-3xl">
-              <label className="block">
-                <span className="block text-xs text-secondary mb-1.5">聊天供应商</span>
+            <div className="st-fields">
+              <label className="st-field">
+                <span className="st-label">聊天供应商</span>
                 <select
+                  className="st-select"
                   value={selectedProvider?.id || ''}
                   onChange={(e) => handleProviderChange(e.target.value)}
-                  className={selectCls}
                 >
                   {chatProviders.map((p) => (
                     <option key={p.id} value={p.id}>
@@ -138,19 +136,17 @@ export default function AgentChatSettings() {
                   ))}
                 </select>
                 {selectedProvider && modelOptions.length === 0 && (
-                  <span className="block text-xs text-yellow-500 mt-1">
-                    该供应商暂无聊天模型，请先在模型清单中添加
-                  </span>
+                  <span className="st-hint">该供应商暂无聊天模型，请先在模型清单中添加</span>
                 )}
               </label>
 
-              <label className="block">
-                <span className="block text-xs text-secondary mb-1.5">聊天模型</span>
+              <label className="st-field">
+                <span className="st-label">聊天模型</span>
                 <select
+                  className="st-select"
                   value={effectiveModelId}
                   onChange={(e) => handleModelChange(e.target.value)}
                   disabled={modelOptions.length === 0}
-                  className={selectCls}
                 >
                   {modelOptions.length === 0 ? (
                     <option value="">暂无模型</option>
@@ -164,12 +160,12 @@ export default function AgentChatSettings() {
                 </select>
               </label>
 
-              <label className="block">
-                <span className="block text-xs text-secondary mb-1.5">响应方式</span>
+              <label className="st-field">
+                <span className="st-label">响应方式</span>
                 <select
+                  className="st-select"
                   value={streamMode}
                   onChange={(e) => handleStreamModeChange(e.target.value as AgentStreamMode)}
-                  className={selectCls}
                 >
                   <option value="stream">流式（推荐，支持工具调用）</option>
                   <option value="non-stream">非流式（仅对话，不支持工具）</option>
@@ -179,7 +175,7 @@ export default function AgentChatSettings() {
           )}
 
           {providerId && modelId && (
-            <div className="mt-4 inline-flex items-center gap-1.5 text-xs text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-full">
+            <div className="st-chip st-chip--ok">
               <Check size={12} /> 当前 AI 聊天模型：{modelId}
             </div>
           )}
@@ -187,30 +183,30 @@ export default function AgentChatSettings() {
       </section>
 
       {/* 历史回传轮数（过渡方案·2026-08-18）：解决纯文字对话失忆 */}
-      <section className="bg-surface border border-edge-subtle rounded-xl overflow-hidden">
-        <div className="px-6 py-3.5 border-b border-edge-subtle flex items-baseline justify-between">
-          <h3 className="settings-page-title flex items-center gap-2">
-            <Bot size={15} className="text-secondary" /> 历史回传轮数
+      <section className="st-section">
+        <div>
+          <h3 className="st-section-title">
+            <Bot size={15} /> 历史回传轮数
           </h3>
-          <p className="text-xs text-muted">让 AI 记得上一轮说过什么（仅文字）</p>
+          <p className="st-section-sub">让 AI 记得上一轮说过什么（仅文字）</p>
         </div>
-        <div className="px-6 py-4 max-w-3xl">
-          <p className="text-xs text-muted mb-4">
+        <div className="st-card">
+          <p className="st-hint">
             AI 助手默认只处理你最新的一句话（fresh-task
             机制），可能导致「先反推提示词、再让它优化」时它忘了上文。这里可让它回传最近 N 轮对话的
-            <b className="text-body">文字</b>
+            <b>文字</b>
             。图片始终以编号引用、不会真图进上下文，不影响出图安全。
           </p>
-          <div className="flex items-center gap-3">
+          <div className="st-inline">
             <input
+              className="st-input st-input--num"
               type="number"
               min="0"
               step="1"
               value={historyTurns}
               onChange={handleHistoryTurnsChange}
-              className="w-32 bg-canvas border border-edge text-body text-sm px-3 py-2 rounded-xl outline-none focus:border-blue-500 transition-colors"
             />
-            <span className="text-xs text-muted">
+            <span className="st-hint">
               0 = 不回传（默认行为）· 1 = 只上一轮 · 任意大 = 尽量多（约等于不限）
             </span>
           </div>

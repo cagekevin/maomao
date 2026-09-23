@@ -5,6 +5,8 @@
  *  · 编辑态：保存走 `saveSkillToDisk` 并带 `baselineHash`（冲突基线）；
  *  · **冲突**时两个字都给出来（覆盖 / 放弃并加载磁盘版）；
  *  · 官方内置只给开关、不给编辑；**没有搜索框**（用户裁定）。
+ *  · 分组为 **tab 切换**（更新 2026-09-23：原「可折叠分段 + 全部分组平铺」被用户裁定改为 tab）
+ *    ⇒ 断言某组的行之前，先切到该组的 tab；默认 tab = 视图层第一个组（官方恒最前）。
  *
  * 【为什么只 mock 门面的 IO】`buildSkillLibraryView`（判定中枢）保持**真身**：
  * 组件测试要验的正是"真判定 → 真渲染"这条链，把判定也 mock 掉就只剩样式断言了。
@@ -125,20 +127,26 @@ describe('SkillSettings · 一个列表（行状态各自带动作）', () => {
     seedFourStates();
     render(<SkillSettings />);
 
-    // 行都在（骨架 = 磁盘包 ∪ 索引里的"已删除"）
-    expect(await screen.findByText('好的')).toBeTruthy();
+    // 【2026-09-23 起分组为 tab 切换】四类状态分处不同组 ⇒ 逐组切过去验（组序：官方最前）。
+    // 营销文案组：正常行（骨架 = 磁盘包 ∪ 索引里的"已删除"）
+    fireEvent.click(await screen.findByRole('button', { name: /营销文案/ }));
+    expect(screen.getByText('好的')).toBeTruthy();
+
+    // 图片类组：缺 id + 读不到
+    fireEvent.click(screen.getByRole('button', { name: /图片类/ }));
     expect(screen.getByText('缺id的')).toBeTruthy();
     expect(screen.getByText('读不到的')).toBeTruthy();
-    expect(screen.getByText('没了')).toBeTruthy();
-
     // 状态徽标 + 各自的动作
     expect(screen.getByText('缺 id')).toBeTruthy();
     expect(screen.getByText('补齐 id')).toBeTruthy();
-    // 「磁盘上已删除」既是收纳组名、也是行上的徽标 ⇒ 至少一处
+    expect(screen.getByText('读不到 SKILL.md')).toBeTruthy();
+
+    // 收纳组：仅索引（磁盘上已删除）—— 组名与行徽标同措辞 ⇒ 至少一处
+    fireEvent.click(screen.getByRole('button', { name: /磁盘上已删除/ }));
+    expect(screen.getByText('没了')).toBeTruthy();
     expect(screen.getAllByText('磁盘上已删除').length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText('恢复')).toBeTruthy();
     expect(screen.getByText('丢弃')).toBeTruthy();
-    expect(screen.getByText('读不到 SKILL.md')).toBeTruthy();
   });
 
   it('芯片计数说清"一共几个 / 对话里可用几个"（不出现"磁盘/索引"这类实现词）', async () => {
@@ -153,7 +161,7 @@ describe('SkillSettings · 一个列表（行状态各自带动作）', () => {
   it('**没有搜索框**（用户裁定：技能就几个，搜索是噪声）', async () => {
     seedFourStates();
     render(<SkillSettings />);
-    await screen.findByText('好的');
+    await screen.findByText('Skill Library');
 
     expect(screen.queryByPlaceholderText(/搜索/)).toBeNull();
     expect(screen.queryByRole('textbox', { name: /搜索/ })).toBeNull();
@@ -162,7 +170,7 @@ describe('SkillSettings · 一个列表（行状态各自带动作）', () => {
   it('导入用的文件选择框 `accept` 与白名单同源（不许"钓"用户挑一个必然被拒的文件）', async () => {
     seedFourStates();
     render(<SkillSettings />);
-    await screen.findByText('好的');
+    await screen.findByText('Skill Library');
 
     const picker = document.querySelector('input[type="file"][accept]');
     // 此前写死 `.md,.markdown,.txt,.json,.yaml,.yml,.csv` —— 后四类在 `handleMdImport` 里一律被拒，
@@ -180,6 +188,8 @@ describe('SkillSettings · 未决（读不到磁盘 ≠ 磁盘上没有技能）
     render(<SkillSettings />);
 
     expect(await screen.findByText(/读不到磁盘技能库/)).toBeTruthy();
+    // 分组为 tab：切到该行所在的组再断言（默认 tab = 第一个组）
+    fireEvent.click(await screen.findByRole('button', { name: /图片类/ }));
     expect(screen.getByText('漫画生成')).toBeTruthy(); // 按索引显示
     expect(screen.queryByText('磁盘上已删除')).toBeNull(); // 无从判断，就不许凭空造
   });
@@ -189,7 +199,9 @@ describe('SkillSettings · 编辑与保存（直接编辑磁盘 + 冲突保护�
   it('点「编辑」进表单；保存把 `baselineHash` 一起给出去（冲突基线）', async () => {
     seedFourStates();
     render(<SkillSettings />);
-    fireEvent.click(await screen.findByText('好的'));
+    // 分组为 tab：先切到「营销文案」，再点该行
+    fireEvent.click(await screen.findByRole('button', { name: /营销文案/ }));
+    fireEvent.click(screen.getByText('好的'));
     fireEvent.click(screen.getByText('编辑'));
 
     const nameInput = screen.getByDisplayValue('好的');
@@ -213,7 +225,9 @@ describe('SkillSettings · 编辑与保存（直接编辑磁盘 + 冲突保护�
       diskContent: '磁盘上那一版',
     });
     render(<SkillSettings />);
-    fireEvent.click(await screen.findByText('好的'));
+    // 分组为 tab：先切到「营销文案」，再点该行
+    fireEvent.click(await screen.findByRole('button', { name: /营销文案/ }));
+    fireEvent.click(screen.getByText('好的'));
     fireEvent.click(screen.getByText('编辑'));
     fireEvent.click(screen.getByText('保存修改'));
 

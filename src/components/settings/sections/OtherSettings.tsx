@@ -13,12 +13,12 @@ interface SettingRowProps {
 
 function SettingRow({ icon: Icon, title, desc, checked, onChange }: SettingRowProps) {
   return (
-    <div className="flex items-center justify-between gap-4 py-4">
-      <div className="flex items-center gap-3 min-w-0">
-        {Icon && <Icon size={18} className="text-secondary shrink-0" />}
-        <div className="min-w-0">
-          <div className="settings-page-title">{title}</div>
-          {desc && <div className="text-xs text-muted mt-0.5">{desc}</div>}
+    <div className="st-row">
+      <div className="st-row-main">
+        {Icon && <Icon size={18} className="st-row-icon" />}
+        <div className="st-row-text">
+          <div className="st-row-title">{title}</div>
+          {desc && <div className="st-row-desc">{desc}</div>}
         </div>
       </div>
       <Toggle checked={checked} onChange={onChange} />
@@ -53,12 +53,12 @@ export default function OtherSettings() {
   }
 
   return (
-    <section>
-      <div className="space-y-4">
+    <section className="st-section">
+      <div className="st-stack">
         {groups.map((g) => (
-          <div key={g.name} className="bg-surface border border-edge-subtle rounded-xl p-4">
-            <div className="text-xs font-medium text-secondary mb-1">{g.name}</div>
-            <div className="divide-y divide-edge-subtle/60">
+          <div key={g.name}>
+            <div className="st-group-name">{g.name}</div>
+            <div className="st-card st-card--rows st-divide">
               {g.rows.map((row) => {
                 const checked =
                   settings[row.key as keyof typeof settings] !== undefined

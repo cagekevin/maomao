@@ -13,7 +13,10 @@
  *  ③ **保存不静默覆盖**：磁盘那一版被外部改过 ⇒ 弹冲突选择（两个写者真实存在，见 `saveSkillToDisk`）。
  *
  * 【布局为什么是「一页平铺 + 弹窗」而不是「导航条 + 内容区」或「左列表 + 右详情」】
- *   - **不钻层**（用户裁定："返回上一级还麻烦"）⇒ 分组是同一页里的**可折叠分段表头**，不是另一个空间；
+ *   - **不钻层**（用户裁定："返回上一级还麻烦"）⇒ 分组是同一页里的**切换件**，不是另一个空间；
+ *     更新(2026-09-23)：切换件形态由**可折叠分段表头**改为 **tab**（用户裁定）—— 折叠箭头（12px）
+ *     与同行元素基线对不齐；tab 同样不钻层。代价是"一次只显示一组"（默认第一组，见 `activeGroupView`），
+ *     原「全部分组同时平铺」的形态就此作废；
  *   - 写正文是这个页面的主活 ⇒ 点开一张卡 = 弹窗拿到完整宽度，而**列表留在原位**（不换页、不返回）；
  *   - 低频动作（新建分组 / 从磁盘重读 / 打开技能库 / 注入预算）一律收进工具条右上 **⋯**。
  *
@@ -81,9 +84,6 @@ import { askConfirm } from '@/components/base/core/event/confirmStore';
 import { downloadBlob } from '@/components/base/utils/net/clipboard';
 import { Toggle } from '@/components/base/ui/form/Toggle';
 
-const inputCls =
-  'w-full bg-canvas border border-edge text-body text-sm px-3 py-2.5 rounded-xl outline-none placeholder:text-muted focus:border-blue-500/60 focus:ring-2 focus:ring-blue-500/10 transition disabled:opacity-50';
-
 /**
  * 预算项的界面名（超建议上界时点名用）。
  * 【故意**不是** `SKILL_LIMIT_SUGGESTED_MAX` 的全量映射】`maxExplicitBindings` 不在这里：
@@ -115,12 +115,11 @@ const emptyForm = (): EditForm => ({
 
 /** 行上的状态徽标（状态只在这里说一次，不在第二个列表里） */
 function RowBadges({ row }: { row: SkillRow }) {
-  const chip = 'shrink-0 text-[10px] px-1.5 py-[1px] rounded bg-surface-2';
   return (
     <>
       {row.state === 'missing-id' && (
         <span
-          className={`${chip} text-amber-300`}
+          className="st-chip st-chip--danger"
           title="这个包没有 frontmatter id ⇒ 未纳入索引，无法用于对话"
         >
           缺 id
@@ -128,7 +127,7 @@ function RowBadges({ row }: { row: SkillRow }) {
       )}
       {row.state === 'not-indexed' && (
         <span
-          className={`${chip} text-secondary`}
+          className="st-chip st-chip--danger"
           title="索引里还没有它 ⇒ 右上 ⋯ →「从磁盘重读」即可收敛"
         >
           未纳入索引
@@ -136,7 +135,7 @@ function RowBadges({ row }: { row: SkillRow }) {
       )}
       {row.state === 'unreadable' && (
         <span
-          className={`${chip} text-red-300`}
+          className="st-chip st-chip--danger"
           title="读不到 SKILL.md（残包或二进制）⇒ 打开该包看看"
         >
           读不到 SKILL.md
@@ -144,23 +143,20 @@ function RowBadges({ row }: { row: SkillRow }) {
       )}
       {row.state === 'index-only' && (
         <span
-          className={`${chip} text-amber-300`}
+          className="st-chip st-chip--danger"
           title="磁盘上已经没有这个包，只剩索引里这一份正文"
         >
           磁盘上已删除
         </span>
       )}
       {row.noDescription && row.usable && (
-        <span
-          className={`${chip} text-amber-300`}
-          title="没有描述 ⇒ 不会出现在「可用 Skill 清单」里"
-        >
+        <span className="st-chip" title="没有描述 ⇒ 不会出现在「可用 Skill 清单」里">
           无描述
         </span>
       )}
       {row.missingRefs.length > 0 && (
         <span
-          className={`${chip} text-amber-300`}
+          className="st-chip st-chip--danger"
           title={`正文引用了包里没有的资料：${row.missingRefs.join('、')}`}
         >
           引用缺失 {row.missingRefs.length}
@@ -191,9 +187,10 @@ function NumberField({
     setDraft(String(value));
   }, [value]);
   return (
-    <label className="flex items-center gap-2 text-xs text-secondary">
-      {label}
+    <label className="st-field">
+      <span className="st-label">{label}</span>
       <input
+        className="st-input"
         type="number"
         min={1}
         value={draft}
@@ -206,7 +203,6 @@ function NumberField({
         onKeyDown={(e) => {
           if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
         }}
-        className="w-24 h-7 bg-canvas border border-edge rounded-lg px-2 text-xs text-body outline-none focus:border-blue-500/50"
       />
     </label>
   );
@@ -219,24 +215,25 @@ function NumberField({
  */
 function BudgetBar({ length, limit }: { length: number; limit: number }) {
   const ratio = limit > 0 ? length / limit : 0;
-  const tone = ratio > 1 ? 'text-red-300' : ratio > 0.9 ? 'text-amber-300' : 'text-muted';
-  const fill = ratio > 1 ? 'bg-red-500' : ratio > 0.9 ? 'bg-amber-500' : 'bg-blue-500';
+  // 【配色（2026-09-23 起）】只允许红/绿两枚辅助色：正常 = 中性灰；接近上限 / 超限 = 红。
+  // 原三档是「蓝(正常) / 琥珀(接近) / 红(超限)」—— 蓝已被用户裁定移除，琥珀不在允许色内，故并为两档。
+  const over = ratio > 0.9;
   return (
-    <div>
-      <div className={`flex items-center justify-between text-[11px] ${tone}`}>
+    <div className="st-stack st-stack--xs">
+      <div className={over ? 'st-between st-danger-text' : 'st-between st-hint'}>
         <span>正文长度 · 占单篇上限</span>
-        <span>
+        <span className="st-num">
           {length.toLocaleString()} / {limit.toLocaleString()} 字
         </span>
       </div>
-      <div className="mt-1 h-1 rounded-full bg-surface-2 overflow-hidden">
+      <div className="st-bar">
         <div
-          className={`h-full rounded-full ${fill}`}
+          className={over ? 'st-bar-fill is-danger' : 'st-bar-fill'}
           style={{ width: `${Math.min(ratio, 1) * 100}%` }}
         />
       </div>
       {ratio > 1 && (
-        <div className={`mt-1 text-[11px] ${tone}`}>
+        <div className="st-danger-text st-sm">
           超出 {(length - limit).toLocaleString()}，发给 AI 时会被截断（已注明）
         </div>
       )}
@@ -263,8 +260,12 @@ export default function SkillSettings() {
   /** 进编辑态那一刻的正文指纹 = **保存时的冲突基线** */
   const [baselineHash, setBaselineHash] = useState('');
   const [conflict, setConflict] = useState<{ diskContent: string; message: string } | null>(null);
-  /** 分组表头的折叠态（折叠 = 收起这一段，不换页、不钻层） */
-  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+  /**
+   * 当前显示的分组（tab 选中项）。
+   * 【2026-09-23 改 tab 切换】原为「折叠态表 `collapsed` + 全部分组平铺显示」——用户裁定改为 tab：
+   * 折叠箭头与同行元素基线对不齐，且 tab 同样不钻层。空串 = 还没选，由 `activeGroupView` 兜到第一组。
+   */
+  const [activeGroup, setActiveGroup] = useState('');
   const [busy, setBusy] = useState(false);
   const [importing, setImporting] = useState(false);
   const [notice, setNotice] = useState('');
@@ -359,10 +360,23 @@ export default function SkillSettings() {
   );
 
   /**
-   * 一页平铺 ⇒ **全部分组都显示**（不再有"导航条选中哪个组才显示哪个组"这一层）。
-   * 分组表头就是分节；折叠交给用户点，界面不替他决定看哪一段。
+   * 分组列表（视图层已按 `skillGroup.orderOfGroup` 排好序：官方恒最前 · 普通磁盘组中文序 ·
+   * `_未分类` 其后 · 「磁盘上已删除」收纳段最后）。
+   * 更新(2026-09-23)：原写「一页平铺 ⇒ **全部分组都显示** … 折叠交给用户点，界面不替他决定看哪一段」
+   * —— **该形态已被用户裁定推翻**，改为 tab 切换（一次显示一组）。保留的核心理由仍是"不钻层"：
+   * tab 在同一页内换筛选，不换页、不返回。
    */
   const shownGroups: SkillGroupView[] = useMemo(() => view.groups, [view]);
+
+  /**
+   * 当前 tab 对应的分组。
+   * 兜底 `shownGroups[0]`：首次进入 / 分组被删 / 分组改名时 `activeGroup` 为空串或落空 ——
+   * 此时显示第一个组（官方），而不是显示空白。tab 形态下"界面替他决定看哪一段"是必然，故显式写下。
+   */
+  const activeGroupView = useMemo(
+    () => shownGroups.find((g) => g.name === activeGroup) || shownGroups[0] || null,
+    [shownGroups, activeGroup],
+  );
 
   // 「已删除」收纳组不进分组候选 —— 判据读**视图层给的语义** `kind`，不比哨兵字符串（TD-11-62）
   const groupNames = useMemo(
@@ -693,45 +707,39 @@ export default function SkillSettings() {
     return () => window.removeEventListener('keydown', onKey);
   });
 
+  // 整块面板：技能库整体一层底色（用户 2026-09-23 要求"skill 板块也要有背景色，才能统一"）
   return (
-    <section className="bg-surface border border-edge-subtle rounded-xl overflow-hidden">
+    <section className="st-panel">
       {/* 头部：标题 + 统计芯片（把"启用几个 / 磁盘几包"变成看得见的当前状态） */}
-      <div className="px-5 py-3 border-b border-edge-subtle flex items-center justify-between gap-4">
-        <div className="min-w-0">
-          <h3 className="settings-page-title flex items-center gap-2">
-            <Bot size={17} className="text-secondary" />
+      <div className="st-page-head">
+        <div>
+          <h3 className="st-section-title">
+            <Bot size={17} />
             Skill Library
           </h3>
-          <p className="text-xs text-muted mt-1">
-            下面每一张卡就是一个技能；改动保存即写回磁盘上的那个文件
-          </p>
+          <p className="st-section-sub">下面每一张卡就是一个技能；改动保存即写回磁盘上的那个文件</p>
         </div>
-        <div className="shrink-0 flex items-center gap-1.5 text-[11px] text-secondary">
-          <span className="px-2.5 py-1 rounded-full bg-surface-1">
-            共 {view.counts.diskPackages} 个
-          </span>
-          <span
-            className="px-2.5 py-1 rounded-full bg-surface-1"
-            title="开关决定它能不能在对话里被选到"
-          >
+        <div className="st-inline">
+          <span className="st-chip">共 {view.counts.diskPackages} 个</span>
+          <span className="st-chip" title="开关决定它能不能在对话里被选到">
             对话里可用 {view.counts.enabled}/{view.counts.usable}
           </span>
         </div>
       </div>
 
       {/* 工具条：只放高频动作（导入 / 新建技能）；低频（新建分组 / 重读 / 打开技能库 / 注入预算）收进右上 ⋯ */}
-      <div className="px-5 py-2.5 border-b border-edge-subtle flex items-center gap-2 flex-wrap">
+      <div className="st-toolbar">
         {/* 导入⌄（.md 文件 / 技能包整包） */}
-        <div className="relative" ref={importRef}>
+        <div ref={importRef} className="st-rel">
           <button
+            className="st-btn st-btn--sm"
             type="button"
             onClick={() => setImportOpen((v) => !v)}
             disabled={importing}
-            className="h-7 px-2 rounded-lg bg-surface-1 text-[11px] text-body flex items-center gap-1 hover:bg-surface-hover transition cursor-pointer border-none disabled:opacity-50"
           >
             <Upload size={12} />
             {importing ? '导入中…' : '导入'}
-            <ChevronDown size={11} className="text-muted" />
+            <ChevronDown size={11} />
           </button>
           {/* 与右上 ⋯ 同一个 chrome（`DropdownPanel` + `DropdownRow`）：下拉外观只有一份真源 */}
           {importOpen && (
@@ -758,11 +766,7 @@ export default function SkillSettings() {
           )}
         </div>
 
-        <button
-          type="button"
-          onClick={startNew}
-          className="h-7 px-2.5 rounded-lg bg-blue-500/90 hover:bg-blue-500 text-white text-[11px] flex items-center gap-1 cursor-pointer border-none"
-        >
+        <button className="st-btn st-btn--sm" type="button" onClick={startNew}>
           <Plus size={12} />
           新建技能
         </button>
@@ -779,14 +783,14 @@ export default function SkillSettings() {
           />
         )}
 
-        <div className="ml-auto flex items-center gap-1.5">
+        <div className="st-push">
           {/* ⋯：低频动作全收口（新建分组 / 从磁盘重读 / 打开技能库） */}
-          <div className="relative" ref={moreRef}>
+          <div ref={moreRef} className="st-rel">
             <button
+              className="st-icon-btn"
               type="button"
               onClick={() => setMoreOpen((v) => !v)}
               title="更多"
-              className="h-7 w-7 flex items-center justify-center rounded-lg bg-surface-1 text-body hover:bg-surface-hover cursor-pointer border-none"
             >
               <MoreHorizontal size={13} />
             </button>
@@ -809,7 +813,7 @@ export default function SkillSettings() {
                     void load({ report: true });
                   }}
                 >
-                  <RefreshCw size={12} className={busy ? 'animate-spin' : ''} />
+                  <RefreshCw size={12} />
                   从磁盘重读
                 </DropdownRow>
                 <DropdownRow
@@ -840,11 +844,11 @@ export default function SkillSettings() {
       </div>
 
       {/* 注入预算：默认收起，由工具条 ⋯ →「注入预算」开关（把"发给 AI 多少字"这条隐形约束摆到台面上） */}
-      <div className="px-5 py-2 border-b border-edge-subtle text-[11px] text-muted">
+      <div>
         {budgetOpen ? (
-          <div className="space-y-2 py-1">
-            <div className="flex items-start justify-between gap-4">
-              <span className="text-secondary">
+          <div className="st-card">
+            <div className="st-between">
+              <span className="st-hint">
                 默认把全部 Skill 清单发给 AI（开＝每轮都发「有哪些 Skill」，关＝只发你选中的正文）
               </span>
               <Toggle
@@ -852,7 +856,7 @@ export default function SkillSettings() {
                 onChange={(v) => patchConfig({ catalogToModel: v })}
               />
             </div>
-            <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
+            <div className="st-grid st-grid--2">
               <NumberField
                 label="单个正文上限（字）"
                 value={cfg.contentLimits.singleSkillChars}
@@ -864,238 +868,204 @@ export default function SkillSettings() {
                 onCommit={(n) => patchConfig({ contentLimits: { expansionTotalChars: n } })}
               />
             </div>
-            <p className="text-[11px] text-muted">
-              本页的开关只决定这个技能<b className="text-secondary">出不出可选列表</b>
-              ，开多少个都行；一次对话只带<b className="text-secondary">一个</b>
+            <p className="st-hint">
+              本页的开关只决定这个技能<b>出不出可选列表</b>
+              ，开多少个都行；一次对话只带<b>一个</b>
               （在 AI 助手里选，选新的就换掉旧的）。
             </p>
             {overBudget.length > 0 && (
-              <p className="text-amber-400">
+              <p className="st-notice st-notice--danger">
                 已超出建议范围（{overBudget.join('、')}）：预算的作用是防止上下文被顶爆，
                 调到这个量级等于没有防线。确实需要可以继续，但请知道这一点。
               </p>
             )}
-            <p>超出上限的正文会被截断，并在发给 AI 的文本里注明（不会静默丢内容）。</p>
+            <p className="st-hint">
+              超出上限的正文会被截断，并在发给 AI 的文本里注明（不会静默丢内容）。
+            </p>
           </div>
         ) : (
-          <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+          <div className="st-inline st-hint">
             <span>
-              对话里可用 <b className="text-body">{view.counts.enabled}</b> 个 · 一次对话只带 1 个
+              对话里可用 <b>{view.counts.enabled}</b> 个 · 一次对话只带 1 个
             </span>
-            <span className="text-edge">·</span>
+            <span>·</span>
             <span>清单 {cfg.catalogToModel ? '开' : '关'}</span>
-            <span className="text-edge">·</span>
+            <span>·</span>
             <span>单篇 {cfg.contentLimits.singleSkillChars.toLocaleString()} 字</span>
-            <span className="text-edge">·</span>
+            <span>·</span>
             <span>合计 {cfg.contentLimits.expansionTotalChars.toLocaleString()} 字</span>
-          </span>
+          </div>
         )}
       </div>
 
       {/* 页面级横幅：未决 / 结果 / 索引损坏 —— 不藏在折叠面板里 */}
       {view.undecided && (
-        <div className="mx-5 mt-3 px-3 py-2 rounded-lg border border-amber-500/40 bg-amber-500/10 text-[11px] text-secondary">
-          <b className="text-amber-300">读不到磁盘技能库</b>（本地服务未启动？）—— 下面按索引显示，
-          <b className="text-amber-300">这不代表磁盘上没有别的技能</b>
+        <div className="st-notice st-notice--danger">
+          <b>读不到磁盘技能库</b>（本地服务未启动？）—— 下面按索引显示，
+          <b>这不代表磁盘上没有别的技能</b>
           。读不到时也不会用空清单去覆盖任何东西。
           <button
+            className="st-btn st-btn--sm st-push"
             type="button"
             onClick={() => void load({ report: true })}
-            className="ml-2 text-amber-300 hover:text-amber-200 cursor-pointer border-none bg-transparent p-0"
           >
             重试
           </button>
         </div>
       )}
       {indexError && (
-        <div className="mx-5 mt-3 px-3 py-2 rounded-lg border border-red-500/40 bg-red-500/10 text-[11px] text-secondary">
+        <div className="st-notice st-notice--danger">
           索引损坏：{indexError}（不影响磁盘上的技能包；点「重读」按磁盘重建索引）
         </div>
       )}
-      {notice && <div className="mx-5 mt-3 text-[11px] text-secondary">{notice}</div>}
+      {notice && <div className="st-notice">{notice}</div>}
 
-      {/* 内容区：一页平铺卡片（分组 = 可折叠表头，**不钻层**；编辑 = 弹窗，不换页） */}
-      <div className="min-h-[420px]">
+      {/* 分组切换：tab（用户 2026-09-23 裁定 —— 原可折叠分段表头的箭头与同行元素基线对不齐）。
+          tab 仍在**同一页**内换筛选，不钻层、不换页；一次显示一组。 */}
+      {view.counts.rows > 0 && (
+        <div className="st-tabs">
+          {shownGroups.map((g) => (
+            <button
+              key={g.name}
+              className={`st-tab${activeGroupView?.name === g.name ? ' is-active' : ''}`}
+              type="button"
+              onClick={() => setActiveGroup(g.name)}
+            >
+              {g.label}
+              <span className="st-tab-count">{g.rows.length}</span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* 内容区：当前分组的卡片网格（一页平铺 · 多列；编辑 = 弹窗，不换页） */}
+      <div className="st-stack">
         {!editorOpen && (
-          <div className="overflow-y-auto px-8 py-3">
+          <div className="st-stack">
             {view.counts.rows === 0 && (
-              <div className="px-2 py-10 text-center text-xs text-muted">
+              <div className="st-empty">
                 技能库还是空的 —— 用上面的「导入」把 .md 或技能包放进来，或点「新建技能」自己写一个
               </div>
             )}
-            {shownGroups.map((group, groupIndex) => {
-              const open = !collapsed[group.name];
-              return (
-                <div key={group.name}>
-                  {/* 分组表头：名字 · 数量 · 三态开关 · 折叠（折叠 = 收起这一段，不是换页） */}
-                  <div
-                    className={`flex cursor-pointer select-none items-center gap-1.5 pb-2.5 ${
-                      groupIndex === 0 ? 'pt-1' : 'pt-5'
-                    }`}
-                    onClick={() => setCollapsed((c) => ({ ...c, [group.name]: !c[group.name] }))}
-                  >
-                    <ChevronDown
-                      size={12}
-                      className={`shrink-0 text-muted ${open ? '' : '-rotate-90'}`}
-                    />
-                    <span
-                      className={`truncate text-[12px] ${
-                        group.kind === 'index-only' ? 'text-amber-300' : 'text-secondary'
-                      }`}
-                      title={group.label}
-                    >
-                      {group.label}
-                    </span>
-                    <span className="rounded-full bg-surface-hover px-1.5 py-[1px] text-[10px] text-body">
-                      {group.rows.length}
-                    </span>
-                    <span
-                      className="ml-auto flex items-center gap-2"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      {/* 【组开关只有两态（用户裁定）】组里有**任何一个**开着 ⇒ 显示"开"；一个都没开 ⇒ "关"。
-                          状态读视图层给的 `toggleState`（判据唯一真源，这里不自己比数字）；
-                          计数说清到底开了几个（2/7）。点"开" ⇒ 全关；点"关" ⇒ 全开。 */}
-                      <span className="text-[10px] text-muted">
-                        {group.onCount}/{group.toggleable}
-                      </span>
-                      <Toggle
-                        checked={group.toggleState === 'on'}
-                        disabled={group.toggleable === 0}
-                        onChange={(v) => handleGroupToggle(group, v)}
-                      />
-                    </span>
-                  </div>
-
-                  {open && (
-                    <div className="grid grid-cols-[repeat(auto-fill,minmax(260px,1fr))] gap-3">
-                      {group.rows.length === 0 && (
-                        <div className="px-1 py-1.5 text-[11px] text-muted">
-                          空分组 —— 编辑技能时把「分组」填成它，技能就会移到这里
-                        </div>
-                      )}
-                      {group.rows.map((row) => (
-                        <div
-                          key={row.key}
-                          className={`relative flex cursor-pointer flex-col gap-2 rounded-lg border px-4 py-3.5 transition
-                            ${
-                              row.state === 'ok'
-                                ? 'border-edge-faint bg-surface hover:bg-surface-hover'
-                                : 'border-amber-500/40 bg-surface'
-                            }`}
-                          onClick={() => {
-                            setSelectedKey(row.key);
-                            setMode('detail');
-                            setConflict(null);
-                            fillForm(row);
-                          }}
-                        >
-                          {/* 标题与开关同一基线（items-center）：flex-start 会让开关看着比字低 */}
-                          <div className="flex items-center gap-2">
-                            {row.readonly ? (
-                              <Bot size={13} className="shrink-0 text-secondary" />
-                            ) : null}
-                            <span
-                              className={`min-w-0 flex-1 truncate text-[13px] ${
-                                row.usable ? 'text-body' : 'text-muted'
-                              }`}
-                            >
-                              {row.name}
-                            </span>
-                            {/* 常显控件只有这一个：对话里能不能选到它 */}
-                            {row.state === 'ok' && (
-                              <Toggle
-                                checked={row.enabled}
-                                onChange={(v) => handleToggle(row, v)}
-                              />
-                            )}
-                          </div>
-
-                          <div className="line-clamp-2 text-[12px] leading-relaxed text-muted">
-                            {row.description || '（还没有描述）'}
-                          </div>
-
-                          {/* 异常才说话：一句说明 + 该状态唯一能做的动作（与行徽标同源判据） */}
-                          {row.state !== 'ok' && (
-                            <div className="flex flex-wrap items-center gap-1.5">
-                              <RowBadges row={row} />
-                              {row.state === 'missing-id' && (
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setSelectedKey(row.key);
-                                    void handleBackfill();
-                                  }}
-                                  className="shrink-0 cursor-pointer rounded bg-surface-2 px-1.5 py-[2px] text-[10px] text-body hover:bg-surface-3"
-                                >
-                                  补齐 id
-                                </button>
-                              )}
-                              {row.state === 'not-indexed' && (
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    void load({ report: true });
-                                  }}
-                                  className="shrink-0 cursor-pointer rounded bg-surface-2 px-1.5 py-[2px] text-[10px] text-body hover:bg-surface-3"
-                                >
-                                  重读
-                                </button>
-                              )}
-                              {row.state === 'index-only' && (
-                                <span className="flex shrink-0 items-center gap-1">
-                                  <button
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      void handleRestore(row);
-                                    }}
-                                    className="shrink-0 cursor-pointer rounded bg-surface-2 px-1.5 py-[2px] text-[10px] text-body hover:bg-surface-3"
-                                  >
-                                    恢复
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      void handleDiscard(row);
-                                    }}
-                                    className="shrink-0 cursor-pointer rounded bg-surface-2 px-1.5 py-[2px] text-[10px] text-muted hover:bg-surface-3"
-                                  >
-                                    丢弃
-                                  </button>
-                                </span>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      ))}
+            {activeGroupView && (
+              <>
+                {/* 当前分组的组开关（【组开关只有两态·用户裁定】组里有**任何一个**开着 ⇒ 显示"开"；
+                    一个都没开 ⇒ "关"。状态读视图层给的 `toggleState`（判据唯一真源，这里不自己比数字）；
+                    计数说清到底开了几个（2/7）。点"开" ⇒ 全关；点"关" ⇒ 全开。） */}
+                <div className="st-group-head">
+                  <span className="st-hint st-grow">
+                    共 {activeGroupView.rows.length} 个 · 对话里可用 {activeGroupView.onCount}/
+                    {activeGroupView.toggleable}
+                  </span>
+                  <Toggle
+                    checked={activeGroupView.toggleState === 'on'}
+                    disabled={activeGroupView.toggleable === 0}
+                    onChange={(v) => handleGroupToggle(activeGroupView, v)}
+                  />
+                </div>
+                <div className="st-grid st-grid--cards">
+                  {activeGroupView.rows.length === 0 && (
+                    <div className="st-hint st-grid-full">
+                      空分组 —— 编辑技能时把「分组」填成它，技能就会移到这里
                     </div>
                   )}
+                  {activeGroupView.rows.map((row) => (
+                    <div
+                      key={row.key}
+                      className={`st-skill-card${selectedKey === row.key ? ' is-active' : ''}`}
+                      onClick={() => {
+                        setSelectedKey(row.key);
+                        setMode('detail');
+                        setConflict(null);
+                        fillForm(row);
+                      }}
+                    >
+                      {/* 标题与开关同一基线（items-center）：flex-start 会让开关看着比字低 */}
+                      <div className="st-inline">
+                        {row.readonly ? <Bot size={13} className="st-row-icon" /> : null}
+                        <span className="st-list-item-title st-grow">{row.name}</span>
+                        {/* 常显控件只有这一个：对话里能不能选到它 */}
+                        {row.state === 'ok' && (
+                          <Toggle checked={row.enabled} onChange={(v) => handleToggle(row, v)} />
+                        )}
+                      </div>
+
+                      <div className="st-list-item-desc">{row.description || '（还没有描述）'}</div>
+
+                      {/* 异常才说话：一句说明 + 该状态唯一能做的动作（与行徽标同源判据） */}
+                      {row.state !== 'ok' && (
+                        <div className="st-inline">
+                          <RowBadges row={row} />
+                          {row.state === 'missing-id' && (
+                            <button
+                              className="st-btn st-btn--sm"
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedKey(row.key);
+                                void handleBackfill();
+                              }}
+                            >
+                              补齐 id
+                            </button>
+                          )}
+                          {row.state === 'not-indexed' && (
+                            <button
+                              className="st-btn st-btn--sm"
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                void load({ report: true });
+                              }}
+                            >
+                              重读
+                            </button>
+                          )}
+                          {row.state === 'index-only' && (
+                            <span className="st-inline">
+                              <button
+                                className="st-btn st-btn--sm"
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  void handleRestore(row);
+                                }}
+                              >
+                                恢复
+                              </button>
+                              {/* 破坏性：红（丢掉索引里那一份，之后无法恢复） */}
+                              <button
+                                className="st-btn st-btn--sm st-btn--danger"
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  void handleDiscard(row);
+                                }}
+                              >
+                                丢弃
+                              </button>
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  ))}
                 </div>
-              );
-            })}
+              </>
+            )}
           </div>
         )}
 
         {/* 编辑 = 弹窗（照 ConfirmContainer 的壳：遮罩 + bg-surface-raised + rounded-xl） */}
         {editorOpen && (
-          <div
-            className="fixed inset-0 z-float flex items-center justify-center bg-black/70 p-6"
-            onClick={closeEditor}
-          >
-            <div
-              className="flex max-h-[86vh] w-full max-w-[620px] flex-col overflow-hidden rounded-xl border border-edge bg-surface-raised shadow-2xl"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="flex items-start gap-2 px-5 pb-3 pt-4">
-                <div className="min-w-0 flex-1">
-                  <div className="truncate text-[13px] text-white">
+          <div className="st-overlay" onClick={closeEditor}>
+            <div className="st-modal" onClick={(e) => e.stopPropagation()}>
+              <div className="st-modal-head">
+                <div className="st-grow">
+                  <div className="st-modal-title">
                     {isEditing ? (form.id ? '编辑技能' : '新建技能') : selected?.name}
                   </div>
-                  <div className="mt-0.5 text-[11px] text-muted">
+                  <div className="st-hint">
                     {selected?.readonly
                       ? '官方内置'
                       : selected
@@ -1104,23 +1074,18 @@ export default function SkillSettings() {
                   </div>
                 </div>
                 {/* 「编辑」不在这里再放一份：操作区那个是唯一入口（P1 一个动作一个入口） */}
-                <button
-                  type="button"
-                  onClick={closeEditor}
-                  title="关闭"
-                  className="shrink-0 cursor-pointer border-none bg-transparent text-[18px] leading-none text-muted hover:text-body"
-                >
+                <button className="st-icon-btn" type="button" onClick={closeEditor} title="关闭">
                   ×
                 </button>
               </div>
-              <div className="flex-1 overflow-y-auto">
-                <div className="px-5 py-3">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <div className="text-[15px] text-body font-medium truncate">
+              <div className="st-modal-body">
+                <div className="st-stack">
+                  <div className="st-card-head">
+                    <div className="st-grow">
+                      <div className="st-card-title">
                         {isEditing ? (form.id ? '编辑技能' : '新建技能') : selected?.name}
                       </div>
-                      <div className="text-[11px] text-muted mt-1 flex items-center gap-1.5 flex-wrap">
+                      <div className="st-card-sub">
                         {selected ? (
                           <>
                             <span>{selected.readonly ? '官方内置' : '自定义'}</span>
@@ -1134,13 +1099,9 @@ export default function SkillSettings() {
                     </div>
                     {selected && (
                       <span
-                        className={`shrink-0 text-[10px] px-2 py-[2px] rounded-full ${
-                          selected.usable
-                            ? selected.enabled
-                              ? 'bg-blue-500/15 text-blue-300'
-                              : 'bg-surface-2 text-muted'
-                            : 'bg-surface-2 text-muted'
-                        }`}
+                        className={
+                          selected.usable && selected.enabled ? 'st-chip st-chip--ok' : 'st-chip'
+                        }
                       >
                         {selected.usable
                           ? selected.enabled
@@ -1153,9 +1114,9 @@ export default function SkillSettings() {
 
                   {/* 元信息条（路径 / 引用 / 修改时间 / 缺失项）—— 只读态与编辑态共用 */}
                   {selected && (
-                    <div className="mt-3 px-3 py-2 rounded-lg bg-surface-1 text-[11px] text-muted space-y-0.5">
+                    <div className="st-hint st-stack st-stack--xs">
                       {selected.relPath && (
-                        <div className="truncate" title={selected.relPath}>
+                        <div className="st-mono st-truncate" title={selected.relPath}>
                           路径 skills/{selected.relPath}
                         </div>
                       )}
@@ -1166,35 +1127,34 @@ export default function SkillSettings() {
                           : ''}
                       </div>
                       {selected.missingRefs.length > 0 && (
-                        <div className="text-amber-300">
+                        <div className="st-danger-text">
                           正文引用了包里没有的资料：{selected.missingRefs.join('、')}
                           （模型读到会失败）
                         </div>
                       )}
                       {selected.noDescription && selected.usable && (
-                        <div className="text-amber-300">
-                          没有描述 ⇒ 不会出现在「可用 Skill 清单」里
-                        </div>
+                        <div>没有描述 ⇒ 不会出现在「可用 Skill 清单」里</div>
                       )}
                     </div>
                   )}
 
                   {/* 冲突：磁盘那一版被外部改过 —— 不静默覆盖，让用户选 */}
                   {conflict && (
-                    <div className="mt-3 px-3 py-2 rounded-lg border border-amber-500/40 bg-amber-500/10 text-[11px] text-secondary space-y-1.5">
-                      <div className="text-amber-300 font-medium">{conflict.message}</div>
-                      <div className="flex items-center gap-2">
+                    <div className="st-notice st-notice--danger st-stack st-stack--sm">
+                      <div>{conflict.message}</div>
+                      <div className="st-inline">
+                        {/* 覆盖 = 破坏性（会盖掉磁盘上那一版）：红 */}
                         <button
+                          className="st-btn st-btn--sm st-btn--danger"
                           type="button"
                           onClick={() => void doSave(true)}
-                          className="h-7 px-2 rounded-lg bg-blue-500/90 hover:bg-blue-500 text-white cursor-pointer border-none"
                         >
                           用我的覆盖
                         </button>
                         <button
+                          className="st-btn st-btn--sm"
                           type="button"
                           onClick={loadDiskVersion}
-                          className="h-7 px-2 rounded-lg bg-surface-1 hover:bg-surface-hover text-body cursor-pointer border-none"
                         >
                           放弃我的、加载磁盘版
                         </button>
@@ -1203,28 +1163,28 @@ export default function SkillSettings() {
                   )}
 
                   {/* 字段：**一份**渲染；只读态 `disabled`，点「编辑」才放开 */}
-                  <div className="mt-3 space-y-3">
-                    {/* 名称 + 分组同一排：它俩是"这个技能叫什么 / 归到哪一类"，配对出现才看得出关系 */}
-                    <div className="grid grid-cols-2 gap-3">
-                      <label className="block">
-                        <span className="block text-xs text-secondary mb-1.5">名称</span>
+                  <div className="st-fields st-fields--1">
+                    {/* 名称 + 分组同一排（一行多列）：它俩是"这个技能叫什么 / 归到哪一类"，配对出现才看得出关系 */}
+                    <div className="st-grid st-grid--2">
+                      <label className="st-field">
+                        <span className="st-label">名称</span>
                         <input
+                          className="st-input"
                           value={form.name}
                           disabled={!isEditing}
                           onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
                           placeholder="例如：小红书爆款标题"
-                          className={inputCls}
                         />
                       </label>
-                      <label className="block">
-                        <span className="block text-xs text-secondary mb-1.5">分组</span>
+                      <label className="st-field">
+                        <span className="st-label">分组</span>
                         <input
+                          className="st-input"
                           value={form.category}
                           disabled={!isEditing}
                           onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))}
                           placeholder="留空 = 未分组"
                           list="skill-group-names"
-                          className={inputCls}
                         />
                         <datalist id="skill-group-names">
                           {groupNames.map((g) => (
@@ -1233,34 +1193,34 @@ export default function SkillSettings() {
                         </datalist>
                       </label>
                     </div>
-                    <span className="block text-[11px] text-muted -mt-1">
+                    <span className="st-hint">
                       一个技能只属于一个分组；在这里改成别的分组 = 把它移过去，
-                      <b className="text-secondary">清空则移回「未分组」</b>
+                      <b>清空则移回「未分组」</b>
                     </span>
-                    <label className="block">
-                      <span className="block text-xs text-secondary mb-1.5">描述</span>
+                    <label className="st-field">
+                      <span className="st-label">描述</span>
                       <input
+                        className="st-input"
                         value={form.description}
                         disabled={!isEditing}
                         onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
                         placeholder="一句话说清它管什么"
-                        className={inputCls}
                       />
-                      <span className="block text-[11px] text-muted mt-1.5">
+                      <span className="st-hint">
                         开「把全部 Skill 清单发给
                         AI」时，清单**只收有描述的技能**（说不出用途的不占预算）
                       </span>
                     </label>
-                    <label className="block">
-                      <span className="block text-xs text-secondary mb-1.5">正文</span>
+                    <label className="st-field">
+                      <span className="st-label">正文</span>
                       <textarea
+                        className="st-textarea st-textarea--code"
                         value={form.content}
                         disabled={!isEditing}
                         onChange={(e) => setForm((f) => ({ ...f, content: e.target.value }))}
                         rows={12}
-                        className={`${inputCls} font-mono text-[12px] leading-relaxed resize-y`}
                       />
-                      <span className="block mt-1.5">
+                      <span className="st-grow">
                         <BudgetBar
                           length={form.content.length}
                           limit={cfg.contentLimits.singleSkillChars}
@@ -1270,14 +1230,14 @@ export default function SkillSettings() {
                   </div>
 
                   {/* 操作区：只读态给「编辑」+ 该状态专属动作；编辑态给「保存/取消/删除」 */}
-                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <div className="st-toolbar">
                     {!isEditing && (
                       <>
                         {selected?.editable && (
                           <button
+                            className="st-btn st-btn--sm"
                             type="button"
                             onClick={() => setMode('edit')}
-                            className="h-8 px-3 rounded-lg bg-blue-500/90 hover:bg-blue-500 text-white text-xs flex items-center gap-1.5 cursor-pointer border-none"
                           >
                             <Pencil size={12} />
                             编辑
@@ -1285,10 +1245,10 @@ export default function SkillSettings() {
                         )}
                         {selected?.state === 'missing-id' && (
                           <button
+                            className="st-btn st-btn--sm"
                             type="button"
                             onClick={() => void handleBackfill()}
                             disabled={busy}
-                            className="h-8 px-3 rounded-lg bg-blue-500/90 hover:bg-blue-500 text-white text-xs cursor-pointer border-none disabled:opacity-50"
                           >
                             补齐 id（写回 frontmatter）
                           </button>
@@ -1296,17 +1256,18 @@ export default function SkillSettings() {
                         {selected?.state === 'index-only' && (
                           <>
                             <button
+                              className="st-btn st-btn--sm"
                               type="button"
                               onClick={() => void handleRestore(selected)}
                               disabled={busy}
-                              className="h-8 px-3 rounded-lg bg-blue-500/90 hover:bg-blue-500 text-white text-xs cursor-pointer border-none disabled:opacity-50"
                             >
                               恢复（写回磁盘）
                             </button>
+                            {/* 破坏性：红 */}
                             <button
+                              className="st-btn st-btn--sm st-btn--danger"
                               type="button"
                               onClick={() => void handleDiscard(selected)}
-                              className="h-8 px-3 rounded-lg bg-surface-1 hover:bg-surface-hover text-secondary text-xs cursor-pointer border-none"
                             >
                               丢弃
                             </button>
@@ -1314,11 +1275,11 @@ export default function SkillSettings() {
                         )}
                         {(selected?.readonly || selected?.slug) && (
                           <button
+                            className="st-btn st-btn--sm"
                             type="button"
                             onClick={() =>
                               void handleOpen(selected?.readonly ? undefined : selected)
                             }
-                            className="h-8 px-3 rounded-lg bg-surface-1 hover:bg-surface-hover text-body text-xs flex items-center gap-1.5 cursor-pointer border-none"
                           >
                             <FolderOpen size={12} />
                             {selected?.readonly ? '打开技能库' : '打开该包'}
@@ -1326,9 +1287,9 @@ export default function SkillSettings() {
                         )}
                         {selected?.usable && (
                           <button
+                            className="st-btn st-btn--sm"
                             type="button"
                             onClick={() => handleExport(selected)}
-                            className="h-8 px-3 rounded-lg bg-surface-1 hover:bg-surface-hover text-body text-xs flex items-center gap-1.5 cursor-pointer border-none"
                           >
                             <Download size={12} />
                             导出
@@ -1338,9 +1299,9 @@ export default function SkillSettings() {
                         而它们恰好不可编辑 ⇒ 挂在 `editable` 上会让内置技能用不了它（组件测试抓到的缺口） */}
                         {selected?.usable && (
                           <button
+                            className="st-btn st-btn--sm st-btn--primary"
                             type="button"
                             onClick={() => handleUse(selected)}
-                            className="h-8 px-3 rounded-lg bg-surface-1 hover:bg-surface-hover text-secondary text-xs cursor-pointer border-none"
                             title="把该 Skill 选进当前 AI 对话，并打开 AI 助手面板"
                           >
                             在 AI 助手里使用
@@ -1348,9 +1309,9 @@ export default function SkillSettings() {
                         )}
                         {selected?.editable && (
                           <button
+                            className="st-btn st-btn--sm st-btn--danger st-push"
                             type="button"
                             onClick={() => void handleDelete(selected)}
-                            className="h-8 px-3 rounded-lg bg-surface-1 hover:bg-surface-hover text-red-300 text-xs flex items-center gap-1.5 cursor-pointer border-none"
                           >
                             <Trash2 size={12} />
                             删除
@@ -1361,14 +1322,15 @@ export default function SkillSettings() {
                     {isEditing && (
                       <>
                         <button
+                          className="st-btn st-btn--primary"
                           type="button"
                           onClick={() => void doSave(false)}
                           disabled={busy}
-                          className="h-8 px-3 rounded-lg bg-blue-500/90 hover:bg-blue-500 text-white text-xs cursor-pointer border-none disabled:opacity-50"
                         >
                           保存修改
                         </button>
                         <button
+                          className="st-btn"
                           type="button"
                           onClick={() => {
                             // 新建 ⇒ 取消 = 回列表；编辑 ⇒ 取消 = 回到只读态（表单回填磁盘那一版）
@@ -1381,18 +1343,18 @@ export default function SkillSettings() {
                             setMode('detail');
                             setConflict(null);
                           }}
-                          className="h-8 px-3 rounded-lg bg-surface-1 hover:bg-surface-hover text-body text-xs cursor-pointer border-none"
                         >
                           取消
                         </button>
                         {form.id && (
+                          /* 破坏性：红，并推到最右与"保存"拉开距离 */
                           <button
+                            className="st-btn st-btn--danger st-push"
                             type="button"
                             onClick={() => {
                               const row = allRows.find((r) => r.id === form.id);
                               if (row) void handleDelete(row);
                             }}
-                            className="ml-auto h-8 px-3 rounded-lg bg-surface-1 hover:bg-surface-hover text-red-300 text-xs flex items-center gap-1.5 cursor-pointer border-none"
                           >
                             <Trash2 size={12} />
                             删除
@@ -1414,24 +1376,24 @@ export default function SkillSettings() {
           等于"选择框钓你挑一个必然失败的文件"（TD-11-63 顺带修）。 */}
       <input
         ref={mdFileRef}
+        className="st-file-hidden"
         type="file"
         multiple
         accept={SKILL_IMPORT_ACCEPT}
-        className="hidden"
         onChange={(e) => void handleMdImport(e)}
       />
       <input
         ref={dirFileRef}
+        className="st-file-hidden"
         type="file"
         multiple
-        className="hidden"
         onChange={(e) => void handleDirImport(e)}
         {...DIR_PICKER_PROPS}
       />
 
       {/* 官方组的小注（内置是代码常量：能开关、不能改）—— 判据读视图层给的 `kind`，不比哨兵 */}
       {view.groups.some((g) => g.kind === 'official') && (
-        <div className="px-5 py-2 border-t border-edge-subtle text-[10px] text-muted">
+        <div className="st-hint">
           官方 Skill
           是随程序内置的（不占磁盘），只能开关；你的技能住在技能库里，改它请用上面的弹窗，或者在右上
           ⋯ →「打开技能库」里直接改文件。

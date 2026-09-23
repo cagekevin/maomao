@@ -1,0 +1,1234 @@
+/**
+ * ════════════════════════════════════════════════════════════════
+ * 设置页样式层（settings.css）
+ * ════════════════════════════════════════════════════════════════
+ *
+ * 【适用范围】设置整页：`SettingsFrame` 外壳 + 其四个分区（agent / api / other / storage），
+ *   以及 `ApiSettings` 内的「拉取模型」弹窗。前缀 `st-`。
+ *   **不含** `AccountsSettings`（多开账户环境）—— 那是 App.tsx 里 `view==='accounts'` 的
+ *   独立整页，不是设置页（用户 2026-09-23 明确划出，勿并进来）。
+ *
+ * 【为什么单独成文件】2026-09-23 用户裁定：设置页视觉整体重写，与画布/节点的原子类体系解耦。
+ *   由 `SettingsFrame.tsx` 显式 import（与 panel-kit.css / agent-panel.css 同法，
+ *   不依赖"恰好被谁全局加载"）。改设置页外观只动这一个文件。
+ *
+ * ════════════════════════════════════════════════════════════════
+ * 【文件结构 · 四层，自上而下，禁止跨层乱写】
+ *   L1 令牌层      `.st-root { --st-* }`  —— 所有尺度/颜色/过渡的唯一出处（**零魔法数字**）
+ *   L2 布局原语层  stack / cluster / grid / split / page-head —— 只管位置与间距，不管皮肤
+ *   L3 组件层      侧栏 / 卡片 / 行 / 表单 / 按钮 / 标签页 / 徽标 / 列表 / 表格 / 弹窗 / 进度条
+ *   L4 工具层      单属性微调（对齐、截断、字重）—— 只允许用 L1 令牌取值
+ *   写新规则前先问：**能不能用 L1 令牌 + L2 原语拼出来**？能就不要新增 L3 组件。
+ *
+ * ════════════════════════════════════════════════════════════════
+ * 【色值纪律】一律取 `:root` 的 `--mao-*` 语义令牌（tailwind.config.ts 为唯一真相，禁裸色值），
+ *   本文件再包一层 `--st-*` 语义别名（如 `--st-text-1` / `--st-line`），组件层只认别名。
+ *
+ * 【辅助色纪律 · 用户裁定 2026-09-23 · 本文件最硬的一条】
+ *   全页**只有两枚辅助色**，且只在「少部分地方」用：
+ *     · 红 `--st-danger` → 破坏性操作（删除/清空）、失败、超限、缺件
+ *     · 绿 `--st-ok`     → 已启用 / 校验通过 / 已授权 / 健康
+ *   **其余一律中性灰**：选中、悬停、聚焦、当前项、主按钮、链接一律不准出现蓝色或其他彩色。
+ *   「强调」由**反色**（近白底 + 深字）承担，不靠颜色。
+ *   ⚠️ 唯一例外（用户 2026-09-23 二次裁定）：**存储监控的数据可视化配色**（容量圆环 / 占用条）
+ *   属图表语义色，不受本纪律约束，保留其彩色调色板（见 StorageMonitor 的 CATEGORY_COLORS）。
+ *   历史反例：本页重写前遍地 `focus:border-blue-500` / `bg-cyan-400` 开关 —— 已清除。
+ *
+ * 【观感基准】苹果式简约：大留白 · 1px 发丝线 · 大圆角 · 中性灰阶 · 克制的过渡。
+ *   字号只用 5 档、间距只用 4px 栅格的 10 档、圆角只用 5 档 —— 见 L1。
+ *
+ * ════════════════════════════════════════════════════════════════
+ * 【留白条款 · 有些类"零消费者"也**不许删**】（用户 2026-09-23 裁定，优先级高于通用"清孤儿"惯例）
+ *   本文件是设置页的**设计词汇表**：同一语义只允许一种写法。下列类目前没有调用点，但**是有意预留的
+ *   词汇**，不是漏删 —— 删掉它们，下次有人需要时就会自己手写一段 CSS，那才是"样式不统一"的来源：
+ *     · 栅格族缺档   ：`st-grid--3` / `st-grid--4` / `st-grid--gap-sm`
+ *     · 栈间距缺档   ：`st-stack--lg`
+ *     · 形态缺档     ：`st-btn--ghost` / `st-field--row` / `st-row-control`
+ *     · 红绿纪律的成对出口：`st-dot--ok` / `st-dot--danger`（与 `st-chip--ok` / `st-chip--danger` 同族，
+ *                       删掉成对出口 = 逼人绕开纪律自己上色）
+ *     · 通用排版     ：`st-hr` / `st-nowrap` / `st-center` / `st-muted` / `st-ok-text`
+ *                       （与已在用的 `st-truncate` / `st-sm` / `st-danger-text` 同一层）
+ *     · 面板内滚动   ：`st-scroll`（绑定了细滚动条，是"面板里滚动"的唯一写法）
+ *   **约束（防词汇表退化成垃圾场）**：新增词汇必须同时满足
+ *     ① 属于上列某一族（不是为单个页面造新词）；
+ *     ② 取值只能引用 L1 令牌；
+ *     ③ 不把魔法数字写进类名（已清除的反例：原 `st-maxw-110` → 现 `st-legend-name` + `--st-legend-w`）。
+ */
+
+/* ════════════════════════════════════════════════════════════════
+ * L1 · 令牌层
+ * ════════════════════════════════════════════════════════════════ */
+.st-root {
+  /* ── 间距（4px 栅格，10 档，够用且不会失控） ── */
+  --st-sp-1: 4px;
+  --st-sp-2: 8px;
+  --st-sp-3: 12px;
+  --st-sp-4: 16px;
+  --st-sp-5: 20px;
+  --st-sp-6: 24px;
+  --st-sp-7: 32px;
+  --st-sp-8: 40px;
+  --st-sp-9: 48px;
+  --st-sp-10: 64px;
+
+  /* ── 圆角（5 档：小控件 → 弹窗） ── */
+  --st-r-xs: 6px;
+  --st-r-sm: 8px;
+  --st-r-md: 10px;
+  --st-r-lg: 14px;
+  --st-r-xl: 16px;
+  --st-r-full: 999px;
+
+  /* ── 字号 / 行高 / 字重 ── */
+  --st-fs-xs: 11px;
+  --st-fs-sm: 12px;
+  --st-fs-md: 13px;
+  --st-fs-lg: 15px;
+  --st-fs-xl: 20px;
+  --st-lh-tight: 1.3;
+  --st-lh-base: 1.55;
+  --st-fw-normal: 400;
+  --st-fw-medium: 500;
+  --st-fw-semibold: 600;
+
+  /* ── 控件尺度（高度不成倍数关系，故单列一组，不与间距混用） ── */
+  --st-ctl-h: 34px; /* 标准控件高（输入框 / 按钮） */
+  --st-ctl-h-sm: 26px; /* 紧凑档（行内小按钮 / 标签页） */
+  --st-ctl-h-xs: 22px; /* 极小档（表格内图标按钮） */
+  --st-nav-h: 32px; /* 侧栏导航项高 */
+  --st-chip-h: 16px; /* 徽标 / 状态点行高 */
+  --st-num-w: 96px; /* 窄数字输入宽 */
+  --st-textarea-h: 80px; /* 多行文本最小高 */
+  --st-code-h: 240px; /* 代码 / 正文编辑区最小高 */
+  --st-legend-w: 110px; /* 图表图例名最大宽 */
+
+  /* ── 布局尺度 ── */
+  --st-side-w: 216px; /* 侧栏宽 */
+  --st-content-w: 800px; /* 内容最大宽（苹果式窄栏） */
+  --st-page-y: var(--st-sp-8); /* 内容区上下留白 */
+  --st-page-x: var(--st-sp-9); /* 内容区左右留白 */
+  --st-pane-gap: var(--st-sp-5); /* 分栏间距 */
+  --st-split-left: 236px; /* 左右分栏的左侧宽（可按页覆写） */
+
+  /* ── 皮肤别名（组件层只认这些，不直呼 --mao-*） ── */
+  --st-bg: rgb(var(--mao-canvas));
+  --st-bg-side: rgb(var(--mao-surface-black));
+  --st-bg-card: rgb(var(--mao-surface-deep));
+  --st-bg-field: rgb(var(--mao-input));
+  --st-bg-hover: rgb(var(--mao-surface-hover));
+  --st-bg-active: rgb(var(--mao-surface-active));
+  --st-bg-sunken: rgb(var(--mao-surface-2));
+  --st-line: rgb(var(--mao-edge-subtle)); /* 发丝线（分隔/描边默认值） */
+  --st-line-strong: rgb(var(--mao-edge)); /* 控件描边 */
+  --st-text-1: rgb(var(--mao-text-strong)); /* 标题 */
+  --st-text-2: rgb(var(--mao-text-primary)); /* 正文 */
+  --st-text-3: rgb(var(--mao-text-secondary)); /* 次级正文 */
+  --st-text-4: rgb(var(--mao-text-muted)); /* 说明 */
+  --st-text-5: rgb(var(--mao-text-faint)); /* 弱化（分组名） */
+  --st-inverse: rgb(var(--mao-inverse));
+  --st-on-inverse: rgb(var(--mao-inverse-strong));
+
+  /* ── 仅有的两枚辅助色（组件层只准在这三处出现，见文件头纪律） ── */
+  --st-danger: var(--mao-danger);
+  --st-ok: var(--mao-live);
+
+  /* ── 过渡 / 聚焦 / 阴影 ── */
+  --st-t: 0.18s ease;
+  --st-focus-ring: 0 0 0 3px rgb(255 255 255 / 0.07); /* 中性白薄纱，替代旧 focus:border-blue-500 */
+  --st-shadow-pop: 0 24px 70px -12px rgb(0 0 0 / 0.85);
+
+  /* ── 基准 ── */
+  position: absolute;
+  inset: 0;
+  display: flex;
+  overflow: hidden;
+  background: var(--st-bg);
+  color: var(--st-text-3);
+  font-family:
+    -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', 'PingFang SC',
+    'Microsoft YaHei', sans-serif;
+  font-size: var(--st-fs-md);
+  line-height: var(--st-lh-base);
+  -webkit-font-smoothing: antialiased;
+  z-index: 100; /* = z-float：与旧值一致，覆盖画布 */
+}
+.st-root *,
+.st-root *::before,
+.st-root *::after {
+  box-sizing: border-box;
+}
+/* 排版间距一律由本文件的 L2 原语控制，不掺浏览器默认 margin */
+.st-root p,
+.st-root h1,
+.st-root h2,
+.st-root h3,
+.st-root h4 {
+  margin: 0;
+}
+
+/* ════════════════════════════════════════════════════════════════
+ * L2 · 布局原语层（只负责位置与间距；皮肤由 L3/L4 叠加）
+ * ════════════════════════════════════════════════════════════════ */
+
+/* ── 纵向栈：一套 gap 覆盖全部竖排布局 ── */
+.st-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--st-sp-5);
+}
+.st-stack--xs {
+  gap: var(--st-sp-1);
+}
+.st-stack--sm {
+  gap: var(--st-sp-3);
+}
+.st-stack--lg {
+  gap: var(--st-sp-7);
+}
+
+/* ── 横向簇：一行多个元素，自动换行 ── */
+.st-cluster {
+  display: flex;
+  align-items: center;
+  gap: var(--st-sp-2);
+  flex-wrap: wrap;
+}
+.st-cluster--nowrap {
+  flex-wrap: nowrap;
+}
+
+/* ── 栅格：多列行的唯一写法（列宽 minmax(0,1fr) 防内容撑破） ── */
+.st-grid {
+  display: grid;
+  gap: var(--st-sp-4);
+}
+.st-grid--2 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.st-grid--3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.st-grid--4 {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+/* 自适应：按容器宽度自动决定列数（宽度不够时逐列落成单列） */
+.st-grid--auto {
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+/* 卡片网格：每列更宽（内容区下约 2 列），给卡片内的说明文字留出可读宽度 */
+.st-grid--cards {
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+}
+/* 网格里需要横跨整行的元素（空态提示等） */
+.st-grid-full {
+  grid-column: 1 / -1;
+}
+.st-grid--gap-sm {
+  gap: var(--st-sp-2);
+}
+.st-grid--gap-lg {
+  gap: var(--st-sp-6);
+}
+/* 标签 : 值 两列（同格内左右对齐的紧凑键值行） */
+.st-kv {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--st-sp-3);
+}
+
+/* ── 分栏：左列表 + 右详情（窄屏自动落成单列） ── */
+.st-split {
+  display: grid;
+  grid-template-columns: var(--st-split-left) minmax(0, 1fr);
+  gap: var(--st-pane-gap);
+  align-items: start;
+}
+@media (max-width: 1080px) {
+  .st-split {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.st-pane {
+  display: flex;
+  flex-direction: column;
+  gap: var(--st-sp-3);
+  min-width: 0;
+}
+
+/* ── 页头：左标题说明 + 右操作 ── */
+.st-page-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--st-sp-5);
+}
+
+/* ── 推挤 / 占满（原语级微调，替代到处写 margin-left:auto） ── */
+.st-push {
+  margin-left: auto;
+}
+/* 下拉/浮层锚点：DropdownPanel 是 absolute，必须挂在 relative 容器里 */
+.st-rel {
+  position: relative;
+}
+/* 隐藏的原生文件选择器（由按钮触发 click） */
+.st-file-hidden {
+  display: none;
+}
+.st-grow {
+  flex: 1;
+  min-width: 0;
+}
+.st-between {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--st-sp-3);
+}
+.st-inline {
+  display: flex;
+  align-items: center;
+  gap: var(--st-sp-2);
+  flex-wrap: wrap;
+}
+
+/* ════════════════════════════════════════════════════════════════
+ * L3 · 组件层
+ * ════════════════════════════════════════════════════════════════ */
+
+/* ────────── 3.1 侧栏 ────────── */
+.st-side {
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  width: var(--st-side-w);
+  padding: var(--st-sp-5) var(--st-sp-3);
+  background: var(--st-bg-side);
+  border-right: 1px solid var(--st-line);
+}
+.st-side-head {
+  padding: 0 var(--st-sp-3);
+  margin-bottom: var(--st-sp-3);
+}
+.st-side-title {
+  font-size: var(--st-fs-sm);
+  font-weight: var(--st-fw-medium);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--st-text-5);
+}
+.st-nav-item {
+  display: flex;
+  align-items: center;
+  gap: var(--st-sp-3);
+  width: 100%;
+  height: var(--st-nav-h);
+  padding: 0 var(--st-sp-3);
+  margin-bottom: var(--st-sp-1);
+  border: none;
+  border-radius: var(--st-r-sm);
+  background: transparent;
+  color: var(--st-text-3);
+  font: inherit;
+  font-size: var(--st-fs-md);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background var(--st-t),
+    color var(--st-t);
+}
+.st-nav-item:hover {
+  background: var(--st-bg-hover);
+  color: var(--st-text-2);
+}
+/* 当前项 = 中性高亮（不发蓝） */
+.st-nav-item.is-active {
+  background: var(--st-bg-active);
+  color: var(--st-text-1);
+  font-weight: var(--st-fw-medium);
+}
+.st-nav-icon {
+  flex-shrink: 0;
+  color: currentColor;
+  opacity: 0.85;
+}
+.st-nav-label {
+  flex: 1;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* ────────── 3.2 内容区 ────────── */
+.st-main {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--st-page-y) var(--st-page-x) var(--st-sp-10);
+  background: var(--st-bg);
+}
+.st-main-inner {
+  display: flex;
+  flex-direction: column;
+  gap: var(--st-sp-7);
+  max-width: var(--st-content-w);
+  margin: 0 auto;
+}
+
+/* ────────── 3.3 分区与标题 ────────── */
+.st-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--st-sp-3);
+}
+.st-section-title {
+  display: flex;
+  align-items: center;
+  gap: var(--st-sp-2);
+  font-size: var(--st-fs-xl);
+  font-weight: var(--st-fw-semibold);
+  letter-spacing: -0.01em;
+  color: var(--st-text-1);
+}
+.st-section-sub {
+  margin-top: var(--st-sp-1);
+  font-size: var(--st-fs-sm);
+  color: var(--st-text-4);
+}
+
+/* ────────── 3.4 卡片与分组 ────────── */
+.st-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--st-sp-4);
+  padding: var(--st-sp-5);
+  background: var(--st-bg-card);
+  border: 1px solid var(--st-line);
+  border-radius: var(--st-r-lg);
+}
+/* 承载"多行设置"的卡片：行自带内边距与发丝线，卡片不再叠加 gap */
+.st-card--rows {
+  padding: var(--st-sp-2) var(--st-sp-5);
+  gap: 0;
+}
+/* 异常态卡片（配额受压 / 失败）：全页少数允许用红的地方 */
+.st-card--danger {
+  border-color: rgb(var(--st-danger) / 0.3);
+  background: rgb(var(--st-danger) / 0.06);
+}
+/* 整块面板：给"整个分区"一层底（技能库用；与内层 .st-skill-card 形成两级层次）。
+   自带纵向布局与间距 ⇒ 用它就不要再加 .st-section，避免两个 gap 打架。 */
+.st-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--st-sp-4);
+  padding: var(--st-sp-5);
+  background: rgb(var(--mao-surface) / 0.5);
+  border: 1px solid var(--st-line);
+  border-radius: var(--st-r-lg);
+}
+.st-card-head {
+  display: flex;
+  align-items: center;
+  gap: var(--st-sp-2);
+}
+.st-card-title {
+  font-size: var(--st-fs-lg);
+  font-weight: var(--st-fw-medium);
+  color: var(--st-text-1);
+}
+.st-card-sub {
+  margin-top: var(--st-sp-1);
+  font-size: var(--st-fs-sm);
+  color: var(--st-text-4);
+}
+.st-group-name {
+  padding: 0 var(--st-sp-1);
+  margin-bottom: var(--st-sp-2);
+  font-size: var(--st-fs-sm);
+  font-weight: var(--st-fw-medium);
+  color: var(--st-text-5);
+}
+/* 相邻子项之间加发丝线（"多行设置"的分隔唯一写法） */
+.st-divide > * + * {
+  border-top: 1px solid var(--st-line);
+}
+/* 分组信息条（技能库：分组切换走 .st-tabs，这里只放"本组计数 + 组开关"，不可点）
+   【原「分组折叠」那两个类（st-group-caret / st-group）已随"可折叠分段"一起删除】——
+   用户 2026-09-23 裁定改 tab 切换：折叠箭头（12px）与同行元素基线对不齐，且 tab 同样不钻层。
+   注：此处不写带点号的旧类名，否则会被"零消费者类"扫描当成仍在定义。 */
+.st-group-head {
+  display: flex;
+  align-items: center;
+  gap: var(--st-sp-3);
+  padding: var(--st-sp-1) 0;
+}
+/* 网格单元卡片（技能卡等可点的方块） */
+.st-skill-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--st-sp-2);
+  padding: var(--st-sp-4);
+  background: var(--st-bg-card);
+  border: 1px solid var(--st-line);
+  border-radius: var(--st-r-md);
+  cursor: pointer;
+  transition:
+    background var(--st-t),
+    border-color var(--st-t);
+}
+.st-skill-card:hover {
+  background: var(--st-bg-hover);
+  border-color: var(--st-line-strong);
+}
+.st-skill-card.is-active {
+  background: var(--st-bg-active);
+  border-color: var(--st-line-strong);
+}
+.st-hr {
+  height: 1px;
+  border: none;
+  background: var(--st-line);
+}
+
+/* ────────── 3.5 设置行（左描述 / 右控件，天然两列） ────────── */
+.st-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--st-sp-4);
+  padding: var(--st-sp-4) 0;
+}
+/* 内容比控件高时（多行明细）顶部对齐 */
+.st-row--top {
+  align-items: flex-start;
+}
+.st-row-main {
+  display: flex;
+  align-items: center;
+  gap: var(--st-sp-3);
+  min-width: 0;
+}
+.st-row-icon {
+  flex-shrink: 0;
+  color: var(--st-text-3);
+}
+.st-row-text {
+  min-width: 0;
+}
+.st-row-title {
+  font-size: var(--st-fs-md);
+  color: var(--st-text-2);
+}
+.st-row-desc {
+  margin-top: var(--st-sp-1);
+  font-size: var(--st-fs-sm);
+  color: var(--st-text-4);
+}
+.st-row-control {
+  display: flex;
+  align-items: center;
+  gap: var(--st-sp-2);
+  flex-shrink: 0;
+}
+
+/* ────────── 3.6 统计格（一行多列：总占用 / 可释放 / 文件数 / 项目数…） ────────── */
+.st-stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--st-sp-4) var(--st-sp-6);
+}
+.st-stat {
+  display: flex;
+  flex-direction: column;
+  gap: var(--st-sp-1);
+  min-width: 0;
+}
+.st-stat-label {
+  font-size: var(--st-fs-sm);
+  color: var(--st-text-4);
+}
+.st-stat-value {
+  font-size: var(--st-fs-xl);
+  font-weight: var(--st-fw-semibold);
+  color: var(--st-text-1);
+  font-variant-numeric: tabular-nums;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* ────────── 3.7 表单 ────────── */
+.st-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--st-sp-2);
+  min-width: 0;
+}
+/* 一行多列的表单：label 在左、控件在右（同一行） */
+.st-field--row {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--st-sp-4);
+}
+/* 多列字段组：按容器宽度自动排布（2 列起，宽度不足落成单列） */
+.st-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: var(--st-sp-4);
+}
+.st-fields--1 {
+  grid-template-columns: minmax(0, 1fr);
+}
+.st-label {
+  font-size: var(--st-fs-sm);
+  font-weight: var(--st-fw-medium);
+  color: var(--st-text-3);
+  white-space: nowrap;
+}
+.st-hint {
+  font-size: var(--st-fs-sm);
+  color: var(--st-text-4);
+}
+.st-input,
+.st-textarea,
+.st-select {
+  width: 100%;
+  min-height: var(--st-ctl-h);
+  padding: var(--st-sp-2) var(--st-sp-3);
+  background: var(--st-bg-field);
+  border: 1px solid var(--st-line-strong);
+  border-radius: var(--st-r-sm);
+  color: var(--st-text-2);
+  font: inherit;
+  font-size: var(--st-fs-md);
+  outline: none;
+  transition:
+    border-color var(--st-t),
+    box-shadow var(--st-t);
+}
+.st-input::placeholder,
+.st-textarea::placeholder {
+  color: rgb(var(--mao-text-muted-2));
+}
+.st-input:focus,
+.st-textarea:focus,
+.st-select:focus {
+  border-color: rgb(var(--mao-edge-strong));
+  box-shadow: var(--st-focus-ring);
+}
+.st-input:disabled,
+.st-textarea:disabled,
+.st-select:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.st-textarea {
+  min-height: var(--st-textarea-h);
+  line-height: var(--st-lh-base);
+  resize: vertical;
+}
+/* 代码 / 技能正文：等宽 + 深底 */
+.st-textarea--code {
+  min-height: var(--st-code-h);
+  background: rgb(var(--mao-code-bg));
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: var(--st-fs-sm);
+}
+.st-select {
+  padding-right: var(--st-sp-6);
+  cursor: pointer;
+}
+/* 窄数字输入（如"历史回传轮数"） */
+.st-input--num {
+  width: var(--st-num-w);
+  min-height: var(--st-ctl-h-sm);
+}
+/* 带前缀图标的搜索框 */
+.st-search {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--st-sp-2);
+  height: var(--st-ctl-h);
+  padding: 0 var(--st-sp-3);
+  background: var(--st-bg-field);
+  border: 1px solid var(--st-line-strong);
+  border-radius: var(--st-r-sm);
+  color: var(--st-text-4);
+}
+.st-search .st-input {
+  min-height: 0;
+  padding: 0;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+}
+.st-search:focus-within {
+  border-color: rgb(var(--mao-edge-strong));
+  box-shadow: var(--st-focus-ring);
+}
+.st-check {
+  width: var(--st-sp-4);
+  height: var(--st-sp-4);
+  flex-shrink: 0;
+  accent-color: var(--st-inverse);
+  cursor: pointer;
+}
+
+/* ────────── 3.8 按钮 ────────── */
+.st-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--st-sp-2);
+  height: var(--st-ctl-h);
+  padding: 0 var(--st-sp-4);
+  border: 1px solid var(--st-line-strong);
+  border-radius: var(--st-r-sm);
+  background: transparent;
+  color: var(--st-text-3);
+  font: inherit;
+  font-size: var(--st-fs-md);
+  cursor: pointer;
+  white-space: nowrap;
+  transition:
+    background var(--st-t),
+    border-color var(--st-t),
+    color var(--st-t),
+    opacity var(--st-t);
+}
+.st-btn:hover:not(:disabled) {
+  background: var(--st-bg-hover);
+  color: var(--st-text-1);
+}
+.st-btn:focus-visible {
+  outline: none;
+  box-shadow: var(--st-focus-ring);
+}
+.st-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+/* 主按钮 = 反色（近白底 + 深字）。强调靠对比，不靠彩色。 */
+.st-btn--primary {
+  background: var(--st-inverse);
+  border-color: transparent;
+  color: var(--st-on-inverse);
+  font-weight: var(--st-fw-medium);
+}
+.st-btn--primary:hover:not(:disabled) {
+  background: var(--st-inverse);
+  color: var(--st-on-inverse);
+  opacity: 0.88;
+}
+/* 无框文字按钮（行内"取消/复制"等） */
+.st-btn--ghost {
+  border-color: transparent;
+  padding: 0 var(--st-sp-2);
+  color: var(--st-text-3);
+}
+/* 破坏性按钮：全页少数允许用红的地方（删除 / 清空） */
+.st-btn--danger {
+  border-color: rgb(var(--st-danger) / 0.35);
+  color: rgb(var(--st-danger));
+}
+.st-btn--danger:hover:not(:disabled) {
+  background: rgb(var(--st-danger) / 0.12);
+  border-color: rgb(var(--st-danger) / 0.55);
+  color: rgb(var(--st-danger));
+}
+.st-btn--sm {
+  height: var(--st-ctl-h-sm);
+  padding: 0 var(--st-sp-3);
+  font-size: var(--st-fs-sm);
+  border-radius: var(--st-r-xs);
+}
+.st-btn--block {
+  width: 100%;
+}
+/* 图标按钮（行内小操作，默认无底无框，hover 才现形） */
+.st-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--st-ctl-h-sm);
+  height: var(--st-ctl-h-sm);
+  flex-shrink: 0;
+  border: none;
+  border-radius: var(--st-r-xs);
+  background: transparent;
+  color: var(--st-text-3);
+  cursor: pointer;
+  transition:
+    background var(--st-t),
+    color var(--st-t);
+}
+.st-icon-btn:hover {
+  background: var(--st-bg-hover);
+  color: var(--st-text-1);
+}
+.st-icon-btn.is-danger:hover {
+  background: rgb(var(--st-danger) / 0.12);
+  color: var(--st-danger);
+}
+/* 工具条：一行多个按钮/控件，自动换行；其内的提示条独占一行 */
+.st-toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--st-sp-2);
+  flex-wrap: wrap;
+}
+.st-toolbar > .st-notice {
+  flex-basis: 100%;
+}
+
+/* ────────── 3.9 分段控件 / 标签页 ────────── */
+.st-tabs {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--st-sp-1);
+  padding: var(--st-sp-1);
+  background: var(--st-bg-sunken);
+  border: 1px solid var(--st-line);
+  border-radius: var(--st-r-md);
+}
+.st-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--st-sp-2);
+  height: var(--st-ctl-h-sm);
+  padding: 0 var(--st-sp-3);
+  border: none;
+  border-radius: var(--st-r-sm);
+  background: transparent;
+  color: var(--st-text-4);
+  font: inherit;
+  font-size: var(--st-fs-sm);
+  cursor: pointer;
+  transition:
+    background var(--st-t),
+    color var(--st-t);
+}
+.st-tab:hover {
+  color: var(--st-text-2);
+}
+.st-tab.is-active {
+  background: rgb(var(--mao-surface-hover-strong));
+  color: var(--st-text-1);
+}
+.st-tab-count {
+  min-width: var(--st-chip-h);
+  padding: 0 var(--st-sp-1);
+  border-radius: var(--st-r-full);
+  background: rgb(var(--mao-surface-1));
+  color: var(--st-text-4);
+  font-size: var(--st-fs-xs);
+  line-height: var(--st-chip-h);
+  text-align: center;
+}
+.st-tab.is-active .st-tab-count {
+  background: rgb(var(--mao-surface-3));
+  color: var(--st-text-2);
+}
+
+/* ────────── 3.10 徽标 / 状态点 ────────── */
+.st-chip {
+  display: inline-flex;
+  /* 【为什么是 width 而不是 align-self】徽标既可能落在**竖排**容器（.st-card / .st-stack，默认
+     `stretch` 会把徽标拉成整行宽），也可能落在**横排**容器（.st-toolbar / .st-inline / .st-between /
+     .st-card-head，需要跟随 `align-items: center` 竖直居中）。
+     `align-self: flex-start` 能治前者，却会**覆盖父级的 align-items**、把后者顶到顶边
+     —— 2026-09-23 用户报的「角标 / 当前使用 与旁边按钮不齐」就是这个错招。
+     `width: fit-content` 只挡横向拉伸、完全不碰交叉轴对齐 ⇒ 两种容器都对。 */
+  width: fit-content;
+  align-items: center;
+  gap: var(--st-sp-1);
+  padding: 1px var(--st-sp-2);
+  border-radius: var(--st-r-xs);
+  background: var(--st-bg-sunken);
+  color: var(--st-text-4);
+  font-size: var(--st-fs-xs);
+  line-height: var(--st-chip-h);
+  white-space: nowrap;
+}
+/* 绿：已启用 / 通过 / 已授权 / 健康（少数允许用绿的地方） */
+.st-chip--ok {
+  background: rgb(var(--st-ok) / 0.14);
+  color: rgb(var(--st-ok));
+}
+/* 红：缺件 / 失败 / 超限 / 破坏性（少数允许用红的地方） */
+.st-chip--danger {
+  background: rgb(var(--st-danger) / 0.14);
+  color: rgb(var(--st-danger));
+}
+.st-dot {
+  width: var(--st-sp-2);
+  height: var(--st-sp-2);
+  flex-shrink: 0;
+  border-radius: var(--st-r-full);
+  background: rgb(var(--mao-text-subtle));
+}
+.st-dot--ok {
+  background: rgb(var(--st-ok));
+}
+.st-dot--danger {
+  background: rgb(var(--st-danger));
+}
+
+/* ────────── 3.11 列表（技能库 / 厂商列表 / 模型列表） ────────── */
+.st-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--st-sp-1);
+}
+.st-list-item {
+  display: flex;
+  align-items: center;
+  gap: var(--st-sp-3);
+  padding: var(--st-sp-2) var(--st-sp-3);
+  border: none;
+  border-radius: var(--st-r-sm);
+  background: transparent;
+  color: var(--st-text-3);
+  font: inherit;
+  font-size: var(--st-fs-md);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background var(--st-t),
+    color var(--st-t);
+}
+.st-list-item:hover {
+  background: var(--st-bg-hover);
+  color: var(--st-text-2);
+}
+/* 当前项 = 中性高亮 */
+.st-list-item.is-active {
+  background: var(--st-bg-active);
+  color: var(--st-text-1);
+}
+/* 行本身不可点（只有行内按钮可点）时用：去掉手型光标 */
+.st-list-item--static {
+  cursor: default;
+}
+/* 两行式列表项：标题一行、元信息一行（窄侧栏里不挤成一团） */
+.st-list-item--stack {
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--st-sp-1);
+}
+.st-list-item-title {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.st-list-item-desc {
+  font-size: var(--st-fs-sm);
+  color: var(--st-text-4);
+}
+
+/* ────────── 3.12 表格（拉取模型 / 文件清理） ────────── */
+.st-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--st-fs-sm);
+}
+.st-table th {
+  padding: var(--st-sp-2) var(--st-sp-3);
+  border-bottom: 1px solid var(--st-line-strong);
+  color: var(--st-text-4);
+  font-weight: var(--st-fw-medium);
+  text-align: left;
+}
+.st-table td {
+  padding: var(--st-sp-2) var(--st-sp-3);
+  border-bottom: 1px solid var(--st-line);
+  color: var(--st-text-3);
+}
+.st-table tbody tr:hover td {
+  background: rgb(var(--mao-surface-hover) / 0.5);
+}
+
+/* ────────── 3.13 提示条 / 空态 ────────── */
+.st-notice {
+  display: flex;
+  align-items: center;
+  gap: var(--st-sp-2);
+  padding: var(--st-sp-3);
+  border: 1px solid var(--st-line);
+  border-radius: var(--st-r-md);
+  background: rgb(var(--mao-surface-1));
+  color: var(--st-text-3);
+  font-size: var(--st-fs-sm);
+}
+.st-notice--ok {
+  border-color: rgb(var(--st-ok) / 0.3);
+  background: rgb(var(--st-ok) / 0.08);
+  color: rgb(var(--st-ok));
+}
+.st-notice--danger {
+  border-color: rgb(var(--st-danger) / 0.3);
+  background: rgb(var(--st-danger) / 0.08);
+  color: rgb(var(--st-danger));
+}
+.st-empty {
+  padding: var(--st-sp-8) 0;
+  color: var(--st-text-4);
+  font-size: var(--st-fs-md);
+  text-align: center;
+}
+
+/* ────────── 3.14 进度条（宽度由内联 style 驱动，此处只管外观） ────────── */
+.st-bar {
+  height: var(--st-sp-1);
+  overflow: hidden;
+  background: var(--st-bg-sunken);
+  border-radius: var(--st-r-full);
+}
+.st-bar--lg {
+  height: var(--st-sp-2);
+}
+.st-bar-fill {
+  height: 100%;
+  background: var(--st-text-3);
+  border-radius: var(--st-r-full);
+  transition: width 0.4s ease;
+}
+/* 只有"超限"才染红；正常态保持中性灰 */
+.st-bar-fill.is-danger {
+  background: rgb(var(--st-danger));
+}
+
+/* ────────── 3.15 弹窗（拉取模型 / 增加厂商） ────────── */
+.st-overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--st-sp-8);
+  background: rgb(0 0 0 / 0.6);
+  backdrop-filter: blur(6px);
+  z-index: 1000;
+}
+.st-modal {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 720px;
+  max-height: 82vh;
+  overflow: hidden;
+  background: rgb(var(--mao-surface-raised));
+  border: 1px solid var(--st-line-strong);
+  border-radius: var(--st-r-xl);
+  box-shadow: var(--st-shadow-pop);
+}
+.st-modal-head {
+  display: flex;
+  align-items: center;
+  gap: var(--st-sp-3);
+  flex-shrink: 0;
+  padding: var(--st-sp-4) var(--st-sp-5);
+  border-bottom: 1px solid var(--st-line);
+}
+.st-modal-title {
+  flex: 1;
+  font-size: var(--st-fs-lg);
+  font-weight: var(--st-fw-medium);
+  color: var(--st-text-1);
+}
+.st-modal-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--st-sp-4) var(--st-sp-5);
+}
+.st-modal-foot {
+  display: flex;
+  align-items: center;
+  gap: var(--st-sp-2);
+  flex-shrink: 0;
+  padding: var(--st-sp-4) var(--st-sp-5);
+  border-top: 1px solid var(--st-line);
+}
+/* 弹窗内的横向工具条（搜索行 / 标签页行），与头/脚同为固定高度段 */
+.st-modal-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--st-sp-3);
+  flex-shrink: 0;
+  padding: var(--st-sp-3) var(--st-sp-5);
+  border-bottom: 1px solid var(--st-line);
+}
+/* 弹窗头部的圆角图标座 */
+.st-icon-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--st-sp-7);
+  height: var(--st-sp-7);
+  flex-shrink: 0;
+  border-radius: var(--st-r-md);
+  background: rgb(var(--mao-surface-1));
+  color: var(--st-text-2);
+}
+/* 表格行可点（拉取模型的勾选行） */
+.st-table tr.is-clickable {
+  cursor: pointer;
+}
+/* 复选方框（表格里的"选"列） */
+.st-check-box {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--st-sp-4);
+  height: var(--st-sp-4);
+  border: 1px solid var(--st-line-strong);
+  border-radius: var(--st-r-xs);
+  color: var(--st-text-1);
+}
+.st-check-box.is-on {
+  background: var(--st-inverse);
+  border-color: transparent;
+  color: var(--st-on-inverse);
+}
+
+/* ────────── 3.16 滚动条（细灰条，与全局覆盖同口径） ────────── */
+.st-scroll {
+  overflow-y: auto;
+}
+.st-main::-webkit-scrollbar,
+.st-scroll::-webkit-scrollbar,
+.st-modal-body::-webkit-scrollbar {
+  width: var(--mao-scrollbar-size, 6px);
+  height: var(--mao-scrollbar-size, 6px);
+}
+.st-main::-webkit-scrollbar-thumb,
+.st-scroll::-webkit-scrollbar-thumb,
+.st-modal-body::-webkit-scrollbar-thumb {
+  background: rgb(var(--mao-scrollbar-thumb, 58 58 57));
+  border-radius: var(--st-r-full);
+}
+.st-main::-webkit-scrollbar-thumb:hover,
+.st-scroll::-webkit-scrollbar-thumb:hover,
+.st-modal-body::-webkit-scrollbar-thumb:hover {
+  background: rgb(var(--mao-scrollbar-thumb-hover, 74 74 73));
+}
+
+/* ────────── 3.17 图表（容量圆环 / 占用条） ──────────
+   配色由数据驱动（CATEGORY_COLORS / PROJECT_COLORS），**不受辅助色纪律约束**
+   （用户 2026-09-23 二次裁定：存储图表保留彩色）。本层只管容器与文字填色。 */
+.st-donut {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--st-sp-3);
+}
+.st-legend {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--st-sp-1) var(--st-sp-3);
+  max-width: 240px;
+}
+.st-legend-item {
+  display: flex;
+  align-items: center;
+  gap: var(--st-sp-1);
+  font-size: var(--st-fs-xs);
+  color: var(--st-text-3);
+  cursor: default;
+}
+.st-legend-dot {
+  width: 10px;
+  height: 10px;
+  flex-shrink: 0;
+  border-radius: var(--st-r-xs);
+}
+/* SVG 文本不吃 `color`，必须给 `fill` */
+.st-chart-value {
+  fill: var(--st-text-1);
+}
+.st-chart-label {
+  fill: var(--st-text-3);
+}
+.st-chart-sub {
+  fill: var(--st-text-4);
+}
+.st-donut-ring-empty {
+  fill: none;
+  stroke: rgb(var(--mao-surface-2));
+}
+/* 占用条（堆叠分段，段宽/段色由内联 style 提供） */
+.st-stack-bar {
+  display: flex;
+  height: var(--st-sp-6);
+  overflow: hidden;
+  background: rgb(var(--mao-surface-1));
+  border: 1px solid var(--st-line);
+  border-radius: var(--st-r-md);
+}
+.st-stack-bar-seg {
+  position: relative;
+  height: 100%;
+  min-width: 3px;
+  transition: width 0.5s ease-out;
+}
+.st-stack-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--st-sp-1) var(--st-sp-4);
+}
+.st-stack-legend-item {
+  display: flex;
+  align-items: center;
+  gap: var(--st-sp-1);
+  font-size: var(--st-fs-xs);
+  color: var(--st-text-3);
+}
+
+/* ════════════════════════════════════════════════════════════════
+ * L4 · 工具层（单属性微调，取值只能用 L1 令牌）
+ * ════════════════════════════════════════════════════════════════ */
+/* 数字等宽（进度/统计对齐用） */
+.st-num {
+  font-variant-numeric: tabular-nums;
+}
+/* 图例名（占用条图例里的项目名，超长截断）—— 宽度取自 L1 令牌，不把数字写进类名 */
+.st-legend-name {
+  max-width: var(--st-legend-w);
+}
+.st-muted {
+  color: var(--st-text-4);
+}
+.st-strong {
+  color: var(--st-text-1);
+}
+.st-sm {
+  font-size: var(--st-fs-sm);
+}
+.st-mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: var(--st-fs-sm);
+}
+.st-nowrap {
+  white-space: nowrap;
+}
+.st-truncate {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.st-center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.st-danger-text {
+  color: rgb(var(--st-danger));
+}
+.st-ok-text {
+  color: rgb(var(--st-ok));
+}

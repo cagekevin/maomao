@@ -4,13 +4,16 @@ import ApiSettings from '@/components/settings/sections/ApiSettings';
 import AgentChatSettings from '@/components/settings/sections/AgentChatSettings';
 import OtherSettings from '@/components/settings/sections/OtherSettings';
 import StorageMonitor from '@/components/settings/sections/StorageMonitor';
+// 设置页专属样式层（用户 2026-09-23 裁定：与画布原子类解耦，整页视觉收在此文件）
+import './settings.css';
 
 /**
  * 设置主框架（侧栏 + 舞台）。
- * 风格照抄官方 Vr.jsx 设置页：
- *   - 容器 absolute inset-0 bg-canvas（覆盖画布，纯黑）
- *   - 侧栏 w-48，导航项激活 text-blue-500 font-bold border-edge bg-surface-active
- *   - 内容区 p-6 bg-canvas，内部 max-w-4xl 卡片布局
+ *
+ * 【样式现状 · 2026-09-23 重写】原写「风格照抄官方 Vr.jsx 设置页：容器 bg-canvas / 侧栏 w-48 /
+ * 导航项激活 text-blue-500 font-bold / 内容区 max-w-4xl」——**该描述已失效**：用户裁定设置页
+ * 整体重写为苹果式简约，且**辅助色只允许红与绿、不准出现蓝色**，原 `text-blue-500` 正违反此条。
+ * 现全部样式移入 `settings.css`（前缀 `st-`），本文件只留结构类名；改外观去 settings.css。
  */
 /** 侧栏导航项（icon 用 lucide 组件，comp 是对应 section 组件名，供 renderSection 分发）。 */
 interface SectionNav {
@@ -34,11 +37,11 @@ export default function SettingsFrame() {
   const [active, setActive] = React.useState('agent');
 
   return (
-    <div className="absolute inset-0 flex bg-canvas overflow-hidden z-float">
+    <div className="st-root">
       {/* 左侧栏 */}
-      <aside className="w-48 bg-canvas border-r-0 flex flex-col p-3 z-10 flex-shrink-0">
-        <div className="px-3 py-2 mb-1">
-          <span className="text-caption text-muted uppercase tracking-wider">设置</span>
+      <aside className="st-side">
+        <div className="st-side-head">
+          <span className="st-side-title">设置</span>
         </div>
 
         {SECTIONS.map((s) => {
@@ -47,18 +50,18 @@ export default function SettingsFrame() {
             <button
               key={s.key}
               onClick={() => setActive(s.key)}
-              className={`text-left px-3 py-2.5 rounded-lg text-sm transition-colors mb-1.5 flex items-center gap-2 ${active === s.key ? 'bg-surface-active text-blue-500 border border-edge shadow-sm' : 'text-body hover:bg-surface-1 hover:text-primary border border-transparent'}`}
+              className={`st-nav-item${active === s.key ? ' is-active' : ''}`}
             >
-              <Icon size={16} />
-              <span className="flex-1 truncate">{s.label}</span>
+              <Icon size={16} className="st-nav-icon" />
+              <span className="st-nav-label">{s.label}</span>
             </button>
           );
         })}
       </aside>
 
       {/* 内容区 */}
-      <main className="flex-1 overflow-y-auto p-6 relative pb-24 custom-scrollbar bg-canvas nowheel nopan nodrag">
-        <div className="max-w-4xl mx-auto flex flex-col gap-4">{renderSection(active)}</div>
+      <main className="st-main nowheel nopan nodrag">
+        <div className="st-main-inner">{renderSection(active)}</div>
       </main>
     </div>
   );
@@ -75,6 +78,6 @@ function renderSection(key: string) {
     case 'storage':
       return <StorageMonitor />;
     default:
-      return <div className="text-center text-sm text-muted py-16">该设置分区尚未实现</div>;
+      return <div className="st-empty">该设置分区尚未实现</div>;
   }
 }

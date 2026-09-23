@@ -126,80 +126,62 @@ export default function FetchModelsModal({
   };
 
   return (
-    <div
-      className="fixed inset-0 bg-black/70 flex items-center justify-center z-modal"
-      onClick={onClose}
-    >
-      <div
-        className="bg-surface border border-edge-subtle rounded-2xl shadow-2xl shadow-black/40 w-[760px] max-w-[94vw] max-h-[92vh] flex flex-col"
-        onClick={(e) => e.stopPropagation()}
-      >
+    <div className="st-overlay" onClick={onClose}>
+      <div className="st-modal" onClick={(e) => e.stopPropagation()}>
         {/* header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-edge-subtle shrink-0">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 bg-blue-500/15 rounded-full flex items-center justify-center">
-              <Check size={18} className="text-blue-400" />
-            </div>
-            <div>
-              <h3 className="text-sm text-strong font-medium">选择要保存的模型</h3>
-              <p className="text-xs text-muted mt-0.5">
-                默认不勾选，勾选需要保留的模型，点「确定」才写入
-              </p>
-            </div>
+        <div className="st-modal-head">
+          <span className="st-icon-badge">
+            <Check size={18} />
+          </span>
+          <div className="st-grow">
+            <h3 className="st-card-title">选择要保存的模型</h3>
+            <p className="st-card-sub">默认不勾选，勾选需要保留的模型，点「确定」才写入</p>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="text-muted hover:text-strong transition-colors border-none bg-transparent cursor-pointer p-1"
-            title="关闭"
-          >
+          <button className="st-icon-btn" type="button" onClick={onClose} title="关闭">
             <X size={18} />
           </button>
         </div>
 
         {/* 搜索 + 已选统计 */}
-        <div className="px-6 py-3 border-b border-edge-subtle flex items-center gap-3 shrink-0">
-          <div className="relative flex-1">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
+        <div className="st-modal-bar">
+          <div className="st-search st-grow">
+            <Search size={14} />
             <input
+              className="st-input"
               value={keyword}
               onChange={(e) => setKeyword(e.target.value)}
               placeholder="过滤模型名…"
-              className="w-full bg-canvas border border-edge rounded-xl pl-9 pr-3 py-2 text-sm text-body outline-none focus:border-blue-500 transition-colors placeholder:text-muted"
             />
           </div>
-          <span className="text-xs text-secondary whitespace-nowrap">
-            已选 <span className="text-blue-400 font-medium">{totalSelected}</span> / 共 {totalAll}
+          <span className="st-hint">
+            已选 <span className="st-strong">{totalSelected}</span> / 共 {totalAll}
           </span>
         </div>
 
         {/* tab 栏 */}
-        <div className="flex items-center gap-1 px-6 pt-3 border-b border-edge-subtle shrink-0">
-          {CATS.map((cat) => {
-            const Icon = cat.Icon;
-            const cnt = (fetchedList[cat.key] || []).length;
-            const active = tabKey === cat.key;
-            return (
-              <button
-                key={cat.key}
-                type="button"
-                onClick={() => setTabKey(cat.key)}
-                className={`inline-flex items-center gap-1.5 px-3.5 h-9 text-xs rounded-t-lg border-b-2 transition-colors cursor-pointer border-none ${active ? 'text-strong border-blue-500 bg-canvas/60' : 'text-muted border-transparent hover:text-body'}`}
-              >
-                <Icon size={14} className={active ? 'text-blue-400' : 'text-muted'} />
-                {cat.label}
-                <span
-                  className={`ml-0.5 px-1.5 rounded-full text-[10px] ${active ? 'bg-blue-500/20 text-blue-300' : 'bg-surface-1 text-muted'}`}
+        <div className="st-modal-bar">
+          <div className="st-tabs">
+            {CATS.map((cat) => {
+              const Icon = cat.Icon;
+              const cnt = (fetchedList[cat.key] || []).length;
+              return (
+                <button
+                  key={cat.key}
+                  className={`st-tab${tabKey === cat.key ? ' is-active' : ''}`}
+                  type="button"
+                  onClick={() => setTabKey(cat.key)}
                 >
-                  {cnt}
-                </span>
-              </button>
-            );
-          })}
+                  <Icon size={14} />
+                  {cat.label}
+                  <span className="st-tab-count">{cnt}</span>
+                </button>
+              );
+            })}
+          </div>
         </div>
 
         {/* body：当前 tab 的表格 */}
-        <div className="flex-1 overflow-y-auto px-6 py-4">
+        <div className="st-modal-body">
           {CATS.filter((c) => c.key === tabKey).map((cat) => {
             const all = fetchedList[cat.key] || [];
             const filtered = kw
@@ -213,33 +195,31 @@ export default function FetchModelsModal({
             const allChecked =
               all.length > 0 && all.every((m) => selected[cat.key].has(modelId(m)));
             return (
-              <div key={cat.key}>
-                <div className="flex items-center justify-between mb-2">
-                  <label className="text-xs text-secondary inline-flex items-center gap-1.5 cursor-pointer select-none hover:text-body">
+              <div key={cat.key} className="st-stack st-stack--sm">
+                <div className="st-between">
+                  <label className="st-inline">
                     <input
+                      className="st-check"
                       type="checkbox"
                       checked={allChecked}
                       onChange={(e) => setCatAll(cat.key, e.target.checked)}
-                      className="accent-blue-500"
                       disabled={all.length === 0}
                     />
-                    全选本类
+                    <span className="st-label">全选本类</span>
                   </label>
-                  <span className="text-xs text-muted">
+                  <span className="st-hint">
                     已选 {selCount} / {all.length}
                   </span>
                 </div>
                 {all.length === 0 ? (
-                  <div className="text-xs text-muted py-6 text-center bg-canvas/40 border border-dashed border-edge rounded-xl">
-                    无此类模型
-                  </div>
+                  <div className="st-empty">无此类模型</div>
                 ) : (
-                  <table className="w-full border-collapse text-sm">
+                  <table className="st-table">
                     <thead>
-                      <tr className="text-left text-[11px] text-muted border-b border-edge-subtle">
-                        <th className="w-10 py-2 pl-2 font-normal">选</th>
-                        <th className="py-2 font-normal">模型名</th>
-                        <th className="py-2 pr-2 font-normal">ID</th>
+                      <tr>
+                        <th>选</th>
+                        <th>模型名</th>
+                        <th>ID</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -247,28 +227,20 @@ export default function FetchModelsModal({
                         const id = modelId(m);
                         const checked = selected[cat.key].has(id);
                         return (
-                          <tr
-                            key={id}
-                            onClick={() => toggle(cat.key, id)}
-                            className={`border-b border-edge-subtle/60 cursor-pointer transition-colors ${checked ? 'bg-blue-500/5' : 'hover:bg-surface-1'}`}
-                          >
-                            <td className="py-2 pl-2">
-                              <span
-                                className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors ${checked ? 'bg-blue-500 border-blue-500' : 'border-muted'}`}
-                              >
-                                {checked && <Check size={12} className="text-strong" />}
+                          <tr key={id} className="is-clickable" onClick={() => toggle(cat.key, id)}>
+                            <td>
+                              <span className={`st-check-box${checked ? ' is-on' : ''}`}>
+                                {checked && <Check size={12} />}
                               </span>
                             </td>
-                            <td className="py-2 text-body truncate">{modelLabel(m)}</td>
-                            <td className="py-2 pr-2 text-[11px] text-muted truncate max-w-[220px]">
-                              {id}
-                            </td>
+                            <td>{modelLabel(m)}</td>
+                            <td className="st-mono">{id}</td>
                           </tr>
                         );
                       })}
                       {filtered.length === 0 && (
                         <tr>
-                          <td colSpan={3} className="text-xs text-muted py-3 text-center">
+                          <td colSpan={3} className="st-hint">
                             无匹配「{keyword}」的模型
                           </td>
                         </tr>
@@ -282,19 +254,16 @@ export default function FetchModelsModal({
         </div>
 
         {/* footer */}
-        <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-edge-subtle shrink-0">
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-4 h-9 text-xs rounded-xl bg-surface-1 text-body hover:bg-surface-hover transition-colors cursor-pointer border-none"
-          >
+        <div className="st-modal-foot">
+          <span className="st-grow" />
+          <button className="st-btn" type="button" onClick={onClose}>
             取消
           </button>
           <button
+            className="st-btn st-btn--primary"
             type="button"
             onClick={handleConfirm}
             disabled={totalSelected === 0}
-            className="inline-flex items-center gap-2 px-4 h-9 text-xs font-medium bg-white text-black rounded-xl hover:bg-zinc-200 transition-colors cursor-pointer border-none disabled:opacity-40 disabled:cursor-not-allowed"
           >
             <Check size={14} /> 确定保存（{totalSelected}）
           </button>
