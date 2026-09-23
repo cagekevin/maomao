@@ -47,7 +47,20 @@
 14. **"取消/停止"在本仓只停「本地等待」，不停上游，净效果为负**（09-23 审 plan145 发现）：`relay-poll.ts:256-264` 的 `stopHandle` 只 `clearInterval(timer)` + `handles.delete()`，**没有任何出站取消请求**（`ai-relay/**` 里也没有上游 cancel 能力，只有本地 `reader.cancel()`）⇒ 上游照跑、**照计费、积分不退**。而**不取消反而能拿到结果**：budgetMs 到点 ⇒ 编排返 `pending` + 清 loading ⇒ 行留 running ⇒ pollTask 接管 ⇒ 上游 completed ⇒ `completeTask` **广播回填节点**。⇒ 「取消」= 主动丢弃一个已付费且马上能拿到的结果 + 任务中心显示"失败"进角标。**要"不显示"用既有「删除任务」（`removeTask` 真删后端行）。** 文档/ADR **不许写"停后端句柄"**。
    附带语义错误：`relay-poll.ts:107` 把"已取消"归入 `failed = 确定没跑` —— 取消时上游恰在跑，归类本身错。
 15. **断言"某类对象也出现在 X 处"前先查它的唯一生产者**（grep 生产函数的所有调用方）：我断言"任务中心含本地处理/遗留 running 行"，实际 `reportGenerate` **唯一调用方**就是 `generationOrchestration`，`VideoExtractNode`/`VideoProcessNode` 根本不建任务行 ⇒ 差异只有 `chat`（`TextGenerate.tsx:195` 传的 type 是 `'chat'`，**不是** `'text'`）。
-16. **取消/停止的终态仍是 `failed`**（09-23）：`statusLabel('failed')='失败'`、`isTaskNeedsAttention = failed ∪ unknown` ⇒ **主动取消的任务显示"失败"并进「需处理」角标**。要根治需新增终态 `cancelled`（跨栈：前端 `TaskStatus` + 后端 `RelayTaskStatus` + DB 执行态列 + 角标/候选/缩略图判据全套）。禁用 `errorMsg` 文案反推状态（ADR-0049）。
+16. **幽灵任务（永久 `running` 的行）有 5 条路径**（09-23 审 plan146 查清）：
+   **B（高频）** 前端 `reportGenerate` 建行即 `status:'running'` 并 persist 进后端**同一个 `tasks` 表**
+   （`taskStore.ts:359/368`）⇒ 若 POST 未达/失败前用户刷新或关页面 ⇒ 后端从未持有该行，但
+   `getGenerateStatus` 的**回库分支**因"行存在"永远落到 `return {status:'running'}`（`relay-poll.ts:939-946`）
+   ⇒ 前端 pollTask 无限 attach；且启动扫描 SQL（`:978-981`，需 `poll_task_id` 非空 **或** 含 `_relayPoll`）
+   **不选中它** ⇒ 后端也不写终态。
+   **A1–A4（低频）** `initRelayPoller` 的 4 条跳过路径（`:986` 无快照 / `:992-998` capability 非法 TD-08-51 /
+   `:1057` 无 taskId / `:1058` 缺 poll）**只 `continue`、不写终态**。
+   ⇒ 根因：**"我跟踪不了这个任务"没被写下来**（违反 ADR-0048 + 生产者给全）。
+   ⇒ 修法（plan146 的 D16/D17）：① 回库分支对"无 `poll_task_id` 且无快照"的行返 **`not-found`**；
+   ② 4 条跳过路径写 **`unknown`**（无 handle ⇒ 直接 `upsertTask`，不能走 `upsertUnknown`）。
+   ⇒ **删掉「停止」会让这个问题恶化**：现状还能靠节点停止把行标 `failed`，删后用户零出口
+   （「清理失败/未知任务」只清 `failed ∪ unknown`）。
+17. **取消/停止的终态仍是 `failed`**（09-23）：`statusLabel('failed')='失败'`、`isTaskNeedsAttention = failed ∪ unknown` ⇒ **主动取消的任务显示"失败"并进「需处理」角标**。要根治需新增终态 `cancelled`（跨栈：前端 `TaskStatus` + 后端 `RelayTaskStatus` + DB 执行态列 + 角标/候选/缩略图判据全套）。禁用 `errorMsg` 文案反推状态（ADR-0049）。
 
 ## 六 · 工具债（A10）
 - 归属区=**17 审计工具链治理**（非25）。范围 `scripts/**`·`.codebuddy/commands/**`·`package.json`；红线🚫`src/**`·`localTool/**`·借机重构·改对外契约/持久化。判不准→按业务债处理（只登记不动手）。
@@ -68,3 +81,11 @@
 - 审计口径（用户裁定）：只查①文件吻合度②复杂度降低③SSOT④生产者消费者关系。**不查数值**、**不查运行时库**（db对账非审计取证）。裁定过的照做不反复验证。
 - 🔴 先分析再判断；账本"解法"是上一执行者假设非最优解——引用前自按复杂度+SSOT重判。SOP/skill写了命令就**直接跑命令**，别先读一堆文件猜。
 - 结论先行；凭证可复现（附命令+输出）；用户质疑=要求重新取证，非道歉。
+- 🔴 **提问 ≠ 裁定。** 假设句/反问/"那…呢"/"如果把 X 删了呢" = 要**方案对比**，不是指令。
+  只有祈使句才算决定；**文档里不许写"用户已裁定"，除非原话是祈使句**。
+  （2026-09-23 实证：把"那和这些把这个取消给删除呢，就是我不建立这个取消停止系统了"当成"已裁定丁1"
+  并改了 plan ⇒ 被纠正「我什么时候说执行了，我是让你对比各个方案」。）
+- 写 plan/审计文档时：**方案并列成表 + 标注"未裁定"**，别把建议写成结论；被推翻的初判要留档（标【N 轮复核·撤回】）。
+- **`docs/plan/146-生成链路-删除停止与取消设施-2026-09-23.md` = 「停止/取消」的最终方案**（用户裁定 丁1b+甲）：
+  删节点中止入口 + 删既有取消设施（`relayCancel`/对外端点/契约登记/剧本盒幽灵），**不新增任何取消入口**。
+  145 是被取代的二稿（"中止归任务中心"），**只作留档、勿据其施工**。
