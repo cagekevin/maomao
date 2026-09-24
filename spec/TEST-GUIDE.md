@@ -122,6 +122,7 @@ npm run build            # 构建插件包（dist/）
 | `npm run test:coverage` | 全量单测 **+ 覆盖率门槛**（vitest.config.js `coverage` 段统计 `src/**/*.js` 业务逻辑，含保守 thresholds） | 是 |
 | `npm run test:regression` | SSR 渲染 4 个核心节点 + 断言关键结构 class（能渲染不崩） | 是 |
 | `npm run test:tools` | Agent 工具层验证（create/delete/update/connect/read_canvas） | 是 |
+| `npm run test:guard` | **pre-commit 守卫**：regression + tools 两个用例文件**一次** vitest 跑完（提交钩子用；单独跑用上面两条） | 是 |
 | `npm run test:all` | **统一门禁**：smoke + 前端 vitest 全量（已含 regression/tools 两个用例）+ localTool tsc/单测，任一失败退出码 1 | 是 |
 | `npm test` | 等价 `test:all` | 是 |
 | `npm run check:health` | **工程健康度全量检查**（见下节） | 是 |

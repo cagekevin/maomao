@@ -190,7 +190,12 @@ const findings = []; // {id, level, msg}
  */
 const CHECK_SCRIPT_DIR = join(ROOT, 'scripts');
 const physicalCheckScripts = readdirSync(CHECK_SCRIPT_DIR)
-  .filter((f) => /^check-.*\.mjs$/.test(f))
+  // 【2026-09-24 审计修正】原正则只认 `.mjs` ⇒ **`.cjs` 形态的孤儿闸整个在盲区里**
+  // （实测：造 `check-__probe_orphan.cjs` 假孤儿，本闸完全不报；同批的 `.mjs` 版被正常报出）。
+  // 而本仓确有 `.cjs` 闸（`check-api-contract.cjs`）⇒ 一个 `.cjs` 孤儿可以永远不被跑、
+  // 永远不红而无人知晓 —— 那正是本闸要治的病本身。故 glob 纳入 `.cjs`
+  // （不收 `.js`：本仓 `check-*` 无 `.js` 形态，收了只会误伤）。
+  .filter((f) => /^check-.*\.(mjs|cjs)$/.test(f))
   .sort();
 // 清单引用到的脚本名（gates + healthOnly 两段都要算，否则 healthOnly 里的会被误判为孤儿）
 const referencedScripts = new Set();
@@ -348,7 +353,15 @@ for (const id of registered) {
   // 2d. 声称自己实现了自检 → 源码里应能找到痕迹（防"声明了但没做"）
   if (meta.selfCheck === 'own') {
     const s = scriptOf(id);
-    if (s) {
+    if (!s) {
+      // 【2026-09-24 审计修正】原版是 `if (s)` 直接跳过 ⇒ cmd 写法一变（解析不出脚本路径），
+      // 这条"声称有自检"的校验就**静默消失**（假绿面）。改为显式告警，让"没校验"看得见。
+      findings.push({
+        id,
+        level: 'warn',
+        msg: "登记为 selfCheck:'own'，但 cmd 里解析不出脚本路径 ⇒ 自检痕迹**未被校验**（原版此处静默跳过）",
+      });
+    } else {
       const p = join(ROOT, 'scripts', s);
       if (existsSync(p)) {
         const src = stripComments(readFileSync(p, 'utf8'));
