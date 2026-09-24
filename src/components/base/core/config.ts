@@ -77,12 +77,6 @@ export function isDebugModuleOn(module?: string) {
  */
 export const IS_DEV = import.meta.env?.DEV === true;
 
-/**
- * 静态资源基址（`import.meta.env.BASE_URL` 的**唯一出口**）。Vite 注入，结尾自带 `/`。
- * 【TD-18-32】原 `director3d/models.tsx:81` 裸读 `import.meta.env.BASE_URL` 拼模型 URL，已收口。
- */
-export const BASE_URL = import.meta.env?.BASE_URL ?? '/';
-
 // ── director3d 调试日志开关 ────────────────────────────────────────
 /** director3d 调试日志开关（原散落在 director3d/log.ts 的裸 import.meta 读取，已收口至此）。
  *  开启条件（沿用原语义，未改名）：VITE_DEBUG_LOG='1' 或开发模式（`IS_DEV`）。
