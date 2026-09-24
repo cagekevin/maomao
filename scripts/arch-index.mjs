@@ -79,6 +79,8 @@ const AREAS = [
   ['23', '仓库根目录卫生', '元层'],
   ['24', '注释漂移横推（跨区）', '元层'],
   ['25', 'ADR 合规横扫', '元层'],
+  ['26', '决策门槛形态与排序副本收敛', '元层'],
+  ['27', '本机模型资产落点统一', '后端'],
 ];
 
 /**
@@ -230,7 +232,16 @@ function loadAddTimes() {
   try {
     out = execFileSync(
       'git',
-      ['-c', 'core.quotePath=false', 'log', '--diff-filter=A', '--format=__C__%ct', '--name-only', '--', 'daily/架构日志'],
+      [
+        '-c',
+        'core.quotePath=false',
+        'log',
+        '--diff-filter=A',
+        '--format=__C__%ct',
+        '--name-only',
+        '--',
+        'daily/架构日志',
+      ],
       { cwd: ROOT, encoding: 'utf8', maxBuffer: 128 * 1024 * 1024 },
     );
   } catch {
@@ -249,7 +260,9 @@ function loadAddTimes() {
   // 【解析率自检 fail-loud】git 有输出却 0 条解析成功 = **解析器被打瞎**（不是"没有数据"）——
   // 这种失效**不报错、静默降级**，最危险（本文件 2026-09-18 就踩过一次：路径被转义）。
   if (!map.size && out.trim()) {
-    console.error('❌ arch-index：git log 有输出但 0 条解析成功 —— 解析器失效（检查 core.quotePath / 路径前缀）');
+    console.error(
+      '❌ arch-index：git log 有输出但 0 条解析成功 —— 解析器失效（检查 core.quotePath / 路径前缀）',
+    );
     process.exit(2);
   }
   return map;
@@ -333,10 +346,7 @@ function render() {
   ]
     .concat(
       missing.length
-        ? [
-            `> ⚠️ 下列区号在 ` + '`AREAS`' + ` 中登记但目录里无轮次文件：${missing.join(' / ')}`,
-            '',
-          ]
+        ? [`> ⚠️ 下列区号在 ` + '`AREAS`' + ` 中登记但目录里无轮次文件：${missing.join(' / ')}`, '']
         : [],
     )
     .join('\n');
@@ -348,9 +358,13 @@ const current = existsSync(INDEX_PATH) ? readFileSync(INDEX_PATH, 'utf8') : '';
 // 状态行标签漂移：先报（它会让 index 静默回退到更旧轮次 ⇒ 显示过期状态而渲染结果可能没变）
 const drift = findStateDrift();
 if (drift.length) {
-  console.error('❌ 状态行标签漂移：以下轮次文件写的是 `本区状态`，规范是 `本区域状态`（见 _template.md §七）：');
+  console.error(
+    '❌ 状态行标签漂移：以下轮次文件写的是 `本区状态`，规范是 `本区域状态`（见 _template.md §七）：',
+  );
   for (const f of drift) console.error('   · ' + f);
-  console.error('   ⇒ 这些文件**不被认作状态源**，index 会静默回退到更旧的轮次（可能显示过期状态，且结果照过）。');
+  console.error(
+    '   ⇒ 这些文件**不被认作状态源**，index 会静默回退到更旧的轮次（可能显示过期状态，且结果照过）。',
+  );
   console.error('   修法：把该行的 `本区状态` 改成 `本区域状态`，再重跑本脚本。');
 }
 

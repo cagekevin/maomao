@@ -148,18 +148,14 @@ infinite-canvas别人仓库学习专用/
 # 体积大且非本工程源码，整体忽略，避免嵌套仓库导致 add 失败。
 tools/
 
-# ── 本机推理模型资源（体积大/可重拉，不入库；仅 MANIFEST 与文档入库）──
-# localTool/runtime-models/ 下的大体积二进制：模型权重(.onnx) + 推理运行时(.wasm/.mjs/.js)。
-# 这些文件由 localTool/scripts/fetch-runtime-models.mjs 按 MANIFEST.json 重建，不纳入版本库。
-# 规范见 docs/95-本机推理模型资源-GitHub规范.md
-localTool/runtime-models/**/*.onnx
-localTool/runtime-models/**/*.wasm
-localTool/runtime-models/**/transformers*.js
-localTool/runtime-models/**/ort*.mjs
+# ── 本机模型资产（plan 147）──
+# 入库规则**只有一条**，写在 localTool/.gitignore：除 MANIFEST.json / README.md 外，整目录不入库；
+# 网盘压缩产物 runtime-models/*.zip 也由那里忽略。
+# 此处不再按扩展名列举（原列举 .onnx/.wasm/transformers*.js/ort*.mjs ⇒ 与目录级规则成了两处口径，
+# 且新增格式如 .glb/.tflite 必漏 —— 那正是"两类模型"的乱源）。规范见 docs/plan/147。
 
 # .codebuddy：保留 commands/(命令) 与 memory/ 入库；仅忽略 teams/ 运行态数据
 .codebuddy/teams/
-localTool/runtime-models/depth-video.zip
 localTool/.lovart_project.json
 
 # mv-sync-refs move-dir 的**瞬时**回退凭据：每次 move-dir 重写、含机器绝对路径，

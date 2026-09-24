@@ -32,17 +32,6 @@ export interface TranscriptionProgress {
   message?: string;
 }
 
-export type TranscriptionModelId =
-  'whisper-tiny' | 'whisper-base' | 'whisper-small' | 'whisper-large-v3-turbo' | 'distil-small.en';
-
-export interface TranscriptionModel {
-  id: TranscriptionModelId;
-  name: string;
-  huggingFaceId: string;
-  description: string;
-  encoderDtype: 'fp16' | 'fp32';
-}
-
 export interface CaptionChunk {
   text: string;
   startTime: number;

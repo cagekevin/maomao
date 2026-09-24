@@ -21,7 +21,14 @@
 
 /** 本机磁盘文件服务前缀（`handleStaticFile`）。 */
 export const PREFIX_FILES = '/files/';
-/** 本机推理资源前缀（`runtime-models/depth-video/`；见 `paths.ts`）。 */
+/**
+ * 本机模型资产前缀（`/models/<modelId>/*` → `runtime-models/<modelId>/`；见 `paths.ts`）。
+ *
+ * 【与前端同值】`src/components/base/core/runtimeModelUrl.ts` 持有同一事实的另一侧（前端据此拼取件 URL）。
+ * 跨栈无法共享模块 ⇒ 两侧必须同值，由 `check:arch` 的 `CROSS_STACK_CONSTS` 逐字对账（PREFIX_MODELS 项）。
+ */
+export const PREFIX_MODELS = '/models/';
+/** 本机推理资源前缀（**历史别名**：`/depth-video/*` 与 `/models/depth-video/*` 指向同一物理根）。 */
 export const PREFIX_DEPTH_VIDEO = '/depth-video/';
 /** 本机插件清单前缀。 */
 export const PREFIX_PLUGIN = '/plugin/';
@@ -36,6 +43,7 @@ export const PREFIX_WELL_KNOWN = '/.well-known/';
  */
 export const LOCAL_ONLY_PREFIXES: readonly string[] = [
   PREFIX_FILES,
+  PREFIX_MODELS,
   PREFIX_DEPTH_VIDEO,
   PREFIX_PLUGIN,
   PREFIX_WELL_KNOWN,

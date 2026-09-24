@@ -4,7 +4,7 @@ import {
   env,
   type AutomaticSpeechRecognitionPipeline,
 } from '@huggingface/transformers';
-import { applyHfProxyHost } from './hf-proxy';
+import { configureTranscriptionModelEnv } from './modelEnv';
 import type {
   TranscriptionSegment,
   TranscriptionChunk,
@@ -48,7 +48,6 @@ export type WorkerResponse =
   | { type: 'cancelled' };
 
 let transcriber: AutomaticSpeechRecognitionPipeline | null = null;
-let currentModelId: string | null = null;
 let cancelled = false;
 let lastReportedProgress = -1;
 const fileBytes = new Map<string, { loaded: number; total: number }>();
@@ -84,29 +83,24 @@ async function handleInit({
   modelId: string;
   encoderDtype: 'fp16' | 'fp32';
 }) {
-  if (transcriber && currentModelId === modelId) {
-    self.postMessage({ type: 'init-complete' } satisfies WorkerResponse);
-    return;
-  }
-
-  if (transcriber) {
-    await transcriber.dispose();
-    transcriber = null;
-    currentModelId = null;
-  }
+  // 单模型（见 transcription-constants.ts）：原「同模型直接回 init-complete / 换模型先 dispose 旧的」两支
+  // 随可选清单一起删掉 —— service 只在需要装载时新建 worker，故每个 worker 的 init 只会到一次。
 
   lastReportedProgress = -1;
   fileBytes.clear();
 
   try {
-    // TD-22-57：模型出站统一走 localTool 代理（必须在 pipeline 之前设，否则库已用默认 host 发请求）。
-    applyHfProxyHost(env);
+    // 模型 + ORT wasm 均已落地本机：指向 /models/<modelId>/ 并禁远端（形态与 depthVideo/loader.ts 一致）。
+    // 必须在 pipeline 之前设，否则库已按默认（远程 huggingface.co / cdn.jsdelivr.net）解析路径。
+    configureTranscriptionModelEnv(env, modelId);
     transcriber = (await pipeline('automatic-speech-recognition', modelId, {
       dtype: {
         encoder_model: encoderDtype,
         decoder_model_merged: 'q4',
       },
       device: 'webgpu',
+      // 只认本机文件：缺任何一份都**明确报错**（不静默回落公网）
+      local_files_only: true,
       progress_callback: (progressInfo: {
         status?: string;
         file?: string;
@@ -153,7 +147,6 @@ async function handleInit({
       },
     })) as unknown as AutomaticSpeechRecognitionPipeline;
 
-    currentModelId = modelId;
     self.postMessage({ type: 'init-complete' } satisfies WorkerResponse);
   } catch (error) {
     self.postMessage({
@@ -197,9 +190,10 @@ async function handleTranscribe({
     let numTokens = 0;
     let tps = 0;
 
-    const isDistilWhisper = currentModelId?.includes('distil') ?? false;
-    const chunkLengthS = isDistilWhisper ? 20 : DEFAULT_CHUNK_LENGTH_SECONDS;
-    const strideLengthS = isDistilWhisper ? 3 : DEFAULT_STRIDE_SECONDS;
+    // 分块参数固定：原「distil 走 20s/3s、其余走 30s/5s」的按模型分支随可选清单一起删掉
+    // —— 现在只有 whisper-tiny 一个模型（见 transcription-constants.ts）。
+    const chunkLengthS = DEFAULT_CHUNK_LENGTH_SECONDS;
+    const strideLengthS = DEFAULT_STRIDE_SECONDS;
 
     const WHISPER_SAMPLE_RATE = 16000;
     const audioDurationS = audio.length / WHISPER_SAMPLE_RATE;

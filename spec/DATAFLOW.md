@@ -473,8 +473,19 @@ canvas 产出：全库 canvas → 图像 dataURL 统一经 core/utils.canvasToIm
 
 深度视频（两宿主共用一个 spawn，防漂移）：
   image/nodes/AssetNode · video/nodes/VideoGenerate ──→ video/depthVideo/DepthVideoModal.tsx ─→ video/depthVideo/spawn.ts（唯一派生出口）
-  DepthVideoModal ← RUNTIME_MODELS = video/depthVideo/depthUrls.ts（运行时资源 URL 单源）
+  DepthVideoModal ← RUNTIME_MODELS = video/depthVideo/depthUrls.ts（运行时资源 URL 单源 · `/depth-video/*` 历史前缀）
                     · engine.ts（纯逻辑） · loader.ts（运行时装载）
+
+本机模型资产（一模型一目录 localTool/runtime-models/<modelId>/：depth-video · mediapipe · three）：
+  localTool/src/paths.ts（getRuntimeModelDir = **物理落点唯一真源**；DEPTH_VIDEO_MODEL_ID = `/depth-video` 别名源）
+    ← localTool/src/index.ts::handleRuntimeModelResource（URL→物理根唯一映射；纯 GET；403/400/404 如实）
+        ↑ PREFIX_MODELS（`/models/<modelId>/*`）· PREFIX_DEPTH_VIDEO（别名）← utils/localOnlyPaths.ts（本地专属前缀唯一真源，不转发外网）
+  base/core/runtimeModelUrl.ts（runtimeModelUrl = **前端取件 URL 唯一出口**，根相对同源）
+    ← image/lib/faceMosaic.ts（mediapipe：wasm + blaze_face_short_range.tflite）
+    ← director3d/models.tsx（three：xbot-animated-lod.glb，BUILT_IN_MODEL_URL）
+  vite.config.ts server.proxy（dev 5180 → 127.0.0.1:18080，使 dev 与 prod 同为根相对同源）
+  取件 CLI：localTool/scripts/runtime-model.mjs（list·init·doctor；doctor 委托 fetch-runtime-models.mjs --check）
+             · scripts/aliyun-models.py（网盘镜像，<modelId>.zip ↔ /runtime-models/<modelId>.zip）
 
 3D 摄影棚（实体在 image/editors/）：image/editors/CameraStudioPanel.tsx + image/editors/cameraParams/cameraStudio.ts（← image/nodes/AssetNode · image/nodes/ImageGenerate）
   ※ image/editors/PanoViewer 属 2D 全景查看器（← image/nodes/PanoramaNode），归 §八，不在本段
@@ -498,7 +509,7 @@ video/nodes/VideoProcessNode.tsx（uploadResult null → fail 显式报错；GIF
 video/nodes/VideoExtractNode.tsx（crossOrigin 接回单点原语）
 videoEditor/engine/core/index.ts（**项目上下文生命周期唯一入口** `releaseProjectContext()`：切/关/新建项目、切场景、退出编辑器、编辑器卸载一律走它，一次重置命令栈/选择/音频/播放/渲染树/媒体/场景/活跃项目）
 videoEditor/ui/editor/panels/assets/views/captions.tsx（字幕转写面板：captions → transcriptionService.transcribe → worker）
-videoEditor/engine/services/transcription/{service,worker}.ts（transformers.js 浏览器内转写；模型源 huggingface.co 直连）
+videoEditor/engine/services/transcription/{service,worker}.ts（transformers.js 浏览器内转写；**模型已落地本机** ⇒ `modelEnv.ts` 指 `/models/whisper-tiny/` 且禁远端）
 videoEditor/engine/lib/transcription/caption.ts（字幕分块纯函数）
 videoEditor/engine/lib/export.ts（导出单入口）
 videoEditor/engine/core/managers/project-manager.ts（工程 CAS + 版本冲突暴露 UI）

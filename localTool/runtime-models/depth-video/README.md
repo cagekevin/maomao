@@ -1,14 +1,17 @@
 # depth-video · 本机推理资源目录
 
 > 本目录存放浏览器端深度视频转换所需的**大体积二进制**（模型权重 + 推理运行时，约 470 MB）。
-> 这些文件**不入库**（已被根 `.gitignore` 忽略 `*.onnx` / `*.wasm` / `transformers*.js` / `ort*.mjs`）。
-> 完整规范见 `docs/95-本机推理模型资源-GitHub规范.md`。
+> 体系规范见 `docs/plan/147`（原 `docs/95` 的落点口径已被它取代）。
 
 **仓库只追踪**：`MANIFEST.json`（文件清单 + sha256 校验）、`README.md`（本说明）。
-> 注意：嵌套的 `localTool/.gitignore` 把整个 `models/` 与 `vendor/` 目录都忽略了，因此
-> `models/**` 下所有文件（含 `config.json` / `preprocessor_config.json` / `quantize_config.json`）
-> 和 `vendor/**` 下的大文件**均不入库**；其中 `vendor/onnxruntime/README.md` 与 `vendor/transformers/LICENSE`
-> 因较早被提交、已处于「已追踪」状态而保留在 git 中。其余全部靠 `fetch-runtime-models.mjs` 按 MANIFEST 重建。
+> 其余**全部不入库**，规则只有一条（`localTool/.gitignore`）：`runtime-models/*/*` 整体忽略，
+> 仅 `MANIFEST.json` 与 `README.md` 例外。
+> 历史遗留（**已追踪**，不受忽略规则影响 —— gitignore 不追溯已入库文件）：
+> `vendor/onnxruntime/README.md`、`vendor/transformers/LICENSE`。其余全部靠
+> `fetch-runtime-models.mjs` 按 MANIFEST 重建。
+
+> 本目录是这套体系的**首个样板**（有 MANIFEST、已在正确落点），故 2026-09-24 落点统一时**零改动** ——
+> 连 URL 前缀 `/depth-video/*` 也作为历史别名保留（与 `/models/depth-video/*` 指向同一物理根，见 plan 147 §4）。
 
 ---
 
@@ -61,5 +64,14 @@ node localTool/scripts/fetch-runtime-models.mjs depth-video --check  # 确认就
 ```
 
 ## 新增模型
-往 `MANIFEST.json` 加对应条目（`path` / `size` / `sha256` / `source`），再跑上面的还原命令即可。
+两种做法：
+- **接管已下载好的文件**（推荐）：`node localTool/scripts/runtime-model.mjs init <modelId> --from <文件>`
+  —— 自动扫目录生成 `MANIFEST.json` 骨架（含 `size` + `sha256`），你只补 `source` 与用途说明。
+- **手改清单**：往 `MANIFEST.json` 加对应条目（`path` / `size` / `sha256` / `source`），再跑上面的还原命令。
+
+```bash
+node localTool/scripts/runtime-model.mjs list          # 看全部模型（现算磁盘事实）
+node localTool/scripts/runtime-model.mjs doctor        # 排查锚点/清单/就绪度
+```
+
 脚本会自动扫描 `localTool/runtime-models/*/MANIFEST.json`，不加工具名则拉全部。

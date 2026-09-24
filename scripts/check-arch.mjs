@@ -74,7 +74,9 @@ const fail = (msg) => {
  */
 const assertScanned = (label, count) => {
   if (count === 0) {
-    fail(`${label}规则未生效：未扫到任何目标文件（目标目录不存在 / 已改名 ⇒ 本规则空转，勿当通过）`);
+    fail(
+      `${label}规则未生效：未扫到任何目标文件（目标目录不存在 / 已改名 ⇒ 本规则空转，勿当通过）`,
+    );
     return false;
   }
   return true;
@@ -280,10 +282,7 @@ function analyzeTdz(code, filepath) {
         walk(node.superClass); // `extends`：类定义期求值
         if (node.body && Array.isArray(node.body.body)) {
           for (const m of node.body.body) {
-            if (
-              (m.type === 'PropertyDefinition' || m.type === 'ClassProperty') &&
-              m.static
-            )
+            if ((m.type === 'PropertyDefinition' || m.type === 'ClassProperty') && m.static)
               walk(m.value);
           }
         }
@@ -531,9 +530,10 @@ console.log(
 if (!assertScanned('引擎区→改造区边界', Math.min(veEngineScanned, veUiScanned))) {
   // 已记账（两端任一为 0 ⇒ 边界规则空转），勿再打印 ✅。
 } else if (!veEngineToUiViol) {
-  console.log(`  ✅ 引擎区无反向依赖改造区（扫 ${veEngineScanned} engine / ${veUiScanned} ui 文件）`);
+  console.log(
+    `  ✅ 引擎区无反向依赖改造区（扫 ${veEngineScanned} engine / ${veUiScanned} ui 文件）`,
+  );
 }
-
 
 // ─────────────────────────────────────────────────────────────────
 // 规则 7（2026-09-15 · TD-22-31）：`videoEditor/types/**` 不得依赖 `videoEditor/engine/**`。
@@ -572,7 +572,8 @@ for (const f of files) {
   veTypesScanned++;
   const bad = [];
   const judge = (spec, line) => {
-    if (typeof spec === 'string' && spec.startsWith('@/components/videoEditor/engine')) bad.push({ spec, line });
+    if (typeof spec === 'string' && spec.startsWith('@/components/videoEditor/engine'))
+      bad.push({ spec, line });
   };
   let ast;
   try {
@@ -760,7 +761,9 @@ for (const f of files) {
     if (n.type === 'VariableDeclarator' && n.id?.type === 'ObjectPattern') {
       const init = n.init;
       const fromCtx =
-        init && (init.name === 'ctx' || (init.type === 'MemberExpression' && init.property?.name === 'ctx'));
+        init &&
+        (init.name === 'ctx' ||
+          (init.type === 'MemberExpression' && init.property?.name === 'ctx'));
       if (fromCtx) {
         for (const p of n.id.properties || []) {
           const pname = p.key?.name || p.value?.name;
@@ -772,7 +775,11 @@ for (const f of files) {
     if (n.type === 'CallExpression' && n.callee?.type === 'MemberExpression') {
       const obj = n.callee.object;
       const prop = n.callee.property?.name;
-      if (CANVAS_WRITE_BAN.has(prop) && obj && (obj.name === 'ctx' || obj.property?.name === 'ctx')) {
+      if (
+        CANVAS_WRITE_BAN.has(prop) &&
+        obj &&
+        (obj.name === 'ctx' || obj.property?.name === 'ctx')
+      ) {
         hits.push({ line: n.loc?.start?.line, name: `ctx.${prop}` });
       }
     }
@@ -815,7 +822,14 @@ if (!canvasWriteViol) console.log('  ✅ 工具层无裸调画布写操作（均
 // ─────────────────────────────────────────────────────────────────
 const NODE_FIELD_SPREAD = new Set(['data', 'width', 'height', 'style']);
 // 嵌套写操作（不归 node 字段规则管的维度）：递归检测时遇到这些调用不深入其参数
-const WRITE_CALLS = new Set(['setNodes', 'setEdges', 'addNodes', 'addEdges', 'deleteElements', 'applyNodeChanges']);
+const WRITE_CALLS = new Set([
+  'setNodes',
+  'setEdges',
+  'addNodes',
+  'addEdges',
+  'deleteElements',
+  'applyNodeChanges',
+]);
 let nodeDataViol = 0;
 for (const f of files) {
   const rel = f.slice(root.length + 1).replace(/\\/g, '/');
@@ -854,7 +868,8 @@ for (const f of files) {
     // 不被此边界拦截，否则其回调内的合法 spread 永不被检查（TD-04-17 修复的误判）。
     if (node.type === 'CallExpression') {
       const c = node.callee;
-      const name = c.type === 'Identifier' ? c.name : c.type === 'MemberExpression' ? c.property?.name : null;
+      const name =
+        c.type === 'Identifier' ? c.name : c.type === 'MemberExpression' ? c.property?.name : null;
       if (!root && name && WRITE_CALLS.has(name)) return false;
     }
     for (const k in node) {
@@ -881,7 +896,8 @@ for (const f of files) {
     }
     if (node.type === 'CallExpression') {
       const c = node.callee;
-      const name = c.type === 'Identifier' ? c.name : c.type === 'MemberExpression' ? c.property?.name : null;
+      const name =
+        c.type === 'Identifier' ? c.name : c.type === 'MemberExpression' ? c.property?.name : null;
       if (!root && name && WRITE_CALLS.has(name)) return false;
     }
     for (const k in node) {
@@ -899,7 +915,8 @@ for (const f of files) {
     }
     if (n.type === 'CallExpression') {
       const c = n.callee;
-      const name = c.type === 'Identifier' ? c.name : c.type === 'MemberExpression' ? c.property?.name : null;
+      const name =
+        c.type === 'Identifier' ? c.name : c.type === 'MemberExpression' ? c.property?.name : null;
       const isSet = name === 'setNodes' || name === 'setEdges';
       if (isSet && findSpreadField(n)) {
         nodeDataViol++;
@@ -923,7 +940,9 @@ for (const f of files) {
   walkSet(ast.program);
 }
 if (!nodeDataViol)
-  console.log('  ✅ 无手写 setNodes/setEdges 裸写 node/edge 字段（data/width/height/style 均经 patchNodeById/patchEdgeById）');
+  console.log(
+    '  ✅ 无手写 setNodes/setEdges 裸写 node/edge 字段（data/width/height/style 均经 patchNodeById/patchEdgeById）',
+  );
 
 // ─────────────────────────────────────────────────────────────────
 // 规则 6（TD-02-1，2026-09-12）：存储读写唯一入口 —— 禁止绕过 contentStore 直调底层 transport。
@@ -999,8 +1018,7 @@ for (const f of files) {
     }
   }
 }
-if (!storageBypassViol)
-  console.log('  ✅ 无绕过 contentStore 直调存储底层（唯一入口红线成立）');
+if (!storageBypassViol) console.log('  ✅ 无绕过 contentStore 直调存储底层（唯一入口红线成立）');
 
 // ─────────────────────────────────────────────────────────────────
 // 规则 7（TD-02-12，2026-09-12）：KV 后端键禁止「同步读」——必须 contentGetAsync / 严格族。
@@ -1057,11 +1075,14 @@ try {
   console.log('  ⚠ 规则 7 无法加载 contracts.ts 的 STORAGE_KEYS（' + e.message + '）');
 }
 const KV_PREFIX_LIST = [...kvKeyPrefixes];
-const isKvKeyText = (s) => !!s && (kvKeyExact.has(s) || KV_PREFIX_LIST.some((p) => s.startsWith(p)));
+const isKvKeyText = (s) =>
+  !!s && (kvKeyExact.has(s) || KV_PREFIX_LIST.some((p) => s.startsWith(p)));
 // 解析器自检（fail-loud）：解析源为空时上面的「✅ 无违规」不可信（假绿），必须报警而非放过。
 // 教训来源：TD-02-9（check-node-data 因解析被打瞎却长期报 0 缺口）。
 if (KV_PREFIX_LIST.length === 0 && kvKeyExact.size === 0) {
-  fail('规则 7 解析源为空：未能从 contracts.ts 的 STORAGE_KEYS 取到任何 backend:"kv" 键 → 本规则未生效（勿当通过）');
+  fail(
+    '规则 7 解析源为空：未能从 contracts.ts 的 STORAGE_KEYS 取到任何 backend:"kv" 键 → 本规则未生效（勿当通过）',
+  );
 }
 
 // ── 字符串常量表（规则 7 静态求值用）：本文件表 + 「全 src 唯一定义」的全局表 ──
@@ -1102,8 +1123,7 @@ for (const f of files) {
 const resolveConstText = (node, consts) => {
   if (!node) return '';
   if (node.type === 'StringLiteral') return node.value;
-  if (node.type === 'TemplateLiteral')
-    return (node.quasis || []).map((q) => q.value.raw).join(''); // ${...} 丢掉 → 前缀仍可判
+  if (node.type === 'TemplateLiteral') return (node.quasis || []).map((q) => q.value.raw).join(''); // ${...} 丢掉 → 前缀仍可判
   if (node.type === 'BinaryExpression' && node.operator === '+')
     return resolveConstText(node.left, consts) + resolveConstText(node.right, consts);
   if (node.type === 'Identifier') {
@@ -1135,7 +1155,8 @@ for (const f of files) {
     if (Array.isArray(n)) return n.forEach(walk);
     if (n.type === 'CallExpression') {
       const c = n.callee;
-      const name = c.type === 'Identifier' ? c.name : c.type === 'MemberExpression' ? c.property?.name : null;
+      const name =
+        c.type === 'Identifier' ? c.name : c.type === 'MemberExpression' ? c.property?.name : null;
       if (name === 'contentGet' && n.arguments?.length) {
         const keyText = resolveConstText(n.arguments[0], consts);
         if (isKvKeyText(keyText)) {
@@ -1153,8 +1174,7 @@ for (const f of files) {
   };
   walk(ast.program);
 }
-if (!kvSyncReadViol)
-  console.log('  ✅ 无 KV 后端键同步读（KV 键均走 contentGetAsync / 严格族）');
+if (!kvSyncReadViol) console.log('  ✅ 无 KV 后端键同步读（KV 键均走 contentGetAsync / 严格族）');
 
 // ─────────────────────────────────────────────────────────────────
 // 规则 8（TD-03-5 裁定，2026-09-13）：实现层深路径禁绕行 —— 唯一入口红线的可执行化。
@@ -1354,9 +1374,7 @@ for (const f of files) {
 }
 // 扫描基数自检（共用原语 assertScanned）：扫到 0 个文件时上面的「✅」不可信。
 if (assertScanned('videoEditor 引用纪律', veImmutableScanned) && !veImmutableViol) {
-  console.log(
-    `  ✅ 无数组原地变异（扫 ${veImmutableScanned} 文件；快照与 store 隔离的纪律成立）`,
-  );
+  console.log(`  ✅ 无数组原地变异（扫 ${veImmutableScanned} 文件；快照与 store 隔离的纪律成立）`);
 }
 
 // ─────────────────────────────────────────────────────────────────
@@ -1450,8 +1468,7 @@ if (assertScanned('事件广播唯一通道（src 全域）', globalBroadcastSca
 //     （那类仍靠结构约定）。本规则的目标 = 挡住"照抄一行恒设"这一最常见回潮形态。
 // ─────────────────────────────────────────────────────────────────
 console.log('\n🖼 跨源裁决唯一单点：禁裸写 crossOrigin="anonymous"（反向判据）');
-const CROSSORIGIN_SSOT =
-  'src/components/base/utils/net/asyncGuard.ts'; // 唯一实现处（setCrossOriginForReadable）
+const CROSSORIGIN_SSOT = 'src/components/base/utils/net/asyncGuard.ts'; // 唯一实现处（setCrossOriginForReadable）
 let crossOriginViol = 0;
 let crossOriginScanned = 0;
 for (const f of files) {
@@ -1649,7 +1666,8 @@ console.log('\n🧱 本地存储变更唯一入口：禁裸写 localStorage（�
 //   失效有两个方向：豁免失灵 ⇒ 真收敛层被判违规（假红）；或收敛层搬走后本规则悄悄放宽（假绿）。
 //   改为**定义关系**：底层收敛层 = 定义本地适配原语 `sGet` 的文件所在目录（与规则 7 同源推导，全仓唯一）。
 const RAW_LS_STORAGE_DIR = KV_STORAGE_DIR;
-const RAW_LS_SCOPE_EXEMPT = (rel) => !!RAW_LS_STORAGE_DIR && rel.startsWith(RAW_LS_STORAGE_DIR + '/');
+const RAW_LS_SCOPE_EXEMPT = (rel) =>
+  !!RAW_LS_STORAGE_DIR && rel.startsWith(RAW_LS_STORAGE_DIR + '/');
 const RAW_LS_MUTATE_RE = /localStorage\s*\.\s*(setItem|removeItem|clear)\s*\(/;
 let rawLsViol = 0;
 let rawLsScanned = 0;
@@ -1731,10 +1749,38 @@ const RAW_NAME_EXTRACT_RE = /\.pathname\s*\.\s*split\(\s*['"]\/['"]\s*\)\s*\.\s*
 // EXT_KIND 真值源成员（assetType.ts:29-34）—— 只有列举里**命中这些**才算「抄了真值源」。
 // 用集合而非单值：`\.(glb|gltf)` 与真值源零交集 ⇒ 非本母体（域专用，不拦），避免假守卫误报。
 const EXT_KIND_MEMBERS = new Set([
-  'mp4', 'webm', 'mov', 'mkv', 'avi', 'm4v', 'ogv',
-  'mp3', 'wav', 'ogg', 'oga', 'm4a', 'flac', 'aac', 'opus', 'wma', 'aiff',
-  'png', 'jpg', 'jpeg', 'webp', 'gif', 'bmp', 'svg', 'avif',
-  'txt', 'md', 'markdown', 'json', 'log', 'csv', 'srt',
+  'mp4',
+  'webm',
+  'mov',
+  'mkv',
+  'avi',
+  'm4v',
+  'ogv',
+  'mp3',
+  'wav',
+  'ogg',
+  'oga',
+  'm4a',
+  'flac',
+  'aac',
+  'opus',
+  'wma',
+  'aiff',
+  'png',
+  'jpg',
+  'jpeg',
+  'webp',
+  'gif',
+  'bmp',
+  'svg',
+  'avif',
+  'txt',
+  'md',
+  'markdown',
+  'json',
+  'log',
+  'csv',
+  'srt',
 ]);
 /** 提取一行里 `\.(a|b|c)` 列举的扩展名，返回与 EXT_KIND 的交集（空 = 非本母体）。 */
 function mediaExtListOverlap(line) {
@@ -1799,8 +1845,23 @@ const BACKEND_SRC = join(root, 'localTool', 'src');
 const BACKEND_MIME_SSOT = 'localTool/src/utils/mime.ts';
 // 媒体 MIME 子串白名单信号（人写 mime→ext 链时的典型 token）
 const MIME_SUBSTR_TOKENS = [
-  'jpeg', 'jpg', 'png', 'gif', 'webp', 'bmp', 'tiff', 'avif', 'svg',
-  'mp4', 'webm', 'quicktime', 'matroska', 'mpeg', 'ogg', 'flac', 'wav',
+  'jpeg',
+  'jpg',
+  'png',
+  'gif',
+  'webp',
+  'bmp',
+  'tiff',
+  'avif',
+  'svg',
+  'mp4',
+  'webm',
+  'quicktime',
+  'matroska',
+  'mpeg',
+  'ogg',
+  'flac',
+  'wav',
 ];
 const MIME_INCLUDES_RE = /includes\s*\(\s*['"]([a-z0-9/+-]+)['"]\s*\)/gi;
 let backendMediaViol = 0;
@@ -1835,7 +1896,10 @@ if (existsSync(BACKEND_SRC)) {
     }
   }
 }
-if (assertScanned('后端 MIME→ext 真值源（localTool/src 全域）', backendMediaScanned) && !backendMediaViol) {
+if (
+  assertScanned('后端 MIME→ext 真值源（localTool/src 全域）', backendMediaScanned) &&
+  !backendMediaViol
+) {
   console.log(`  ✅ 后端无 MIME→ext 内联子串链（扫 ${backendMediaScanned} 文件；均走 mime.ts）`);
 }
 
@@ -1855,7 +1919,8 @@ if (assertScanned('后端 MIME→ext 真值源（localTool/src 全域）', backe
 //   · 豁免：`utils/fileStore.ts`（该原语自身宿主，其 `?? Jimp.MIME_PNG` 是**表内保底**非静默错标，
 //     且注释已写明读字节真相在前）；纯文本/JSON 等非媒体后缀不在判据内。
 // ─────────────────────────────────────────────────────────────────
-const MEDIA_EXT_GUESS = /(\|\||\?\?)\s*['"](?:png|jpe?g|gif|webp|bmp|tiff|avif|svg|mp4|webm|mov|mp3|wav|ogg)['"]/i;
+const MEDIA_EXT_GUESS =
+  /(\|\||\?\?)\s*['"](?:png|jpe?g|gif|webp|bmp|tiff|avif|svg|mp4|webm|mov|mp3|wav|ogg)['"]/i;
 const FILE_STORE_HOST = 'localTool/src/utils/fileStore.ts';
 let backendGuessViol = 0;
 if (existsSync(BACKEND_SRC)) {
@@ -1926,7 +1991,9 @@ try {
   console.log('  ⚠ 规则 15 无法加载 contracts.ts 的 STORAGE_KEYS（' + e.message + '）');
 }
 if (REGISTERED_FIXED_KEYS.size === 0) {
-  fail('规则 15 解析源为空：未能从 contacts.ts STORAGE_KEYS 取到任何固定键 → 本规则未生效（勿当通过）');
+  fail(
+    '规则 15 解析源为空：未能从 contacts.ts STORAGE_KEYS 取到任何固定键 → 本规则未生效（勿当通过）',
+  );
 }
 const CONTRACTS_REL = 'src/components/base/core/contracts.ts';
 let literalKeyViol = 0;
@@ -1968,10 +2035,7 @@ for (const f of files) {
   };
   walk(ast.program);
 }
-if (
-  assertScanned('已登记存储键唯一入口（src 全域）', literalKeyScanned) &&
-  !literalKeyViol
-) {
+if (assertScanned('已登记存储键唯一入口（src 全域）', literalKeyScanned) && !literalKeyViol) {
   console.log(
     `  ✅ 无裸字面量重写已登记存储键（扫 ${literalKeyScanned} 文件；均引用 contracts 命名 const）`,
   );
@@ -2206,6 +2270,14 @@ const CROSS_STACK_CONSTS = [
     fe: 'src/components/agent/skill/write/skillImport.ts',
     be: 'localTool/src/routes/skills.ts',
     why: '技能包内**路径单段长度**上限（前端预检、后端 `safeRelPath` 判据）—— 不等即静默分叉（TD-11-80）',
+  },
+  {
+    name: 'PREFIX_MODELS',
+    fe: 'src/components/base/core/runtimeModelUrl.ts',
+    be: 'localTool/src/utils/localOnlyPaths.ts',
+    why:
+      '本机模型资产 URL 前缀（前端据此拼取件 URL `/models/<modelId>/*`；后端据此**拒绝把该前缀转发外网**）' +
+      '—— 不等 ⇒ 前端打不到宿主、或未命中的本地模型请求被 catch-all 发出外网（TD-08-33 同族失败模式；plan 147 一归闸）',
   },
 ];
 let crossStackViol = 0;

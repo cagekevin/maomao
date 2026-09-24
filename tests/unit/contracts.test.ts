@@ -118,7 +118,7 @@ describe('STORAGE_KEYS 语义检查', () => {
 });
 
 describe('STORAGE_KEYS 内容验证', () => {
-  it('当前共有 44 个登记键', () => {
+  it('当前共有 43 个登记键', () => {
     // 计数护栏：登记表增删键时必须同步此处。
     //   G0 新增 video-editor-project-{projectId} → 34→35
     //   2026-09-14 多工程改造（docs/134 T1）→ 35→37（删旧键 1：video-editor-project-{projectId}；
@@ -136,8 +136,11 @@ describe('STORAGE_KEYS 内容验证', () => {
     //     「清单是否常驻发给 AI」+ 3 个预算；`sync:true`，换设备跟随）。
     //   2026-09-22 技能库重设计（docs/plan/142 §3.10 幽灵清扫）→ 45→44（删 agent_skill_usage：
     //     读侧零显示点，连 skillUsage.ts 一并退役；这是删能力，不是"登记表漏了一行"）。
+    //   2026-09-24 字幕模型偏好改运行时模型 URL 机制（docs/plan/147 + transcription/modelEnv.ts）→
+    //     44→43（删 editor-caption-model-id：该裸写键随 hf 转写出站口一并退役，模型标识改由
+    //     runtimeModelUrl 统一承载，见 src/components/base/core/runtimeModelUrl.ts）。
     // 它是有意保留的"变更需被看见"金丝雀，非行为契约——不要改成派生计数（派生即失效）。
-    expect(Object.keys(STORAGE_KEYS).length).toBe(44);
+    expect(Object.keys(STORAGE_KEYS).length).toBe(43);
   });
 
   it('云同步台账键已登记（防覆盖保护的本地基线，不进云端）', () => {

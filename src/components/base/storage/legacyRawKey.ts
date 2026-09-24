@@ -23,7 +23,8 @@ import { logger } from '../core/log/logger.ts';
 const LEGACY_RAW_KEYS: ReadonlySet<string> = new Set<string>([
   'director3d-custom-poses', // → contracts.KEY_DIRECTOR3D_CUSTOM_POSES（TD-02-36/38/39）
   'editor-caption-language', // → contracts.KEY_EDITOR_CAPTION_LANGUAGE（TD-02-33/37）
-  'editor-caption-model-id', // → contracts.KEY_EDITOR_CAPTION_MODEL_ID（TD-02-33/37）
+  // 'editor-caption-model-id' 已删（2026-09-24）：转写模型固定为 tiny、不再有"模型偏好"，
+  // 故它没有迁移目标 ⇒ 留着就是无人调用的死条目（本集合本就"只减不增"）。存量裸值不再被读，无害。
   'editor-caption-template-id', // → contracts.KEY_EDITOR_CAPTION_TEMPLATE_ID（TD-02-33/37）
 ]);
 

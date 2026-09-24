@@ -9,15 +9,21 @@ localtool_18080.err.log
 # 编译产物
 dist/
 
-# 本机推理资源（深度转视频）：
-#  - models/：几十 MB 权重，本地手动铺，不入库/CI
-#  - vendor/：transformers.js / onnxruntime 等第三方运行时（数 MB），不入库
-#    原因：transformers.min.js 含长标识符串，会被 GitHub 密钥扫描误报为 "Mistral AI API Key"，
-#    故整体 gitignore；仓库靠 scripts/fetch-runtime-models.mjs + MANIFEST.json 在本地/CI 重建，
-#    运行时由 localTool(18080) 的 /depth-video/* 静态宿主提供。
-# 顶层 MANIFEST.json / README.md 为清单与说明，需入库（被 fetch 脚本依赖）。
-runtime-models/depth-video/models/
-runtime-models/depth-video/vendor/
+# 本机模型资产（plan 147 §2.1）：一模型一目录 runtime-models/<modelId>/，**除清单与说明外全部不入库**。
+#  - MANIFEST.json / README.md → 入库（取件 / 还原脚本依赖它们）
+#  - 其余全部 → 不入库：权重(.onnx/.bin/.safetensors)、运行时(.wasm/.mjs/.js)、模型(.glb/.tflite/.fbx)、vendor/…
+#    原因① 体积：几百 MB 权重不可能进版本库；
+#    原因② 误报：transformers.min.js 含长标识符串，会被 GitHub 密钥扫描误报为 "Mistral AI API Key"。
+# 取件 / 还原：scripts/runtime-model.mjs（list·init·doctor）· scripts/fetch-runtime-models.mjs（按 MANIFEST 拉取）
+#              · scripts/aliyun-models.py（网盘镜像）；运行时由 localTool 的 /models/<modelId>/* 宿主提供。
+# ⚠️ 新增模型**零配置** —— 不需要为它改本文件（这正是"一模型一目录"的收益）。
+runtime-models/*/*
+!runtime-models/*/MANIFEST.json
+!runtime-models/*/README.md
+
+# 网盘镜像的压缩产物（aliyun-models.py upload/download 在 runtime-models/ 下生成 <模型名>.zip）
+# —— 它既不是模型目录内容、也不是源码，是**上传/下载的中间物**，一律不入库。
+runtime-models/*.zip
 
 # 测试运行输出（一次性重定向产物，非源码）
 test/*-out.txt

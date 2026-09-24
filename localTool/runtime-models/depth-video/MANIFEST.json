@@ -1,5 +1,6 @@
 {
   "tool": "depth-video",
+  "runtime": "browser",
   "description": "深度视频转换：浏览器端 transformers.js + onnxruntime-web 推理资源（vendor 运行时 + 三个深度模型权重）。",
   "generatedAt": "2026-09-03",
   "localMirror": {

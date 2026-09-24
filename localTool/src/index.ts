@@ -18,7 +18,12 @@ import {
   backupDb,
   startBackupSchedule,
 } from './db/database.js';
-import { getEnvFile, getFrontendDistDir, getDepthVideoDir } from './paths.js';
+import {
+  getEnvFile,
+  getFrontendDistDir,
+  getRuntimeModelDir,
+  DEPTH_VIDEO_MODEL_ID,
+} from './paths.js';
 import { VERSION } from './version.js';
 import { sendError } from './utils/helpers.js';
 // 声明式路由表：所有具名路由集中在 router.ts，新增端点只加一行（详见 docs/11）
@@ -28,7 +33,12 @@ import { routes, matchRoute } from './router.js';
 import { handlePassthrough } from './routes/passthrough.js';
 import { initLogWriter } from './utils/logWriter.js';
 // 本地专属前缀唯一真源（TD-08-33）：分派分支与前端托管排除都从这里取，不再各写一份字面量。
-import { PREFIX_FILES, PREFIX_DEPTH_VIDEO, isLocalOnlyPath } from './utils/localOnlyPaths.js';
+import {
+  PREFIX_FILES,
+  PREFIX_MODELS,
+  PREFIX_DEPTH_VIDEO,
+  isLocalOnlyPath,
+} from './utils/localOnlyPaths.js';
 import { initRelayPoller } from './relay-poll.js';
 import { extToMime } from './utils/mime.js';
 
@@ -216,26 +226,51 @@ function handleStaticFile(
   return true;
 }
 
-// ── 本机推理资源服务（/depth-video/* 路径映射到 runtime-models/depth-video/，纯 GET）──
-// 之所以单独一个处理器而非并入 handleStaticFile：磁盘根不同（upload vs runtime-models），
-// 且要覆盖 .wasm/.mjs/.onnx 这类深度推理运行时专属 MIME。这部分是【纯本地模型宿主】，
-// 不触碰 /api/* 与 catch-all；只是浏览器运行时 import(绝对 URL) 读取 vendor/models 的宿主目录。
-function handleDepthResource(res: http.ServerResponse, urlPath: string): boolean {
-  if (!urlPath.startsWith(PREFIX_DEPTH_VIDEO)) return false;
+// ── 本机模型资产宿主（URL → runtime-models/<modelId>/，纯 GET）──
+//
+// 【唯一映射点】`/models/<modelId>/*`（新口径）与 `/depth-video/*`（历史别名，plan 147 §4 保留）都经此解析；
+// 物理根一律取自 `paths.ts::getRuntimeModelDir(modelId)`（落点真源）⇒ 本文件**不再持"物理目录名"字面量**
+// （原先 `replace(/^\/depth-video\//, '')` 就是它的副本）。
+//
+// 【为什么单开一个处理器而不并入 handleStaticFile】磁盘根不同（runtime-models vs uploads），
+// 且要覆盖 .wasm/.mjs/.onnx/.glb 这类模型与推理运行时专属 MIME（域专用表，见 utils/mime.ts 收口边界）。
+//
+// 【诚实失败】未命中一律如实 403/400/404，**绝不落进前端兜底返回 index.html** ——
+// 那会把"取不到模型"伪装成一次成功响应。
+const MODEL_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 
-  const depthDir = getDepthVideoDir();
+function handleRuntimeModelResource(res: http.ServerResponse, urlPath: string): boolean {
+  let modelId: string;
+  let relativePath: string;
+  if (urlPath.startsWith(PREFIX_MODELS)) {
+    const rest = urlPath.slice(PREFIX_MODELS.length);
+    const cut = rest.indexOf('/');
+    modelId = cut === -1 ? rest : rest.slice(0, cut);
+    relativePath = cut === -1 ? '' : rest.slice(cut + 1);
+    // 边界判据（ADR-0048）：URL 段会拼进磁盘路径 ⇒ 值域在此收紧，非法即 400（可见失败）。
+    if (!MODEL_ID_PATTERN.test(modelId)) {
+      sendError(res, `Invalid modelId: ${modelId}`, 400);
+      return true;
+    }
+  } else if (urlPath.startsWith(PREFIX_DEPTH_VIDEO)) {
+    // 历史别名 ⇒ 同一物理根，由 modelId 派生（不写第二个目录名）。
+    modelId = DEPTH_VIDEO_MODEL_ID;
+    relativePath = urlPath.slice(PREFIX_DEPTH_VIDEO.length);
+  } else {
+    return false;
+  }
+
+  const modelDir = getRuntimeModelDir(modelId);
   // percent-encoded 解码（中文模型子目录名也可能被编码）
-  let relativePath = urlPath.replace(/^\/depth-video\//, '');
   try {
     relativePath = decodeURIComponent(relativePath);
   } catch {
     // 非法编码保留原样，交给下方 existsSync 判 404
   }
-  const filePath = path.join(depthDir, relativePath);
 
   // 安全检查：防止路径遍历（与 handleStaticFile 同款）
-  const resolvedPath = path.resolve(filePath);
-  if (!resolvedPath.startsWith(path.resolve(depthDir))) {
+  const resolvedPath = path.resolve(path.join(modelDir, relativePath));
+  if (!resolvedPath.startsWith(path.resolve(modelDir))) {
     sendError(res, 'Forbidden', 403);
     return true;
   }
@@ -251,10 +286,12 @@ function handleDepthResource(res: http.ServerResponse, urlPath: string): boolean
   }
 
   const ext = path.extname(resolvedPath).toLowerCase();
+  // 域专用 MIME 表（模型 / 推理运行时）：utils/mime.ts 已裁定**不并入**通用表（变化速率不同），
+  // 故本表保留在此 —— 新增模型格式只补这里一处。
   const mimeMap: Record<string, string> = {
     '.js': 'application/javascript',
     '.mjs': 'application/javascript',
-    '.wasm': 'application/wasm', // onnxruntime wasm，跨源 import 需正确类型
+    '.wasm': 'application/wasm', // onnxruntime / mediapipe wasm，按正确类型 import
     '.json': 'application/json',
     '.config': 'application/json',
     '.php': 'text/plain',
@@ -263,11 +300,14 @@ function handleDepthResource(res: http.ServerResponse, urlPath: string): boolean
     '.bin': 'application/octet-stream',
     '.safetensors': 'application/octet-stream',
     '.npy': 'application/octet-stream',
+    '.tflite': 'application/octet-stream', // mediapipe 视觉模型（blaze_face_short_range）
+    '.glb': 'model/gltf-binary', // three GLTFLoader 取件
+    '.fbx': 'application/octet-stream',
   };
   const contentType = mimeMap[ext] || 'application/octet-stream';
   const stat = fs.statSync(resolvedPath);
 
-  // 长缓存：vendor/models 是本地静态资源，首次拉取后走 HTTP 强缓存（D1：不做额外缓存层）
+  // 长缓存：模型是本地静态资源，首次拉取后走 HTTP 强缓存（D1：不做额外缓存层）
   // CORS：前端可能从不同 origin 访问（如 vite dev localhost:5180），缺 CORS 头会导致
   // transformers.js 跨源构造 depth-anything 的 processor（fetch 模型的 preprocessor json）被浏览器
   // 拦截后静默失败 → pipeline(); this.processor 恒为 null，推理时抛 "this.processor is not a function"。
@@ -334,9 +374,13 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
     if (handleStaticFile(req, res, pathname)) return;
   }
 
-  // 本机推理资源服务（纯 GET，未命中继续走下方具名路由/前端兜底/404）
-  if (method === 'GET' && pathname.startsWith(PREFIX_DEPTH_VIDEO)) {
-    if (handleDepthResource(res, pathname)) return;
+  // 本机模型资产宿主（纯 GET）。放在具名路由之前：这两个前缀由本机独占（与 localOnlyPaths 同源），
+  // 未命中即如实 403/400/404 —— 不落前端兜底、不进 catch-all（未命中继续走下方分支）。
+  if (
+    method === 'GET' &&
+    (pathname.startsWith(PREFIX_MODELS) || pathname.startsWith(PREFIX_DEPTH_VIDEO))
+  ) {
+    if (handleRuntimeModelResource(res, pathname)) return;
   }
 
   // 仅打印有意义的请求；高频轮询端点（见 SILENT_LOG_PATHS）静默处理
@@ -369,7 +413,7 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
     // ── 阶段 4：catch-all 兜底透传 ──
     // 【顺序铁律】阶段 2(具名) → 阶段 3(前端托管) → 阶段 4(catch-all) → 阶段 5(404)，
     // 不得把阶段 4 提前到阶段 3 之前，否则 /files/x、/plugin/y 未命中路径无法正确 404。
-    // 【红线】handlePassthrough 对**本地专属前缀**（`isLocalOnlyPath`：/files/、/depth-video/、
+    // 【红线】handlePassthrough 对**本地专属前缀**（`isLocalOnlyPath`：/files/、/models/、/depth-video/、
     // /plugin/、/.well-known/）的未命中路径返回 false，绝不可无脑 `return handler()`，否则 404 逻辑丢失。
     //
     // 【为什么加这一层】2026-08-01 确立原则：不再区分「哪些请求该直连官方」，
@@ -462,6 +506,7 @@ async function main(): Promise<void> {
     console.log(
       '    供应:   /api/providers  /api/providers/test-connection  /api/providers/:id/fetch-models',
     );
+    console.log('    模型:   /models/<modelId>/*  （历史别名 /depth-video/*）');
     console.log('    画布:   /  (dist/ 静态托管)');
     console.log('    兜底:   其余请求 → 透传官方（catch-all，日志前缀 [passthrough]）');
     console.log('');

@@ -2,8 +2,10 @@
  * 人脸打码核心算法（完整复刻官方 shared.js 的 sl/cl/ll/fl/pl/dl/ml/hl/gl + _l.jsx + al/ol/vl）。
  *
  * 【依赖】@mediapipe/tasks-vision：FilesetResolver.forVisionTasks + FaceDetector.createFromOptions。
- * 模型 mediapipe/blaze_face_short_range.tflite + wasm 运行时位于 public/mediapipe/（Vite 静态资源；
- * Chrome 扩展下经 chrome.runtime.getURL 解析，复刻官方 rl()）。
+ * 模型 blaze_face_short_range.tflite + wasm 运行时落在**本机模型宿主** `runtime-models/mediapipe/`
+ * （经 `/models/mediapipe/*` 取件；URL 由 base/core/runtimeModelUrl.ts 单源拼出）。
+ * 说明：原实现走 `public/mediapipe/` + `chrome.runtime.getURL`（复刻官方 rl()），随 plan 147 搬迁一并移除 ——
+ * 资源已不在扩展包内，该分支只会产出必然 404 的地址（扩展形态的代价已显式声明，见 plan 147 §4.1）。
  *
  * 【打码模式】（对齐官方 xl/yl）
  *  - mosaic  马赛克（dl：缩小 canvas 再放大，像素块）
@@ -23,6 +25,8 @@ import { FilesetResolver, FaceDetector, type Detection } from '@mediapipe/tasks-
 import { loadImageWithTimeout } from '@/components/base/utils/net/asyncGuard';
 import { IMAGE_LOAD_TIMEOUT } from '@/components/base/core/config';
 import { canvasToImageDataUrl } from '@/components/base/core/utils';
+// 本机模型取件 URL 唯一出口（禁在本文件拼 /models/ 字面量）
+import { runtimeModelUrl } from '@/components/base/core/runtimeModelUrl';
 
 /** 打码模式（对齐官方 xl/yl） */
 export type MosaicMode = 'mosaic' | 'bar' | 'grid' | 'blur';
@@ -56,25 +60,18 @@ export interface MosaicOptions {
   timeoutMs?: number;
 }
 
-/** 解析静态资源路径：Chrome 扩展走 runtime.getURL，否则用相对路径（复刻官方 rl） */
-function resolveAsset(p: string): string {
-  // 可选链已足：非扩展环境 `chrome` 未定义 → `?.` 短路即返回 p；无需 try/catch 兜底。
-  // （2026-09-17 拆 catch-ok：这是「**能拆的**」，不属于结构性豁免。）
-  const g = globalThis as unknown as {
-    chrome?: { runtime?: { getURL?: (path: string) => string } };
-  };
-  return g.chrome?.runtime?.getURL?.(p) ?? p;
-}
+/** 本机模型目录名（= `localTool/runtime-models/mediapipe/`）；取件 URL 由 runtimeModelUrl 单源拼出。 */
+const MEDIAPIPE_MODEL_ID = 'mediapipe';
 
 let detectorSingleton: Promise<FaceDetector> | null = null;
 
 /** 懒加载 FaceDetector 单例（复刻官方 al）：失败则置空下次重试 */
 export async function loadFaceDetector(): Promise<FaceDetector> {
   detectorSingleton ||= (async () => {
-    const wasm = await FilesetResolver.forVisionTasks(resolveAsset('mediapipe/wasm'));
+    const wasm = await FilesetResolver.forVisionTasks(runtimeModelUrl(MEDIAPIPE_MODEL_ID, 'wasm'));
     return FaceDetector.createFromOptions(wasm, {
       baseOptions: {
-        modelAssetPath: resolveAsset('mediapipe/blaze_face_short_range.tflite'),
+        modelAssetPath: runtimeModelUrl(MEDIAPIPE_MODEL_ID, 'blaze_face_short_range.tflite'),
       },
       runningMode: 'IMAGE',
       minDetectionConfidence: 0.4,

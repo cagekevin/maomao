@@ -50,13 +50,29 @@ export function getFrontendDistDir(): string {
 }
 
 /**
- * 本机推理资源根（vendor + models，供浏览器运行时按 URL 读）。
- * 物理收进 localTool/runtime-models/（与 data/、logs/ 这类运行时目录并列），
- * 当前工具再下一层 depth-video/；未来可并列 rembg/ 等工具子目录。
- * 说明：浏览器 URL 保持简短的 /depth-video/*（见 index.ts 静态分支做 URL→物理根映射），
- * 物理路径 ≠ URL 路径。models/（几十 MB 权重）已 .gitignore，不入库/CI。
- * 与 getFrontendDistDir()/getLogsDir() 同构 —— 全部基于 getRoot() + MAOMAO_ROOT 覆盖。
+ * 本机模型资产根 —— **「模型文件物理落点」的唯一真源**（`ADR-0057` 收口 · plan 147 §一）。
+ *
+ * 一个模型一个目录：`runtime-models/<modelId>/`（`MANIFEST.json` + `README.md` 入库，其余不进 git）。
+ * 物理收进 `localTool/runtime-models/`（与 `data/`、`logs/` 这类运行时目录并列）⇒ **不随前端构建产物走**，
+ * 几百 MB 权重绝不进 `dist/`、不进扩展包 —— 这正是它区别于 `public/` 的判据。
+ *
+ * 【URL ≠ 物理路径】浏览器按 `/models/<modelId>/*` 取件（`index.ts` 宿主分支做 URL→物理根映射）；
+ * 深度视频保留历史前缀 `/depth-video/*` 作别名，由同一函数派生（见 `utils/localOnlyPaths.ts`）。
+ *
+ * 【跨语言边界（已知且登记）】`scripts/runtime-model.mjs` / `scripts/aliyun-models.py` 是 Node/Python，
+ * **无法 import 本文件**，各自以脚本自身位置为锚（`../runtime-models`）—— 不是"落点判据的第二份"，
+ * 而是"脚本自身位置"的派生；防漂移由 `runtime-model.mjs doctor` 实测该锚点、错则红。
+ *
+ * 【与 getFrontendDistDir()/getLogsDir() 同构】全部基于 getRoot() + MAOMAO_ROOT 覆盖（测试隔离用）。
  */
-export function getDepthVideoDir(): string {
-  return path.join(getRoot(), 'runtime-models', 'depth-video');
+export function getRuntimeModelDir(modelId: string): string {
+  return path.join(getRoot(), 'runtime-models', modelId);
 }
+
+/**
+ * 深度视频模型目录名（`runtime-models/depth-video/`）。
+ *
+ * 单列出来是因为它**同时是历史 URL 前缀 `/depth-video/*` 的别名源** —— 该前缀按 §4 保留，
+ * 由 `getRuntimeModelDir(DEPTH_VIDEO_MODEL_ID)` 派生同一物理根，故别名不引入第二份落点。
+ */
+export const DEPTH_VIDEO_MODEL_ID = 'depth-video';

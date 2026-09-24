@@ -1,0 +1,34 @@
+{
+  "tool": "mediapipe",
+  "runtime": "browser",
+  "description": "MediaPipe 视觉任务运行时（wasm）与人脸检测模型 blaze_face_short_range。供 image/lib/faceMosaic.ts 的人脸打码使用；浏览器端 FilesetResolver 按 /models/mediapipe/wasm 取件。",
+  "generatedAt": "2026-09-24",
+  "sourceNote": "本组文件原在 public/mediapipe/（随仓库走、随 dist 分发），2026-09-24 按 docs/plan/147 §4.1 迁入本机模型宿主 ⇒ 不再入库、不再进 dist。它们没有可稳定直取的单文件 URL，故各条 source 留空；网络/换机还原走网盘镜像（见 README）。",
+  "files": [
+    {
+      "path": "mediapipe/blaze_face_short_range.tflite",
+      "size": 229746,
+      "sha256": "B4578F35940BF5A1A655214A1CCE5CAB13EBA73C1297CD78E1A04C2380B0152F"
+    },
+    {
+      "path": "mediapipe/wasm/vision_wasm_internal.js",
+      "size": 322044,
+      "sha256": "E7FD9858E8E8F221D9B96EDDC11F8E077F263E0B7BBD79D3CBE882B134274F8C"
+    },
+    {
+      "path": "mediapipe/wasm/vision_wasm_internal.wasm",
+      "size": 11153617,
+      "sha256": "6A5C64584C2AB61C763B6E204AFBDBC7CE1CAF7F5216187322BCA8DF94F646BC"
+    },
+    {
+      "path": "mediapipe/wasm/vision_wasm_nosimd_internal.js",
+      "size": 321847,
+      "sha256": "438D1FE8FF7F4D946025BC211C291543C037D8A3785ED4EEE60F1F521B236296"
+    },
+    {
+      "path": "mediapipe/wasm/vision_wasm_nosimd_internal.wasm",
+      "size": 10481398,
+      "sha256": "8A3092D34C79D3F57E6BA8592105E8A90F6B07C27891FFECD14CCA428BFD3E31"
+    }
+  ]
+}

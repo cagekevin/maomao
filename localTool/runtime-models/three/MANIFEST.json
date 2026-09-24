@@ -1,0 +1,24 @@
+{
+  "tool": "three",
+  "runtime": "browser",
+  "description": "3D 模型素材（three.js / GLTFLoader 按 URL 取件）。xbot-animated-lod.glb 是 director3d 内置人物在用的减面版；ue-mannequin-retopology.glb 与 x-bot.fbx 为备用素材（当前 src/ 零引用，见 docs/plan/50、51）。",
+  "generatedAt": "2026-09-24",
+  "sourceNote": "本组文件原在 public/models/（随仓库走、随 dist 分发），2026-09-24 按 docs/plan/147 §4.1 迁入本机模型宿主 ⇒ 不再入库、不再进 dist。它们无可稳定直取的单文件 URL，故各条 source 留空；网络/换机还原走网盘镜像（见 README）。",
+  "files": [
+    {
+      "path": "three/xbot-animated-lod.glb",
+      "size": 2936936,
+      "sha256": "4576C59B839775663CA2D106AD29B3582E24ADD64ADD04BE41D0255280CBEC3E"
+    },
+    {
+      "path": "three/ue-mannequin-retopology.glb",
+      "size": 750464,
+      "sha256": "5622C6150467FB96FF70D30EB3393286131C8523FEAA3B78F80515D499CB1A14"
+    },
+    {
+      "path": "three/x-bot.fbx",
+      "size": 1750032,
+      "sha256": "3980C5F41AD0F6CFB835C6C0D61A2684082C83538CC3B20717950096DDE256FD"
+    }
+  ]
+}

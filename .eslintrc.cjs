@@ -52,7 +52,6 @@ module.exports = {
     'build',
     'coverage',
     '*.min.js',
-    'public/mediapipe/wasm/**',
     'scripts/1mao-scripts/scriptbox-split-snapshot/**',
     'tmp/**',
   ],

@@ -3,13 +3,9 @@ import type {
   TranscriptionSubtask,
   TranscriptionResult,
   TranscriptionProgress,
-  TranscriptionModelId,
   TranscriptionChunk,
 } from '@/components/videoEditor/types/transcription';
-import {
-  DEFAULT_TRANSCRIPTION_MODEL,
-  TRANSCRIPTION_MODELS,
-} from '@/components/videoEditor/constants/transcription-constants';
+import { TRANSCRIPTION_MODEL } from '@/components/videoEditor/constants/transcription-constants';
 import type { WorkerMessage, WorkerResponse } from './worker';
 
 type ProgressCallback = (progress: TranscriptionProgress) => void;
@@ -18,7 +14,6 @@ type StreamingCallback = (data: { chunks: TranscriptionChunk[]; tps: number }) =
 
 class TranscriptionService {
   private worker: Worker | null = null;
-  private currentModelId: TranscriptionModelId | null = null;
   private isInitialized = false;
   private isInitializing = false;
 
@@ -26,18 +21,16 @@ class TranscriptionService {
     audioData,
     language = 'auto',
     subtask = 'transcribe',
-    modelId = DEFAULT_TRANSCRIPTION_MODEL,
     onProgress,
     onStreamingUpdate,
   }: {
     audioData: Float32Array;
     language?: TranscriptionLanguage;
     subtask?: TranscriptionSubtask;
-    modelId?: TranscriptionModelId;
     onProgress?: ProgressCallback;
     onStreamingUpdate?: StreamingCallback;
   }): Promise<TranscriptionResult> {
-    await this.ensureWorker({ modelId, onProgress });
+    await this.ensureWorker({ onProgress });
 
     onProgress?.({ status: 'transcribing', progress: 0 });
 
@@ -103,20 +96,12 @@ class TranscriptionService {
     this.worker?.postMessage({ type: 'cancel' } satisfies WorkerMessage);
   }
 
-  private async ensureWorker({
-    modelId,
-    onProgress,
-  }: {
-    modelId: TranscriptionModelId;
-    onProgress?: ProgressCallback;
-  }): Promise<void> {
-    const needsNewModel = this.currentModelId !== modelId;
+  private async ensureWorker({ onProgress }: { onProgress?: ProgressCallback }): Promise<void> {
+    // 单模型（见 transcription-constants.ts）：已初始化即复用。
+    // 原「换模型 ⇒ needsNewModel ⇒ 重建 worker」分支随可选清单一起删掉，不再保留。
+    if (this.worker && this.isInitialized) return;
 
-    if (this.worker && this.isInitialized && !needsNewModel) {
-      return;
-    }
-
-    if (this.isInitializing && !needsNewModel) {
+    if (this.isInitializing) {
       await this.waitForInit();
       return;
     }
@@ -124,11 +109,6 @@ class TranscriptionService {
     this.terminate();
     this.isInitializing = true;
     this.isInitialized = false;
-
-    const model = TRANSCRIPTION_MODELS.find((m) => m.id === modelId);
-    if (!model) {
-      throw new Error(`Unknown model: ${modelId}`);
-    }
 
     this.worker = new Worker(new URL('./worker.ts', import.meta.url), {
       type: 'module',
@@ -148,7 +128,7 @@ class TranscriptionService {
             onProgress?.({
               status: 'loading-model',
               progress: response.progress,
-              message: `Loading ${model.name} model...`,
+              message: `Loading ${TRANSCRIPTION_MODEL.name} model...`,
             });
             break;
 
@@ -156,7 +136,6 @@ class TranscriptionService {
             this.worker?.removeEventListener('message', handleMessage);
             this.isInitialized = true;
             this.isInitializing = false;
-            this.currentModelId = modelId;
             resolve();
             break;
 
@@ -173,8 +152,8 @@ class TranscriptionService {
 
       this.worker.postMessage({
         type: 'init',
-        modelId: model.huggingFaceId,
-        encoderDtype: model.encoderDtype,
+        modelId: TRANSCRIPTION_MODEL.modelId,
+        encoderDtype: TRANSCRIPTION_MODEL.encoderDtype,
       } satisfies WorkerMessage);
     });
   }
@@ -199,7 +178,6 @@ class TranscriptionService {
     this.worker = null;
     this.isInitialized = false;
     this.isInitializing = false;
-    this.currentModelId = null;
   }
 }
 

@@ -290,7 +290,6 @@ export const KEY_YIMAO_CLOUD_SYNC_LEDGER = 'yimao_cloud_sync_ledger';
  */
 export const KEY_DIRECTOR3D_CUSTOM_POSES = 'director3d-custom-poses';
 export const KEY_EDITOR_CAPTION_LANGUAGE = 'editor-caption-language';
-export const KEY_EDITOR_CAPTION_MODEL_ID = 'editor-caption-model-id';
 export const KEY_EDITOR_CAPTION_TEMPLATE_ID = 'editor-caption-template-id';
 export const KEY_VIDEO_EDITOR_SAVED_SOUNDS = 'video-editor-saved-sounds';
 
@@ -703,12 +702,6 @@ export const STORAGE_KEYS: Record<string, StorageKeyMeta> = {
     store: 'videoEditor/hooks-cutia/storage/use-local-storage.ts',
     backend: 'local',
     note: '字幕识别语言偏好（原 cutia 裸 localStorage 键 editor-caption-language，未登记；TD-02-33/37）',
-  },
-  [KEY_EDITOR_CAPTION_MODEL_ID]: {
-    domain: 'videoEditor',
-    store: 'videoEditor/hooks-cutia/storage/use-local-storage.ts',
-    backend: 'local',
-    note: '字幕识别模型偏好（原 cutia 裸 localStorage 键 editor-caption-model-id，未登记；TD-02-33/37）',
   },
   [KEY_EDITOR_CAPTION_TEMPLATE_ID]: {
     domain: 'videoEditor',
@@ -1154,15 +1147,6 @@ export const apiRegistry: Record<string, ApiRegistryEntry> = {
     status: 'ACTIVE',
     note: '贴纸图标唯一出站口（原样透传；上游 api.iconify.design→simplesvg→unisvg 三家回落收在后端）。实现在 videoEditor/engine/lib/iconify-api.ts',
   },
-  hfProxy: {
-    fn: 'applyHfProxyHost',
-    method: 'GET',
-    path: '/api/hf/{x}',
-    envelope: 'raw',
-    status: 'ACTIVE',
-    note: '转写模型唯一出站口（huggingface 原样透传：/api/hf/<model>/resolve/<rev>/<file> → huggingface.co）。实现在 videoEditor/engine/services/transcription/hf-proxy.ts，由 transcription/worker.ts 在 pipeline 前调用设为 env.remoteHost',
-  },
-
   // ── Generate（relayProxy 门面：submit → 轮询 attach；chat 出站统一走此处）──
   generateSubmit: {
     fn: 'relayProxy.relaySubmit',

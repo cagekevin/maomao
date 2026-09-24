@@ -13,8 +13,7 @@ import { useLocalStorage } from '@/components/videoEditor/hooks-cutia/storage/us
 import { useEditor } from '@/components/videoEditor/hooks-cutia/use-editor';
 import {
   TRANSCRIPTION_LANGUAGES,
-  TRANSCRIPTION_MODELS,
-  DEFAULT_TRANSCRIPTION_MODEL,
+  TRANSCRIPTION_MODEL,
 } from '@/components/videoEditor/constants/transcription-constants';
 import {
   SUBTITLE_TEMPLATES,
@@ -22,7 +21,6 @@ import {
 } from '@/components/videoEditor/constants/subtitle-constants';
 import type {
   TranscriptionLanguage,
-  TranscriptionModelId,
   TranscriptionProgress,
 } from '@/components/videoEditor/types/transcription';
 import { transcriptionService } from '@/components/videoEditor/engine/services/transcription/service';
@@ -36,7 +34,6 @@ import { Progress } from '@/components/videoEditor/ui/ui/progress';
 import { PropertyGroup } from '@/components/videoEditor/ui/editor/panels/properties/property-item';
 import {
   KEY_EDITOR_CAPTION_LANGUAGE,
-  KEY_EDITOR_CAPTION_MODEL_ID,
   KEY_EDITOR_CAPTION_TEMPLATE_ID,
 } from '@/components/base/core/contracts';
 
@@ -44,10 +41,6 @@ export function Captions() {
   const [selectedLanguage, setSelectedLanguage] = useLocalStorage<TranscriptionLanguage>({
     key: KEY_EDITOR_CAPTION_LANGUAGE,
     defaultValue: 'auto',
-  });
-  const [selectedModelId, setSelectedModelId] = useLocalStorage<TranscriptionModelId>({
-    key: KEY_EDITOR_CAPTION_MODEL_ID,
-    defaultValue: DEFAULT_TRANSCRIPTION_MODEL,
   });
   const [selectedTemplateId, setSelectedTemplateId] = useLocalStorage<string>({
     key: KEY_EDITOR_CAPTION_TEMPLATE_ID,
@@ -104,7 +97,6 @@ export function Captions() {
       const result = await transcriptionService.transcribe({
         audioData: samples,
         language: selectedLanguage,
-        modelId: selectedModelId,
         onProgress: handleProgress,
       });
 
@@ -165,30 +157,11 @@ export function Captions() {
 
   return (
     <BaseView ref={containerRef}>
-      {/* 统一语言：设置项 = 分区（**组头即标签**，不再额外写 `Label` + `gap-3` 包装层）。 */}
+      {/* 模型**固定不可选**（用户 2026-09-24 裁定「不要那么多选择，要统一，就用 tiny」）：
+          不给选择器，只如实说明用哪个模型 + 精度取舍 —— 消除"选哪个"这个决策负担。 */}
       <PropertyGroup title={'模型'}>
-        <Select
-          value={selectedModelId}
-          onValueChange={(value) =>
-            setSelectedModelId({
-              value: value as TranscriptionModelId,
-            })
-          }
-          disabled={isProcessing}
-        >
-          <SelectTrigger>
-            <SelectValue placeholder={'选择模型'} />
-          </SelectTrigger>
-          <SelectContent>
-            {TRANSCRIPTION_MODELS.map((model) => (
-              <SelectItem key={model.id} value={model.id}>
-                {model.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
         <p className="text-muted-foreground text-xs">
-          {TRANSCRIPTION_MODELS.find((m) => m.id === selectedModelId)?.description ?? ''}
+          {TRANSCRIPTION_MODEL.name} · {TRANSCRIPTION_MODEL.description}
         </p>
       </PropertyGroup>
 

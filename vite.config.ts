@@ -1,7 +1,9 @@
-import { defineConfig } from 'vite';
+import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
 import { fileURLToPath } from 'node:url';
+// 端口真源：src/components/base/core/config.ts（本文件只复用它导出的常量，不写第二个 18080）
+import { LOCAL_TOOL_PORT } from './src/components/base/core/config.ts';
 
 /**
  * Vite 构建配置唯一真源（别名 · 产物输出 · chunk 拆分）。
@@ -44,6 +46,17 @@ function packageName(id: string): string | null {
   const seg = rest.split('/');
   return rest.startsWith('@') ? `${seg[0]}/${seg[1]}` : seg[0];
 }
+
+/**
+ * dev 代理目标 origin —— 与前端 `API_BASE` **同口径**（真源 `src/components/base/core/config.ts`：
+ * `VITE_API_BASE` 优先、缺省回本机 `LOCAL_TOOL_PORT`）。
+ * 代理目标若与页面实际调用的后端不一致，dev 下会出现「API 通、模型 404」的静默分叉，故按同一 env 取。
+ */
+const DEV_ENV = loadEnv('development', rootDir, '');
+const LOCAL_TOOL_ORIGIN = (DEV_ENV.VITE_API_BASE || `http://127.0.0.1:${LOCAL_TOOL_PORT}`).replace(
+  /\/+$/,
+  '',
+);
 
 export default defineConfig({
   plugins: [react()],
@@ -125,5 +138,21 @@ export default defineConfig({
   server: {
     port: 5180,
     open: true,
+    /**
+     * 本机模型资产代理（plan 147 §六）—— 让 dev 与 prod **同源口径一致**。
+     *
+     * 【为什么必须代理】dev 页面在 5180、模型在 localTool 18080 ⇒ 直连即跨源；而模型取件**要求与页面同源**：
+     * `base/core/runtimeModelUrl.ts` 头注已记载实证 —— 用绝对 URL 会让 transformers.js 的处理器组装静默失败
+     * （`this.processor is not a function`）。故把两个前缀转发到 18080，前端**始终**用根相对 URL：
+     * prod 下页面本身由 18080 托管 `dist/`（天然同源，零配置），dev 下靠本代理补齐。
+     * 这样就不存在「按环境切换绝对/相对地址」的第二套 URL 口径。
+     *
+     * 【为什么 /depth-video 也转发】它是历史别名（同一物理根）。一并转发 ⇒ depth-video 链路
+     * 在 dev 下**零行为改动**（仍是根相对取件，不再依赖绝对 URL + CORS）。
+     */
+    proxy: {
+      '/models': { target: LOCAL_TOOL_ORIGIN },
+      '/depth-video': { target: LOCAL_TOOL_ORIGIN },
+    },
   },
 });
