@@ -31,30 +31,6 @@ export const MATTING_MEAN: readonly [number, number, number] = [123.675, 116.28,
 /** 归一化标准差（训练时使用）。 */
 export const MATTING_STD: readonly [number, number, number] = [58.395, 57.12, 57.375];
 
-/**
- * 模型空间下的 embedding 形状（**encoder 输出 / decoder 输入**，实测自 ONNX 图）。
- *
- * 【为什么要类型化】SAM-HQ 的 decoder 要两路 embedding（`image_embeddings` +
- * `interm_embeddings`），后者是 SAM-HQ 相对标准 SAM 的**额外通路**。
- * 若误按标准 SAM 只传一路，ORT 会抛「缺输入」—— 这里把形状写进类型，
- * 让"两路都要"成为**编译期可见**的事实。
- */
-export interface MattingEmbeddingShape {
-  /** encoder 主输出 [1,256,64,64] */
-  readonly imageChannels: 256;
-  /** encoder 第二输出（SAM-HQ var-token 通路）[1,160,64,64] */
-  readonly intermChannels: 160;
-  /** 两路共用的空间边长 */
-  readonly size: 64;
-}
-
-/** embedding 形状常量（与 ONNX 图实测一致）。 */
-export const MATTING_EMBEDDING_SHAPE: MattingEmbeddingShape = {
-  imageChannels: 256,
-  intermChannels: 160,
-  size: 64,
-};
-
 /** decoder 输出的低分辨率 mask 边长（`mask_input` 的形状来源）。 */
 export const MATTING_MASK_INPUT_SIZE = 256;
 

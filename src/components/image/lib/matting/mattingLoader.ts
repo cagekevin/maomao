@@ -27,9 +27,9 @@ import {
   MATTING_PREDICT_TIMEOUT_MS,
   mattingModelUrl,
 } from './mattingConfig.ts';
+import { normalizeInto } from './mattingEngine.ts';
 import { withTimeout } from '@/components/base/utils/net/asyncGuard.ts';
 import { logger } from '@/components/base/core/log/logger.ts';
-import type { Pt } from './mattingEngine.ts';
 
 /** 失败码（本能力片私有字面量联合；**不用 enum**）。 */
 export type MattingErrorCode =
@@ -90,9 +90,9 @@ export interface MattingSourceImage {
   readonly data: Uint8ClampedArray;
   readonly width: number;
   readonly height: number;
+  /** 预处理后原图在 1024 画布上的绘制宽（= 缩放系数推导结果，`encodeImage` 用它定循环边界）*/
   readonly drawW: number;
   readonly drawH: number;
-  readonly scale: number;
 }
 
 // 模块级会话单例：同一会话幂等复用；disposeMatting 统一清空。
@@ -193,9 +193,8 @@ export async function encodeImage(
       for (let x = 0; x < drawW; x += 1) {
         const srcIdx = (y * width + x) * 4;
         const dstIdx = y * MATTING_INPUT_SIZE + x;
-        arr[dstIdx] = (data[srcIdx] - 123.675) / 58.395;
-        arr[plane + dstIdx] = (data[srcIdx + 1] - 116.28) / 57.12;
-        arr[2 * plane + dstIdx] = (data[srcIdx + 2] - 103.53) / 57.375;
+        // 归一化走 mattingEngine 唯一实现（MEAN/STD 只在 mattingConfig 定义一次）
+        normalizeInto(arr, plane, dstIdx, data[srcIdx], data[srcIdx + 1], data[srcIdx + 2]);
       }
     }
 
@@ -289,9 +288,4 @@ export async function predictMask(
 /** 释放会话单例（G3）：关编辑器 / 换模型时调用。 */
 export function disposeMatting(): void {
   sessionsSingleton = null;
-}
-
-/** 把原图坐标点转成模型空间提示点（**纯换算，供组件层用**）。 */
-export function toPromptPoint(pt: Pt, scale: number, label: number): MattingPromptPoint {
-  return { x: pt.x * scale, y: pt.y * scale, label };
 }

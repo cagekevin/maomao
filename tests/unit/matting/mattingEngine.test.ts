@@ -1,8 +1,14 @@
 /**
- * AI 抠图能力片 · 单测（`ADR-0049`：只锁用户可感知契约，禁 UI 存在性测试）。
+ * AI 抠图能力片 · 纯函数单测（`ADR-0049`：只锁用户可感知契约，禁 UI 存在性测试）。
  *
  * 【测什么】`mattingEngine` 的纯函数 + `mattingConfig` 的训练口径常量。
  * **不测** `MattingEditor` 的元素存在性（`ADR-0049` 禁）。
+ *
+ * 【为什么直接 import 实现模块（而不是走能力片门面）】
+ * 门面 `index.ts` 是**用例编排**（`createMattingSession()` / `cutout()`），
+ * 不导出这些纯函数 —— 那样是对的，门面不该为测试长出一条导出清单。
+ * 本文件测的是**实现细节的正确性**（缩放口径 / 坐标换算 / logits 阈值），
+ * 故直连被测模块，也避免为测试在门面上开洞。
  *
  * 【非自证式判据】（`架构师写新业务代码.md` §4.7）
  * 每条断言都满足：**把被测实现改坏，断言必红**。
@@ -17,10 +23,8 @@ import {
   normalizeInto,
   scaleForSize,
   toImageCoords,
-  toModelCoords,
 } from '@/components/image/lib/matting/mattingEngine.ts';
 import {
-  MATTING_EMBEDDING_SHAPE,
   MATTING_INPUT_SIZE,
   MATTING_MEAN,
   MATTING_STD,
@@ -34,13 +38,6 @@ describe('mattingConfig · 训练口径常量（改即错）', () => {
   it('归一化参数与训练一致（ImageNet 口径）', () => {
     expect(MATTING_MEAN).toEqual([123.675, 116.28, 103.53]);
     expect(MATTING_STD).toEqual([58.395, 57.12, 57.375]);
-  });
-
-  it('embedding 形状：两路都要（SAM-HQ 特有 interm 通路）', () => {
-    // 若误按标准 SAM 只留一路，这里会红 —— 这正是"两路都要"的机器守卫
-    expect(MATTING_EMBEDDING_SHAPE.imageChannels).toBe(256);
-    expect(MATTING_EMBEDDING_SHAPE.intermChannels).toBe(160);
-    expect(MATTING_EMBEDDING_SHAPE.size).toBe(64);
   });
 });
 
@@ -77,19 +74,13 @@ describe('drawParamsFor · 绘制参数（左上对齐，右下留空）', () =>
   });
 });
 
-describe('toImageCoords / toModelCoords · 三段坐标链', () => {
-  it('显示坐标 → 原图坐标（除以显示缩放）', () => {
+describe('toImageCoords · 显示坐标 → 原图坐标', () => {
+  it('除以显示缩放（缩小显示时坐标变大）', () => {
     expect(toImageCoords({ x: 100, y: 50 }, 0.5)).toEqual({ x: 200, y: 100 });
   });
 
-  it('原图坐标 → 模型坐标（乘缩放系数）', () => {
-    expect(toModelCoords({ x: 200, y: 100 }, 0.5)).toEqual({ x: 100, y: 50 });
-  });
-
-  it('两段可串成完整链：显示坐标 → 模型坐标', () => {
-    const img = toImageCoords({ x: 100, y: 50 }, 0.5); // 显示 → 原图
-    const model = toModelCoords(img, 0.5); // 原图 → 模型
-    expect(model).toEqual({ x: 100, y: 50 });
+  it('显示缩放 1（原尺寸）= 恒等', () => {
+    expect(toImageCoords({ x: 100, y: 50 }, 1)).toEqual({ x: 100, y: 50 });
   });
 
   it('显示缩放非法抛错', () => {
@@ -122,21 +113,63 @@ describe('isForeground / alphaFromLogits · 阈值是 0（logits，不是概率�
 });
 
 describe('normalizeInto · CHW 排布归一化', () => {
-  it('按 (px-mean)/std 写入三个平面', () => {
+  // 用**真实常量**而非手抄数字：常量改了这里跟着变（不是把我抄的值再断言一遍）
+  it('喂入 MEAN ⇒ 三平面都归零', () => {
     const plane = 2;
     const arr = new Float32Array(3 * plane);
-    normalizeInto(arr, plane, 0, 123.675, 116.28, 103.53); // 用均值 ⇒ 结果全 0
+    normalizeInto(arr, plane, 0, MATTING_MEAN[0], MATTING_MEAN[1], MATTING_MEAN[2]);
     expect(arr[0]).toBeCloseTo(0);
     expect(arr[plane]).toBeCloseTo(0);
     expect(arr[2 * plane]).toBeCloseTo(0);
   });
 
-  it('平面索引正确（CHW：R 在前，B 在后）', () => {
+  it('喂入 MEAN + 1×STD ⇒ 归一到 1（且落在各自平面）', () => {
     const plane = 3;
     const arr = new Float32Array(3 * plane);
-    normalizeInto(arr, plane, 1, 123.675 + 58.395, 116.28, 103.53);
+    normalizeInto(
+      arr,
+      plane,
+      1,
+      MATTING_MEAN[0] + MATTING_STD[0],
+      MATTING_MEAN[1],
+      MATTING_MEAN[2],
+    );
     expect(arr[1]).toBeCloseTo(1); // R 平面 = 均值 + 1 个标准差 ⇒ 1
     expect(arr[plane + 1]).toBeCloseTo(0); // G 平面仍是均值
     expect(arr[2 * plane + 1]).toBeCloseTo(0); // B 平面仍是均值
+  });
+
+  it('CHW 排布：三个平面各占 plane 长度，互不覆盖', () => {
+    const plane = 2;
+    const arr = new Float32Array(3 * plane);
+    // 只给 R 通道一个非均值 → 只有第 0 平面该动
+    normalizeInto(
+      arr,
+      plane,
+      1,
+      MATTING_MEAN[0] + MATTING_STD[0],
+      MATTING_MEAN[1],
+      MATTING_MEAN[2],
+    );
+    expect(arr[1]).toBeCloseTo(1);
+    expect(arr[1 + plane]).toBeCloseTo(0);
+    expect(arr[1 + 2 * plane]).toBeCloseTo(0);
+  });
+
+  it('三通道各用**各自**的 mean/std（防串用：G 用 STD[0] 这类错要被抓到）', () => {
+    const plane = 1;
+    const arr = new Float32Array(3 * plane);
+    // 三通道各给「均值 + 1×自己那档 STD」⇒ 三平面都该是 1；串用任何一档都会偏
+    normalizeInto(
+      arr,
+      plane,
+      0,
+      MATTING_MEAN[0] + MATTING_STD[0],
+      MATTING_MEAN[1] + MATTING_STD[1],
+      MATTING_MEAN[2] + MATTING_STD[2],
+    );
+    expect(arr[0]).toBeCloseTo(1);
+    expect(arr[plane]).toBeCloseTo(1);
+    expect(arr[2 * plane]).toBeCloseTo(1);
   });
 });

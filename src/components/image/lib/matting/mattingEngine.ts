@@ -38,17 +38,11 @@ export interface Pt {
 }
 
 /**
- * 原图坐标 → 模型空间坐标（乘缩放系数，左上对齐）。
- *
- * 三段坐标链：**显示坐标**（canvas 上的 CSS px）→ **原图坐标**（除以显示缩放）
- * → **模型坐标**（乘 `scale`）。前两段在组件层做（它才知道显示缩放），本段是最后一步。
- */
-export function toModelCoords(pt: Pt, scale: number): Pt {
-  return { x: pt.x * scale, y: pt.y * scale };
-}
-
-/**
  * 显示坐标 → 原图坐标。
+ *
+ * 三位坐标链：**显示坐标**（canvas 上的 CSS px）→ **原图坐标**（除以显示缩放）
+ * → **模型坐标**（乘 `scale`）。本函数负责第一段；第二段在门面 `cutout()` 内换算
+ * （`p.x * scale`，一行内联，故不单独出函数）。
  *
  * @param pt 相对 canvas 显示区域的坐标（CSS px）
  * @param displayScale canvas 显示尺寸 / 图片原始尺寸（**≤1 时是缩小显示**）
@@ -59,10 +53,9 @@ export function toImageCoords(pt: Pt, displayScale: number): Pt {
 }
 
 /**
- * 把原图绘制参数算出来（等比 + 居中 + 左上对齐到 1024 画布）。
+ * 把原图绘制参数算出来（等比 + 左上对齐到 1024 画布）。
  *
- * 返回给调用方用于 `ctx.drawImage`：把原图按 `drawW×drawH` 画到 (0,0)，
- * 剩下的右下区域自然为 0（canvas 初值透明，转灰度后即 0）。
+ * 返回 `drawW/drawH` 供 `encodeImage` 定循环边界；`scale` 供门面做原图→模型坐标换算。
  */
 export function drawParamsFor(
   width: number,
@@ -79,8 +72,12 @@ export function drawParamsFor(
 /**
  * 归一化：`(px - mean) / std`，写入 CHW 排布的 Float32Array。
  *
- * 【为什么分散调这个函数】每个像素要算 3 次，图像最大 1024×1024 ≈ 100 万像素
- * ⇒ 每次调用都建数组会拖慢；故由调用方一次性建好 `arr` 复用（见组件层预处理）。
+ * 【为什么必须是函数、不许内联】`encodeImage` 的预处理循环**曾内联这段数学**
+ * （写成 `(px - 123.675) / 58.395`）⇒ `MEAN`/`STD` 变成**两份真相**
+ * （`mattingConfig` 一份、内联一份）。改训练参数时只改一处、另一处静默不改 = 结果错而不报。
+ * ⇒ 归一化收在本函数，常量只从 `mattingConfig` 来（`ADR-0057` 单一真源）。
+ *
+ * 【性能不构成内联理由】这是**每张图一次**的预处理（非热循环），且 JIT 会内联此等小函数。
  */
 export function normalizeInto(
   arr: Float32Array,

@@ -24,7 +24,7 @@
  * 【收编了什么】（首版被迫外露、现已隐藏）
  *  - `MattingSessions` / `MattingEmbedding` —— 内部概念，消费者不需要知道有两段 ONNX；
  *  - `loadMattingSessions` / `encodeImage` / `predictMask` 三段时序 —— 编排进 `createMattingSession`；
- *  - `toPromptPoint` / `drawParamsFor` / `toImageCoords` 的**调用顺序** —— 收进 `cutout` 入参换算；
+ *  - 坐标换算与 label 映射的**调用顺序** —— 收进 `cutout` 入参换算；
  *  - 模型空间坐标 —— 消费者只说**原图像素坐标**，换算由本层做。
  *
  * 【不露什么】`mattingModelUrl`（取件 URL 是能力片内部的事，外部拿到只会去拼路径 =
@@ -123,8 +123,9 @@ export async function createMattingSession(
   if (!loaded.ok) return loaded;
 
   // ② + ③ 预处理与编码（缩放参数在此推导，消费者传的是原图）
+  //   `scale` 留本层用（`cutout` 的原图→模型坐标换算）；`encodeImage` 只需 drawW/drawH 定循环边界
   const { drawW, drawH, scale } = drawParamsFor(width, height);
-  const encoded = await encodeImage(loaded.data, { data, width, height, drawW, drawH, scale });
+  const encoded = await encodeImage(loaded.data, { data, width, height, drawW, drawH });
   if (!encoded.ok) return encoded;
 
   const sessions = loaded.data;
