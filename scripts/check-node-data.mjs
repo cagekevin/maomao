@@ -70,7 +70,7 @@ const {
  * - **为什么能删**：实测 `resolveNodeComponent` 对全部 16 个登记类型 **100% 命中**（含
  *   `group→GroupNode` · `textGenerateNode→TextGenerate` 这类 camelCase↔PascalCase 非一一对应者）
  *   ⇒ 该表是**第二份真相**，且是漂移点（原注释自述「未登记的类型请补此表…防本表悄悄过期」）。
- * - **收益**：节点组件改名/搬迁后**自动跟上**（原表须手工补，补漏 = 保护范围静默缩水，母体同 strict-src）。
+ * - **收益**：节点组件改名/搬迁后**自动跟上**（原表须手工补，补漏 = 保护范围静默缩水，母体同原 `strict-src` —— 该闸 2026-09-24 已并入 `type-check`，母体教训仍适用）。
  */
 let NODE_TYPE_TO_FILE = {};
 

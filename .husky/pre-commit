@@ -1,10 +1,11 @@
 #!/bin/sh
 # 提交门禁（仅前端）：lint-staged（暂存文件）+ 只跑「改动相关」的单元测试（scripts/test-affected.cjs）
-# + 三个秒级 SSR 门禁（smoke/regression/tools，防「改名后 SSR 挂」这类问题）。
-#   regression/tools 已迁为 vitest 用例（ssrRegression / canvasAgentTools / demoPlan），
-#   不再用 esbuild 把前端代码打成 CJS。它们在此处「无条件」跑，是因为 SSR 崩通常来自
-#   src 里 .jsx→.tsx 改名，而非测试文件本身改动；test-affected 只跑与暂存改动相关的测试，
-#   会漏掉这类回归，故单独保留（各 ~1.5s）。
+# + 两个秒级守卫（smoke 静态扫描 / SSR 门禁，防「改名后 SSR 挂」这类问题）。
+#   SSR 门禁已迁为 vitest 用例（ssrRegression / canvasAgentTools），不再用 esbuild 打成 CJS。
+#   它们在此处「无条件」跑，是因为 SSR 崩通常来自 src 里 .jsx→.tsx 改名，而非测试文件本身改动；
+#   test-affected 只跑与暂存改动相关的测试，会漏掉这类回归，故单独保留。
+#   【2026-09-24】regression + tools 由两次 vitest 合并为**一次**（省一次收集/启动开销 ~1s）；
+#   两个 npm script 均保留，仍可单独跑。
 #
 # test-affected.cjs 用「源码改动 → 同名 stem 测试文件」反查，真正只跑相关测试
 # （`vitest --changed` 只认改动的测试文件、漏掉源码改动触发的测试，故弃用）。
@@ -33,8 +34,7 @@ node scripts/test-affected.cjs
 vt=$?
 node scripts/smoke_test.cjs
 sm=$?
-npm run test:regression
+# regression + tools 合并为一次 vitest 调用（见文件头注释；省一次收集/启动开销）
+npx vitest run tests/unit/nodes/ssrRegression.test.ts tests/unit/canvasAgentTools.test.ts
 rg=$?
-npm run test:tools
-tl=$?
-[ "$ls" -eq 0 ] && [ "$vt" -eq 0 ] && [ "$sm" -eq 0 ] && [ "$rg" -eq 0 ] && [ "$tl" -eq 0 ]
+[ "$ls" -eq 0 ] && [ "$vt" -eq 0 ] && [ "$sm" -eq 0 ] && [ "$rg" -eq 0 ]

@@ -6,12 +6,13 @@
     "audit2026-09-18": "用户「审计现有闸，应拆尽拆，除非真的有用」→ 实测后处置：① **删除** `check-token-mirror.mjs` 与 `check-css-globals.mjs`（**都不在 manifest 里、从没跑过**；前者还躺着 1 条真实违规、后者连基线文件都不存在 —— 形态①+④假防线），连带删 `mockup/scripts/` 内同名第三份；② 删 `check-gate-vitals.mjs` 的 `catch` 登记残留（该闸 09-17 已退役、表漏删 → 元层闸长期背一条假警告）；③ **保留** knip / strict-src / arch / node-* / storage-keys / events / any / doc-refs / gates / gate-vitals / arch-index，逐条取证**无重叠**（含负例探针，见各闸头部）；④ 提速：knip 加 `--cache`（10.2s→6.0s，**输出逐字节一致**已验）；strict-src 三种提速写法**实测全部否决**（详见该闸头部留痕）。总耗时 ~55s → ~47s。",
     "audit2026-09-20": "用户「就算这些闸有了，它跟没有它一点区别都没有，那你去删吧」→ **删除 `doc-refs`**（`scripts/check-doc-refs.mjs`，push 层）。理由：它守的是**文档内容**（注释里的 TD-xx 债号是否存在于账本），而用户同日裁定「**文档不需要任何测试**」（`docs/adr/ADR-0049`）—— 文档写错就改文档，不靠断言守。⚠️ **它此前被 2026-09-18 那轮判「✅ 留」，依据是「扫 589 文件 / 884 处引用 —— 覆盖量真实且大」** —— 那是**覆盖量**论证，不是**价值**论证：覆盖再大，判的是文档而非用户可感知契约，就是零差别。此条已回改进 09-18 轮次文件。",
     "audit2026-09-23": "用户「文件存在性也需要检测吗，去给我看看还有哪些是低价值，没啥意义的」→「删」⇒ 删 `health-check.cjs` 四节：①「npm scripts 完整性」（判 package.json 文本而非行为：build 由该文件自跑、test:regression/tools 由 pre-commit 那行自身兜底、dev/test:smoke/test:all 无人调用）；②「横切契约静态校验」（check:keys/events/node-types/node-handles/node-data）与③「架构校验」（check-arch）——**与本清单逐条重复**：health 分组 = 本清单全部 gates + healthOnly，health-check 又手写一遍 ⇒ 同一次 health 内 node-types/node-handles/node-data/keys 各跑 **3 遍**（闸循环 + `npm run build` 的 prebuild + 手写）、events/arch 各 2 遍；实测单次 check-arch 9.3s / check-keys 2.2s / check-events 2.0s ⇒ 纯重复 ≈ 20s、新增覆盖 0（且违反该文件自身 Q3「闸清单是单一真源，此处不得重复写」）；④「TDZ 风险扫描」（三个模式都是**运行期报错文案**，静态文本匹配不可能发现 TDZ；唯一命中途径是把文案写进字符串字面量；且走 warn 不改退出码 ⇒ 假防线 + 永不失败，实测 0 命中）。另瘦身原「文件存在性」19 → 12 项（删 8 项被 build/tsc/本文件测试节覆盖的冗余项，补登记漏项 `public/manifest.webmanifest`）⇒ healthOnly 只剩「静态资产存在性 / build / 全量测试」三节。回改：本清单 health desc、`spec/TEST-GUIDE.md` §三+§七.3、`CLAUDE.md` §常用命令、`scripts/README.md`（含更正过期的 dist 基线描述）。",
+    "audit2026-09-24": "用户「看看 push 里面哪些闸是重复的，可以删掉的」→ 裁定「1 和 2 直接去做」⇒ **两项合并**：① `strict-src` 并入 `type-check`（flag 提到 type-check 的 cmd 上，见上方 `tsc` 段）；② `gates` 并入 `gate-vitals`。共同形态 = **同一件事被拆成两道闸**：strict-src 与 type-check 对同一 program 跑同一套规则（tsconfig 已 `noImplicitAny:true` + exclusions 空）；gates 与 gate-vitals 同读 manifest + 脚本头。连带退役：`check-strict-src.mjs` / `check-gates.mjs` / `strict-src-whitelist.json` / `strict-report.mjs`（后两者是「渐进收口」期的诊断设施 —— 收口已完成（全 src 0 存量）+ 门禁并入 type-check ⇒ 无消费者的幽灵预留，按 M6 删）。回改：本清单 · `package.json`（type-check 加 flag / 删两条 script）· `gates-run.mjs` 头 · `check-gate-vitals.mjs`（吸收申诉口判据 + GATES 表删两行）· `check-any-honesty.mjs` / `check-dead-code.mjs` 头引用 · `scripts/README.md` · `spec/TEST-GUIDE.md` §七.1+§三 · `spec/DATAFLOW.md` · `.codebuddy/commands/架构师写新业务代码.md` · `docs/plan/STRICT-TYPING-HANDOFF.md`（补退役说明）。**判据一条未减**：strict-src 的覆盖面由 type-check 的 CLI flag 继承（二道锁保住），申诉口判据整体搬入 gate-vitals。",
     "assignment": {
       "build": "6 道廉价构建契约（无 tsc）：api/node-types/node-handles/node-data/keys/upload-dirs。只在 npm run build 时跑，与 git 流无关。**注（2026-09-19）**：原第 7 道 `jsx`（`check-jsx.mjs`）已随 2026-09-15 视频编辑器 radix 移除一并删除，本自述当时漏改（列 7 道而实为 6 道）—— 本轮按「删闸须逐处回改引用」补齐（残留引用另见 `docs/ARCHITECTURE.md` §9.1/§9.9 与 `架构师写新业务代码.md` §4.8）。",
-      "push": "8 道代码闸（合并原 commit + push）：type-check(tsc --noEmit) + any/events(代码卫生) + strict-src(白名单 0 隐式 any) + arch(全图扫描) + dead-code(knip 死代码) + gates(元层：闸自述自洽 —— 让「申诉口」这条规定不只是注释) + gate-vitals(元层：闸的闸 —— 治「扫 0 却绿灯」)。只在 pre-push 与 CI 各跑一次。**注（2026-09-20）**：原第 10 道 `doc-refs`（描述层：注释债号存在性 —— 治「幽灵债号」）已按用户裁定**删除** —— 它守的是**文档内容**，而「文档不需要任何测试」（`docs/adr/ADR-0049`）：文档写错就改文档，不靠断言守。⇒ push 层 **8 道**。**注（2026-09-17）**：原第 11 道 `catch` 闸（空 catch 必须带 `// catch-ok:` 标记）已按用户裁定**删除** —— 它要求的『豁免标记』机制与现行判据『错误必须由产生它的那层以判别联合透传（含可展示信息）；消费者只转发』冲突：贴标记合法通过成本（一句话）低于真正改造，反而在生产它本要禁止的行为。代价与回潮风险见 daily/架构日志/16-跨区-错误透传判据与消费者改造-2026-09-17.md。**注（2026-09-18）**：原 `arch-index`（架构日志进度表一致性）已**摘出闸清单** —— `index.md` 是**产物**，产物过期是「该重生成」而非「违规」，判它红只会让正确动作多付一次失败代价（闸的成本守恒律）⇒ 改为**幂等生成器**（跑就对了，无需判断何时跑、无校验模式）。",
+      "push": "6 道代码闸（合并原 commit + push）：type-check(tsc --noEmit --noImplicitAny) + any/events(代码卫生) + arch(全图扫描) + dead-code(knip 死代码) + gate-vitals(元层：闸的闸 —— 治「扫 0 却绿灯」+ 闸自述自洽/申诉口三问)。只在 pre-push 与 CI 各跑一次。**注（2026-09-24）**：原 `strict-src`（第二条 tsc · 带 --noImplicitAny 的隐式 any 收口）**并入 `type-check`** —— tsconfig 早已写死 `noImplicitAny: true` 且 exclusions 为空 ⇒ 两条命令对同一 program 跑同一套规则、输出逐行相同，其价值只剩「防 tsconfig 被放松」这把二道锁；把 `--noImplicitAny` 提到 type-check 的 cmd 上即保住该锁（CLI flag 覆盖 tsconfig），同时省掉一次全量 tsc（~10s）。原 `gates`（元层：申诉口三问**存在性**）**并入 `gate-vitals`** —— 两者同读 manifest + 脚本头，且 `gates` 判据仅是「头部含 4 个字符串」（存在性冒充质量，正是 gate-vitals 头注释自批的「判文件里出现了什么词」形态）⇒ 元层只留一道闸。⇒ push 层 **6 道**。**注（2026-09-20）**：原第 10 道 `doc-refs`（描述层：注释债号存在性 —— 治「幽灵债号」）已按用户裁定**删除** —— 它守的是**文档内容**，而「文档不需要任何测试」（`docs/adr/ADR-0049`）：文档写错就改文档，不靠断言守。⇒ push 层 **8 道**。**注（2026-09-17）**：原第 11 道 `catch` 闸（空 catch 必须带 `// catch-ok:` 标记）已按用户裁定**删除** —— 它要求的『豁免标记』机制与现行判据『错误必须由产生它的那层以判别联合透传（含可展示信息）；消费者只转发』冲突：贴标记合法通过成本（一句话）低于真正改造，反而在生产它本要禁止的行为。代价与回潮风险见 daily/架构日志/16-跨区-错误透传判据与消费者改造-2026-09-17.md。**注（2026-09-18）**：原 `arch-index`（架构日志进度表一致性）已**摘出闸清单** —— `index.md` 是**产物**，产物过期是「该重生成」而非「违规」，判它红只会让正确动作多付一次失败代价（闸的成本守恒律）⇒ 改为**幂等生成器**（跑就对了，无需判断何时跑、无校验模式）。",
       "health": "全量巡检 = 所有闸 + healthOnly，仅 check:health 用。"
     },
-    "tsc": "push 阶段内两次 tsc，标志与职责不同、互不重叠、不可合并：type-check（不带 --noImplicitAny，通用类型错误）与 strict-src（带 --noImplicitAny，白名单目录隐式 any 收口）。标志会改变对无类型 .mjs mock 等的推断，强行合并会引入伪错误。",
+    "tsc": "push 阶段只跑一次 tsc：type-check（`tsc --noEmit --noImplicitAny`）。【2026-09-24 合并 · 取代原说法】原为两条命令（type-check 不带 --noImplicitAny + strict-src 带），当时的理由是「标志会改变对无类型 .mjs mock 等的推断，强行合并会引入伪错误」。该理由在当前配置下**不成立**：tsconfig 早已写死 `noImplicitAny: true`（`tsconfig.json:26`），两条命令的最终生效选项因此完全相同（strict-src 自己 2026-09-18 的实测留痕亦已承认「此刻两闸输出逐行相同」）。故把 flag 合到 type-check 上 —— 覆盖面一条不减（CLI flag 仍能覆盖 tsconfig，二道锁保住），push 阶段只跑一次全量 tsc。",
     "gateCost": "闸的成本守恒（2026-09-14 入规 → 架构师心法 §零.4）：任何闸的『合法通过成本』必须 ≤ 『绕行成本』，否则它在生产它本要禁止的行为（本仓三实证：假守卫/假豁免 · 账本撞号被静默遮蔽 · videoEditor/core 内联重复 7 份）。配套三条：① 每个闸脚本头部须有【申诉口】三问 —— 守什么（红线闸 or 结构偏好闸）· 什么时候该改它 · 怎么改（**可 grep 锚点 = `★闸的申诉口`**，2026-09-14 起 14 道闸全部带此段）；② 新增闸前置评审 —— 会不会拦住『让同一语义份数下降』的动作（收口/下沉/去重）？会 → 用反向判据，别用清单白名单（清单必漏，且『加一个合法模块就要改闸』本身是母体）；③ 闸拦住正确动作时【改闸不绕行】—— 裁决三步见心法 §零.4.3，改完跑闸探针先红后绿（node scripts/probe.mjs，正例精确红 + 反例仍红）。"
   },
   "phases": ["build", "push", "health"],
@@ -56,7 +57,7 @@
       "id": "type-check",
       "cmd": "npm run type-check",
       "phase": "push",
-      "desc": "通用类型校验（tsc --noEmit，不带 --noImplicitAny）"
+      "desc": "通用类型校验 + 隐式 any 收口（tsc --noEmit --noImplicitAny · 2026-09-24 并入原 strict-src）"
     },
     {
       "id": "any",
@@ -71,12 +72,6 @@
       "desc": "事件登记表（EVENTS）与发布/订阅成对"
     },
     {
-      "id": "strict-src",
-      "cmd": "node scripts/check-strict-src.mjs",
-      "phase": "push",
-      "desc": "白名单目录 0 隐式 any（src 侧永不复涨 · TD-09-1）"
-    },
-    {
       "id": "arch",
       "cmd": "node scripts/check-arch.mjs",
       "phase": "push",
@@ -89,16 +84,10 @@
       "desc": "死代码闸（knip · 基线「永不复涨」· TD-17-1：把 audit/ 孤岛能力并进主工程）"
     },
     {
-      "id": "gates",
-      "cmd": "node scripts/check-gates.mjs",
-      "phase": "push",
-      "desc": "闸自洽（元层）：在册闸脚本头部必须带【申诉口】三问（守什么 · 何时该改 · 怎么改）"
-    },
-    {
       "id": "gate-vitals",
       "cmd": "node scripts/check-gate-vitals.mjs",
       "phase": "push",
-      "desc": "闸的闸（元层）：在册闸必须自报扫描基数且不得为 0（治「扫 0 却绿灯」——TD-22-53/TD-02-9 同族）"
+      "desc": "元层（闸的闸）：在册闸必须自报扫描基数且不得为 0（治「扫 0 却绿灯」——TD-22-53/TD-02-9 同族）＋ 闸自述自洽/【申诉口】三问（2026-09-24 并入原 `gates` 闸）"
     }
   ],
   "healthOnly": [

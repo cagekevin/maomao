@@ -67,8 +67,8 @@
 
 1. 撤 → 跑闸 → 记录红/绿；**先红后绿**用 `node scripts/probe.mjs`（若该闸无探针 ⇒ 先按 ADR-0052 补探针，否则"绿"不算证据）。
 2. 变红 ⇒ 二分：**真违规**（改代码/搬件）／**误报**（改判据；改完必须证"**反例仍红**"）。
-3. 每道闸改完必过元层两道：`node scripts/check-gates.mjs`（申诉口三问齐）· `node scripts/check-gate-vitals.mjs`（扫描基数 ≠ 0）。
-4. 收尾：`npm run check:push`（9 道 push 闸）+ `npm run build`（6 道构建闸，注意 §1 的 IDE 护栏）。
+3. 每道闸改完必过元层闸：`node scripts/check-gate-vitals.mjs`（申诉口三问齐 + 扫描基数 ≠ 0；2026-09-24 由原 `check-gates` 与本闸合并）。
+4. 收尾：`npm run check:push`（6 道 push 闸）+ `npm run build`（6 道构建闸，注意 §1 的 IDE 护栏）。
 
 ## 5 · 🔴 硬坑清单（三轮回计 · 只留仍有效的）
 

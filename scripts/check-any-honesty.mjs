@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 /**
- * 「类型诚实性 · 显式/隐含 any」门禁 —— 补 `check:strict-src`（noImplicitAny）**看不见**的两类洞。
+ * 「类型诚实性 · 显式/隐含 any」门禁 —— 补 `type-check`（noImplicitAny）**看不见**的两类洞。
  *
- * 【背景】`check:strict-src` 只抓「隐式 any」。但以下写法同样产出 any 而它看不见：
+ * 【背景】`tsc --noImplicitAny`（= `npm run type-check`；原 `check:strict-src` 闸已于 2026-09-24
+ *   并入它）只抓「隐式 any」。但以下写法同样产出 any 而它看不见：
  *   ① 显式断言 `as any` / `as never`（假收窄入口）；
  *   ② `strictNullChecks:false` 下 `useState(null)` / `useRef(null)` 被塌成 any（state/ref 全失类型，
  *      门禁与 IDE 都拦不住，是「类型诚实」的第二层盲区）。

@@ -201,7 +201,7 @@ rgb(a) / hsl(a) 括号内首段非 `var(                                        
 > `[...gates, ...healthOnly]`，且 `_design.health` 明写"全量巡检 = 所有闸 + healthOnly" ⇒ 双注册会让该闸在一个
 > health 里**跑两遍**，直接违反仓规「每个闸各跑一次，无重复」。
 
-脚本头须带【★闸的申诉口 · 三问】（`check-gates.mjs` 元层闸要求：锚点 `★闸的申诉口` + `Q1 守什么：`/`Q2 何时该改：`/`Q3 怎么改：`，且必须在**首个 `*/` 之前**），否则自身被判违规。本轮两个脚本已按此写好头注释。
+脚本头须带【★闸的申诉口 · 三问】（元层闸 `check-gate-vitals.mjs` 要求：锚点 `★闸的申诉口` + `Q1 守什么：`/`Q2 何时该改：`/`Q3 怎么改：`，且必须在**首个 `*/` 之前**），否则自身被判违规。本轮两个脚本已按此写好头注释。
 
 ### 3.7 第二道闸：令牌副本一致性（`check-token-mirror.mjs`）
 **为什么必须有**：`maomao-kit.css` 是**手工副本** —— 它 `@import` 了 5 个 src CSS，却把 `panel-kit.css` 整段**抄**进自己身体；且**已实测漂移一次**：`--mao-accent-soft` / `--mao-accent-soft-alpha` 在 `src/index.css:92-93` 有、kit 里没有。
@@ -261,7 +261,7 @@ node scripts/probe.mjs                            # 改闸后的闸探针（先�
 - **翻车点→缓解**：
   - 一刀切全红逼人绕过 → **ratchet 基线**（§3.4），存量只降不升。
   - CSS 多格式漏判 → 正则覆盖 `#3/4/6/8` 位 + `rgb/rgba/hsl/hsla` 含空格分隔。
-  - 闸自身 bug 卡死 push → 合入前本地 `check:gates`+单跑先绿。
+  - 闸自身 bug 卡死 push → 合入前本地 `check:push`+单跑先绿。
   - 阴影/渐变误伤 → v1 **排除** `box-shadow`/`filter`/`drop-shadow`（§5 债）。
   - `var()` 内裸值误伤 → 只查声明值，**排除 `--mao-*`/`--pk-*` 定义行**。
   - tsx 任意值/图标裸 `size` 不在范围 → §5 延伸闸，v1 不挡。

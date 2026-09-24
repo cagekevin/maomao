@@ -10,7 +10,7 @@
  * 【门禁分工（2026-09-23 定）——为什么本文件只留这三节】
  *   各闸已经在**四条路上反复跑**了，health 不该再手写一遍：
  *     · pre-commit（日常钩子）：lint-staged + test-affected + smoke + regression + tools
- *     · pre-push（类型/代码闸）：全量 lint + `check:push`（type-check/any/events/strict-src/arch/dead-code/gates/gate-vitals）
+ *     · pre-push（类型/代码闸）：全量 lint + `check:push`（type-check/any/events/arch/dead-code/gate-vitals）
  *     · CI（云端兜底）：同一个 `check:push` + `test:coverage`（+ localtool job）
  *     · **check:health（最终防线 / 交付前）**：manifest 全部闸（经 gates-run 各一次）+ 本文件三节
  *   ⇒ 本文件独有的、别处**都没有**的只有三件：**真·vite 生产构建**（CI 与 hook 均不跑）、

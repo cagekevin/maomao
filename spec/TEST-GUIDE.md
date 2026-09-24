@@ -77,10 +77,10 @@
 | 守门点 | 现状 | 说明 |
 |--------|------|------|
 | **手动全量** `npm run test:all` | ✅ 有效 | 冒烟 + vitest 单测 + SSR 回归 + Agent 工具，全绿才过 |
-| **提交钩子** `.husky/pre-commit` | ✅ 跑 `lint-staged` + `test-affected` + 3 个 SSR 门禁 | 提交前快速校验：暂存文件 lint/format（~1s）+ **只跑改动相关**的单测（`scripts/test-affected.cjs`，~2-3s）+ `smoke`/`regression`/`tools` 秒级门禁。**不跑闸、不跑全量单测**——代码闸统一在 pre-push/CI（2026-09-13 合并为单一验证阶段） |
-| **推送钩子** `.husky/pre-push` | ✅ 跑 `npm run lint`（全量 ESLint）+ `npm run check:push`（7 道代码闸） | push 前**一次**跑完全量 lint 与全部代码闸（type-check / any / catch / events / strict-src / arch / dead-code；约 10s）。**不跑全量单测**——全量由 CI 负责，避免 push 每次等 20s。紧急可 `git push --no-verify` 绕过 |
+| **提交钩子** `.husky/pre-commit` | ✅ 跑 `lint-staged` + `test-affected` + smoke + SSR 门禁 | 提交前快速校验：暂存文件 lint/format（~1s）+ **只跑改动相关**的单测（`scripts/test-affected.cjs`，~2-3s）+ `smoke` 静态扫描 + SSR/工具用例（regression + tools **2026-09-24 合并为一次 vitest**）。**不跑闸、不跑全量单测**——代码闸统一在 pre-push/CI（2026-09-13 合并为单一验证阶段） |
+| **推送钩子** `.husky/pre-push` | ✅ 跑 `npm run lint`（全量 ESLint）+ `npm run check:push`（6 道代码闸） | push 前**一次**跑完全量 lint 与全部代码闸（type-check / any / events / arch / dead-code / gate-vitals；约 10s）。**不跑全量单测**——全量由 CI 负责，避免 push 每次等 20s。紧急可 `git push --no-verify` 绕过 |
 | **e2e 纳入门禁** | ⚠️ `test:all` **不含 e2e** | e2e 需单独 `npm run test:e2e`（慢），默认不在统一门禁 |
-| **CI**`.github/workflows/ci.yml` | ✅ `check:push`（与本地 pre-push **同一份** 7 道闸）→ `test:coverage`（全量+覆盖率） | 【2026-09-13】此前 CI 只跑 `type-check` + 单测，**闸在云端不可达**（架构/契约/死代码闸不生效）；现改跑与本地 pre-push 同一份闸清单（**各一次、不重复**），再加全量覆盖率测试。原「logic 快速面 → 全量」两层已在 2026-09-10 合并（logic 用例是全量真子集，纯重复） |
+| **CI**`.github/workflows/ci.yml` | ✅ `check:push`（与本地 pre-push **同一份** 6 道闸）→ `test:coverage`（全量+覆盖率） | 【2026-09-13】此前 CI 只跑 `type-check` + 单测，**闸在云端不可达**（架构/契约/死代码闸不生效）；现改跑与本地 pre-push 同一份闸清单（**各一次、不重复**），再加全量覆盖率测试。原「logic 快速面 → 全量」两层已在 2026-09-10 合并（logic 用例是全量真子集，纯重复） |
 
 > 🔍 **门禁失败排查**：`scripts/health-check.cjs` 的 `runGate()` 在**失败时打印子进程完整 stdout + stderr**（2026-09-10 修）。此前用 `stdio:'pipe'` + `e.stdout.slice(0, 100)` 只留首部 100 字符，而 vitest/eslint 的失败摘要与断言差异都在**末尾** → 被精准切除，排查者只能靠 grep 源码反推。现直接给出完整报错与位置；`maxBuffer` 提到 32MB 防「输出过大」假错误。
 
@@ -122,13 +122,13 @@ npm run build            # 构建插件包（dist/）
 | `npm run test:coverage` | 全量单测 **+ 覆盖率门槛**（vitest.config.js `coverage` 段统计 `src/**/*.js` 业务逻辑，含保守 thresholds） | 是 |
 | `npm run test:regression` | SSR 渲染 4 个核心节点 + 断言关键结构 class（能渲染不崩） | 是 |
 | `npm run test:tools` | Agent 工具层验证（create/delete/update/connect/read_canvas） | 是 |
-| `npm run test:all` | **统一门禁**：smoke + vitest全量单测 + regression + tools 一次跑完，任一失败退出码 1 | 是 |
+| `npm run test:all` | **统一门禁**：smoke + 前端 vitest 全量（已含 regression/tools 两个用例）+ localTool tsc/单测，任一失败退出码 1 | 是 |
 | `npm test` | 等价 `test:all` | 是 |
 | `npm run check:health` | **工程健康度全量检查**（见下节） | 是 |
 
 ## 三、check:health 检查项
 
-`npm run check:health` = `node scripts/gates-run.mjs health` = **`gates.manifest.json` 的全部 `gates` + `healthOnly`**（api / node-types / node-handles / node-data / keys / upload-dirs / type-check / any / events / strict-src / arch / dead-code / gates / gate-vitals + healthOnly）。
+`npm run check:health` = `node scripts/gates-run.mjs health` = **`gates.manifest.json` 的全部 `gates` + `healthOnly`**（api / node-types / node-handles / node-data / keys / upload-dirs / type-check / any / events / arch / dead-code / gate-vitals + healthOnly）。
 
 其中 **healthOnly（`scripts/health-check.cjs`）只剩 3 节**（2026-09-23 瘦身）：
 
@@ -147,7 +147,7 @@ npm run build            # 构建插件包（dist/）
 | 架构校验（check-arch） | 同上（manifest `arch` 闸已跑一遍，此处又跑一遍 = 白付 9.3s） |
 | TDZ 风险扫描 | 三个模式都是**运行期报错文案**，静态文本匹配不可能发现 TDZ；且走 `warn` 不改退出码 ⇒ 假防线 + 永不失败（实测 0 命中） |
 
-> ⚠️ **dist 基线已与 `check:health` 无关**（2026-09-23 回改过期自述）：`scripts/dist-snapshot.json` 目前只有归档脚本 `1mao-scripts/safety-net.cjs` 在读，`health-check.cjs` **不比对 dist**。
+> ⚠️ **dist 基线设施已废（2026-09-24）**：`scripts/dist-snapshot.json` 是**本地产物、未被 git 跟踪**，与 `check:health` 脱钩后即**无任何活消费者**（`health-check.cjs` 早不比对；`1mao-scripts/safety-net.cjs` 属归档脚本、不跑，且其快照路径解析到**它自己所在目录**，与 `scripts/dist-snapshot.json` 并非同一文件）⇒ 已随手清理。
 
 ## 四、测试文件结构
 
@@ -157,9 +157,8 @@ scripts/
 ├── _smoke_checks.cjs       # 冒烟检查明细（含 ReactFlow useReactFlow 白名单等）
 ├── regression_test.cjs     # 已删除：SSR 回归迁至 tests/unit/nodes/ssrRegression.test.ts（vitest）
 ├── test_agent_tools.cjs    # 已删除：Agent 工具单测迁至 vitest（与 canvasAgentTools.test.ts 合并）
-├── run_all_tests.cjs       # 统一门禁聚合脚本（smoke + vitest + regression + tools）
-├── health-check.cjs        # 工程健康度全量检查
-└── dist-snapshot.json      # dist 基线快照（**已无在用消费者**：仅归档脚本 1mao-scripts/safety-net.cjs 读它；check:health 不比对）
+├── run_all_tests.cjs       # 统一门禁聚合脚本（smoke + 前端 vitest 全量 + localTool tsc/单测）
+└── health-check.cjs        # 工程健康度全量检查
 
 # ✅ 已移除孤儿脚本（2026-08-17）：test_workflow_runtime.mjs / test_workflow_complete.mjs /
 #   test_backup_store.mjs 未被门禁引用且内容已被 vitest 覆盖，已删除收敛架构。

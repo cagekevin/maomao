@@ -690,7 +690,7 @@ scripts/check-arch.mjs（架构规则**唯一落点**：循环依赖/分层/唯�
 ~~scripts/check-silent-catch.mjs（静默吞闸 · 豁免通道收口为 catchOk.ts 登记表白名单）~~ → **已删除 2026-09-17**（含 `catchOk.ts` · 见 `docs/adr/ADR-0011`；禁静默吞退回判据层，无机器闸）
 scripts/debt.mjs（债务账本读写唯一入口）
 scripts/probe.mjs（先红后绿探针执行器：注入 → 跑 → 断言 → 自动还原）
-scripts/check-gates.mjs（元层闸：在册闸脚本必须带【申诉口】三问）
+scripts/check-gate-vitals.mjs（元层闸：扫描根存在性 + 基数自检 + 在册闸脚本必带【申诉口】三问 · 2026-09-24 合并原 check-gates.mjs）
 scripts/check-node-handles.mjs（端口契约单源 + 规则 3 扫**全部**节点落点；豁免按契约派生，不按路径清单）
 scripts/check-node-data.mjs（node data 形状对账 + 未登记件自检；落点经 node-file-resolver）
 scripts/node-file-resolver.cjs（**节点组件落点唯一真源** · .mjs/.cjs 共用）

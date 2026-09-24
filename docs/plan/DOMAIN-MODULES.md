@@ -1065,7 +1065,7 @@ npx tsc --noEmit && npm run check:arch && npx vitest run tests/unit/<相关>.tes
 | `vitest.config.ts` | 5 处 `components/{agent,director3d,nodes,panels,scriptbox}/` | 手工同步 |
 | `vite.config.ts` | `components/base/lazyNode.jsx`（**已过期**：真实是 `.tsx`） | 手工同步 + 修正过期 |
 | `CLAUDE.md` | 8 处源码路径 | 手工同步（**回改原文**，A7） |
-| `scripts/**`（21 文件） | `check-arch.mjs`（`VE_*_REL` 常量）· `dead-code-baseline.json` · `strict-src-whitelist.json` · `check-node-*.mjs` 等 | **闸与 baseline 必须同批改**，否则闸假绿/假红 |
+| `scripts/**`（21 文件） | `check-arch.mjs`（`VE_*_REL` 常量）· `dead-code-baseline.json` · `check-node-*.mjs` 等 | **闸与 baseline 必须同批改**，否则闸假绿/假红 |
 | `.codebuddy/commands/**` · `spec/**` · `docs/**`（规范类） | 路径与符号引用 | 手工同步 |
 | `localTool/**` | 后端自有路径 | 手工同步 |
 | `daily/**` · `Temp/**` · `docs/plan/**`（历史快照） | 历史记录 | **不改**（历史不可改写） |
@@ -1225,7 +1225,7 @@ grep -rn "from '.*<拟迁出的文件名>" src/components/base --include='*.ts' 
 | **外部引用复跑**（新增·强） | 见 §5.2 的穷举命令 | 改后**再跑一次**，与改前清单做差 ⇒ **差异必须为 0**（人工同步兜底） |
 | **回滚准备**（新增） | `git rev-parse HEAD` + `git status --short` | 开工前记录起点、确认工作区干净；**改名批无 undo 命令**（只有 `move-dir --undo`），回滚靠 git |
 
-> **顺序铁律**：`check:strict-src` 与全量 `vitest` **别并发**（实测内存争用被 SIGTERM，exit 137）。
+> **顺序铁律**：全量 tsc（`npm run type-check`，含 `--noImplicitAny`；原 `check:strict-src` 已于 2026-09-24 并入）与全量 `vitest` **别并发**（实测内存争用被 SIGTERM，exit 137）。
 
 ---
 

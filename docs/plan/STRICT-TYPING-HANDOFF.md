@@ -5,7 +5,9 @@
 > **节奏**：**不必一次做完**。每次只啃一个文件/一个目录，小步、可验证、可回滚。
 > **背景**：`tsconfig.json` 关了 `noImplicitAny`（历史遗留），所以这些错平时不报。我们用「按目录开放的 strict 门禁」渐进收口，而不是一次翻开全仓（会 1424 错、瘫掉开发）。
 > 详细审计见 `daily/架构日志/09-类型诚实性-隐式any复核-2026-09-12.md`。
-> **状态（2026-09-12 收口）**：✅ **src 侧已全部收口（1435 → 0）**，18 项白名单 0 隐式 any，`npm run check:strict-src` 永不复涨。本手册转为**历史执行记录 + tests 侧（TD-09-2）复用**。仅余 tests 侧 1323 处（不影响生产代码）。
+> **状态（2026-09-12 收口）**：✅ **src 侧已全部收口（1435 → 0）**，18 项白名单 0 隐式 any，**永不复涨**（门禁自 2026-09-24 起 = `npm run type-check`，见下行）。本手册转为**历史执行记录 + tests 侧（TD-09-2）复用**。仅余 tests 侧 1323 处（不影响生产代码）。
+>
+> **⚠️ 2026-09-24 · 命令退役（回改说明）**：`npm run check:strict-src`、`scripts/strict-report.mjs`、`scripts/strict-src-whitelist.json`、`npm run check:gates` **均已删除**。隐式 any 门禁**并入 `npm run type-check`**（`tsc --noEmit --noImplicitAny`；`tsconfig.json` 早已 `noImplicitAny: true` ⇒ 两条命令等价，故只是把 flag 提到 type-check 上、省掉一次全量 tsc）；元层闸只剩 `scripts/check-gate-vitals.mjs`。**本手册正文出现的旧命令名一律按此替换，正文不再逐处回改**（保留当时的执行留痕）。
 
 ---
 

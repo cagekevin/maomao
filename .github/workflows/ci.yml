@@ -23,10 +23,10 @@ jobs:
         run: npm ci
 
       # 【2026-09-13 闸时机裁定（用户）】commit 与 push 合并为**单一验证阶段**：本地 pre-push 与 CI
-      # 跑的是**同一份**闸清单（gates.manifest 的 push 层，7 道），各一次、不重复。此步取代原先单独的
-      # `type-check` 步（push 层的 type-check 即 `tsc --noEmit`），并在 CI 侧**首次**接入架构/契约/死代码闸
-      #（此前 CI 只有 type-check + 单测，闸在云端完全不可达 → 规则不生效）。
-      - name: "Gates (push: type-check / any / catch / events / strict-src / arch / dead-code)"
+      # 跑的是**同一份**闸清单（gates.manifest 的 push 层，6 道），各一次、不重复。此步取代原先单独的
+      # `type-check` 步（push 层的 type-check 即 `tsc --noEmit --noImplicitAny`），并在 CI 侧**首次**接入
+      # 架构/契约/死代码闸（此前 CI 只有 type-check + 单测，闸在云端完全不可达 → 规则不生效）。
+      - name: "Gates (push: type-check / any / events / arch / dead-code / gate-vitals)"
         run: npm run check:push
 
       # 【2026-09-10 去重】此处原有一个 `Fast logic lane`（npm run test:unit:logic），

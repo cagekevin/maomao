@@ -13,19 +13,18 @@
 | `_smoke_checks.cjs` | 可复用静态冒烟检查集（被 `smoke_test.cjs` 调用），零依赖 | — |
 | `tests/unit/nodes/ssrRegression.test.ts` | Tier 3 回归测试：SSR 渲染节点 + class 断言（vitest 移植，替代原 `regression_test.cjs`） | `npm run test:regression` |
 | `tests/unit/canvasAgentTools.test.ts` | Tier 4 画布 Agent 工具单元验证（vitest，替代原 `test_agent_tools.cjs`） | `npm run test:tools` |
-| `run_all_tests.cjs` | 一键跑所有层级测试（smoke + regression + tools） | `npm test` |
+| `run_all_tests.cjs` | 一键跑所有层级测试（smoke + 前端 vitest 全量 + localTool tsc/单测；regression/tools 两个用例已被 vitest 全量包含，故不单列） | `npm test` |
 | `health-check.cjs` | 工程健康编排（**2026-09-23 瘦身后只剩 3 节**）：静态资产存在性 / `npm run build` / 全量测试。契约闸与架构闸**由 `gates.manifest.json` 单源消费**（`gates-run.mjs health` 已在闸循环里跑过），此处不再重复调用 | `npm run check:health` |
 | `_syntax_check.ps1` | 启动脚本 `launch-all.ps1` 语法检查 | — |
 | ~~`check-jsx.mjs`~~ | **已于 2026-09-15 删除**：判据（JSX/TSX 可解析性）被 `type-check`(tsc) + `test:smoke`(esbuild 检查) + `vite build` 完全覆盖，属冗余闸。取证：JSX 属性区写 `{/* … */}` 时 **tsc 与 esbuild 都报错**（tsc `TS1005` / esbuild `Expected "..." but found "}"`），故它没有独占判据 | — |
 | `check-node-data.mjs` | **node.data + 产出契约对账**：① 字段缺口（含**索引签名回退**拦截 / `nodeDataSchema` 默认 / 本节点自写）；② 结果字段命名（写侧产出 vs 读侧 `SINGLE_OUTPUT_FIELDS` / `NODE_OUTPUTS` / 安全网是否认识，2026-09-12 / TD-02-11）；③ **无产出声明一致性**（登记 `NO_OUTPUT_NODE_TYPES` 却写产出字段即报，表2d）；④ 清空遗留字段、豁免表过期、**解析器自检**（解析源为空即 fail-loud，TD-02-9）。**已挂 `check:health`（`--strict`：上述任一 ≠ 0 即失败）**；本节点自用的例外登记脚本内 `RESULT_EXEMPT`（须带原因）。可传类型名子串只看单个节点 | `npm run check:node-data` |
 | `check-arch.mjs` | **架构红线（7 条，@babel/parser AST）**：① 循环依赖 ② `base/` 禁反向依赖业务域 ③ 结果信封禁另立 interface ④ agent 工具层禁裸调画布写（须经 canvasHost）⑤ 禁手写 `setNodes/setEdges` 裸写 node/edge 字段（data/width/height/style/selected → 须经 `patchNodeById`/`patchEdgeById`）⑥ 存储唯一入口（禁直调 `kvGet/kvSet/sGet/sSet` 底层）⑦ **KV 后端键禁同步读**（TD-02-12：`contentGet` 对 `backend:'kv'` 键冷缓存返回「未知」而非「不存在」→ 须用 `contentGetAsync`/严格族；含解析源自检） | `npm run check:arch` |
-| `check-gates.mjs` | **闸自洽（元层闸）**：真源 = `gates.manifest.json`，读其 `gates`+`healthOnly` 的 `cmd` 解析出脚本，逐个校验**头部必须带【申诉口】三问**（锚点 `★闸的申诉口` + `Q1 守什么：`/`Q2 何时该改：`/`Q3 怎么改：`）。**为什么需要它**：2026-09-14 把「闸的成本守恒律」入规并给 14 道闸补了申诉口，但那规定当时**只活在注释与文档里** —— 本仓已反复实证「红线只写在注释里 → 必回潮」。非脚本命令（如 `npm run type-check`）**明确列出为跳过**、不静默略过；解析到 0 个脚本即 fail-loud（防"假绿"）。 | `npm run check:gates` |
+| `check-gate-vitals.mjs` | **元层闸（闸的闸）**：真源 = `gates.manifest.json`。**2026-09-24 由原两道元层闸合并**：① **在册闸的扫描根必须存在**、且"扫到 0 即 fail-loud"的基数自检不得缺失（治「扫 0 却绿灯」—— TD-22-53 / TD-02-9 同族）；② **在册闸脚本头部必须带【申诉口】三问**（锚点 `★闸的申诉口` + `Q1 守什么：`/`Q2 何时该改：`/`Q3 怎么改：`，原 `check-gates.mjs` 判据）—— 把「闸的成本守恒律」从注释升为机器约束。另含**孤儿闸**识别（物理存在却既不在清单、也不在助手白名单 ⇒ 从没被跑过）。静态度量、零执行（< 0.1s）；非脚本命令（如 `npm run type-check`）**明确列出为跳过**、不静默略过；解析到 0 个脚本即 fail-loud（防"假绿"）。 | `npm run check:push`（闸循环内） |
 | `check-storage-keys.mjs` | 存储键契约：`contentSet/Get` 用到的键必须在 `contracts.STORAGE_KEYS` 登记（防裸键漂移） | `npm run check:keys` |
 | `check-events.mjs` | 事件契约：`publish/subscribe` 的事件名必须在 `contracts.EVENTS` 登记（防发布无订阅/订阅无发布） | `npm run check:events` |
 | `check-api-contract.cjs` | 前后端 API 契约比对（前端 `apiRegistry` ↔ localTool 路由表） | `npm run check:api` |
 | `check-node-types.mjs` | `useNodePrefs` 命名空间必须先登记 `contracts.NODE_TYPES`（防裸字符串命名空间让「上次参数」静默失效） | `npm run check:node-types` |
 | `check-node-handles.mjs` | 节点端口契约：`NODE_HANDLE_CONTRACT` 为端口真源，App/lazyNode 只允许派生 | `npm run check:node-handles` |
-| `check-strict-src.mjs` | 隐式 any 渐进闸（TD-09-1 选项 A）：按 `strict-src-whitelist.json` 白名单逐目录清零，红 = 未达标 | `npm run check:strict-src` |
 | `check-targets.mjs` | 各 `check-*` 共享的**默认扫描根唯一事实源**（被上面几个脚本 require，不单独跑） | — |
 | `mv-sync-refs.mjs` | **改名/移动文件 + AST 全库同步 import 说明符**（CLAUDE §5.4.8 强制：改名/搬文件一律用它，禁手写 import 漂移） | 手动 |
 | `debt.mjs` | **债务账本读写唯一入口**（主表 `daily/架构日志/债务.md` 只留待办 + `债务-归档.md` 存历史；2026-09-14 收口：原 2 个手写点 → 1 个写入者）。**读**：`list`（默认待办；`--all`/`--area`/`--status` 跨主表+归档）· `area <NN>` 某区全部历史 · `search <词>` 跨区找同类（**状态列即"当时怎么解的"**）· `show <ID>` 单条 + **解法入口**· `audit` 只读体检（**不是闸**）。**写**：`add`/`resolve`（入口校验非法枚举 / 摘要含 `\|` / 锚点不存在 → 当场拒，**刻意不挂闸**）。**维护**：`archive` 把已完成项移入归档（主表只留待办） | 手动 |
@@ -36,10 +35,6 @@
 | `m1-count.mjs` | **M1「React 重渲反模式」形态计数**（只读**度量工具 · 不是闸**）：AST 口径统计 memo 决策点（裸/React.memo/带比较器）+ JSX 内联箭头·数组·对象 prop；`--json` 落基线、`--diff` 自动算净减。**口径真源 = 脚本头**（文档只许引用，禁抄数字）。**无 pass/fail、不挂 CI**（依据 `ADR-0016` 默认不建 + M1 评审 §三「不建闸」裁定）。⚠️ 与 `m1-scan.mjs` 名字撞车但**两回事**：那个是 TS 类型错误，这个是重渲形态 | — |
 | `ts-detail.mjs` | 测试类型错误**逐条明细**（只读）：跑 1 次 tsc，按文件名片段过滤出多个目标文件的逐行错误。`check` 逐文件查太慢时用它 | — |
 | `ui-geometry/measure-panel.mjs` | **真实浏览器布局测量**：自起/复用 dev server，注入表格模式+消息流+AI 预览，量指定选择器几何 + 扫「真正撑破面板右缘」的元素（自动排除 `.sb-body` 等滚动容器内被正常收纳的横向滚动内容）。定位"某内容超出去"类布局问题用，别靠猜 | 手动 |
-
-数据文件（根目录，流水线输入/产物）：
-- `dist-snapshot.json`：dist 产物基线快照（体积/文件清单）。**已无在用消费者**（2026-09-23 核实：只有归档脚本 `1mao-scripts/safety-net.cjs` 读它，`health-check.cjs` 早已不比对）。
-- `strict-src-whitelist.json`：`check-strict-src` 的白名单真源（逐目录渐进清零隐式 any）。
 
 内部辅助 / 一次性脚本（未挂 `package.json`，按需手动跑，勿删）：
 - `test-affected.cjs`：按**暂存改动**反查受影响测试并只跑它们（`vitest run --changed` 不认改动的源码文件，故自实现）。
