@@ -127,6 +127,21 @@ const REQUIRED = ['状态', '日期', '裁定人', '结论'];
 /** 正文行数上限 —— ADR 是**一页**：判据 + 证据 + 落点，不是过程记录（过程归区域日志）。 */
 const MAX_BODY_LINES = 80;
 /**
+ * 【篇幅超标的处置指引（2026-09-25 用户裁定）】—— 超标时**紧接着**报这一句。
+ *   为什么加：超标时最省事的动作是**抠字**（删几个虚词、换短词）—— 那是**错误方向**：
+ *   它既没让判据更清楚，又把力气花在噪音上。正确方向 = **回到这条 ADR 的目的**：
+ *   ① **它要让下一个 AI 做出什么不同判断？** —— 答得出 ⇒ 围着这一句重写，其余都是噪音；
+ *   ② **哪些是"讲道理 / 来历 / 教训"？** —— 它们不改变任何动作 ⇒ 整块抽去 `daily/架构日志/`；
+ *   ③ **是否一条里装了好几个子判据？** —— 那是结构问题（该拆/该收编），**不是字数问题**。
+ *   ⇒ 判据：**删到"只读结论 + 决议，下一个 AI 仍能做对"，就停手**；不达此目的的字数都是噪音。
+ */
+const LEN_HINT =
+  `\n     ⇒ **别急着抠字** —— 篇幅超标是信号，不是病。先答三问：` +
+  `① **这条 ADR 要让下一个 AI 做出什么不同判断？**（答得出 ⇒ 围着这一句重写，**其余都是噪音**）；` +
+  `② **哪些是"讲道理 / 来历 / 教训"？**（不改变任何动作 ⇒ 整块抽去 daily/架构日志/，判据只留"照做"）；` +
+  `③ **是不是一条里装了好几个子判据？**（那是结构问题 ⇒ 该拆/该收编，**不是字数问题**）。` +
+  `\n     ⇒ 停在"只读结论 + 决议，下一个 AI 仍能做对"处；**为过闸而删字 = 用可测量冒充正确**。`;
+/**
  * 【近义阈值（2026-09-18 补）】字符集 Dice 系数下限。
  *   **0.55** 的标定依据（对本仓 20 条现行 ADR 全量两两实测）：
  *     · 已确认的同义对（如合并前的 0010 vs 0020）⇒ **0.547**
@@ -151,7 +166,9 @@ const die = (msg, fix) => {
 };
 const val = (name, dflt = undefined) => {
   const i = process.argv.indexOf(name);
-  return i >= 0 && process.argv[i + 1] && !process.argv[i + 1].startsWith('--') ? process.argv[i + 1] : dflt;
+  return i >= 0 && process.argv[i + 1] && !process.argv[i + 1].startsWith('--')
+    ? process.argv[i + 1]
+    : dflt;
 };
 const flag = (name) => process.argv.includes(name);
 
@@ -231,7 +248,9 @@ function parseAdr(file) {
   const h = text.match(/^#\s+ADR-(\d{4})\s*·\s*(.+?)\s*$/m);
   if (!h) die(`${file}：缺标题行「# ADR-NNNN · <标题>」`, '补上标题行（编号四位，与文件名一致）');
   const meta = {};
-  for (const m of text.matchAll(/^-\s+\*\*(状态|结论|日期|裁定人|触发|取代|被取代于|毕业去向)\*\*：\s*(.*?)\s*$/gm)) {
+  for (const m of text.matchAll(
+    /^-\s+\*\*(状态|结论|日期|裁定人|触发|取代|被取代于|毕业去向)\*\*：\s*(.*?)\s*$/gm,
+  )) {
     meta[m[1]] = m[2];
   }
   return {
@@ -273,10 +292,22 @@ function renderIndex(adrs) {
   const retired = adrs.filter((a) => RETIRED.includes(a.status) && a.status !== '已毕业');
   const parts = [HEAD, ...active.map(row)];
   if (graduated.length) {
-    parts.push('', '**🎓 已毕业**（判据**仍现行**，载体已升为自动检查 · **不是作废**）', '', HEAD, ...graduated.map(row));
+    parts.push(
+      '',
+      '**🎓 已毕业**（判据**仍现行**，载体已升为自动检查 · **不是作废**）',
+      '',
+      HEAD,
+      ...graduated.map(row),
+    );
   }
   if (retired.length) {
-    parts.push('', '**已退出**（保留作记录 · **勿再引用为现行判据**）', '', HEAD, ...retired.map(row));
+    parts.push(
+      '',
+      '**已退出**（保留作记录 · **勿再引用为现行判据**）',
+      '',
+      HEAD,
+      ...retired.map(row),
+    );
   }
   return `${IDX_BEGIN}\n${parts.join('\n')}\n${IDX_END}`;
 }
@@ -357,7 +388,11 @@ function cmdList() {
   }
   console.log(
     `📚 ADR 现行判据 ｜ ${adrs.length} 条` +
-      (showAll ? `（--all：含已退出 ${retired} 条）` : retired ? `（另有已退出 ${retired} 条，--all 可见）` : ''),
+      (showAll
+        ? `（--all：含已退出 ${retired} 条）`
+        : retired
+          ? `（另有已退出 ${retired} 条，--all 可见）`
+          : ''),
   );
   for (const a of adrs) {
     console.log(`${a.id} ｜ ${STATUS_ICON[a.status] ?? '❔'} ${a.status} ｜ ${displayTitle(a)}`);
@@ -382,7 +417,13 @@ function cmdSearch() {
   if (!words.length) die('用法：node scripts/adr.mjs search <关键词> [关键词2 …]（多词 AND）');
   const hit = loadAdrs().filter((a) => words.every((w) => a.text.includes(w)));
   if (flag('--json')) {
-    console.log(JSON.stringify(hit.map(({ text, ...r }) => r), null, 2));
+    console.log(
+      JSON.stringify(
+        hit.map(({ text, ...r }) => r),
+        null,
+        2,
+      ),
+    );
     return;
   }
   console.log(`🔎 adr search「${words.join(' + ')}」｜ 命中 ${hit.length} 条`);
@@ -392,7 +433,8 @@ function cmdSearch() {
       `   ⚠️ 其中 ${nRetired} 条**已退出**（标题带【状态】前缀）—— 它们**不承载现行判据**，别直接引用。`,
     );
   }
-  for (const a of hit) console.log(`${a.id} ｜ ${STATUS_ICON[a.status]} ${a.status} ｜ ${displayTitle(a)}`);
+  for (const a of hit)
+    console.log(`${a.id} ｜ ${STATUS_ICON[a.status]} ${a.status} ｜ ${displayTitle(a)}`);
 }
 
 function cmdAdd() {
@@ -400,7 +442,8 @@ function cmdAdd() {
   const conclusion = val('--conclusion');
   if (!title) die('缺 --title', 'node scripts/adr.mjs add --title "…" --conclusion "…"');
   if (!conclusion) die('缺 --conclusion（索引表要它）', '补一句话结论，≤120 字');
-  if (conclusion.length > 120) die(`--conclusion 过长（${conclusion.length} 字 > 120）`, '压到一句话');
+  if (conclusion.length > 120)
+    die(`--conclusion 过长（${conclusion.length} 字 > 120）`, '压到一句话');
   if (conclusion.includes('|')) die('--conclusion 含裸竖线 `|`（会撑破索引表格）', '用「／」代替');
 
   const adrs = loadAdrs();
@@ -419,7 +462,8 @@ function cmdAdd() {
         ` 确属不同判据时：改措辞使两者判据分明，再 --force 跳过本检查。`,
     );
   const status = normStatus(val('--status', '生效'));
-  if (!STATUS.includes(status)) die(`状态非法：${val('--status')}`, `白名单：${STATUS.join(' / ')}`);
+  if (!STATUS.includes(status))
+    die(`状态非法：${val('--status')}`, `白名单：${STATUS.join(' / ')}`);
   const supersedes = val('--supersedes');
   if (supersedes && !adrs.some((a) => a.no === supersedes))
     die(`--supersedes ${supersedes} 不存在`, '先确认被取代的编号（`list`）');
@@ -550,7 +594,9 @@ function cmdStatus() {
   const q = process.argv[3];
   const to = normStatus(val('--to'));
   if (!q || !to)
-    die('用法：node scripts/adr.mjs status <NNNN> --to <生效|已废止|已毕业|草案> [--by NNNN] [--note "毕业去向"]');
+    die(
+      '用法：node scripts/adr.mjs status <NNNN> --to <生效|已废止|已毕业|草案> [--by NNNN] [--note "毕业去向"]',
+    );
   if (!STATUS.includes(to)) die(`状态非法：${val('--to')}`, `白名单：${STATUS.join(' / ')}`);
   const adrs = loadAdrs();
   const target = adrs.find((a) => a.no === q || a.id === q);
@@ -560,28 +606,40 @@ function cmdStatus() {
   const note = val('--note');
   // 「毕业」= 约束已升级到更强载体（类型/唯一入口/对账测试/红线）⇒ **必须写清升到哪**，否则无从核对。
   if (to === '已毕业' && !note)
-    die('--to 已毕业 必须同时给 --note "<升到哪个载体：文件:行>"', '如 --note "类型层：core/utils.ts:120 deepClone<T>"');
+    die(
+      '--to 已毕业 必须同时给 --note "<升到哪个载体：文件:行>"',
+      '如 --note "类型层：core/utils.ts:120 deepClone<T>"',
+    );
   if (to === '已毕业' && note && note.includes('|')) die('--note 含裸竖线 `|`', '用「／」代替');
 
   let next = target.text.replace(/^- \*\*状态\*\*：.*$/m, `- **状态**：${to}`);
-  if (by && !/^- \*\*被取代于\*\*/m.test(next)) next = next.trimEnd() + `\n- **被取代于**：ADR-${by}\n`;
+  if (by && !/^- \*\*被取代于\*\*/m.test(next))
+    next = next.trimEnd() + `\n- **被取代于**：ADR-${by}\n`;
   if (note) {
     next = /^- \*\*毕业去向\*\*/m.test(next)
       ? next.replace(/^- \*\*毕业去向\*\*：.*$/m, `- **毕业去向**：${note}`)
       : next.trimEnd() + `\n- **毕业去向**：${note}\n`;
   }
   if (flag('--dry')) {
-    console.log(`（dry-run）${target.id} 状态 → ${to}${by ? `（被 ADR-${by} 取代）` : ''}${note ? `（毕业去向：${note}）` : ''}`);
+    console.log(
+      `（dry-run）${target.id} 状态 → ${to}${by ? `（被 ADR-${by} 取代）` : ''}${note ? `（毕业去向：${note}）` : ''}`,
+    );
     return;
   }
   writeFileSync(join(ADR_DIR, target.file), next, 'utf8');
   if (by) {
     const newer = adrs.find((a) => a.no === by);
     if (!/^- \*\*取代\*\*/m.test(newer.text))
-      writeFileSync(join(ADR_DIR, newer.file), newer.text.trimEnd() + `\n- **取代**：${target.id}\n`, 'utf8');
+      writeFileSync(
+        join(ADR_DIR, newer.file),
+        newer.text.trimEnd() + `\n- **取代**：${target.id}\n`,
+        'utf8',
+      );
   }
   writeIndex(loadAdrs());
-  console.log(`✅ ${target.id} → ${to}${by ? `（被 ADR-${by} 取代）` : ''}${note ? `（毕业去向：${note}）` : ''}，索引已重生成`);
+  console.log(
+    `✅ ${target.id} → ${to}${by ? `（被 ADR-${by} 取代）` : ''}${note ? `（毕业去向：${note}）` : ''}，索引已重生成`,
+  );
 }
 
 /**
@@ -605,7 +663,9 @@ function cmdRm() {
       '确认是**误建**才加 --force（会同时解开取代链）；正常退役请用 status --to 已取代/已弃用/已毕业',
     );
   if (flag('--dry')) {
-    console.log(`（dry-run）将删除 docs/adr/${t.file}${inChain ? ' + 解开取代链' : ''} 并重生成索引（原因：${reason}）`);
+    console.log(
+      `（dry-run）将删除 docs/adr/${t.file}${inChain ? ' + 解开取代链' : ''} 并重生成索引（原因：${reason}）`,
+    );
     return;
   }
   if (flag('--force') && inChain) {
@@ -631,7 +691,9 @@ function cmdRm() {
   }
   rmSync(join(ADR_DIR, t.file));
   writeIndex(loadAdrs());
-  console.log(`🗑 ${t.id} 已删除（原因：${reason}）${inChain ? '，取代链已解开' : ''}，索引已重生成`);
+  console.log(
+    `🗑 ${t.id} 已删除（原因：${reason}）${inChain ? '，取代链已解开' : ''}，索引已重生成`,
+  );
 }
 
 function cmdAudit() {
@@ -671,7 +733,8 @@ function cmdAudit() {
     for (const f of REQUIRED) if (!req[f]) problems.push(`${a.id}：缺必填字段「${f}」`);
     if (!STATUS.includes(a.status)) problems.push(`${a.id}：状态非法「${a.status}」`);
     if (!a.file.includes(`ADR-${a.no}-`)) problems.push(`${a.id}：文件名编号与标题不一致`);
-    if (a.conclusion.length > 120) problems.push(`${a.id}：结论超 120 字（${a.conclusion.length}）`);
+    if (a.conclusion.length > 120)
+      problems.push(`${a.id}：结论超 120 字（${a.conclusion.length}）${LEN_HINT}`);
     // 【占位符残留（2026-09-18）】模板没填完就落盘 = 空壳 ADR。原先只在 add 里**打印**提醒，从不检查。
     const ph = placeholderLines(a.text);
     if (ph.length)
@@ -683,11 +746,12 @@ function cmdAudit() {
     if (miss.length) problems.push(`${a.id}：缺必填段落「${miss.join(' / ')}」`);
     if (a.bodyLines > MAX_BODY_LINES)
       problems.push(
-        `${a.id}：整个文件 ${a.bodyLines} 行 > ${MAX_BODY_LINES}（口径 = **文件总行数**，含头部字段行；ADR 是**一页**：压缩正文，或把过程挪去区域日志）`,
+        `${a.id}：整个文件 ${a.bodyLines} 行 > ${MAX_BODY_LINES}（口径 = **文件总行数**，含头部字段行）${LEN_HINT}`,
       );
     if (conclusions.has(a.conclusion))
       problems.push(`${a.id}：结论与 ${conclusions.get(a.conclusion)} 重复（同义 ADR 应合并）`);
-    conclusions.set(a.conclusion, a.id);    if (a.status === '生效' && !a.text.includes('违反时的判据'))
+    conclusions.set(a.conclusion, a.id);
+    if (a.status === '生效' && !a.text.includes('违反时的判据'))
       problems.push(`${a.id}：生效 ADR 缺「📌 违反时的判据」（没有它 = 发现不了回潮）`);
     if (a.supersedes) {
       const t = byNo.get(a.supersedes);
@@ -708,7 +772,8 @@ function cmdAudit() {
     }
     if (a.supersededBy && a.status !== '已取代')
       problems.push(`${a.id}：标了被取代但状态是「${a.status}」（应为 已取代）`);
-    if (a.status === '已取代' && !a.supersededBy) problems.push(`${a.id}：已取代但没写「被取代于」`);
+    if (a.status === '已取代' && !a.supersededBy)
+      problems.push(`${a.id}：已取代但没写「被取代于」`);
     // 行业区分：Superseded（有取代者）≠ Deprecated（只是不再相关，**没有**取代者）
     if (a.status === '已弃用' && a.supersededBy)
       problems.push(`${a.id}：已弃用却写了「被取代于」（已弃用 = 无取代者；被取代请用「已取代」）`);
@@ -759,7 +824,10 @@ function cmdStats() {
   const deciders = new Map();
   for (const a of adrs) {
     // 裁定人按**首段**归类（去掉括号里的原话/补充）—— 否则一行会被长文本撑爆（见 README §6.6 自查项）
-    const label = (a.decider.split(/[（(]/)[0] || a.decider).replace(/\*\*/g, '').trim().slice(0, 24);
+    const label = (a.decider.split(/[（(]/)[0] || a.decider)
+      .replace(/\*\*/g, '')
+      .trim()
+      .slice(0, 24);
     deciders.set(label, (deciders.get(label) ?? 0) + 1);
   }
   console.log('   裁定人：' + [...deciders].map(([k, v]) => `${k} ×${v}`).join(' · '));
@@ -782,11 +850,14 @@ function cmdHygiene() {
   const total = adrs.length;
 
   // ① 空壳
-  const shells = active.filter((a) => placeholderLines(a.text).length || missingSections(a.text).length);
+  const shells = active.filter(
+    (a) => placeholderLines(a.text).length || missingSections(a.text).length,
+  );
 
   // ② 近义簇（并查集：把两两近义的连成一簇）
   const parent = new Map(active.map((a) => [a.no, a.no]));
-  const find = (x) => (parent.get(x) === x ? x : (parent.set(x, find(parent.get(x))), parent.get(x)));
+  const find = (x) =>
+    parent.get(x) === x ? x : (parent.set(x, find(parent.get(x))), parent.get(x));
   let pairs = 0;
   for (let i = 0; i < active.length; i++) {
     for (let j = i + 1; j < active.length; j++) {
@@ -811,29 +882,49 @@ function cmdHygiene() {
   // ③ 未毕业
   const notGraduated = active.length;
 
-  console.log(`🩺 adr hygiene（只读 · **不是闸**）｜ ${total} 条（现行 ${active.length} · 已退出 ${total - active.length}）`);
+  console.log(
+    `🩺 adr hygiene（只读 · **不是闸**）｜ ${total} 条（现行 ${active.length} · 已退出 ${total - active.length}）`,
+  );
   console.log('');
-  console.log(`   ① 空壳率        ${shells.length === 0 ? '✅ 0' : `❌ ${shells.length}`}${shells.length ? ` —— ${shells.map((a) => a.id).join(' ')}` : ''}`);
-  console.log(`   ② 近义簇        ${dupClusters.length === 0 ? '✅ 0' : `⚠️ ${dupClusters.length} 簇（${pairs} 对）`}`);
-  for (const c of dupClusters) console.log(`        ${c.map((a) => a.id).join(' ↔ ')}  ⇒ 同一件事散在 ${c.length} 条，考虑合并`);
-  console.log(`   ③ 未毕业        ⚠️ ${notGraduated}/${active.length} —— ADR 是**判据的孵化器，不是永久仓库**（README §6.3）`);
-  console.log(`        手段优先级：结构上不可能 ＞ 类型层 ＞ 唯一入口 ＞ 对账测试 ＞ **文档留痕** ＞ 机器闸`);
+  console.log(
+    `   ① 空壳率        ${shells.length === 0 ? '✅ 0' : `❌ ${shells.length}`}${shells.length ? ` —— ${shells.map((a) => a.id).join(' ')}` : ''}`,
+  );
+  console.log(
+    `   ② 近义簇        ${dupClusters.length === 0 ? '✅ 0' : `⚠️ ${dupClusters.length} 簇（${pairs} 对）`}`,
+  );
+  for (const c of dupClusters)
+    console.log(
+      `        ${c.map((a) => a.id).join(' ↔ ')}  ⇒ 同一件事散在 ${c.length} 条，考虑合并`,
+    );
+  console.log(
+    `   ③ 未毕业        ⚠️ ${notGraduated}/${active.length} —— ADR 是**判据的孵化器，不是永久仓库**（README §6.3）`,
+  );
+  console.log(
+    `        手段优先级：结构上不可能 ＞ 类型层 ＞ 唯一入口 ＞ 对账测试 ＞ **文档留痕** ＞ 机器闸`,
+  );
   console.log(`        能升为自动检查的 ⇒ \`status <NNNN> --to 已毕业 --note "<载体:文件:行>"\``);
 
-  const active_ = active.map((a) => a.date).filter(Boolean).sort();
+  const active_ = active
+    .map((a) => a.date)
+    .filter(Boolean)
+    .sort();
   if (active_.length) {
     const byDate = new Map();
     for (const d of active_) byDate.set(d, (byDate.get(d) ?? 0) + 1);
     const today = new Date().toISOString().slice(0, 10);
     const todayN = byDate.get(today) ?? 0;
-    console.log(`   ④ 今日新增      ${todayN === 0 ? '✅ 0' : `⚠️ ${todayN} 条`}${todayN >= 3 ? ' —— 一天 ≥3 条通常意味着"没先想清楚内容类别"（ADR-0025 Lessons 1）' : ''}`);
+    console.log(
+      `   ④ 今日新增      ${todayN === 0 ? '✅ 0' : `⚠️ ${todayN} 条`}${todayN >= 3 ? ' —— 一天 ≥3 条通常意味着"没先想清楚内容类别"（ADR-0025 Lessons 1）' : ''}`,
+    );
   }
 
   console.log('');
   console.log('   ── 判断口径（不看感觉，看这四个数）──');
   console.log('   · ① 必须为 0（硬伤）；② 必须为 0（同义就该合并）；');
   console.log('   · ③ 高不一定是病（判据还没找到更强载体），但**长期不降**要问"是不是该升级了"；');
-  console.log('   · ④ 是**预警**：一天加多条时，回头问 ADR-0025 的归位表 —— 这几条属于**同一类**吗？');
+  console.log(
+    '   · ④ 是**预警**：一天加多条时，回头问 ADR-0025 的归位表 —— 这几条属于**同一类**吗？',
+  );
 
   if (flag('--json')) return;
   process.exit(shells.length || dupClusters.length ? 1 : 0);
@@ -870,7 +961,8 @@ function cmdHygiene() {
 const REFS_SKIP = new Set(['node_modules', 'dist', '.git', '.probe']);
 const REFS_EXT = /\.(md|ts|tsx|js|jsx|mjs|cjs)$/;
 const REFS_ROOTS = ['docs', 'spec', 'src', '.codebuddy', 'daily', 'CLAUDE.md'];
-const EXEMPT_REF = /已删号|已删|已退役|已移除|已改名|原名|此前|旧版|曾经|tombstone|墓碑|\]\(ADR-\d{4}-/;
+const EXEMPT_REF =
+  /已删号|已删|已退役|已移除|已改名|原名|此前|旧版|曾经|tombstone|墓碑|\]\(ADR-\d{4}-/;
 /**
  * 编号正则的**负向先行**（2026-09-20 补 · 负例探针逼出）：
  *   `(?!-?\d)` 排除 `ADR-2026-09-19` 这类**文件名里的日期**（实证误报：日志名
@@ -962,7 +1054,10 @@ function cmdRefs() {
           {
             scannedRefs: rows.length,
             knownIds: known.size,
-            ghosts: [...ghosts].map(([id, at]) => ({ id, at: at.map((x) => `${x.rel}:${x.line}`) })),
+            ghosts: [...ghosts].map(([id, at]) => ({
+              id,
+              at: at.map((x) => `${x.rel}:${x.line}`),
+            })),
           },
           null,
           2,
@@ -970,8 +1065,12 @@ function cmdRefs() {
       );
       process.exit(ghosts.size ? 1 : 0);
     }
-    console.log(`🔗 adr refs --check（断链：编号是否还存在）｜ 扫到 ${rows.length} 处引用 · 有效编号 ${known.size} 个`);
-    console.log('   范围：docs/ spec/ src/ .codebuddy/ CLAUDE.md —— **不含 `daily/**`**（过程文档必带历史编号，扫它 = 常红）');
+    console.log(
+      `🔗 adr refs --check（断链：编号是否还存在）｜ 扫到 ${rows.length} 处引用 · 有效编号 ${known.size} 个`,
+    );
+    console.log(
+      '   范围：docs/ spec/ src/ .codebuddy/ CLAUDE.md —— **不含 `daily/**`**（过程文档必带历史编号，扫它 = 常红）',
+    );
     if (!ghosts.size) {
       console.log('   ✅ 0 断链（所有引用都指向存在的 ADR）');
       process.exit(0);
@@ -992,15 +1091,20 @@ function cmdRefs() {
 
   // ── 模式 B：`refs <NNNN>` ⇒ 单条引用面，按"要不要回改"分三类 ─────────────────
   const rows = scanAdrRefs(); // **含 daily**：要显示「③ 过程文档（不动）」这一类
-  const no = String(arg).replace(/^ADR-?/i, '').padStart(4, '0');
-  if (!known.has(no)) die(`ADR-${no} 不存在（可能是已删号）`, `现有编号：${[...known].sort().join(' ')}`);
+  const no = String(arg)
+    .replace(/^ADR-?/i, '')
+    .padStart(4, '0');
+  if (!known.has(no))
+    die(`ADR-${no} 不存在（可能是已删号）`, `现有编号：${[...known].sort().join(' ')}`);
   const self = `docs/adr/ADR-${no}-`;
   const mine = rows.filter((r) => r.refs.includes(`ADR-${no}`) && !r.rel.startsWith(self));
   const g1 = mine.filter((r) => r.rel.startsWith('docs/adr/'));
   const g3 = mine.filter((r) => r.rel.startsWith('daily/'));
   const g2 = mine.filter((r) => !r.rel.startsWith('docs/adr/') && !r.rel.startsWith('daily/'));
 
-  console.log(`🔗 adr refs「ADR-${no}」｜ ${mine.length} 处引用（须回改 ${g1.length + g2.length} · 过程文档 ${g3.length}）`);
+  console.log(
+    `🔗 adr refs「ADR-${no}」｜ ${mine.length} 处引用（须回改 ${g1.length + g2.length} · 过程文档 ${g3.length}）`,
+  );
   const dump = (title, list) => {
     if (!list.length) return;
     console.log(`\n   ${title}`);
@@ -1031,7 +1135,11 @@ function cmdDoctor() {
   const self = fileURLToPath(import.meta.url);
   const run = (bin, args) => {
     try {
-      const out = execFileSync(process.execPath, [bin, ...args], { encoding: 'utf8', cwd: ROOT, maxBuffer: 64 * 1024 * 1024 });
+      const out = execFileSync(process.execPath, [bin, ...args], {
+        encoding: 'utf8',
+        cwd: ROOT,
+        maxBuffer: 64 * 1024 * 1024,
+      });
       return { out: String(out).trim(), code: 0 };
     } catch (e) {
       return { out: String(e.stdout ?? '').trim(), code: e.status ?? 1 };
@@ -1039,7 +1147,13 @@ function cmdDoctor() {
   };
   const step = (label, r) => {
     console.log(`\n${r.code === 0 ? '✅' : '❌'} ${label}`);
-    if (r.out) console.log(r.out.split('\n').map((l) => `   ${l}`).join('\n'));
+    if (r.out)
+      console.log(
+        r.out
+          .split('\n')
+          .map((l) => `   ${l}`)
+          .join('\n'),
+      );
   };
 
   console.log('🩺 adr doctor —— Step 1 体检编排（只读 · **不是闸**）｜ 顺序：先 ADR，再弯路');
@@ -1053,7 +1167,9 @@ function cmdDoctor() {
   step('④ 前人弯路（extract-detours --check）', d);
 
   console.log('\n⓿ 结论句 vs 它自己的正文（**机器查不到** —— 语义判断；硬凑 grep 是假防线）');
-  console.log('   ⇒ 人工：逐条并读 `- **结论**：` 与 §判据 / §决议 / §后果 / 头部补充（ADR守护者 §十问⓿）。');
+  console.log(
+    '   ⇒ 人工：逐条并读 `- **结论**：` 与 §判据 / §决议 / §后果 / 头部补充（ADR守护者 §十问⓿）。',
+  );
   console.log('\n── 下一步 ──');
   console.log('   · 有 ❌ ⇒ 按各项自带的「怎么修」处置；');
   console.log('   · 要动某条 ⇒ 先 `refs <NNNN>` 拿引用面：①② 回改、③ 不动；');
@@ -1093,7 +1209,17 @@ if (!cmd || !table[cmd]) {
  * 幂等 ⇒ 无"何时该跑"问题：`renderIndex` 纯派生，一致时**零写入**（不产生 git 噪音）。
  * `index` / `rm` 自行处理（前者就是生成器；后者会删文件），故排除。
  */
-const SELF_HEAL = new Set(['list', 'show', 'search', 'add', 'status', 'audit', 'hygiene', 'stats', 'refs']);
+const SELF_HEAL = new Set([
+  'list',
+  'show',
+  'search',
+  'add',
+  'status',
+  'audit',
+  'hygiene',
+  'stats',
+  'refs',
+]);
 if (SELF_HEAL.has(cmd)) {
   try {
     const adrs = loadAdrs();
