@@ -135,7 +135,10 @@
   --st-bg-card: rgb(var(--mao-surface-deep));
   --st-bg-field: rgb(var(--mao-input));
   --st-bg-hover: rgb(var(--mao-surface-hover));
-  --st-bg-active: rgb(var(--mao-surface-active));
+  /* 选中底 = hover 底（用户 2026-09-23 裁定：不另立色值）。
+     原用 surface-active(38)，比 hover(43) 还暗 ⇒ 选中看不出区别；现直接复用 hover 那一档。
+     三处消费者共用本令牌：侧栏导航 / 技能卡 / 列表项（选中的区分还靠文字色 --st-text-1）。 */
+  --st-bg-active: var(--st-bg-hover);
   --st-bg-sunken: rgb(var(--mao-surface-2));
   --st-line: rgb(var(--mao-edge-subtle)); /* 发丝线（分隔/描边默认值） */
   --st-line-strong: rgb(var(--mao-edge)); /* 控件描边 */
@@ -178,28 +181,34 @@
   overflow: hidden;
   background: var(--st-bg);
   color: var(--st-text-3);
-  /* 【字体栈 · 与全站同口径 · 2026-09-23 修】
-     原苹果优先栈（-apple-system → SF Pro Text → Helvetica Neue → PingFang SC → Microsoft YaHei）
-     在 Windows 上前 5 个字体**全部落空** ⇒ 整页（含拉丁字母与数字）走 Microsoft YaHei，
-     而任务中心等处走 `system-ui` ⇒ Segoe UI（拉丁）+ 雅黑（仅中文回退）⇒ 两页字体明显不同。
-     更严重的是**字重跳档**：雅黑非 UI 版只有 300/400/700 三档，本页的 --st-fw-medium(500) /
-     --st-fw-semibold(600) 按 CSS 字体匹配会直接命中 Bold —— 标题 / 当前项 / 统计数字在 Windows 上
-     变成又粗又糊的黑体。Segoe UI 有真 Semibold，不跳档。
-     故改为与 `src/index.css`（html/body）及 `director3d/styles.css` 完全一致的栈。
-     Mac 上仍落 -apple-system（SF），观感不变。
-     `font-synthesis: none`：禁浏览器合成伪粗/伪斜（缺字重时会糊），与 director3d 同口径。 */
+  /* 【字体栈 · 与 src/index.css 逐字一致 · 2026-09-23 修（两轮）】
+     【第一轮】原为苹果优先栈（-apple-system → SF Pro Text → Helvetica Neue → PingFang SC →
+     Microsoft YaHei）：Windows 上前 5 个字体**全部落空** ⇒ 整页（含拉丁与数字）走 Microsoft YaHei，
+     而任务中心 / AI 助手走 `system-ui` ⇒ Segoe UI（拉丁）+ 中文回退 ⇒ 两页字体明显不同。
+     【第二轮】改成 system-ui 口径后仍显「字怪」—— 因为末尾显式写了 `'Microsoft YaHei'`。
+     实测本机 `HKLM\...\FontLink\SystemLink` 中 `Segoe UI` 的中文回退链为
+         MSYH.TTC,Microsoft YaHei UI,128,96
+     即**别处的中文靠回退拿到 `Microsoft YaHei UI`，而显式写 `'Microsoft YaHei'` 会绕开回退、
+     拿到非 UI 版**。两者同在 msyh.ttc 里，却是两个不同字体：UI 版为小字号屏幕优化（字面紧凑、
+     hinting 更锐），非 UI 版字面更松、同字号看着更大更虚。显式声明优先级高于回退链
+     ⇒ **只有设置页的中文不是 UI 版雅黑** ⇒ 「怪怪的」。
+     ⇒ 故删掉末尾的 `'Microsoft YaHei'`，中文一律交给系统回退（与 index.css 逐字一致）。
+     ⚠️ 同理：**不要在这里补任何中文字体名** —— 补了就绕开回退，又与别处不同。
+     【字重】本机雅黑（含 UI 版）只有 msyh / msyhbd / msyhl 三个文件 = Light/Regular/Bold，
+     **无 Semibold** ⇒ 任何 500/600 必跳 Bold，故本页字重已全篇 400（见 --st-fw-normal）。
+     【Mac】仍落 -apple-system（SF），观感不变。
+     `font-synthesis: none`：禁浏览器合成伪粗/伪斜，与 director3d 同口径。 */
   font-family:
     ui-sans-serif,
     system-ui,
     -apple-system,
     'Segoe UI',
     Roboto,
-    'Microsoft YaHei',
     sans-serif;
   font-synthesis: none;
   font-size: var(--st-fs-md);
   line-height: var(--st-lh-base);
-  -webkit-font-smoothing: antialiased;
+  /* 不设 -webkit-font-smoothing：Windows 上无效（Chrome 120+ 已弃用），且全仓别处都没有 */
   z-index: 100; /* = z-float：与旧值一致，覆盖画布 */
 }
 .st-root *,
@@ -265,9 +274,12 @@
 .st-grid--auto {
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
 }
-/* 卡片网格：每列更宽（内容区下约 2 列），给卡片内的说明文字留出可读宽度 */
+/* 卡片网格：每列更宽（内容区下约 2 列），给卡片内的说明文字留出可读宽度。
+   ⚠️ 必须用 auto-fill 而不是 auto-fit：auto-fit 会**折叠没有内容的空轨道** ⇒ 某组只有 1 张卡时
+   它被拉满整行，与「每行 2 张」的其它组不一致（2026-09-23 用户报「官方一排 1 个、其它一排 2 个」）。
+   auto-fill 保留空轨道 ⇒ 卡片宽度恒定，与卡片数量无关。 */
 .st-grid--cards {
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
 }
 /* 网格里需要横跨整行的元素（空态提示等） */
 .st-grid-full {

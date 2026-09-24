@@ -311,7 +311,8 @@ export default function SkillSettings() {
           setNotice('技能库里还没有可用的技能包（要清掉列表里残留的条目，用卡片上的「丢弃」）');
         else if (h.changed) setNotice(`已重读：新增/更新 ${h.loaded} 个`);
         else setNotice('没有变化');
-        if (h.failures.length) setNotice(`${h.failures.length} 个包**未纳入**：${h.failures[0]}`);
+        // 注：notice 是纯文本字符串，**不支持 markdown** —— 不要在这里写 `**加粗**`（会原样显示星号）
+        if (h.failures.length) setNotice(`${h.failures.length} 个包未纳入：${h.failures[0]}`);
         // 已纳入但引用的资料不在包里：说清"它已经能用，只是某个资料读不到"（行上也有标记）
         if (h.warnings.length) {
           setNotice(
@@ -468,8 +469,8 @@ export default function SkillSettings() {
   const handleDiscard = async (row: SkillRow) => {
     const ok = await askConfirm({
       title: `丢弃「${row.name}」在索引里的那一份？`,
-      message:
-        '只清掉索引里的这一条（磁盘上没有它了）。索引里的正文会一起删掉，**之后无法再恢复**。',
+      // 注：message 是纯文本（ConfirmOptions.message: string），**不支持 markdown** —— 不要写 `**加粗**`
+      message: '只清掉索引里的这一条（磁盘上没有它了）。索引里的正文会一起删掉，之后无法再恢复。',
       confirmText: '丢弃',
       danger: true,
     });
@@ -717,7 +718,6 @@ export default function SkillSettings() {
             <Bot size={17} />
             Skill Library
           </h3>
-          <p className="st-section-sub">下面每一张卡就是一个技能；改动保存即写回磁盘上的那个文件</p>
         </div>
         <div className="st-inline">
           <span className="st-chip">共 {view.counts.diskPackages} 个</span>
@@ -883,19 +883,7 @@ export default function SkillSettings() {
               超出上限的正文会被截断，并在发给 AI 的文本里注明（不会静默丢内容）。
             </p>
           </div>
-        ) : (
-          <div className="st-inline st-hint">
-            <span>
-              对话里可用 <b>{view.counts.enabled}</b> 个 · 一次对话只带 1 个
-            </span>
-            <span>·</span>
-            <span>清单 {cfg.catalogToModel ? '开' : '关'}</span>
-            <span>·</span>
-            <span>单篇 {cfg.contentLimits.singleSkillChars.toLocaleString()} 字</span>
-            <span>·</span>
-            <span>合计 {cfg.contentLimits.expansionTotalChars.toLocaleString()} 字</span>
-          </div>
-        )}
+        ) : null}
       </div>
 
       {/* 页面级横幅：未决 / 结果 / 索引损坏 —— 不藏在折叠面板里 */}
@@ -1066,11 +1054,15 @@ export default function SkillSettings() {
                     {isEditing ? (form.id ? '编辑技能' : '新建技能') : selected?.name}
                   </div>
                   <div className="st-hint">
-                    {selected?.readonly
-                      ? '官方内置'
-                      : selected
-                        ? `自定义 · 分组 ${selected.groupLabel}`
-                        : '保存即写回磁盘上的 SKILL.md（整包原子写，写盘成功才更新列表）'}
+                    {selected ? (
+                      <>
+                        <span>{selected.readonly ? '官方内置' : '自定义'}</span>
+                        {!selected.readonly && <span> · 分组 {selected.groupLabel}</span>}
+                        {selected.version ? <span> · v{selected.version}</span> : null}
+                      </>
+                    ) : (
+                      '保存即写回磁盘上的 SKILL.md（整包原子写，写盘成功才更新列表）'
+                    )}
                   </div>
                 </div>
                 {/* 「编辑」不在这里再放一份：操作区那个是唯一入口（P1 一个动作一个入口） */}
@@ -1080,38 +1072,6 @@ export default function SkillSettings() {
               </div>
               <div className="st-modal-body">
                 <div className="st-stack">
-                  <div className="st-card-head">
-                    <div className="st-grow">
-                      <div className="st-card-title">
-                        {isEditing ? (form.id ? '编辑技能' : '新建技能') : selected?.name}
-                      </div>
-                      <div className="st-card-sub">
-                        {selected ? (
-                          <>
-                            <span>{selected.readonly ? '官方内置' : '自定义'}</span>
-                            {!selected.readonly && <span>· 分组 {selected.groupLabel}</span>}
-                            {selected.version ? <span>· v{selected.version}</span> : null}
-                          </>
-                        ) : (
-                          <span>保存即写回磁盘上的 SKILL.md（整包原子写，写盘成功才更新列表）</span>
-                        )}
-                      </div>
-                    </div>
-                    {selected && (
-                      <span
-                        className={
-                          selected.usable && selected.enabled ? 'st-chip st-chip--ok' : 'st-chip'
-                        }
-                      >
-                        {selected.usable
-                          ? selected.enabled
-                            ? '对话里可用'
-                            : '对话里不带它'
-                          : '不可用于对话'}
-                      </span>
-                    )}
-                  </div>
-
                   {/* 元信息条（路径 / 引用 / 修改时间 / 缺失项）—— 只读态与编辑态共用 */}
                   {selected && (
                     <div className="st-hint st-stack st-stack--xs">
@@ -1193,10 +1153,6 @@ export default function SkillSettings() {
                         </datalist>
                       </label>
                     </div>
-                    <span className="st-hint">
-                      一个技能只属于一个分组；在这里改成别的分组 = 把它移过去，
-                      <b>清空则移回「未分组」</b>
-                    </span>
                     <label className="st-field">
                       <span className="st-label">描述</span>
                       <input
@@ -1206,10 +1162,6 @@ export default function SkillSettings() {
                         onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
                         placeholder="一句话说清它管什么"
                       />
-                      <span className="st-hint">
-                        开「把全部 Skill 清单发给
-                        AI」时，清单**只收有描述的技能**（说不出用途的不占预算）
-                      </span>
                     </label>
                     <label className="st-field">
                       <span className="st-label">正文</span>
@@ -1392,13 +1344,6 @@ export default function SkillSettings() {
       />
 
       {/* 官方组的小注（内置是代码常量：能开关、不能改）—— 判据读视图层给的 `kind`，不比哨兵 */}
-      {view.groups.some((g) => g.kind === 'official') && (
-        <div className="st-hint">
-          官方 Skill
-          是随程序内置的（不占磁盘），只能开关；你的技能住在技能库里，改它请用上面的弹窗，或者在右上
-          ⋯ →「打开技能库」里直接改文件。
-        </div>
-      )}
     </section>
   );
 }

@@ -110,11 +110,6 @@ export default function AgentChatSettings() {
           <p className="st-section-sub">选择画布 AI 助手的对话模型</p>
         </div>
         <div className="st-card">
-          <p className="st-hint">
-            AI
-            助手在画布右侧面板的对话会用这里指定的模型。默认取聊天供应商的第一个模型；可在此手动指定。
-          </p>
-
           {chatProviders.length === 0 ? (
             <div className="st-notice">
               暂无可用的聊天供应商，请先在「第三方 API 配置」添加并拉取聊天模型
@@ -191,12 +186,6 @@ export default function AgentChatSettings() {
           <p className="st-section-sub">让 AI 记得上一轮说过什么（仅文字）</p>
         </div>
         <div className="st-card">
-          <p className="st-hint">
-            AI 助手默认只处理你最新的一句话（fresh-task
-            机制），可能导致「先反推提示词、再让它优化」时它忘了上文。这里可让它回传最近 N 轮对话的
-            <b>文字</b>
-            。图片始终以编号引用、不会真图进上下文，不影响出图安全。
-          </p>
           <div className="st-inline">
             <input
               className="st-input st-input--num"

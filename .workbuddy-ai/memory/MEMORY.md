@@ -1,101 +1,14 @@
-# 项目长期记忆 · maomao（画布仓）
+# 本仓库不需要 memory
 
-> 只记跨会话仍成立的约定与踩坑。每日流水在 `YYYY-MM-DD.md`。
-
-## 一 · 判据体系（唯一真源）
-- 改码流程/轮次文件：`.codebuddy/commands/架构师改码7步法.md`；轮次文件 `daily/架构日志/NN-区域-主题-日期.md` 只引指针，**禁抄数字**。
-- ADR：`node scripts/adr.mjs list`（现行39条，`--all`含已退出15）。真源=各 `docs/adr/ADR-NNNN-*.md` 头部字段；`README.md` 索引是生成物（禁手改）。改完必跑 `adr.mjs index --write` + `adr.mjs audit`（硬线：结论≤120字·单文件≤80行·超限即报）。`list` 过滤已退出、`search` 不过滤 ⇒ 引用前先看 `状态` 字段（15条已退出里7条标题是命令句易误当判据）。
-- 关键判据：0016 建闸默认不建 · 0019 验收看数量净减 · 0048 fail-soft/fail-fast 按后果选 · 0049 测试只锁用户可感知契约（射程=只对新增/新改执法，存量只随"改到哪改哪"增量）· 0052 六级落点 · 0053 造→判→删前四关（目的/能力/消费/红线）· 0057 收口三动作。
-- **ADR-0057（收口）**：① 开工前先数载体 N（grep 出不许估）② 建真源后逐个销副本（删或改指真源，只改注释不算）③ N→M 且 M<N 才算过。载体四型：数值/类型/配置/文档；**按数值清点只能找到第一种**。载体清单不写进 ADR（过期被抄成第二份），收口在任务书现填。
-- **判据登记表 = `spec/判据登记表.md`（174 条 · 9 板块 · 未收口 24 · 跨板块 ~45）**：**人工整理版**，按板块分 §一~§九，每行 = 判据／真源(`文件:行`)／N／型别／跨板块／备注；§0 是**维护规矩**（列只有 6 列不许改、跨板块列**只放板块名**、单元格禁裸 `|`）。**开工前在这张表数 N、收口后数 M，M<N 才算完成**（ADR-0057 执行面）。⚠️ **不要用脚本合并生成**（`tmp/register-build.cjs` 曾产出跨板块列半截句 + 未配对反引号，被用户否）；源数据在 `docs/agent 批量任务/TASK-032~040`，整理靠人工。
-- ⚠️ **"逐个销副本"销的是每一个消费点，不是每一类载体**（2026-09-22 活样本）：`capability.ts` 收口时接了 HTTP 边界与 GET attach 两条路径，**漏了恢复扫描**（`relay-poll.ts:962/:990`）⇒ 真源已立、症状原样保留（TD-08-51 仍在）。⇒ 收口后必查：**这个判据的每一个消费点都接上了吗**。
-- 七步法 SOP Step3 现有8条判据；第8条「判据适用面」自检「改的是实例还是规则」。⚠️ 最易只铺代码不铺声明面（头注释/用例编号/模块README表格/plan规格块/类型签名）。skill `architect-7-steps` 与之同源，改 SOP 同步改 skill。
-- 债务账本：`node scripts/debt.mjs add|show|edit|audit`，**禁手改**。`edit` 支持 summary/solution/classify/rate；可改归档行；锚点用 `reanchor`。硬约束：`--summary`≤120字、禁裸竖线（用「／」）、`--rate`仅高/中/低。`resolve` 覆盖原注（丢带sha解法）⇒ 只补注用 `edit`。债号按主表最大值+1 ⇒ 以 `add` 回显号为准。
-
-## 二 · 度量脚本
-- `scripts/m1-count.mjs` = M1 React 重渲形态计数，AST 口径（TS createSourceFile）。**非闸**（无pass/fail、退出码恒0、不挂CI）。用法：`--json tmp/x.json` 落基线（开工前）→ `--diff` 算净减。替代手写 grep 口径。
-- ⚠️ `m1-scan.mjs` 是测试 TS 类型错误分布，无关。口径必须钉 AST 禁停 grep（旧grep把30行注释里 `memo(` 计入）。`grep 归零` 验收只作人工命令，禁写单测（ADR-0049 形态⑤断源码文本=自证式）。
-
-## 三 · 生成预算真源（143·后端持真相）
-- 唯一真源 `localTool/src/budget.ts`（`DEFAULT_BUDGET_MS`+`budgetMsFor(capability,override?)`）。前端只读不硬编码。三值：`chat 180_000`（=`CHAT_TOTAL_TIMEOUT`，非120s段值）· `image 300_000`（实测p99,n=478）· `video 600_000`（⚠️无实测,n=6,待补）。
-- ⚠️ `override` 必过 `Number.isFinite && >0`（`0??5===0`不掐点、`NaN??5===NaN`立即触发）。不预建 `[provider]` 层（ADR-0053①）。真相归属按"任务是否脱离调用方存活"：image/video 异步句柄⇒后端持（前端读响应 `budgetMs`）；chat 同步⇒**前端声明** `body.timeoutMs`、后端作override原样用（禁把chat收口成后端持真相；`ai-relay`是连接层kit，业务策略落 `localTool/src/`）。
-
-## 四 · 运行时取证入口（实测发生没发生）
-- localTool 日志 `localTool/logs/localtool_18080_YYYY-MM-DD.log`，**UTC 时间戳**（别当本地）。全盘仅此一处。
-- 任务真相表 `C:\Users\xinye\.maomao-localtool\localtool.db`→`tasks`（788行）。**只读**（`sqlite3.connect('file:...?mode=ro',uri=True)`，epoch ms），用托管python sqlite3。⚠️ 全 `completed`（幸存者偏差，失败率/放弃率是下界须带声明）；`poll_count`/`not_found_count` 全0不可当证据；日志只记HTTP，出站轮询不在此⇒"零请求"只证"没经本实例"。一次对账最低要求：`POST /api/generate` 时刻 + `tasks` 对应行；拿不出=传闻级，不许当决议前提。
-
-## 五 · 反复踩的坑
-1. 区间差值≠轮次净减：基线须该轮开工前跑，事后 git worktree 检出不可行（提交混装/整轮搬迁同区间）。
-2. 判据晚于行为不判违规：先核 ADR 日期 vs 代码日期。
-3. 同形≠同载体：判 ADR 毕业前须实测载体（真闸/类型层才算；行为单测不算）。
-4. 可能并行会话在写：动 git 前后看 mtime；报"src零改动"前必用 mtime 核。审计期间目标会动⇒下结论前再核 mtime，漂移先逐条复核而非继续挖。取证用 Grep(ripgrep) 非 shell grep（zsh下 `--include` 报glob错、`\|` 静默返空=最危险假证据）。
-5. 审计自注负例；引 ADR 豁免先划射程（豁免管"本条执法范围"非"资产冻结"）；报失败形态前读语义标签（`{ok:false,pending:true}` 非终态、`unknown` 终态但"可能已生成"勿折 failed/running）；"已有裁定"与"新数据"不冲突，数据支持定值即足。
-6. `debt.mjs add` 后必复跑 `audit`（锚点断链）。复核别人"已完成"须**重跑可机判凭证**（lint/check:*/测试），只读结论=没复核。
-7. 写"账实不符"必附读数时间戳，结论标"截至HH:MM"。
-8. 复核别人轮次先 `git show <sha> --stat` 拿完整改动面再对照覆盖表，勿接受"不归本轮"结论（归属判错=漏审）。易漏面：类型层SSOT（同枚举多份定义TS同构不报）、"不同判据不冲突"须反证、注释复述已移出数值（回潮）、注释论证与实现互斥。动别人账本行前先 `show` 看凭证。
-9. **"已排期/排在 X 之后"是排序、不是依赖**：动手前先判"X 真的挡着它吗"（实证：`plan142` 把删壳排 B 批后，而 B 批动的是设置页、与面板不撞车 ⇒ 前提从未被锁住）。**别把"待办已排期"当成"不能动"**。
-10. **桩比生产乐观 = 测试给假保证**：改/删被桩覆盖的路径时，红的可能是"桩的假象"而非回归 —— 先读**生产**那条链再决定改代码还是改断言（实证：mock 的 `findSkill` 直读夹具、绕过了 `listAllSkills()` 的降级）。同族：测试的订阅桩 `cbs[key]=cb` **后者覆盖前者**，同键注册两处时打不到想打的那个。
-11. **判"谁能触发 X / 某开关是否恒假"要两级取证，缺一级就会误判**（2026-09-23 审 plan145，我为此来回推翻了两次）：
-   ① **grep 全量触发源**（不能只数 UI 传参）；② **逐个判生产可达性** —— 有调用点 ≠ 可达，还要看
-   它**有没有 UI 消费者**、**是否被更早的超时先覆盖**。实证：`scriptBoxEngine` 的 `onStopScriptItem`
-   看着是"剧本盒停止"，实际全仓只有 schema 声明 + 2 个测试 mock，**UI 里没有任何停止按钮**；
-   同处 `withTimeout` 兜底（360s）也被 image `budgetMs`（300s）先覆盖 ⇒ 两个 abort 源**生产上都不可达**
-   ⇒ 二稿"删节点停止后无人能触发 cancel"**是对的**，我一度判它错。**教训：只 grep 到调用点就当"可达"，
-   是最容易把对的判成错的一种假证据。**
-12. **判"前端写不动某字段"先看它是不是「改内存 + persist」两段式**：`taskStore.failTask/patchTask` 先 `tasks.map` + `notify()`（**UI 立即变**）再 `persist()`（落库才可能被 `EXECUTION_OWNED_COLUMNS` 拦）。只看落库那段会误判成"UI 无反馈"（我 09-23 就误判过，已推翻留档）。
-13. **看见 `cond ? f(x) : undefined` 别急着判"可为 undefined ⇒ 出事"**（09-23 审 plan145）：要追到 `f` 的**返回契约**与**调用链可达性**再判。实证：`rowBudgetMs = cap ? budgetMsFor(cap) : undefined` 看着像"预算可缺失"，但 `DEFAULT_BUDGET_MS: Record<RelayCapability, number>` 类型上恒有值、非法 override 也兜回默认，且 live 路径的 `timeoutMs` 来自 POST 响应（缺则 fail-fast）⇒ **正常路径必掐点**；undefined 只在快照 capability 非法（= TD-08-51 既有情形）。我据此把人家写对的结论判成"事实错误"，已推翻。
-14. **"取消/停止"在本仓只停「本地等待」，不停上游，净效果为负**（09-23 审 plan145 发现）：`relay-poll.ts:256-264` 的 `stopHandle` 只 `clearInterval(timer)` + `handles.delete()`，**没有任何出站取消请求**（`ai-relay/**` 里也没有上游 cancel 能力，只有本地 `reader.cancel()`）⇒ 上游照跑、**照计费、积分不退**。而**不取消反而能拿到结果**：budgetMs 到点 ⇒ 编排返 `pending` + 清 loading ⇒ 行留 running ⇒ pollTask 接管 ⇒ 上游 completed ⇒ `completeTask` **广播回填节点**。⇒ 「取消」= 主动丢弃一个已付费且马上能拿到的结果 + 任务中心显示"失败"进角标。**要"不显示"用既有「删除任务」（`removeTask` 真删后端行）。** 文档/ADR **不许写"停后端句柄"**。
-   附带语义错误：`relay-poll.ts:107` 把"已取消"归入 `failed = 确定没跑` —— 取消时上游恰在跑，归类本身错。
-15. **断言"某类对象也出现在 X 处"前先查它的唯一生产者**（grep 生产函数的所有调用方）：我断言"任务中心含本地处理/遗留 running 行"，实际 `reportGenerate` **唯一调用方**就是 `generationOrchestration`，`VideoExtractNode`/`VideoProcessNode` 根本不建任务行 ⇒ 差异只有 `chat`（`TextGenerate.tsx:195` 传的 type 是 `'chat'`，**不是** `'text'`）。
-16. **幽灵任务（永久 `running` 的行）有 5 条路径**（09-23 审 plan146 查清）：
-   **B（高频）** 前端 `reportGenerate` 建行即 `status:'running'` 并 persist 进后端**同一个 `tasks` 表**
-   （`taskStore.ts:359/368`）⇒ 若 POST 未达/失败前用户刷新或关页面 ⇒ 后端从未持有该行，但
-   `getGenerateStatus` 的**回库分支**因"行存在"永远落到 `return {status:'running'}`（`relay-poll.ts:939-946`）
-   ⇒ 前端 pollTask 无限 attach；且启动扫描 SQL（`:978-981`，需 `poll_task_id` 非空 **或** 含 `_relayPoll`）
-   **不选中它** ⇒ 后端也不写终态。
-   **A1–A4（低频）** `initRelayPoller` 的 4 条跳过路径（`:986` 无快照 / `:992-998` capability 非法 TD-08-51 /
-   `:1057` 无 taskId / `:1058` 缺 poll）**只 `continue`、不写终态**。
-   ⇒ 根因：**"我跟踪不了这个任务"没被写下来**（违反 ADR-0048 + 生产者给全）。
-   ⇒ 修法（plan146 的 D16/D17）：① 回库分支对"无 `poll_task_id` 且无快照"的行返 **`not-found`**；
-   ② 4 条跳过路径写 **`unknown`**（无 handle ⇒ 直接 `upsertTask`，不能走 `upsertUnknown`）。
-   ⇒ **删掉「停止」会让这个问题恶化**：现状还能靠节点停止把行标 `failed`，删后用户零出口
-   （「清理失败/未知任务」只清 `failed ∪ unknown`）。
-17. **取消/停止的终态仍是 `failed`**（09-23）：`statusLabel('failed')='失败'`、`isTaskNeedsAttention = failed ∪ unknown` ⇒ **主动取消的任务显示"失败"并进「需处理」角标**。要根治需新增终态 `cancelled`（跨栈：前端 `TaskStatus` + 后端 `RelayTaskStatus` + DB 执行态列 + 角标/候选/缩略图判据全套）。禁用 `errorMsg` 文案反推状态（ADR-0049）。
-
-## 六 · 工具债（A10）
-- 归属区=**17 审计工具链治理**（非25）。范围 `scripts/**`·`.codebuddy/commands/**`·`package.json`；红线🚫`src/**`·`localTool/**`·借机重构·改对外契约/持久化。判不准→按业务债处理（只登记不动手）。
-- 收尾：`node --check`+实跑+先红后绿+账本一行 `已解决`（`add`→`resolve`→`archive`）。
-
-## 七 · 样式纪律（字体栈 · 2026-09-23 立的规）
-- **正文字体栈必须与 `src/index.css`（html/body）同口径**：`ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Microsoft YaHei', sans-serif`。**禁写"苹果优先"栈**（`-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', 'PingFang SC', ...`）—— 它是 Mac/Windows 观感分裂的根源，已修掉唯一一处（`settings.css` 的 `.st-root`）。
-- **为什么**：Windows 上苹果优先栈前 5 个字体全落空 ⇒ 整页（含拉丁/数字）走雅黑，而全站走 `system-ui`⇒Segoe UI ⇒ 两页字体不同；且**雅黑非 UI 版只有 300/400/700**，CSS 字体匹配会把 500/600 **直接顶到 Bold**（标题/当前项/数字变粗糊黑体）。Segoe UI 有真 Semibold 不跳档。Mac 上两栈都落 SF ⇒ 差异被抹平，所以 Mac 看不出来 —— **跨平台观感问题必须按 Windows 口径查**。
-- 面板级 CSS 跟着补 `font-synthesis: none`（与 `director3d/styles.css` 同口径）：禁浏览器合成伪粗/伪斜。
-- 等宽字体（`ui-monospace, SFMono-Regular, Menlo, Consolas, monospace`）是代码块专用例外，不算违反。
-- **字号刻度纪律**：面板/整页 CSS 的字号令牌值必须落在 `tailwind.config.ts` → `theme.extend.fontSize` 的那组刻度上（8/9/10/11/12/13/15 + 默认 xs12/sm14/base16/lg18/xl20），**禁另立档位**；逐行注释标出对应 Tailwind 档名。`settings.css` 的 `--st-fs-*` 已按此标注（xs=caption-sm · sm=body-xs · md=body-sm · lg=base-sm · xl=lg）。
-- **全站字号分布实测（2026-09-23，grep 全 src）**：`caption-sm(11px) 212 · caption(10px) 130 · xs(12px) 107 · 裸12px 86 · sm(14px) 84 · 裸11px 76 · body-xs(12px) 30 · meta(9px) 29 · body-sm(13px) 23 · lg(18px) 8 · xl(20px) 2 · 3xl(30px) 1`。⇒ 判「某页字号脱节」就用这张表比，别凭印象。20px 是全站第二大、仅 2 处 ⇒ 页面标题用 20px 必显重，已把 settings 的 `--st-fs-xl` 收到 18px。
-- **字重纪律**：Windows 上雅黑非 UI 只有 300/400/700 ⇒ 任何 500/600 都被 CSS 字体匹配**顶到 Bold**，且拉丁走 Segoe UI（有真 Semibold）不跳档 ⇒ 同一行中文比英文粗。面板级 CSS 若要求跨平台一致，**直接全篇 400，不用字重做层级**（层级交给字号+颜色）。`settings.css` 已按此收口（删 medium/semibold，只留 `--st-fw-normal:400`）。
-- **文字色阶纪律（对比度基线 · 2026-09-23 实测）**：深色底上的文字档位下限 ——
-  基准（正文/控件/列表）**≥ 206**（`--mao-text-body`，对比度 10.95–12.36）、
-  说明/标签/表头 **≥ 170**（`--mao-text-secondary`，7.42–8.37）、
-  弱化（分组名/侧栏标题）可到 118（`--mao-text-muted`，3.79–4.28，仅少数处）。
-  **禁把基准压在 170、说明压在 118** —— 118 在 #161615 卡片底上只有 **3.79**，低于 WCAG AA 正文线 4.5 ⇒ 「该明显的字看不清」。
-  全站用色分布（grep 全 src）：`text-muted 256 · text-white 238 · text-body 174 · text-secondary 172 · text-primary 131 · text-faint 35` —— 全站主力是 **206/255**，面板若整体压在 170 就会显得「只有灰、没有白」。
-- **色温不许动**：`index.css` 文件头 2026-08-24 定稿「文字层必须纯中性灰 R=G=B，偏色在大段文本上会被放大」。用户感觉的「暖」来自暖背景（`--mao-canvas: 13 13 12`，R 比 B 多 1）衬托 ⇒ 那是**亮度**问题，不许靠给文字加暖来解决。
-- 排查同类问题的三步：`grep -rn apple-system src` 找非同口径栈 → 对比 `font-weight` 档位是否超出雅黑可用字重（300/400/700）→ 拿上面的分布表比字号档位、拿对比度基线比色阶。行高差异多为设计选择（settings 1.55 vs 全局 1.2-1.4），用户明确说过「行高没问题」，别顺手改。
-- ⚠️ `-webkit-font-smoothing: antialiased` **只在 macOS 生效**，Windows 完全无效 —— 别拿它当跨平台观感的解释或手段。
-
-## 八 · 沟通
-- 收口=建真源+销副本，两步缺一即半态。副本四型，按**判据**清点（不只数值）。多一层间接而副本没归零=复杂度净增。
-- 审计口径（用户裁定）：只查①文件吻合度②复杂度降低③SSOT④生产者消费者关系。**不查数值**、**不查运行时库**（db对账非审计取证）。裁定过的照做不反复验证。
-- 🔴 先分析再判断；账本"解法"是上一执行者假设非最优解——引用前自按复杂度+SSOT重判。SOP/skill写了命令就**直接跑命令**，别先读一堆文件猜。
-- 结论先行；凭证可复现（附命令+输出）；用户质疑=要求重新取证，非道歉。
-- 🔴 **提问 ≠ 裁定。** 假设句/反问/"那…呢"/"如果把 X 删了呢" = 要**方案对比**，不是指令。
-  只有祈使句才算决定；**文档里不许写"用户已裁定"，除非原话是祈使句**。
-  （2026-09-23 实证：把"那和这些把这个取消给删除呢，就是我不建立这个取消停止系统了"当成"已裁定丁1"
-  并改了 plan ⇒ 被纠正「我什么时候说执行了，我是让你对比各个方案」。）
-- 写 plan/审计文档时：**方案并列成表 + 标注"未裁定"**，别把建议写成结论；被推翻的初判要留档（标【N 轮复核·撤回】）。
-- **`git status` 的中文路径是八进制转义，别手动解码**（我一度误判"文件名与 git 不一致"）
-  ⇒ 用 `git -c core.quotepath=false status --porcelain`。核"某文件是否真改动过"用 `git log --all -S"<串>" -- <路径>`（比读 README/索引可靠）。
-- **`docs/plan/146-生成链路-删除停止与取消设施-2026-09-23.md` = 「停止/取消」的最终方案**（用户裁定 丁1b+甲）：
-  删节点中止入口 + 删既有取消设施（`relayCancel`/对外端点/契约登记/剧本盒幽灵），**不新增任何取消入口**。
-  145 是被取代的二稿（"中止归任务中心"），**只作留档、勿据其施工**。
+> **用户 2026-09-23 裁定：本仓库不需要 memory，不需要维护 memory。**
+>
+> 本文件保留为空占位，仅用于说明本目录的用途 —— 避免后续会话又往这里写东西。
+>
+> **不要在本文件或本目录新增、维护任何内容。**
+>
+> 真源导航**不在此复述**：`CLAUDE.md` 会自动注入，其「三入口分工」段已写明
+> CLAUDE / CONTEXT / DATAFLOW / ADR 四者的边界与阅读顺序（`docs/adr/ADR-0025`）。
+> 在这里再列一张表 = 造第二份会漂移的副本 —— 我上一版就是这么错的（漏了 `spec/DATAFLOW.md` 与 `spec/CONTEXT.md`）。
+>
+> 理由：本文件会被自动注入后续会话，而它**没有 audit 闸** —— 写进来的未取证断言会被当成前提读入，
+> 等于往判据体系里塞未审计的内容。与其维护第二份会漂移的副本，不如只认仓内真源。
