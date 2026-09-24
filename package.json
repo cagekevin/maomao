@@ -49,6 +49,9 @@
       "eslint --fix --cache",
       "prettier --write"
     ],
+    "*.{mjs,cjs}": [
+      "prettier --write"
+    ],
     "*.{css,json,md,html}": [
       "prettier --write"
     ]

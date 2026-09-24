@@ -408,8 +408,9 @@ if (JSON_OUT) {
 
 console.log('🩺 元层闸（闸的闸 · 零执行）—— 扫描根存在性 + 基数自检 + 【申诉口】三问');
 console.log(
-  `   在册 ${registered.length} 道 · 申诉口检查 ${appealChecked} 个脚本闸 · 扫 0 却绿灯 = 闸最危险的失败模式\n`,
+  `   真源 ${relative(ROOT, MANIFEST).replace(/\\/g, '/')} ｜ 在册 ${registered.length} 道`,
 );
+console.log(`   申诉口检查 ${appealChecked} 个脚本闸 ｜ 扫 0 却绿灯 = 闸最危险的失败模式\n`);
 
 for (const id of registered) {
   const meta = GATES[id];
