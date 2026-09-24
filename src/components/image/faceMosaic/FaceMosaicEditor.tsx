@@ -17,7 +17,7 @@ import {
   MOSAIC_MODES,
   MOSAIC_PALETTE,
   MosaicMode,
-} from '@/components/image/lib/faceMosaic';
+} from './faceMosaic.ts';
 import { createRafBatch, canvasToImageDataUrl } from '@/components/base/core/utils';
 import { toastError } from '@/components/base/core/event/toastStore';
 import { loadImageOrNull } from '@/components/base/utils/net/asyncGuard';

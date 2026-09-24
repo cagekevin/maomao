@@ -31,12 +31,15 @@ const { join } = require('node:path');
 /**
  * 节点组件候选落点（相对仓库根，按序解析）。
  * 2026-09-19 A2 后的实际分布：canvas/nodes（Director3D/GhostTarget/Group/_template）·
- * image/nodes（7 件）· video/nodes（3 件）· text/（TextGenerate **直挂域根**）·
+ * image/nodes · video/nodes · text/（TextGenerate **直挂域根**）·
  * scriptbox/（ScriptBoxNode **直挂应用域根**）。含 /nodes 者为纯节点目录。
+ * 2026-09-24：image/faceMosaic（FaceMosaic 能力子目录，节点/编辑器/算法同置一处）非 /nodes 结尾，
+ * 需显式登记，否则 nodeTypes 单源校验会因「文件搬了、闸没搬」而误红。
  */
 const COMPONENT_SEARCH_DIRS = [
   'src/components/canvas/nodes',
   'src/components/image/nodes',
+  'src/components/image/faceMosaic',
   'src/components/video/nodes',
   'src/components/text/nodes',
   'src/components/text',

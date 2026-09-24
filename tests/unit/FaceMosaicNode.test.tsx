@@ -71,7 +71,7 @@ vi.mock('../../src/components/base/core/event/toastStore.ts', async (importOrigi
   toastError: mocks.toastError,
   toastWarning: mocks.toastWarning,
 }));
-vi.mock('../../src/components/image/lib/faceMosaic.ts', () => ({
+vi.mock('../../src/components/image/faceMosaic/faceMosaic.ts', () => ({
   applyMosaic: (...a: unknown[]) =>
     (h.applyMosaicMock as unknown as (...x: unknown[]) => void)(...a),
   MOSAIC_MODES: [
@@ -82,7 +82,7 @@ vi.mock('../../src/components/image/lib/faceMosaic.ts', () => ({
   ],
   MOSAIC_PALETTE: ['#000000', '#ffffff'],
 }));
-vi.mock('../../src/components/image/editors/FaceMosaicEditor.tsx', () => ({
+vi.mock('../../src/components/image/faceMosaic/FaceMosaicEditor.tsx', () => ({
   default: ({ assetUrl: _assetUrl, onSave, onClose }: any) =>
     React.createElement(
       'div',
@@ -105,7 +105,7 @@ vi.mock('../../src/components/base/utils/media/previewUrl.ts', () => ({
   default: { create: () => 'http://preview.x', release: () => {} },
 }));
 
-import FaceMosaicNode from '../../src/components/image/nodes/FaceMosaicNode.tsx';
+import FaceMosaicNode from '../../src/components/image/faceMosaic/FaceMosaicNode.tsx';
 
 const nodeId = 'fm1';
 function setup(

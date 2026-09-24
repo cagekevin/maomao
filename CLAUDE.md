@@ -2,7 +2,7 @@
 
 > **本文件定位：项目认知入口。每个 AI 进来第一步读它**，了解"这是什么项目、技术栈、架构、目录、红线、怎么启动"。
 > 读完按任务再读对应入口：**写代码 →** **`spec/CONTEXT.md`（规则适用性地图）**；**写/改测试 →** **`spec/TEST-GUIDE.md`（测试权威）**。三文件互补不重叠（见 §七.0）。
-> **最后更新**：2026-09-05（五轮核对：① 计数 apiRegistry 60 条、tests/unit 176 文件/约 2209 用例；② 移除已删 `reference-1mao/`、不存 `docs/node-types-map.md`、已退役 `/api/proxy`/`proxyMode`/`x-proxy-url`、`Python 网关`/`lovart_client.py` 引用，节点规范改指 `spec/NEW-NODE-GUIDE.md`；③ 修正 `check:health` 覆盖、`localTool` 测试路径、`base/*.js`→`base/utils/`、`pre-commit` 跑 `test-affected`、`pre-push` 已删、`launch-all.ps1` 无参、代理/转发逻辑改指 `passthrough.ts`/`generate.ts`/`relay-poll.ts`；④ 治理清理：删 5 个 0 引用脚本（`merge-node-audit.cjs`/`test_all_positions.mjs`/`test_group_collapse|persist|size.mjs`）、假入口 `sync-mapping.mjs`（连带 `npm run sync:mapping`）、孤儿 `share/index.html`，卸载零引用包 `zustand`/`three-stdlib`/`@babel/parser`；⑤ 2026-09-05：`lovart-old`/9004 旧轨与死路由 `handleGatewayTask` 已删、`apimart-gateway` 已退役，Lovart 凭证真源 = `localTool/.env`（由 `src/index.ts` `loadDotEnv` 注入），`localTool` 仅走直连上游 `lgw.lovart.ai`；同步 §5.1 端口铁律、§五.5 字符串契约、§7 调试口径。此前为 2026-08-26 事件契约红线收口 + 2026-08-22 API 中转层收口）
+> **最后更新**：2026-09-25（新增 §3.0.1「写代码过程中禁止跑全量测试（须先申请）」——用户裁定，实证为定位 1 个失败用例连跑 3 次全量单测；同步标注 §3.1 为**验收**流程、修正"写完代码跑哪个"的全量口径）。此前为 2026-09-05（五轮核对：① 计数 apiRegistry 60 条、tests/unit 176 文件/约 2209 用例；② 移除已删 `reference-1mao/`、不存 `docs/node-types-map.md`、已退役 `/api/proxy`/`proxyMode`/`x-proxy-url`、`Python 网关`/`lovart_client.py` 引用，节点规范改指 `spec/NEW-NODE-GUIDE.md`；③ 修正 `check:health` 覆盖、`localTool` 测试路径、`base/*.js`→`base/utils/`、`pre-commit` 跑 `test-affected`、`pre-push` 已删、`launch-all.ps1` 无参、代理/转发逻辑改指 `passthrough.ts`/`generate.ts`/`relay-poll.ts`；④ 治理清理：删 5 个 0 引用脚本（`merge-node-audit.cjs`/`test_all_positions.mjs`/`test_group_collapse|persist|size.mjs`）、假入口 `sync-mapping.mjs`（连带 `npm run sync:mapping`）、孤儿 `share/index.html`，卸载零引用包 `zustand`/`three-stdlib`/`@babel/parser`；⑤ 2026-09-05：`lovart-old`/9004 旧轨与死路由 `handleGatewayTask` 已删、`apimart-gateway` 已退役，Lovart 凭证真源 = `localTool/.env`（由 `src/index.ts` `loadDotEnv` 注入），`localTool` 仅走直连上游 `lgw.lovart.ai`；同步 §5.1 端口铁律、§五.5 字符串契约、§7 调试口径。此前为 2026-08-26 事件契约红线收口 + 2026-08-22 API 中转层收口）
 
 ## ⚠️ 最新情况（改动前必读）
 
@@ -162,11 +162,54 @@ node scripts/task-inspect.mjs --canvas-health   # 画布结构体检
 >
 > 更新(2026-09-09)：`src/components/director3d/` **已解除豁免，可以改、可以收口**（源出外部开源仓库 storyai-3d-director-desk，按用户指示当自家仓库维护）。原句「director3d 除外（见 §二）」已过时删除——§二 本就无对应条目，且它与 `spec/CONTEXT.md` §五·五（2026-09-01 已解除豁免）冲突。现行边界见 `spec/CONTEXT.md` §五·五：**不是不能改，是要克制、有目的地改**；改它**不强制补单测**，但 `type-check` 与五门禁照跑。
 
+### 3.0.1 🚫 写代码过程中禁止跑全量测试（**最高优先 · 2026-09-25 用户裁定**）
+
+> **一句话**：**定位用最小射程；全量是验收动作，须先申请。**
+
+**禁止**（写代码过程中）：
+
+- ❌ 跑 `npm test` / `npm run test:unit` / `npm run check:health` / `cd localTool && npm test` 等**全量**命令**来找哪个测试失败**；
+- ❌ 输出被污染（终端回显、日志刷屏）后**重复跑同一条全量命令**；
+- ❌ "反正全量最保险" —— 这是用**最大射程掩盖对影响面判断的缺失**。
+
+**为什么**（实证 2026-09-25）：为定位 **1 个**失败用例，连跑 **3 次**全量单测（每次 ~20s × 277 文件）。
+而正确的**最小射程命令 577ms** 就跑完了 —— 白等 1 分钟以上。且"重复同一条命令"属
+`架构师改码7步法` 明令禁止的四种滑法之一（**改一版试一次**）。
+
+**该怎么做**：
+
+```bash
+# ① 默认：跑「与改动相关的测试」（提交钩子同款，不用人工列清单）
+node scripts/test-affected.cjs
+
+# ② 要手工指定射程时（如搬文件后补跑）：
+node scripts/mv-sync-refs.mjs refs <改动的文件>   # ①模块引用 + ②字符串残留，两段的 tests/** 都算
+npx vitest run tests/unit/A.test.ts tests/unit/B.test.ts
+
+# ③ 不确定时：首个失败即停，别跑完
+npx vitest run --bail=1 tests/unit
+```
+
+> **`test-affected.cjs` 为什么比手工列清单好**：它按「源码改动 → 同名 stem 测试」反查，
+> 已内置 `vitest --changed` 的盲区处理（`--changed` 只认改动过的**测试**文件、漏源码改动触发的测试）。
+> ⇒ **先查仓库有没有现成工具，再手工发明流程**（`Step 0 普查` 的第一动作）。
+
+**什么时候**该跑全量：**验收**（功能写完 / 提交前 / 合并前）—— 且**须先申请**（用户明确同意后再跑）。
+全量 = **验收工具**，不是**定位工具**；把两者混淆，就是本条要消灭的行为。
+
+> **先想影响面的额外收益**：那一步会**同时**答出两件事 —— ① 最小测试射程；② **搬迁工具改不到的盲区**。
+> 实证：若先 `refs` 查引用，会立刻发现 `tests/unit/nodeDefaults.test.ts` 里有**字符串路径快照**
+> （`mv-sync-refs.mjs` 只改 import、改不了它），根本不必等全量单测报错。
+> 详见 `docs/plan/148-*` §十二。
+
 ### 3.1 改动流程（通用，所有 `src/` 改动都走）
 
 **AI 每次改动后的默认自检**：`npm run test:smoke`（冒烟质量门，极快，立即发现契约漂移/React 单实例破坏/chunk 完整性）。
 
 **完整验证流程**（较大改动或提交前，先过 §3.0 三步）：
+
+> ⚠️ **本节是「验收流程」，不是「定位流程」** —— 写代码过程中**不得**跑本流程里的全量命令，
+> 见 §3.0.1（**最高优先**：定位用最小射程；全量须先申请）。
 
 ```
 0. npm run dev           ← 预览改动（非校验）
@@ -183,7 +226,8 @@ node scripts/task-inspect.mjs --canvas-health   # 画布结构体检
 
 > ⚠️ **跑 vitest 单次**：`vitest.config.ts` 已默认 `watch:false`，裸调 `npx vitest xxx` 也会单次跑完即退（不会挂住）。但**优先用脚本**（内部已配好）：`npm test` / `npm run test:unit`（全量）或 `npx vitest run tests/unit/xxx.test.js`（单文件）。需 watch 时显式 `npx vitest --watch`。若已误入 watch，`Ctrl+C` 或 `pkill -f vitest` 退出。
 > 提交前 `pre-commit` 钩子（`.husky/pre-commit`）自动跑 `lint-staged`（仅暂存文件 eslint --fix + prettier）+ `type-check` + `node scripts/test-affected.cjs`（只测与暂存改动相关的单测，\~2-3s）+ 3 个秒级 SSR 门禁（`smoke`/`regression`/`tools`，防改名后 SSR 挂）。**`pre-push`（2026-09-10 恢复）跑全量 `npm run lint`**（全量 ESLint，约 4s；当初「跑得慢 + 报错多」的理由已不成立——当前 0 error / 0 warning）；`main` 分支的 push/PR 由 `.github/workflows/ci.yml` 云端跑 type-check + 全量单测（frontend + localtool 两个 job）。全量 lint 只落在 push 这一道（不进 pre-commit，避免每次提交都等），紧急可用 `git push --no-verify` 绕过。另保留**单条存储键契约编译期拦截**：`npm run check:keys` 静态校验裸 `STORAGE_KEYS` key（挂 `npm run check:health`）+ `contentStore.checkRegistered` 在 dev 环境对未登记字面量 key 直接 throw。
-> **写完代码跑哪个**：平时 `npm run type-check` + `test:unit`；改画布/地基或合 main 前再跑 `npm test` 全量兜底（regression/tools 已含在内）。
+> **写完代码跑哪个**：平时 `npm run type-check` + **按影响面的最小射程单测**（**❌ 不是 `test:unit` 全量**，见 §3.0.1）；
+> 改画布/地基或合 main 前**申请后**再跑 `npm test` 全量兜底（regression/tools 已含在内）。
 
 ### 3.2 改 bug 先加日志、再动逻辑（最高优先）
 

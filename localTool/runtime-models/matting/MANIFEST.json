@@ -1,0 +1,57 @@
+{
+  "tool": "matting",
+  "runtime": "browser",
+  "description": "AI 抠图（交互式分割）：浏览器端 onnxruntime-web 加载 SAM-HQ ViT-Tiny（encoder + decoder 两段 ONNX），点选正/负提示点生成 mask、输出透明 PNG。图片不出本地，全程浏览器推理。",
+  "generatedAt": "2026-09-24",
+  "sourceNote": "encoder/decoder 为本机 scripts/export-onnx.py 导出的 SAM-HQ ViT-Tiny（无稳定直取的单文件 URL，source 留空 ⇒ 换机还原走网盘镜像 aliyun-models.py）。 ORT wasm 运行时取自 jsDelivr onnxruntime-web@1.20.1/dist/（三条 source 已按字节钉死，见下）。 index.html / index.js / package.json 为独立演示页面，随目录一并接管。",
+  "files": [
+    {
+      "path": "matting/static/models/sam_hq_vit_t_encoder.onnx",
+      "size": 28016616,
+      "sha256": "D37C52A612F8B3D4012B1846CB3B5E17E310B0B51A01AA360F4FBC77E1321B40",
+      "source": ""
+    },
+    {
+      "path": "matting/static/models/sam_hq_vit_t_decoder.onnx",
+      "size": 18313747,
+      "sha256": "455E3D802B37C08189F06FAB9D83CE0004041150C83BF76E0B137991CE254893",
+      "source": ""
+    },
+    {
+      "path": "matting/static/ort/ort.bundle.min.mjs",
+      "size": 468451,
+      "sha256": "E1602DE08C4D287700AAEBC77332E19F52DD7554FEB510A23DAC9345992698E2",
+      "source": "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.20.1/dist/ort.bundle.min.mjs"
+    },
+    {
+      "path": "matting/static/ort/ort-wasm-simd-threaded.mjs",
+      "size": 24618,
+      "sha256": "745EB7C0CE6F18A6AA521971B2877BABC7FFB27EECB58AB3BC6E5EF4692672E8",
+      "source": "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.20.1/dist/ort-wasm-simd-threaded.mjs"
+    },
+    {
+      "path": "matting/static/ort/ort-wasm-simd-threaded.wasm",
+      "size": 11246032,
+      "sha256": "207D02BE4591C156B0A98F024F3D58005B5B04C92274D759FB390338C63559EA",
+      "source": "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.20.1/dist/ort-wasm-simd-threaded.wasm"
+    },
+    {
+      "path": "matting/index.html",
+      "size": 26529,
+      "sha256": "5E09DD78A01F8C6F6CC074370299E910AD3F12DDBC3408FE53EA86C088D390E9",
+      "source": ""
+    },
+    {
+      "path": "matting/index.js",
+      "size": 1678,
+      "sha256": "DB86F6F0F1A2ED2A16E17314F564AB1CBC4CBEFB16ECB89CE2F8454EB45D8092",
+      "source": ""
+    },
+    {
+      "path": "matting/package.json",
+      "size": 99,
+      "sha256": "F1EBD2A9BA16861D36C85A6C7A9B32EB218CF303DA90E958770BE5263D6B1D5C",
+      "source": ""
+    }
+  ]
+}

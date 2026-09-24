@@ -27,7 +27,7 @@ import ImageBoxNode from '@/components/image/nodes/ImageBoxNode';
 import GridSplitNode from '@/components/image/nodes/GridSplitNode';
 import GridMergeNode from '@/components/image/nodes/GridMergeNode';
 import VideoProcessNode from '@/components/video/nodes/VideoProcessNode';
-import FaceMosaicNode from '@/components/image/nodes/FaceMosaicNode';
+import FaceMosaicNode from '@/components/image/faceMosaic/FaceMosaicNode.tsx';
 import PanoramaNode from '@/components/image/nodes/PanoramaNode';
 import GroupNode from '@/components/canvas/nodes/GroupNode';
 import ScriptBoxNode from '@/components/scriptbox/ScriptBoxNode';

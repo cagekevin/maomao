@@ -14,13 +14,8 @@ import { useRenderAssetResolver } from '@/components/base/utils/media/assetUrl';
 import { toastError, toastWarning } from '@/components/base/core/event/toastStore';
 import { logger } from '@/components/base/core/log/logger';
 import { classifyError, getRetryableObserved } from '@/components/base/utils/genErrors';
-import {
-  applyMosaic,
-  MOSAIC_MODES,
-  MOSAIC_PALETTE,
-  type MosaicMode,
-} from '@/components/image/lib/faceMosaic';
-import { FaceMosaicEditor } from '../editors';
+import { applyMosaic, MOSAIC_MODES, MOSAIC_PALETTE, type MosaicMode } from './faceMosaic.ts';
+import { default as FaceMosaicEditor } from './FaceMosaicEditor.tsx';
 import ImageZoomDialog from '@/components/base/ui/display/ImageZoomDialog';
 import { generateId } from '@/components/base/core/idGen';
 import previewUrls from '@/components/base/utils/media/previewUrl';

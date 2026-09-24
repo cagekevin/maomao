@@ -11,6 +11,7 @@ import {
   Download,
   Camera,
   Layers,
+  Scissors,
 } from 'lucide-react';
 import { useReactFlow } from '@xyflow/react';
 import NodeShell from '@/components/canvas/parts/NodeShell';
@@ -38,7 +39,7 @@ import { downloadUrl } from '@/components/base/utils/net/clipboard';
 import { showToast, toastError } from '@/components/base/core/event/toastStore';
 import { sendToResourceLibrary, getResources } from '@/components/resource/resourceStore';
 import { openResourceLibrary } from '@/components/base/store/taskStore';
-import { CameraStudioPanel } from '../editors';
+import { CameraStudioPanel, MattingEditor } from '../editors';
 import type { CameraStudioResult } from '../editors';
 import { useCanvasEdges } from '@/components/canvas/structure/CanvasEdgesContext';
 import { DepthVideoModal, spawnDepthVideoNode } from '@/components/video';
@@ -90,6 +91,8 @@ function AssetNode({ id, data, selected }: AssetNodeProps) {
   const [isCameraStudioOpen, setIsCameraStudioOpen] = useState(false);
   // 深度转视频弹窗开关 + 画布历史（undo）：供 spawnDepthVideoNode 原子提交，复用 VideoGenerate 范式
   const [depthOpen, setDepthOpen] = useState(false);
+  // AI 抠图编辑器开关（图片态可用）；产出经 onSave 走 replaceImage 写回本节点
+  const [mattingOpen, setMattingOpen] = useState(false);
   const history = useCanvasEdges();
 
   // 查看大图：原生 <dialog> 弹层（双击图片 → showModal，点图/Esc 关闭，无外框/标题栏）。
@@ -311,6 +314,7 @@ function AssetNode({ id, data, selected }: AssetNodeProps) {
   const handleToolbarUpload = useCallback(() => fileRef.current?.click(), []);
   const handleToolbarCameraStudio = useCallback(() => setIsCameraStudioOpen(true), []);
   const handleToolbarDepth = useCallback(() => setDepthOpen(true), []);
+  const handleToolbarMatting = useCallback(() => setMattingOpen(true), []);
   const handleToolbarSend = useCallback(() => {
     if (!url) {
       toastError('没有可发送的素材');
@@ -349,6 +353,14 @@ function AssetNode({ id, data, selected }: AssetNodeProps) {
         show: type === 'video' && !!url,
         onClick: handleToolbarDepth,
       },
+      {
+        key: 'matting',
+        icon: <Scissors size={14} />,
+        title: 'AI 抠图（去背景）',
+        hoverClass: 'hover:text-sky-400',
+        show: type === 'image' && !!url,
+        onClick: handleToolbarMatting,
+      },
       ...imageButtons,
       {
         key: 'send',
@@ -381,6 +393,7 @@ function AssetNode({ id, data, selected }: AssetNodeProps) {
       handleToolbarUpload,
       handleToolbarCameraStudio,
       handleToolbarDepth,
+      handleToolbarMatting,
       handleToolbarSend,
     ],
   );
@@ -564,6 +577,17 @@ function AssetNode({ id, data, selected }: AssetNodeProps) {
             });
             setDepthOpen(false);
           }}
+        />
+      )}
+
+      {/* AI 抠图编辑器：图片态可抠，产出透明 PNG 走 replaceImage 写回本节点。
+          ★ 复用与压缩/裁剪同一条落盘策略（replaceImage → replaceNodeImage → showThenPersistInline），
+            不新增第二套写回机制。 */}
+      {mattingOpen && type === 'image' && url && (
+        <MattingEditor
+          assetUrl={url}
+          onSave={({ dataUrl, width, height }) => replaceImage(dataUrl, { width, height })}
+          onClose={() => setMattingOpen(false)}
         />
       )}
 

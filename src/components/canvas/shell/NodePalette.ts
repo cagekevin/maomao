@@ -21,7 +21,7 @@ import ImageGenerate from '@/components/image/nodes/ImageGenerate.tsx';
 import ImageBoxNode from '@/components/image/nodes/ImageBoxNode.tsx';
 import GridSplitNode from '@/components/image/nodes/GridSplitNode.tsx';
 import GridMergeNode from '@/components/image/nodes/GridMergeNode.tsx';
-import FaceMosaicNode from '@/components/image/nodes/FaceMosaicNode.tsx';
+import FaceMosaicNode from '@/components/image/faceMosaic/FaceMosaicNode.tsx';
 import LoopNode from '@/components/image/nodes/LoopNode.tsx';
 import AssetNode from '@/components/image/nodes/AssetNode.tsx';
 import VideoGenerate from '@/components/video/nodes/VideoGenerate';

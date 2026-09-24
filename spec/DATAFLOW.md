@@ -440,8 +440,10 @@ canvas/topology/useCanvasEventSubscriptions（3 全局订阅收拢）
 
 ```
 动作入口：image/useImageHoverActions（← image/nodes/AssetNode · image/nodes/ImageGenerate）
-编辑器/工具：image/editors/ImageEditor · image/editors/InlineImageCropper · image/editors/FaceMosaicEditor · image/editors/OverlayEditor
-            + base/utils/imageCompress · image/lib/imageUpscale · image/lib/faceMosaic · base/utils/media/previewUrl（预览 URL 生命周期唯一出口）
+编辑器/工具：image/editors/ImageEditor · image/editors/InlineImageCropper · image/editors/OverlayEditor
+            + base/utils/imageCompress · image/lib/imageUpscale · base/utils/media/previewUrl（预览 URL 生命周期唯一出口）
+            + image/lib/matting/*（AI 抠图能力片：config/engine/loader/门面；← image/editors/MattingEditor）
+能力片（节点+编辑器+算法同居）：image/faceMosaic/*（FaceMosaicNode + FaceMosaicEditor + faceMosaic.ts；2026-09-25 重组）
 查看器：base/ui/display/ImageZoomDialog（命令式 showModal）· image/editors/PanoViewer（← image/nodes/PanoramaNode）· base/ui/display/VideoThumbnail · base/ui/display/LazyImage
 摄影参数：image/editors/cameraParams/*（← image/nodes/ImageGenerate）
 产出落盘：编辑器结果统一经 filesApi.showThenPersistInline（唯一「图像入节点落盘」出口）→ 写回节点
@@ -481,7 +483,8 @@ canvas 产出：全库 canvas → 图像 dataURL 统一经 core/utils.canvasToIm
     ← localTool/src/index.ts::handleRuntimeModelResource（URL→物理根唯一映射；纯 GET；403/400/404 如实）
         ↑ PREFIX_MODELS（`/models/<modelId>/*`）· PREFIX_DEPTH_VIDEO（别名）← utils/localOnlyPaths.ts（本地专属前缀唯一真源，不转发外网）
   base/core/runtimeModelUrl.ts（runtimeModelUrl = **前端取件 URL 唯一出口**，根相对同源）
-    ← image/lib/faceMosaic.ts（mediapipe：wasm + blaze_face_short_range.tflite）
+    ← image/faceMosaic/faceMosaic.ts（mediapipe：wasm + blaze_face_short_range.tflite）
+    ← image/lib/matting/mattingConfig.ts（matting：SAM-HQ encoder/decoder onnx + static/ort 运行时）
     ← director3d/models.tsx（three：xbot-animated-lod.glb，BUILT_IN_MODEL_URL）
   vite.config.ts server.proxy（dev 5180 → 127.0.0.1:18080，使 dev 与 prod 同为根相对同源）
   取件 CLI：localTool/scripts/runtime-model.mjs（list·init·doctor；doctor 委托 fetch-runtime-models.mjs --check）

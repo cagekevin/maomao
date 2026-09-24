@@ -157,7 +157,7 @@ describe('造节点尺寸单源（TD-16-48）', () => {
     const sites: Array<[string, string]> = [
       ['src/components/image/nodes/GridSplitNode.tsx', 'ASSET_NODE_SIZE'],
       ['src/components/image/nodes/GridMergeNode.tsx', 'ASSET_NODE_SIZE'],
-      ['src/components/image/nodes/FaceMosaicNode.tsx', 'ASSET_NODE_SIZE'],
+      ['src/components/image/faceMosaic/FaceMosaicNode.tsx', 'ASSET_NODE_SIZE'],
       ['src/components/video/nodes/VideoProcessNode.tsx', 'ASSET_NODE_SIZE'],
       ['src/components/video/depthVideo/spawn.ts', 'ASSET_NODE_SIZE'],
       ['src/components/canvas/nodes/Director3DNode.tsx', 'IMAGE_BOX_NODE_SIZE'],
