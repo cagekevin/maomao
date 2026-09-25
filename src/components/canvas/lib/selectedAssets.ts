@@ -70,31 +70,11 @@ export function selectedAssetSig(list: SelectedAsset[]): string {
   return (list || []).map((a) => `${a.nodeId}:${a.type}:${a.url}`).join('|');
 }
 
-/**
- * `selectedAssetSig` 的**逆运算**：从签名里取回 nodeId 列表（去重、保序）。
- *
- * 【为什么必须住在 `selectedAssetSig` 旁边】
- * 签名的**格式**（`nodeId:type:url|…`）是这两个函数的共同知识。解析端写在消费者那儿，
- * 就等于同一格式两处维护：将来格式一改，一处改了另一处忘 —— 而忘的那处**不会报错**，
- * 只会静默算出错的 id（退化成"取不到任何 id"，看起来像"点了没反应"）。放在一起，
- * 格式变更时两处同时可见。
- *
- * 边界：`url` 可能含 `:`（`http://…`）但**不含 `|`**（URL 里必须写成 `%7C`），
- * 而 `nodeId` 由 `generateId` 生成（只用 `_`）。故「按 `|` 切条目、取每段第一个 `:` 之前」
- * 是这套格式的**确定**解析，不是启发式。
- */
-export function selectedNodeIdsOfSig(sig: string): string[] {
-  if (!sig) return [];
-  const ids: string[] = [];
-  const seen = new Set<string>();
-  for (const entry of sig.split('|')) {
-    const id = entry.split(':')[0];
-    if (!id || seen.has(id)) continue;
-    seen.add(id);
-    ids.push(id);
-  }
-  return ids;
-}
+/* 【2026-09-25 删除 · 清剿尾巴】此处原有 `selectedNodeIdsOfSig`（`selectedAssetSig` 的逆运算，
+ * 自称给「剪辑器入轨」用）。取证：唯一消费者是 videoEditor 入轨，而它已随
+ * `a3ffc5d0 chore: 移除 videoEditor 的 _legacy 遗留代码` 被移除 —— **函数被留下了**。
+ * 全仓零生产消费（`mv-sync-refs refs` + grep + 基线三处一致，只剩自证测试）⇒ 按 `ADR-0053`
+ * 第 ② 关（判存在性）+ Step 6「清剿尾巴」判死 → 删；连带删掉它的自证测试（`ADR-0049`／§7.2 形态④）。 */
 
 /**
  * 选中节点 id 的签名（排序后拼串）。供「边关联态（relatedToSelected）」effect 用：
