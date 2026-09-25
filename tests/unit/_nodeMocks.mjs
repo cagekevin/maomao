@@ -112,7 +112,26 @@ const NullComp = () => null;
 NullComp.displayName = 'NullComp';
 
 const NodeShell = ShellPassthrough;
-const HoverToolbar = Passthrough;
+/**
+ * HoverToolbar 忠实桩（不是 Passthrough）：真实实现按 `buttons` 数组渲染按钮，
+ * 只 `filter(b => b.show !== false)` + 绑 `title` / `onClick`（见 HoverToolbar.tsx:32-46）。
+ * ⚠️ 原先用 Passthrough ⇒ `buttons` prop 被丢弃、**一个按钮都不渲染** ⇒ 任何"点工具栏按钮"
+ * 的用例都够不着入口（不忠实桩会让用例要么假红、要么被迫退化成自证式断言）。
+ */
+const HoverToolbar = (/** @type {any} */ { buttons = [] }) =>
+  React.createElement(
+    'div',
+    { 'data-testid': 'hover-toolbar' },
+    buttons
+      .filter((/** @type {any} */ b) => b.show !== false)
+      .map((/** @type {any} */ b) =>
+        React.createElement(
+          'button',
+          { key: b.key, type: 'button', title: b.title, onClick: b.onClick },
+          b.title,
+        ),
+      ),
+  );
 const ExpandablePanel = Passthrough;
 const ResourceStrip = Passthrough;
 const ResizeFullscreenHandle = NullComp;
@@ -122,6 +141,17 @@ const PromptLibraryButton = NullComp;
 const PromptInput = NullComp;
 const ModelSelect = NullComp;
 const ImageEditor = Passthrough;
+// 【抠图】暴露一个「保存」按钮触发 onSave —— 让测试能走完「编辑器产出 → 落盘 → 写回」的真实链路
+// （断言的是产物落盘这一外部事实，不是"组件渲染出来了"）。
+const MattingEditor = (/** @type {any} */ { onSave }) =>
+  React.createElement(
+    'button',
+    {
+      type: 'button',
+      onClick: () => onSave?.({ dataUrl: 'data:image/png;base64,AAAA', width: 10, height: 10 }),
+    },
+    '抠图保存',
+  );
 const OverlayEditor = NullComp;
 const LazyImage = NullComp;
 const CustomHandle = NullComp;
@@ -191,7 +221,27 @@ const toAbsoluteFileUrl = (/** @type {any} */ x) => x;
 const saveResultToTasks = async () => ({ ok: true, url: 'http://x/y.png', skipped: true });
 const saveTextToTasks = async () => undefined;
 // 【2026-09-17】以下三个已改**判别联合**（成功＝`ok:true` + url）—— 原来分别是 string / null。
-const saveInlineToLocal = async () => ({ ok: true, url: 'local://x' });
+/** 落盘调用记录（断言"编辑器产物真的落了盘"这一外部事实用；只记字节，不改行为） */
+const saveInlineCalls = { n: 0, lastDataUrl: '' };
+const saveInlineToLocal = async (/** @type {string} */ dataUrl) => {
+  saveInlineCalls.n++;
+  saveInlineCalls.lastDataUrl = dataUrl;
+  return { ok: true, url: 'local://x' };
+};
+/**
+ * 「图像入节点·统一落盘策略」忠实桩（与 filesApi.showThenPersistInline 同契约）：
+ *   ① 立即 `show(dataUrl)`；② 落盘；③ 成功才 `show(持久 url)`。
+ * ⚠️ 必须保留三步语义（不是 `show(持久) 就完`）——用例正是靠它断言"落盘被走过了"。
+ */
+const showThenPersistInline = async (
+  /** @type {string} */ dataUrl,
+  /** @type {(u: string) => void} */ show,
+) => {
+  if (!dataUrl) return;
+  show(dataUrl); // ① 立即上屏
+  const saved = await saveInlineToLocal(dataUrl);
+  if (saved.ok && saved.url) show(saved.url); // ③ 成功才换持久
+};
 const uploadFileToLocal = async () => ({ ok: true, url: 'local://up' });
 // 落盘收口：File → /files/ URL（失败回退内联），与 filesApi.resolveNodeAssetUrl 同签名
 const resolveNodeAssetUrl = async () => ({ ok: true, url: 'local://up' });
@@ -266,6 +316,8 @@ function resetNodeMockState() {
   xyflowCalls.setEdges = 0;
   xyflowCalls.addNodes = 0;
   xyflowCalls.addEdges = 0;
+  saveInlineCalls.n = 0;
+  saveInlineCalls.lastDataUrl = '';
   connectedInputsState = { images: [], texts: [] };
   unstableReactFlow = false;
   lastGenConfig = null;
@@ -291,6 +343,7 @@ export const mocks = {
   PromptInput,
   ModelSelect,
   ImageEditor,
+  MattingEditor,
   OverlayEditor,
   LazyImage,
   CustomHandle,
@@ -352,5 +405,7 @@ export const mocks = {
   Canvas,
   useStore: () => () => ({}),
   xyflowCalls,
+  saveInlineCalls,
+  showThenPersistInline,
   resetNodeMockState,
 };

@@ -11,7 +11,7 @@ import {
   Download,
   Camera,
   Layers,
-  Scissors,
+  SquareDashedMousePointer,
 } from 'lucide-react';
 import { useReactFlow } from '@xyflow/react';
 import NodeShell from '@/components/canvas/parts/NodeShell';
@@ -157,6 +157,10 @@ function AssetNode({ id, data, selected }: AssetNodeProps) {
     renderEditor,
     renderInlineCropper,
     imageButtons,
+    // 【编辑器产出的统一保存出口】任何「编辑器产出 dataURL → 写回节点」都走它：
+    // ① 立即上屏 dataURL → ② 落盘换 /files/ 持久 URL → ③ 再写回持久 URL（策略见 filesApi.showThenPersistInline）。
+    // 抠图（MattingEditor）与 ImageEditor 的 onSave 签名同形 ⇒ 直接复用，不另写第二条落盘路径。
+    handleEditorSave,
   } = useImageHoverActions({
     id,
     url,
@@ -355,7 +359,10 @@ function AssetNode({ id, data, selected }: AssetNodeProps) {
       },
       {
         key: 'matting',
-        icon: <Scissors size={14} />,
+        // 【图标 = PS「对象选择工具」形态：虚线选框 + 指针】（行业惯例：PS 的 AI 一键选主体就是这个符号）。
+        // ❌ 不用 Scissors：本仓剪刀已被"切割/分割"占用（GridSplitNode 切刀 · 时间轴分割），且与「裁剪」撞。
+        // ❌ 不用 WandSparkles：那是"魔棒"，PS 里专指**纯色背景**工具，不是 AI 抠图。
+        icon: <SquareDashedMousePointer size={14} />,
         title: 'AI 抠图（去背景）',
         hoverClass: 'hover:text-sky-400',
         show: type === 'image' && !!url,
@@ -580,13 +587,14 @@ function AssetNode({ id, data, selected }: AssetNodeProps) {
         />
       )}
 
-      {/* AI 抠图编辑器：图片态可抠，产出透明 PNG 走 replaceImage 写回本节点。
-          ★ 复用与压缩/裁剪同一条落盘策略（replaceImage → replaceNodeImage → showThenPersistInline），
-            不新增第二套写回机制。 */}
+      {/* AI 抠图编辑器：图片态可抠，产出透明 PNG 写回本节点。
+          ★ onSave 直接复用 handleEditorSave（与 ImageEditor 同一条出口：上屏 → 落盘 → 换持久 URL）。
+            此前这里直调 replaceImage ⇒ 只写字段、产物永不落盘（MB 级 dataURL 常驻 node.data，
+            且与其余四条编辑器路径不同构）。 */}
       {mattingOpen && type === 'image' && url && (
         <MattingEditor
           assetUrl={url}
-          onSave={({ dataUrl, width, height }) => replaceImage(dataUrl, { width, height })}
+          onSave={handleEditorSave}
           onClose={() => setMattingOpen(false)}
         />
       )}
