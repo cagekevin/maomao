@@ -13,7 +13,6 @@ import {
   buildEffectivePrompt,
   clampSeconds,
   clamp,
-  assetLabel,
   dataUrlToBlob,
   safeFileName,
   compilePatternRegex,
@@ -199,25 +198,6 @@ describe('buildEffectivePrompt（本地 prompt + 上游文本合并）', () => {
 
   it('上游文本自身 trim（首尾空格去除）', () => {
     expect(buildEffectivePrompt('', [{ text: '  白天  ' }])).toBe('白天');
-  });
-});
-
-describe('assetLabel（ResourceStrip onInsert 对象/字符串兼容）', () => {
-  it('对象 → 取 label', () => {
-    // 真实对象常带 id/kind 等额外字段（assetLabel 只消费 label），断言到 {label?:string} 入参形状
-    expect(assetLabel({ id: 'img-1', label: '人物', kind: 'image' } as { label?: string })).toBe(
-      '人物',
-    );
-  });
-
-  it('字符串 → 原样返回', () => {
-    expect(assetLabel('人物')).toBe('人物');
-  });
-
-  it('对象缺 label / 空值 → 空串', () => {
-    expect(assetLabel({ id: 'img-1' } as { label?: string })).toBe('');
-    expect(assetLabel(null)).toBe('');
-    expect(assetLabel(undefined)).toBe('');
   });
 });
 

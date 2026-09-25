@@ -38,6 +38,10 @@
     "audit/**", // 已退役沙盒（TD-17-1：能力已并入主工程闸）
     "mockup/**",
     "packaging/**",
+    // 节点蓝本样板（copy-from 用）：`_template/` 下划线=非生产目录、不占任何 registry、不会被创建/渲染
+    // ⇒ 不参与生产构建图。由 `tests/unit/TemplateNode*.test.tsx` 直接 render 锁定可用性 ⇒ **有意保留**，
+    // 不是死代码（故豁免于此，而非塞基线）。见该文件头 :40-46。
+    "src/components/canvas/nodes/_template/**",
 
     // ── C. ⚠️ 会消费 src 导出、但有意排除在 knip 引用图外 ────────────────
     //   ★ 这两条 = 「knip 分析边界」所在，也是本闸**唯一系统性误报**的来源。
@@ -57,6 +61,13 @@
     //   · localTool/** ：独立后端工程（自带 package.json + tsconfig），不属前端构建图。
     "scripts/**",
     "localTool/**"
+
+    // ⚠️【2026-09-25 · 拒绝加的豁免】`videoEditorTailwindColors.ts`（文件级误报：唯一消费者 =
+    //   根目录构建配置 `tailwind.config.ts:3`，属 `--production` 下不入图的构建入口）**故意不 ignore**：
+    //   `ignore` 是把文件移出分析图（致盲），扩它得红是为削数字、非修事实；该误报如实留在
+    //   `dead-code-baseline.json` 存量里即可（基线=不阻塞的存量，不是要"清零"的 KPI）。
+    //   同理别白试：`@public` 只作用于**导出**、救不了**文件级**报告；entry/project 补
+    //   `tailwind.config.ts!` 亦无效（本日各实测一次、并清过 knip 缓存）。
 
     // ── D. 测试（**曾误加，已删**）────────────────────────────────────────
     //   ⚠️ 不要用 `ignore` 处理测试文件：官方原文 —— 它只**隐藏报告**、不把文件排除出分析图

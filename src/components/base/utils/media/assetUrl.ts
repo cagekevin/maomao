@@ -318,20 +318,6 @@ export function buildContentUrlResolver(
 }
 
 /**
- * 互斥双形态校验（docs/122 #4）：返回「同时存在的字段」列表。
- * 文件型持 `contentId`、内联 type 持 `url`，二者互斥；`contentId+url` 双字段同指一文件即为
- * 冗余副本（明令杜绝），本函数返回违反字段供 UI guard / 测试兜底。
- * @param {Record<string, unknown>} data
- * @returns {Array<'contentId'|'url'>} 违规字段；normal 为 []
- */
-export function assertMutuallyExclusiveAssetForm(data: object): Array<'contentId' | 'url'> {
-  const d = data as Record<string, unknown>;
-  const hasContentId = typeof d?.contentId === 'string';
-  const hasUrl = typeof d?.url === 'string';
-  return hasContentId && hasUrl ? ['contentId', 'url'] : [];
-}
-
-/**
  * 本地 File/Blob → data: base64（发送附件用）。
  * 收口：FileReader 的 dataURL 转换统一在此，各面板不得散写 FileReader。
  * 与 blobToDataUrl（网络 blob→data）语义互补：一个收本地 File、一个收 URL。

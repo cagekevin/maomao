@@ -5,8 +5,6 @@ import {
   isPresetId,
   collectPresetIds,
   syncCreativePresets,
-  trimPreset,
-  isValidPresetEntry,
   toDictEntry,
   CATALOG_KINDS,
   PRESET_KINDS,
@@ -117,47 +115,7 @@ describe('creativePresets —— normalizeChipFieldWrite（I1 接线点 · TD-05
   });
 });
 
-describe('creativePresets —— trimPreset（I4：不落盘字段不外泄）', () => {
-  it('丢弃 description/medium/codes/parameters/vibe，只留 6 字段', () => {
-    const rich = {
-      id: 'cp_mj-char1',
-      kind: 'mj',
-      category: '分类',
-      name: '名字',
-      prompt: '完整提示词一大段',
-      preview: '/mj-styles/x.webp',
-      description: 'desc',
-      medium: '真实照片',
-      codes: '--sref 123',
-      parameters: '--ar 16:9',
-      vibe: '糖果粉',
-    };
-    const out = trimPreset(rich);
-    expect(out).toEqual({
-      id: 'cp_mj-char1',
-      kind: 'mj',
-      category: '分类',
-      name: '名字',
-      prompt: '完整提示词一大段',
-      preview: '/mj-styles/x.webp',
-    });
-    expect('medium' in out).toBe(false);
-    expect('codes' in out).toBe(false);
-    expect('parameters' in out).toBe(false);
-    expect('vibe' in out).toBe(false);
-    expect('description' in out).toBe(false);
-  });
-});
-
-describe('creativePresets —— 字典校验与产物', () => {
-  it('isValidPresetEntry：非 cp_ / 缺 prompt / 空 prompt 拒绝', () => {
-    expect(isValidPresetEntry('cp_style-1', { kind: 'style', prompt: 'x' })).toBe(true);
-    expect(isValidPresetEntry('style-1', { kind: 'style', prompt: 'x' })).toBe(false);
-    expect(
-      isValidPresetEntry('cp_style-1', null as unknown as Parameters<typeof isValidPresetEntry>[1]),
-    ).toBe(false);
-    expect(isValidPresetEntry('cp_style-1', { kind: 'style', prompt: '' })).toBe(false);
-  });
+describe('creativePresets —— 字典产物', () => {
   it('toDictEntry 产出 {kind,name,prompt}', () => {
     expect(
       toDictEntry({ id: 'cp_style-1', kind: 'style', category: 'c', name: '名', prompt: 'p' }),
@@ -207,7 +165,7 @@ describe('creativeCatalog —— 真值计数与 id 归一化', () => {
     // 收窄走 kind 判别（MjPreset extends CreativePreset，无需类型守卫函数）
     expect(mj.kind).toBe('mj');
     expect(isPresetId(mj.id)).toBe(true);
-    // 富字段应在（详情态所需），但它必须能经 trimPreset 裁剪掉
+    // 富字段应在（详情态所需），但 toDictEntry 白名单不含它 ⇒ 进不了字典/快照（I4）
     expect('codes' in mj || 'vibe' in mj).toBe(true);
   });
   it('分类名非空', () => {
@@ -223,14 +181,21 @@ describe('creativeCatalog —— 真值计数与 id 归一化', () => {
   });
 });
 
-describe('creativeCatalog × trimPreset（I4 全链路）', () => {
-  it('把 MjPreset 经 trimPreset 收敛为落盘 6 字段', () => {
+describe('creativeCatalog × toDictEntry（I4 全链路）', () => {
+  it('MjPreset 的富字段经 toDictEntry 白名单挡在字典外（只产 kind/name/prompt）', () => {
     const mj = MJ_PRESETS[0];
-    const trimmed = trimPreset(mj);
-    expect(trimmed.kind).toBe('mj');
-    expect('codes' in trimmed).toBe(false);
-    expect('parameters' in trimmed).toBe(false);
-    expect('vibe' in trimmed).toBe(false);
-    expect('medium' in trimmed).toBe(false);
+    const entry = toDictEntry(mj);
+    expect(entry).toEqual({ kind: mj.kind, name: mj.name, prompt: mj.prompt });
+    for (const k of [
+      'description',
+      'medium',
+      'codes',
+      'parameters',
+      'vibe',
+      'video',
+      'preview',
+      'id',
+    ])
+      expect(k in entry).toBe(false);
   });
 });

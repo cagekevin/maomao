@@ -1,12 +1,16 @@
 /**
- * creativePresets —— 创作库「预设」纯逻辑层（类型 / 校验 / 字典 GC / 裁剪）。
+ * creativePresets —— 创作库「预设」纯逻辑层（类型 / 字典 GC / 字典写入）。
  *
  * 职责边界：**纯逻辑，不含 React / 存储 / 网络 / 预览图 URL 落地**。
  *   - 类型：`CreativePreset`（唯一实体）与 `CreativePresetsDict`（节点 data.creativePresets 字典）。
  *   - 命名空间：`presetIdFor` / 解析 `cp_` 前缀（与胶囊序列化 `@{id:label}` 共用同一 id 规则）。
  *   - 字典 GC：`syncCreativePresets(prompt, dict)` —— 删胶囊后清理孤儿字典项（I1）。
- *   - 裁剪校验：`trimPreset` —— 只留 6 个落盘字段，丢弃 `description/medium/codes/parameters/vibe`
- *     （I4「面板内数据不外泄进快照」，§一.2）。
+ *   - I4「面板内数据不外泄进快照」的**真收口 = `toDictEntry` 白名单**（只产 `{kind,name,prompt}`，
+ *     富字段 description/medium/codes/parameters/vibe/video 天然进不来）。
+ *     ⚠️ 【2026-09-25 删假守卫】原 `trimPreset` / `isValidPresetEntry` **零生产调用**：三节点写字典
+ *     一律 `addCreativePreset(id, toDictEntry(item))`，跳过 trim（`CreativeLibrary.tsx:42-45` 明载
+ *     「无需再裁一层」）⇒ 二者是「注释声称在链路里、实际没人调」的假守卫，已删（含其单测）。
+ *     **禁再恢复**：要裁字段请扩 `toDictEntry` 白名单，勿另立第二份裁剪函数。
  *
  * 数据来源（§一.2.1）：
  *   - 风格/滤镜/运镜/MJ（catalog 4 类）：`creativeCatalog.ts` 从 `data/*.json` 归一化产出，**只读**。
@@ -47,7 +51,7 @@ const MJ_ID_PREFIX = 'cp_mj-';
 
 /**
  * 创作库预设唯一实体（落盘形态，仅 6 字段）。
- * §一.2：不落盘字段（description/medium/codes/parameters/vibe）由 `trimPreset` 裁剪，
+ * §一.2：不落盘字段（description/medium/codes/parameters/vibe）经 `toDictEntry` 白名单挡在字典外，
  * 禁止进入节点 data 快照（I4）。
  */
 export interface CreativePreset {
@@ -65,7 +69,7 @@ export interface CreativePreset {
   preview?: string;
   /**
    * 动态预览（运镜专有，`/creative-presets/x.mp4`），可选。
-   * 【不落盘】只在面板内供悬停播放；`trimPreset` 的白名单不含它，禁进节点快照（I4）。
+   * 【不落盘】只在面板内供悬停播放；`toDictEntry` 的白名单不含它，禁进节点快照（I4）。
    */
   video?: string;
 }
@@ -185,43 +189,6 @@ export function normalizeChipFieldWrite(
   // chip 字段可能多个（prompt / text），取并集后统一裁剪：任一字段仍引用即保留。
   const merged = CHIP_BEARING_FIELDS.map((f) => String(data[f] ?? '')).join('\n');
   return { ...data, creativePresets: syncCreativePresets(merged, dict) };
-}
-
-/**
- * 裁剪校验：把任意「可能带面板内字段」的对象收敛为只含 6 个落盘字段的 `CreativePreset`。
- * 丢弃：description / medium / codes / parameters / vibe / **video**（I4 + §一.2 验证口径）。
- *   注：`video`（运镜的 .mp4）是 2026-09-15 新增的**面板内**字段——走白名单挑选，
- *   本函数不显式列它，故天然被裁掉；新增字段务必确认不在此白名单内，否则破 I4。
- * 未知/缺字段不强行补（本函数只做「挑白名单字段」，不做合法性校验；
- *   需校验字典条目时用同文件的 `isValidPresetEntry`）。
- */
-export function trimPreset(src: object): CreativePreset {
-  const s = src as Record<string, unknown>;
-  return {
-    id: String(s.id ?? ''),
-    kind: s.kind as PresetKind,
-    category: String(s.category ?? ''),
-    name: String(s.name ?? ''),
-    prompt: String(s.prompt ?? ''),
-    preview: s.preview !== undefined && s.preview !== null ? String(s.preview) : undefined,
-  };
-}
-
-/**
- * 字典值校验（运行期防线）：非 `cp_*` 键 / 缺 prompt / kind 非法 → false。
- * 归一味用于「是否该把这条写入节点 data.creativePresets」。
- */
-export function isValidPresetEntry(
-  id: string,
-  entry: { kind?: unknown; prompt?: unknown },
-): boolean {
-  return (
-    !!isPresetId(id) &&
-    entry !== null &&
-    typeof entry === 'object' &&
-    typeof entry.prompt === 'string' &&
-    entry.prompt.length > 0
-  );
 }
 
 /**

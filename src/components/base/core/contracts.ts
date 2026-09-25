@@ -93,7 +93,14 @@ export interface EventRegistryEntry {
   note: string;
 }
 
-// 🔒 键名冻结（ADR-0038）：本表**键名**属对外契约，禁随手改名 —— 见文件头【键名冻结】段。
+/**
+ * 🔒 键名冻结（ADR-0038）：本表**键名**属对外契约，禁随手改名 —— 见文件头【键名冻结】段。
+ *
+ * @public 跨边界消费者：scripts/check-events.mjs
+ *   —— 该闸脚本在 knip 的**生产分析边界外**（`knip.json` 的 C 组 ignore `scripts/**`），
+ *      它以 `import(contracts.ts).EVENTS` 读本表做双向校验；静态分析原理上解析不到⇒ knip 报本表
+ *      「生产零消费」是**边界外误报**，非死代码（同 `NODE_TYPE_SET` / `apiRegistry` 的处置）。
+ */
 export const EVENTS: Record<string, EventRegistryEntry> = {
   [TASK_COMPLETED_EVENT]: {
     from: ['taskCompletionBus.ts:30'],

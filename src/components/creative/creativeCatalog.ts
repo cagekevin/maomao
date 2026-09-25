@@ -14,7 +14,7 @@
  *     · 原始 id 无 kind 前缀（`char1`）→ `presetIdFor('mj')` → `cp_mj-char1`。
  *     · kind='mj'。category 沿用（34 个真分类）。preview 用缩略图（详情态的大图另见 mjCatalog 富字段）。
  *     · 面板详情需要的 medium/codes/parameters/vibe/mixed 属「不落盘字段」（§一.2）——
- *       本层把它们放进 `MjPreset` 富形态（UI 用），插入字典时经 `trimPreset` 裁剪（I4）。
+ *       本层把它们放进 `MjPreset` 富形态（UI 用），插入字典时经 `toDictEntry` 白名单裁剪（I4）。
  *
  * 本层只产 catalog 前 4 类（style/filter/motion/mj）；`cp_prompt-*` 由 promptManager 运行期写入（§一.2.1）。
  */
@@ -53,7 +53,7 @@ interface RawMj {
   preview?: string;
 }
 
-/** MJ 富形态（含面板详情所需的不落盘字段）；插入字典前须 `trimPreset` 裁剪。 */
+/** MJ 富形态（含面板详情所需的不落盘字段）；插入字典前须经 `toDictEntry` 白名单裁剪。 */
 export interface MjPreset extends CreativePreset {
   /** 素材类型组：char（角色人像）/ scene（场景环境）/ juwu（巨物怪兽）。两轴交叉过滤的「素材类型」轴 */
   group: string;

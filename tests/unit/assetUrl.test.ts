@@ -5,7 +5,6 @@ import {
   buildThumbnailUrl,
   resolveAssetUrl,
   resolveAssetDisplayUrl,
-  assertMutuallyExclusiveAssetForm,
   normalizeAssetUrlForSend,
   normalizeAssetUrlsForSend,
   toImageContentBlocks,
@@ -390,19 +389,6 @@ describe('assetUrl · resolveAssetDisplayUrl', () => {
 
   it('empty / undefined → missing', () => {
     expect(resolveAssetDisplayUrl(undefined, resolveFrom({}))).toEqual({ kind: 'missing' });
-  });
-
-  it('assertMutuallyExclusiveAssetForm：contentId+url 双字段同指文件 → 违规', () => {
-    expect(assertMutuallyExclusiveAssetForm({ contentId: 'sha1:x', url: '/files/x.png' })).toEqual([
-      'contentId',
-      'url',
-    ]);
-  });
-
-  it('assertMutuallyExclusiveAssetForm：单形态（仅 contentId 或仅 url）→ []', () => {
-    expect(assertMutuallyExclusiveAssetForm({ contentId: 'sha1:x' })).toEqual([]);
-    expect(assertMutuallyExclusiveAssetForm({ url: '/files/x.png' })).toEqual([]);
-    expect(assertMutuallyExclusiveAssetForm({})).toEqual([]);
   });
 });
 

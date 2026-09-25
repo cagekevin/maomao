@@ -101,9 +101,8 @@ declare const chrome: {
   };
 };
 
-// 演示环境占位常量（浏览器端降级新建环境时用的测试站点地址与头像，统一避免散落硬编码）
+// 演示环境占位常量（浏览器端降级新建环境时用的测试站点地址，统一避免散落硬编码）
 export const TEST_SITE_URL = 'http://localhost:3000';
-export const TEST_AVATAR = 'https://api.dicebear.com/7.x/avataaars/svg?seed=test';
 
 // 登录态 Cookie 白名单（即梦/字节系，复刻官方 `ma`）
 export const LOGIN_COOKIE_WHITELIST = [
