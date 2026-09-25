@@ -244,8 +244,8 @@ kvStore.ts（re-export 壳）已删除；CANVAS_STATE_PREFIX 由 core/contracts.
   → base/media/index.ts（唯一出口，import 即完成内置来源自注册）
       ├→ mediaRefRegistry（queryMediaRefs 单来源）
       │    └→ providers/index.ts（唯一 import 点 · 模块副作用自注册）
-      │         ├→ providers/canvasSource     source='canvas'    ← canvas/lib/nodeMedia.getNodeMedia（只取主媒体）
-      │         │                                      + base/utils/media/assetUrl.resolveAssetDisplayUrl（contentId→url）
+      │         ├→ providers/canvasSource     source='canvas'    ← base/utils/media/nodeMedia.getNodeMedia（只取主媒体）
+      │         │                                      （该件内部委托 resolveAssetDisplayUrl：contentId→url **收在它内部**）
       │         │                                      + base/core/utils.toAbsoluteFileUrl（url 归一）
       │         │                                      ← canvas/lib/canvasNodesBridge（画布节点只读快照）
       │         │                                      （**无 categories** = 无第二层筛选）
@@ -742,7 +742,8 @@ docs/audit-archive/*.md（历史报告归档保留，非活配置）
 | `base/ui/attachmentCover.tsx` | `agent/panels/attachmentCover.tsx` |
 | `base/editors/*`（10 件） | `image/editors/`（图片能力的工具，非独立域） |
 | `base/api/{generate,pollTask,relayProxy}.ts` · `base/store/generationOrchestration.ts` · `base/utils/imagePixel.ts` | `generate/lib/` |
-| `base/media/canvasNodesBridge.ts` · `base/utils/media/nodeMedia.ts` · `base/core/canvasSyncBus.ts` | `canvas/lib/` |
+| `base/media/canvasNodesBridge.ts` · `base/core/canvasSyncBus.ts` | `canvas/lib/` |
+| `canvas/lib/nodeMedia.ts`（媒体读取那半） | `base/utils/media/nodeMedia.ts`（横切：与读侧 `assetUrl.ts` / 写侧 `nodeImage.ts` 同址；**选中派生**那半 → `canvas/lib/selectedAssets.ts`） |
 | `base/media/libraryBrowse.ts` | `resource/libraryBrowse.ts` |
 | `base/store/{nodeRuntimeStore,taskCompletionBus}.ts` | `task/` |
 | `base/core/agentKeys.ts` | `agent/runtime/agentKeys.ts` |

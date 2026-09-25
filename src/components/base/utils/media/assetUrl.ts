@@ -259,11 +259,16 @@ export type AssetRefState = { kind: 'ok'; url: string } | { kind: 'missing' };
 /**
  * 素材节点渲染 url 解析（docs/122 #4/#5）——「渲染解析」唯一入口，禁止 asset/脚本盒各自 map 拼 url。
  *
- * data 互斥双形态：
- *  - 文件型持稳定 `contentId`(`sha1:<hex>`，与后端 resources.sha1 同源) → 经 resolveContentUrl 解析
- *    resource → url；若 resource 暂未登记（如纯画布拖入尚未入素材库）则回落到下方内联/存量兜底。
- *  - 内联 dataURL/blob/http 持 `url` → 直接用（不查 resource）。
- *  - 存量兼容层：仅当既无 contentId 也无 url 时，退回历史 `assetUrl` 字段（docs/118 §7.3 ⑤ 读兼容写唯一）。
+ * data 三形态（**下列顺序即优先级**；三者互斥，取第一个命中的）：
+ *  - ① 文件型持稳定 `contentId`(`sha1:<hex>`，与后端 resources.sha1 同源) → 经 resolveContentUrl 解析
+ *    resource → url；若 resource 暂未登记（如纯画布拖入尚未入素材库）则回落到下方字段兜底。
+ *  - ② **主图字段 `assetUrl`**：写侧唯一写的字段（`nodeImage.ts`：写侧只写 assetUrl、写新图即清旧身份）。
+ *  - ③ 存量兼容层 `url`：旧「双写」遗留字段，**全仓已无生产者写它**（2026-09-11 双写已删）；
+ *    只在 ①② 都空时兜底（docs/118 §7.3 ⑤ 读兼容写唯一）。
+ *  ⚠️ 2026-09-25 回改：原文把 `url` 排在 `assetUrl` **之前**，并注「url = 内联 dataURL/粘贴图/生成结果」。
+ *    该注释与事实不符 —— 粘贴图/网页图/生成结果**实际都写 `assetUrl`**（`useAssetDropPaste:182/200`、
+ *    `useGenerateNode` 的 `resultKey:'assetUrl'`）⇒ 一个「已无生产者的存量字段」被排在「现行写入字段」之前，
+ *    会让**存量带 `url` 的节点被编辑后仍解析出旧图**（同一件事的另一条短路，与 `contentId` 同款）。
  *
  * 纯函数，不 import store（避免循环依赖）；contentId 解析由调用方注入 resolveContentUrl
  * （如用 buildContentUrlResolver 由 resource 列表构建）。contentId 是 stable identity：
@@ -284,12 +289,12 @@ export function resolveAssetDisplayUrl(
     const resolved = resolveContentUrl(contentId);
     if (resolved) return { kind: 'ok', url: resolved };
   }
-  // 内联 dataURL/blob/http（网页图未本地化、粘贴图、生成结果）：直用 url
-  const url = typeof d.url === 'string' ? d.url : undefined;
-  if (url) return { kind: 'ok', url };
-  // 存量兼容：老节点只有 assetUrl（读兼容、写唯一；不破存量快照）
+  // 主图字段：**写侧唯一写的那个**（nodeImage.ts）⇒ 排在存量字段 `url` 之前
   const assetUrl = typeof d.assetUrl === 'string' ? d.assetUrl : undefined;
-  return assetUrl ? { kind: 'ok', url: assetUrl } : { kind: 'missing' };
+  if (assetUrl) return { kind: 'ok', url: assetUrl };
+  // 存量兼容：`url` 已无生产者（旧双写已删），仅在前两者都空时兜底（读兼容、写唯一）
+  const url = typeof d.url === 'string' ? d.url : undefined;
+  return url ? { kind: 'ok', url } : { kind: 'missing' };
 }
 
 /**

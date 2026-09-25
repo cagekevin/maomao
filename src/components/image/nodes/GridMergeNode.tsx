@@ -24,6 +24,8 @@ import { generateId } from '@/components/base/core/idGen';
 // 替代本文件原有的无超时私有实现（图片挂起会让宫格合成永久卡住）。
 import { loadImageOrNull, releaseQuietly } from '@/components/base/utils/net/asyncGuard';
 import { IMG_MIN_DIM, IMG_MAX_DIM } from '@/components/image/lib/imageLimits';
+// 主图写回唯一入口（含「旧身份必须失效」不变式）—— 合成结果写回不得直写 assetUrl。
+import { replaceNodeImage } from '@/components/base/utils/media/nodeImage';
 
 /* ════════════════════════════════════════════════════════════════
  * 图片拼图节点（复刻官方 Yo.jsx / gridMergeNode）
@@ -439,7 +441,7 @@ function GridMergeNode({ id, data, selected }: GridMergeNodeProps) {
         // 合成结果是全质量 PNG dataURL（可达 MB 级）→ 统一走落盘出口换 /files/ 持久 URL 再写回，
         // 避免 MB 级 dataURL 进画布快照（docs/118 §五 C5）；落盘失败保留内联（同一降级策略，勿自写）。
         const persistedUrl = await persistInlineOrKeep(url);
-        patchData({ assetUrl: persistedUrl });
+        replaceNodeImage({ id, dataUrl: persistedUrl }, setNodes);
         spawnMergedImage(persistedUrl);
       } else {
         // 【2026-09-17 TD-24-4 §二】合成产不出图必须对**用户**可见（同族 GridSplitNode 同款形态）：

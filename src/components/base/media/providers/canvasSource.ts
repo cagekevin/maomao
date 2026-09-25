@@ -3,15 +3,19 @@
  *
  * ════════════════════════════════════════════════════════════════
  * 【本文件只做映射，不重实现】（docs/136 §一 普查结论 ①–⑦ 全部复用）
- *  · 取节点媒体：复用 `base/utils/nodeMedia.ts::getNodeMedia`（**只取主媒体**，
+ *  · 取节点媒体：复用 `base/utils/media/nodeMedia.ts::getNodeMedia`（**只取主媒体**，
  *    与 AgentPanel 待发送区口径一致）；
- *  · 解析 contentId → resource.url：复用 `base/utils/assetUrl.ts::resolveAssetDisplayUrl`
- *    （处理 `contentId`/`url`/`assetUrl` 三形态互斥，**禁止**在此重写字段嗅探）；
+ *  · contentId → resource.url：**已收在 `getNodeMedia` 内部**（它委托唯一读入口
+ *    `assetUrl.ts::resolveAssetDisplayUrl`，认 `contentId`/`assetUrl`/`url` 三形态）。
+ *    故本文件传入解析器即可，**不再自己解析一遍**；
  *  · URL 归一：复用 `base/core/utils.ts::toAbsoluteFileUrl`。
  *
- * 【为什么画布节点的 url 也要过 resolveAssetDisplayUrl】
- * 节点 data 可能是「文件型」（只持 contentId，url 由 resource 反查）—— 直接用
- * `getNodeMedia` 拿不到 url 时会退化为空，故用显示解析入口兜底。
+ * 【2026-09-25：删掉"再解析一次"的兜底（TD-16-23 收尾）】
+ * 原文在拿到 `getNodeMedia` 之后**又**调了一次 `resolveAssetDisplayUrl` 兜底 —— 那是因为
+ * `getNodeMedia` 当时不认识 `contentId`，只持 contentId 的文件型节点会退化为空。
+ * 现在 `getNodeMedia` 自己就认（母体已治）⇒ 那层「同一次解析跑两遍」被删：
+ * 同一份判据只留一处，链路少一跳。解析器同时**移出循环**（原先逐节点 `buildContentUrlResolver`
+ * 重建 = O(节点数 × 资源数) 的白跑）。
  * ════════════════════════════════════════════════════════════════
  *
  * 【已知保守取舍（docs/136 §5.5 / R1）】
@@ -19,11 +23,8 @@
  * （① 与 AgentPanel 一致；② 展开多图是行为扩展，不该在收口层擅自决定）。
  * 若将来要展开，应在 `nodeMedia.ts` 加 `getNodeMediaList`（**扩真源，不在此旁路**）。
  */
-import { getNodeMedia } from '@/components/canvas/lib/nodeMedia';
-import {
-  resolveAssetDisplayUrl,
-  buildContentUrlResolver,
-} from '@/components/base/utils/media/assetUrl';
+import { getNodeMedia } from '@/components/base/utils/media/nodeMedia';
+import { buildContentUrlResolver } from '@/components/base/utils/media/assetUrl';
 // 媒体类型判定的**唯一真值源**（禁在此内联重写扩展名嗅探；check-arch 有反向判据）
 import { classifyAssetUrlKind } from '@/components/base/utils/media/assetType';
 import { isMediaRefType } from '@/types';
@@ -51,20 +52,16 @@ export const canvasSourceProvider: MediaRefProvider = {
   async list(query?: MediaRefQuery): Promise<MediaRef[]> {
     const nodes = getCanvasNodesSnapshot();
     const out: MediaRef[] = [];
+    // 解析器建**一次**（原先在循环内逐节点重建）
+    const resolveContentUrl = buildContentUrlResolver(getResources());
 
     for (const node of nodes) {
       const data = (node.data || {}) as Record<string, unknown>;
-      const media = getNodeMedia(node);
+      // 【TD-16-23 · 根因已治】取主媒体只有这一个入口（内部认 contentId 三形态）。
+      const media = getNodeMedia(node, resolveContentUrl);
       const contentId = typeof data.contentId === 'string' ? data.contentId : undefined;
 
-      // 【TD-16-23 修复 · **顺序**】先解析 url，再判类型。
-      // 文件型节点可能只持 `contentId`（`App.handleImportPick` contentId 优先建的节点）——
-      // `getNodeMedia` 读的是 assetType/url/assetUrl，**拿不到 type/url**；原顺序
-      // `if (!media.type) continue` 会在解析入口**之前**把它跳过 ⇒ 画布来源凭空少几个节点且零日志
-      // （母体：读侧字段嗅探不认识 contentId 互斥形态；TD-14-2 只修了 `useConnectedInputs`）。
-      const resolved = resolveAssetDisplayUrl(data, buildContentUrlResolver(getResources()));
-
-      if (!media.type && resolved.kind !== 'ok') {
+      if (!media.type && !media.url) {
         // 分两种，**判据不同**：
         //  · 真·非媒体节点（文本 / 生成态，画布上大多数）→ 静默跳过（**正常状态**，不是失败）；
         //  · 媒体节点但解析不出地址（典型：contentId 引用的 resource 已删，画布上已 fail-loud
@@ -74,17 +71,12 @@ export const canvasSourceProvider: MediaRefProvider = {
             nodeId: node.id,
             nodeType: node.type ?? undefined,
             contentId,
-            kind: resolved.kind,
           });
         }
         continue;
       }
 
-      // 地址：解析结果（contentId→resource url）优先，其次节点自带 url。
-      // 【原 `if (!rawUrl)` 恒假守卫已删】走到这里必是 `media.type` 非空或 `resolved.ok` 成立：
-      // 前者由 `nodeMedia` 不变量（type 非空 ⟺ url 非空）保证 url 非空，后者 url 即解析结果非空
-      // ⇒ 那条守卫（及其"必须留痕"日志）**永远不会触发**，是假护栏 + 死日志（TD-16-23 ②）。
-      const rawUrl = resolved.kind === 'ok' ? resolved.url : media.url;
+      const rawUrl = media.url;
 
       // 类型：节点自报/嗅探优先；文件型节点（只持 contentId）由**唯一判型入口**按地址判。
       // 判不出（无扩展名且非 data:）→ **不猜**：留痕 + 跳过（猜一个类型会让下游按错类型渲染）。

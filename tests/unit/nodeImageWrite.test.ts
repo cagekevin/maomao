@@ -17,7 +17,14 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { Node } from '@xyflow/react';
-import { replaceNodeImage } from '../../src/components/image/lib/nodeImage.ts';
+import {
+  replaceNodeImage,
+  clearNodeMainImage,
+} from '../../src/components/base/utils/media/nodeImage.ts';
+import {
+  resolveAssetDisplayUrl,
+  buildContentUrlResolver,
+} from '../../src/components/base/utils/media/assetUrl.ts';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const readSrc = (rel: string) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
@@ -39,12 +46,76 @@ const node = (id: string, data: Record<string, unknown> = {}): Node =>
   ({ id, type: 'assetNode', position: { x: 0, y: 0 }, data }) as unknown as Node;
 
 describe('replaceNodeImage — 节点主图唯一写入口', () => {
-  it('只写 assetUrl；存量字段 url 不再写值（字段唯一化：读兼容、写唯一）', () => {
+  it('只写 assetUrl 值；**旧身份字段一并失效**（存量 url 不得把新图短路）', () => {
     const s = fakeSetNodes();
     replaceNodeImage({ id: 'n1', dataUrl: 'http://x/new.png' }, s.setNodes);
     const out = s.apply([node('n1', { assetUrl: 'http://x/old.png', url: 'http://x/old.png' })]);
     expect(out[0].data.assetUrl).toBe('http://x/new.png');
-    expect(out[0].data.url).toBe('http://x/old.png'); // 不动存量字段（读侧仍兜底）
+    // 【2026-09-25 改判】原断言要求 `url` 原样保留（理由写"不动存量字段，读侧仍兜底"）—— 那条是在
+    // **旧优先级**（`url > assetUrl`）下写的；保留旧 `url` 恰恰就是那条短路：存量带 `url` 的节点被编辑后
+    // 仍解析出旧图（与 `contentId` 同一个病、另一个入口）。写新图 = 旧身份整体失效 ⇒ `url` 一并清。
+    expect(out[0].data.url).toBeUndefined();
+    // 端到端：显示解析必须落到**新图**（不是同义反复，走真实解析入口）
+    expect(resolveAssetDisplayUrl(out[0].data as object, buildContentUrlResolver([]))).toEqual({
+      kind: 'ok',
+      url: 'http://x/new.png',
+    });
+  });
+
+  it('主图换新必须让旧 contentId 失效（否则显示被它短路，原图纹丝不动）', () => {
+    // 【2026-09-25 用户实测】素材库拖入 / 拖文件建的 assetNode 带 contentId（那张图的 sha1）。
+    // 读侧 `resolveAssetDisplayUrl` 优先级 = contentId > assetUrl > url，而新图写在 `assetUrl` 这格、
+    // 且 patch 是浅合并（旧字段不丢）⇒ 不清 contentId 就永远解析出**被替换掉的那张旧图**
+    //（用户观察：「JPG 换成 PNG 后还是显 JPG」—— contentId 解析出的正是那张 JPG）。
+    const s = fakeSetNodes();
+    replaceNodeImage({ id: 'n1', dataUrl: '/files/canvas/new.png' }, s.setNodes);
+    const out = s.apply([node('n1', { contentId: 'sha1:old', assetUrl: '/files/web/old.jpg' })]);
+    // ① 旧内容的身份必须失效
+    expect(out[0].data.contentId).toBeUndefined();
+    // ② 端到端：显示解析必须落到**新图**（用真实 resolver 验证优先级后果，不是同义反复）
+    expect(
+      resolveAssetDisplayUrl(
+        out[0].data as object,
+        buildContentUrlResolver([{ contentId: 'sha1:old', url: '/files/web/old.jpg' }]),
+      ),
+    ).toEqual({ kind: 'ok', url: '/files/canvas/new.png' });
+  });
+
+  it('调用方要用新身份时经 dataPatch 显式写 contentId（如「上传换图」）', () => {
+    // dataPatch 排在清空之后 ⇒ 可覆盖，保证"上传换图"仍能写新 contentId。
+    const s = fakeSetNodes();
+    replaceNodeImage(
+      { id: 'n1', dataUrl: '/files/canvas/new.png', dataPatch: { contentId: 'sha1:new' } },
+      s.setNodes,
+    );
+    const out = s.apply([node('n1', { contentId: 'sha1:old', assetUrl: '/files/web/old.jpg' })]);
+    expect(out[0].data.contentId).toBe('sha1:new');
+  });
+
+  it('清空主图必须清三个字段（漏 contentId ⇒ 文本态节点仍显示旧图）', () => {
+    // 与写新图**同一条不变式**：读侧 `contentId > assetUrl > url`，只清 assetUrl 会被高优先级字段读回旧图。
+    const s = fakeSetNodes();
+    clearNodeMainImage('n1', s.setNodes, { assetType: 'text', text: 'hi' });
+    const out = s.apply([
+      node('n1', {
+        assetUrl: '/files/web/old.jpg',
+        url: '/files/web/old.jpg',
+        contentId: 'sha1:old',
+        assetType: 'image',
+      }),
+    ]);
+    expect(out[0].data.assetUrl).toBeUndefined();
+    expect(out[0].data.url).toBeUndefined();
+    expect(out[0].data.contentId).toBeUndefined();
+    expect(out[0].data.assetType).toBe('text');
+    expect(out[0].data.text).toBe('hi');
+    // 端到端：清空后显示解析不得再读到旧图
+    expect(
+      resolveAssetDisplayUrl(
+        out[0].data as object,
+        buildContentUrlResolver([{ contentId: 'sha1:old', url: '/files/web/old.jpg' }]),
+      ),
+    ).toEqual({ kind: 'missing' });
   });
 
   it('dataPatch 与主图同一次不可变更新写下去（「上传替换内容」用；值 undefined = 清空）', () => {
@@ -59,7 +130,7 @@ describe('replaceNodeImage — 节点主图唯一写入口', () => {
     );
     const out = s.apply([node('n1', { assetUrl: 'o', url: 'o', assetType: 'image', text: 'x' })]);
     expect(out[0].data.assetUrl).toBe('http://x/new.png');
-    expect(out[0].data.url).toBe('o');
+    expect(out[0].data.url).toBeUndefined(); // 旧身份字段一并失效（2026-09-25 改判，见上一条）
     expect(out[0].data.assetType).toBeUndefined();
     expect(out[0].data.text).toBeUndefined();
   });
@@ -137,7 +208,7 @@ describe('源码护栏 — 图片写回只有一个门', () => {
     for (const rel of [
       'src/components/image/nodes/AssetNode.tsx',
       'src/components/canvas/nodes/Director3DNode.tsx',
-      'src/components/image/lib/nodeImage.ts',
+      'src/components/base/utils/media/nodeImage.ts',
     ]) {
       const src = readSrc(rel);
       expect(
@@ -148,7 +219,7 @@ describe('源码护栏 — 图片写回只有一个门', () => {
     // 双写开关不得回归（加回来就等于又开了一条写 url 的路径）
     // 断言「没有这个字段声明」而非「源码不含该词」——注释里保留它的历史说明是有意为之
     expect(
-      /\blegacyUrlField\??\s*:/.test(readSrc('src/components/image/lib/nodeImage.ts')),
+      /\blegacyUrlField\??\s*:/.test(readSrc('src/components/base/utils/media/nodeImage.ts')),
       'nodeImage 不得再提供 legacyUrlField 双写开关',
     ).toBe(false);
   });
@@ -168,22 +239,19 @@ describe('源码护栏 — 图片写回只有一个门', () => {
       ),
       'resolveAssetDisplayUrl 必须保留 assetUrl 存量兜底（无 resourceId/url 时退回 assetUrl）',
     ).toBe(true);
-    // 【2026-09-13 更新】并行「严格类型化」线把 `||` 改为 `??` + `as string | undefined` 显式标注
-    // （语义更准：空串不该被兜底）。护栏容忍两侧类型标注、认两运算符，防实现再演进时护栏过期
-    //（本轮全量回归发现其因旧正则只认 `||` 而恒红——属护栏过期，非兜底被删）。
+    // 【2026-09-25 改判】原两条护栏锁的是**实现形式**（App 源码必须出现 `assetUrl ?? url`、
+    // nodeMedia 必须出现字面量 `['assetUrl','url']`）—— 属「断源码文本」形态，而且锁的正是
+    // 本次要消灭的漂移：字段优先级被写成两份（App 内联嗅探 + nodeMedia 自定顺序），且**都不认 contentId**。
+    // 现在「取节点主媒体地址」只有唯一入口 `resolveAssetDisplayUrl` ⇒ 护栏改为**锁唯一入口**（各读取点必须委托它）。
+    // 行为面（认 contentId / contentId 优先于存量字段 / resource 缺失回落）由 `nodeMedia.test.ts`
+    // 的端到端断言覆盖 —— 那些是**可被证伪**的断言（改回字段嗅探即红）。
     expect(
-      /node\?\.data\?\.assetUrl.{0,60}(\?\?|\|\|).{0,60}node\?\.data\?\.url/.test(
-        readSrc('src/App.tsx'),
-      ),
-      'App.copyNodeImage 必须保留 assetUrl 兜底 url（?? / || 均可，容忍 as 标注）',
+      /resolveAssetDisplayUrl\(/.test(readSrc('src/components/base/utils/media/nodeMedia.ts')),
+      'getNodeAssetUrl / getNodeMedia 必须委托唯一读入口 resolveAssetDisplayUrl（不得自定字段优先级）',
     ).toBe(true);
-    // 【2026-09-13 修正】getNodeAssetUrl 已下沉 base/utils/media/nodeMedia.ts（TD-04-25）；
-    // 旧断言仍指向 agent/canvas/useCanvasAgentTools.ts（该文件已不再实现、仅转发注释）→ 恒红。
-    // 护栏应指向**实现真源**。
-    // 【2026-09-19 再修正】nodeMedia 已迁 `canvas/lib/`（TASK-031 §四-A-6）⇒ 路径随搬迁同步。
     expect(
-      /\['assetUrl',\s*'url'\]/.test(readSrc('src/components/canvas/lib/nodeMedia.ts')),
-      'getNodeAssetUrl 必须保留 assetUrl → url 的字段兼容顺序（实现真源 = canvas/lib/nodeMedia.ts）',
+      /getNodeAssetUrl\(/.test(readSrc('src/App.tsx')),
+      'App.copyNodeImage 必须经 getNodeAssetUrl（唯一读入口），不得内联嗅探 assetUrl/url',
     ).toBe(true);
   });
 
@@ -198,5 +266,32 @@ describe('源码护栏 — 图片写回只有一个门', () => {
       hits.length,
       `4 条保存出口应各走一次唯一落盘入口 showThenPersistInline，实际 ${hits.length}`,
     ).toBeGreaterThanOrEqual(4);
+  });
+
+  it('主图写回的消费方已全部收编（2026-09-25：6 处直写/直清 → 0）', () => {
+    // 【收口背景】此前「写已存在节点主图」有 7 个中心：1 真源 + 6 处绕过
+    //（全景截图 · 宫格合成 · 3D 导出下游 AssetNode · 3D 封面 · agent 生成结果 · 切文本态清空主图）。
+    // 6 处绕过**全都缺「旧 contentId 失效」** ⇒ 全都会「写新图却显示旧图」（用户实测：「原图纹丝不动」）。
+    // 本护栏锁住：这些消费方必须经唯一入口，且不得再直写/直清主图字段。
+    const consumers = [
+      'src/components/image/nodes/AssetNode.tsx',
+      'src/components/image/nodes/ImageGenerate.tsx',
+      'src/components/image/nodes/PanoramaNode.tsx',
+      'src/components/image/nodes/GridMergeNode.tsx',
+      'src/components/canvas/nodes/Director3DNode.tsx',
+      'src/components/agent/canvas/canvasPlanExecutor.ts',
+    ];
+    for (const rel of consumers) {
+      const src = readSrc(rel);
+      expect(
+        src.includes("from '@/components/base/utils/media/nodeImage'"),
+        `${rel} 必须经主图写回唯一入口（nodeImage）`,
+      ).toBe(true);
+      // 禁止对**已存在节点**直写主图字段（建节点时的初值 `data: {...}` / `addNode(...)` 不在此列）
+      expect(
+        /(patchData|patchNodeDataById|updateNodeData)\([\s\S]{0,200}?\{\s*assetUrl:/.test(src),
+        `${rel} 不得直写主图 assetUrl（必须走 replaceNodeImage / clearNodeMainImage）`,
+      ).toBe(false);
+    }
   });
 });

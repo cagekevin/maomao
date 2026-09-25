@@ -18,7 +18,7 @@ import NodeShell from '@/components/canvas/parts/NodeShell';
 import HoverToolbar from '@/components/canvas/shell/HoverToolbar';
 import ImageZoomDialog from '@/components/base/ui/display/ImageZoomDialog';
 import VideoThumbnail from '@/components/base/ui/display/VideoThumbnail';
-import { replaceNodeImage } from '@/components/image/lib/nodeImage';
+import { replaceNodeImage, clearNodeMainImage } from '@/components/base/utils/media/nodeImage';
 import { detectAssetType, detectFileType } from '@/components/base/utils/media/assetType';
 import { fileNameFromUrl } from '@/components/base/core/utils';
 import { assetTypeLabel, type AssetType } from '@/types';
@@ -26,7 +26,6 @@ import { useAssetDegrade } from '@/hooks/useAssetDegrade';
 import { NODE_AREA_FIXED_BASE_SIZE } from '@/components/base/core/config';
 import { useVideoPoster } from '@/hooks/useVideoPoster';
 import { useNodeRename } from '@/hooks/useNodeRename';
-import { patchNodeDataById } from '@/hooks/useNodeData';
 import { toAbsoluteFileUrl, resolveNodeAssetUrl } from '@/components/base/api/index';
 import { UPLOAD_DIRS } from '@/components/base/utils/uploadDirs';
 import {
@@ -255,15 +254,9 @@ function AssetNode({ id, data, selected }: AssetNodeProps) {
       if (detectFileType(f) === 'text') {
         const fr = new FileReader();
         fr.onload = () => {
-          patchNodeDataById(setNodes, id, {
-            text: fr.result,
-            assetType: 'text',
-            // 切文本态 = 清空主图（assetUrl 为主、url 为存量兼容字段）：
-            // 这里写 undefined 是【清空】不是【写值】，两者都必须清，否则渲染端
-            // `assetUrl || url` 会从 url 兜底读回旧图 → 文本态节点显示旧图。
-            assetUrl: undefined,
-            url: undefined,
-          });
+          // 切文本态 = 清空主图：走「清空主图」唯一入口（它与写新图共用同一不变式 —— 读侧
+          // `contentId > url > assetUrl` 三个字段只要剩一个就会把旧图读回来）。
+          clearNodeMainImage(id, setNodes, { text: fr.result, assetType: 'text' });
           // 节点已切到文本态，结果可见，无需 toast
         };
         fr.readAsText(f);

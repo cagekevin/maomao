@@ -71,8 +71,10 @@ import {
   runExistingPlanTool,
   setCreditSwitch,
 } from '../../src/components/agent/canvas/useCanvasAgentTools.ts';
-// getNodeAssetUrl / getNodeMedia 已下沉 base/canvas（TD-04-25），测试改引新位置。
-import { getNodeAssetUrl, getNodeMedia } from '../../src/components/canvas/lib/nodeMedia.ts';
+// getNodeAssetUrl / getNodeMedia 已收口至横切层 `base/utils/media/nodeMedia.ts`（2026-09-25 按件切）。
+import { getNodeAssetUrl, getNodeMedia } from '../../src/components/base/utils/media/nodeMedia.ts';
+/** 无 resource 可解析（本组用例均不含 contentId，等价于真实调用方在无 resource 时的行为） */
+const noRes = () => null;
 import * as convStore from '../../src/components/agent/conversation/conversationStore.ts';
 import '../../src/components/agent/conversation/conversationSnapshot.ts';
 import * as taskStore from '../../src/components/base/store/taskStore.ts';
@@ -449,54 +451,57 @@ describe('画布 Agent 工具层 §2.5', () => {
   });
 
   it('getNodeAssetUrl：提取节点主图 URL（assetUrl 字符串）', () => {
-    expect(getNodeAssetUrl(mkNode({ assetUrl: 'http://a/1.png' }))).toBe('http://a/1.png');
-    expect(getNodeAssetUrl(mkNode({ url: 'http://a/2.png' }))).toBe('http://a/2.png');
-    expect(getNodeAssetUrl(mkNode({}))).toBe('');
+    expect(getNodeAssetUrl(mkNode({ assetUrl: 'http://a/1.png' }), noRes)).toBe('http://a/1.png');
+    expect(getNodeAssetUrl(mkNode({ url: 'http://a/2.png' }), noRes)).toBe('http://a/2.png');
+    expect(getNodeAssetUrl(mkNode({}), noRes)).toBe('');
   });
 
   it('getNodeAssetUrl：支持 images/assetUrls 数组（字符串或对象）', () => {
     expect(
-      getNodeAssetUrl(mkNode({ images: [{ url: 'http://a/3.png' }, { url: 'http://a/4.png' }] })),
+      getNodeAssetUrl(
+        mkNode({ images: [{ url: 'http://a/3.png' }, { url: 'http://a/4.png' }] }),
+        noRes,
+      ),
     ).toBe('http://a/3.png');
-    expect(getNodeAssetUrl(mkNode({ images: ['http://a/5.png'] }))).toBe('http://a/5.png');
-    expect(getNodeAssetUrl(mkNode({ assetUrls: [{ assetUrl: 'http://a/6.png' }] }))).toBe(
+    expect(getNodeAssetUrl(mkNode({ images: ['http://a/5.png'] }), noRes)).toBe('http://a/5.png');
+    expect(getNodeAssetUrl(mkNode({ assetUrls: [{ assetUrl: 'http://a/6.png' }] }), noRes)).toBe(
       'http://a/6.png',
     );
-    expect(getNodeAssetUrl(mkNode({ images: [] }))).toBe('');
+    expect(getNodeAssetUrl(mkNode({ images: [] }), noRes)).toBe('');
   });
 
   it('getNodeMedia：视频节点返回本体 videoUrl + type=video', () => {
     expect(
-      getNodeMedia(mkNode({ videoUrl: 'http://a/c.mp4', assetUrl: 'http://a/cov.png' })),
+      getNodeMedia(mkNode({ videoUrl: 'http://a/c.mp4', assetUrl: 'http://a/cov.png' }), noRes),
     ).toEqual({ type: 'video', url: 'http://a/c.mp4' });
     // 显式 assetType::video 且仅 url → 用 url 作本体并判 video
-    expect(getNodeMedia(mkNode({ assetType: 'video', url: 'http://a/c.mp4' }))).toEqual({
+    expect(getNodeMedia(mkNode({ assetType: 'video', url: 'http://a/c.mp4' }), noRes)).toEqual({
       type: 'video',
       url: 'http://a/c.mp4',
     });
   });
 
   it('getNodeMedia：音频节点返回本体 audioUrl + type=audio', () => {
-    expect(getNodeMedia(mkNode({ audioUrl: 'http://a/v.mp3' }))).toEqual({
+    expect(getNodeMedia(mkNode({ audioUrl: 'http://a/v.mp3' }), noRes)).toEqual({
       type: 'audio',
       url: 'http://a/v.mp3',
     });
-    expect(getNodeMedia(mkNode({ assetType: 'audio', url: 'http://a/v.ogg' }))).toEqual({
+    expect(getNodeMedia(mkNode({ assetType: 'audio', url: 'http://a/v.ogg' }), noRes)).toEqual({
       type: 'audio',
       url: 'http://a/v.ogg',
     });
   });
 
   it('getNodeMedia：图片节点退化为主图 + type=image；无媒体返回空', () => {
-    expect(getNodeMedia(mkNode({ assetUrl: 'http://a/1.png' }))).toEqual({
+    expect(getNodeMedia(mkNode({ assetUrl: 'http://a/1.png' }), noRes)).toEqual({
       type: 'image',
       url: 'http://a/1.png',
     });
-    expect(getNodeMedia(mkNode({ url: 'http://a/2.png' }))).toEqual({
+    expect(getNodeMedia(mkNode({ url: 'http://a/2.png' }), noRes)).toEqual({
       type: 'image',
       url: 'http://a/2.png',
     });
-    expect(getNodeMedia(mkNode({}))).toEqual({ type: '', url: '' });
+    expect(getNodeMedia(mkNode({}), noRes)).toEqual({ type: '', url: '' });
   });
 
   it('batch_delete_nodes 批量删', () => {

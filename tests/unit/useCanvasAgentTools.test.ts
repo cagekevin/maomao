@@ -19,30 +19,34 @@ const mkNode = (data: Record<string, unknown> = {}): Node => ({
 
 const mod = await import('../../src/components/agent/canvas/useCanvasAgentTools.ts');
 const { buildCanvasAgentTools, buildCanvasAgentToolSchemas, CANVAS_AGENT_TOOL_NAMES } = mod;
-// getNodeAssetUrl 已下沉 base/canvas（TD-04-25），测试改引新位置。
-const { getNodeAssetUrl } = await import('../../src/components/canvas/lib/nodeMedia.ts');
+// getNodeAssetUrl 已收口至横切层 `base/utils/media/nodeMedia.ts`（2026-09-25 按件切）。
+const { getNodeAssetUrl } = await import('../../src/components/base/utils/media/nodeMedia.ts');
+/** 无 resource 可解析（本组用例不含 contentId，等价于真实调用方在无 resource 时的行为） */
+const noResolve = () => null;
 // 【TD-11-83】AI 可建类型白名单真源 + 提示词（断言"两处 schema / 提示词均派生自真源"）
 const { AGENT_PROMPTS, CREATABLE_NODE_TYPES } =
   await import('../../src/components/agent/agentConfig.ts');
 
 describe('getNodeAssetUrl', () => {
   it('data.assetUrl 优先', () => {
-    expect(getNodeAssetUrl(mkNode({ assetUrl: 'A' }))).toBe('A');
+    expect(getNodeAssetUrl(mkNode({ assetUrl: 'A' }), noResolve)).toBe('A');
   });
   it('data.url 兜底字符串', () => {
-    expect(getNodeAssetUrl(mkNode({ url: 'B' }))).toBe('B');
+    expect(getNodeAssetUrl(mkNode({ url: 'B' }), noResolve)).toBe('B');
   });
   it('images 数组（字符串元素 / {url} / {assetUrl}）', () => {
-    expect(getNodeAssetUrl(mkNode({ images: ['http://a'] }))).toBe('http://a');
-    expect(getNodeAssetUrl(mkNode({ images: [{ url: 'http://b' }] }))).toBe('http://b');
-    expect(getNodeAssetUrl(mkNode({ images: [{ assetUrl: 'http://c' }] }))).toBe('http://c');
+    expect(getNodeAssetUrl(mkNode({ images: ['http://a'] }), noResolve)).toBe('http://a');
+    expect(getNodeAssetUrl(mkNode({ images: [{ url: 'http://b' }] }), noResolve)).toBe('http://b');
+    expect(getNodeAssetUrl(mkNode({ images: [{ assetUrl: 'http://c' }] }), noResolve)).toBe(
+      'http://c',
+    );
   });
   it('assetUrls 数组', () => {
-    expect(getNodeAssetUrl(mkNode({ assetUrls: ['http://d'] }))).toBe('http://d');
+    expect(getNodeAssetUrl(mkNode({ assetUrls: ['http://d'] }), noResolve)).toBe('http://d');
   });
   it('无图 → 空串', () => {
-    expect(getNodeAssetUrl(mkNode({}))).toBe('');
-    expect(getNodeAssetUrl(mkNode())).toBe('');
+    expect(getNodeAssetUrl(mkNode({}), noResolve)).toBe('');
+    expect(getNodeAssetUrl(mkNode(), noResolve)).toBe('');
   });
 });
 

@@ -266,9 +266,10 @@ const num = (v: unknown, fb: number): number => {
   return Number.isFinite(n) ? n : fb;
 };
 
-// getNodeAssetUrl / getNodeMedia 已下沉至 base/utils/nodeMedia.ts（TD-04-25：二者仅依赖
-// Node 数据形态、属画布基础设施；留在 agent 层会让 base/canvas 的选中派生反向依赖本层，
-// 依赖方向倒置）。本文件不再实现、也不再消费它们；对外聚合入口见 components/agent/index.ts。
+// getNodeAssetUrl / getNodeMedia 已收口至 `base/utils/media/nodeMedia.ts`（横切层）——
+// 2026-09-25 按件切：媒体读取（只依赖 Node 数据形态）属横切，与读侧 assetUrl.ts / 写侧 nodeImage.ts 同址；
+// 选中派生（依赖 selected/position = ReactFlow 语义）留 `canvas/lib/selectedAssets.ts`。
+// 本文件不再实现、也不再消费它们。
 
 /* ════════════════════════════════════════════════════════════════
  * AI 独立撤回（undo_ai）—— 与用户手动撤销【完全隔离】

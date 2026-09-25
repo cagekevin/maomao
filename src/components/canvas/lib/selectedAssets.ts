@@ -1,83 +1,21 @@
 import type { Node } from '@xyflow/react';
-import { classifyUrl } from '@/components/base/utils/media/assetType';
-import { isMediaRefType, type MediaRefAssetType } from '@/types';
+import {
+  getNodeMedia,
+  type ContentUrlResolver,
+  type MediaType,
+} from '@/components/base/utils/media/nodeMedia';
 
 /* ════════════════════════════════════════════════════════════════
- * 节点媒体提取 / 选中派生（**横切层** · 纯函数，零 React / 零 store 依赖）
+ * 选中派生产物（**画布语义** · 纯函数，零 React / 零 store 依赖）
  * ────────────────────────────────────────────────────────────────
- * 【为什么住在这里（TD-04-25 → S2-1b-pre 2026-09-19 再下沉）】
- * 这两个提取器 + 派生函数**只依赖 Node 数据形态**，属「节点数据读取」原语，与画布渲染无关。
- *   ① TD-04-25：此前住 `agent/canvas/useCanvasAgentTools.ts`（agent 层），被画布选中链消费
- *      ⇒ 依赖方向倒置 ⇒ 下沉 `base/canvas`。
- *   ② S2-1b-pre：`base/media/providers/canvasSource.ts`（**横切**媒体引用协议层）也要用它
- *      ⇒ 住画布域会让横切反向依赖业务域（违反规则 2）⇒ 按同一逻辑再下沉到 `base/utils`（横切）。
+ * 【为什么留在这里（2026-09-25 按件切）】
+ * 本文件与 `base/utils/media/nodeMedia.ts` 原先同居 `canvas/lib/nodeMedia.ts`（一个文件两族东西）。
+ * 「节点主媒体读取」只依赖 Node 数据形态 ⇒ 属**横切**，已迁 `base/utils/media/`；
+ * 而本文件依赖 `node.selected` + `node.position` = **ReactFlow 画布语义** ⇒ 留在画布域。
  * 判据：**横切层不得依赖业务域；域依赖横切是正确单向**。
  * ════════════════════════════════════════════════════════════════ */
 
-/**
- * 提取节点「主图 URL」（纯函数，导出供 AgentPanel/App 引用带图节点用）。
- * 覆盖常见图字段形态：data.assetUrl / data.url（字符串）、data.images / data.assetUrls（数组）。
- * images 数组元素兼容字符串（url）与对象（{ url } 或 { assetUrl }）。无图返回空串。
- * 设计取舍：只取「主图」一个 URL（用户选中节点即引用其首图），保证简单、可复用现有图片附件链路。
- */
-export function getNodeAssetUrl(node: Node | null) {
-  const d = node?.data || {};
-  for (const key of ['assetUrl', 'url']) {
-    if (typeof d[key] === 'string' && d[key]) return d[key];
-  }
-  for (const key of ['images', 'assetUrls']) {
-    const arr = Array.isArray(d[key]) ? d[key] : [];
-    for (const item of arr) {
-      if (typeof item === 'string' && item) return item;
-      if (item && typeof item === 'object') {
-        const u = item.url || item.assetUrl;
-        if (typeof u === 'string' && u) return u;
-      }
-    }
-  }
-  return '';
-}
-
-/**
- * 提取选中节点的「主媒体」（纯函数，供 App 传给 AgentPanel 待发送区）。
- * 与 getNodeAssetUrl 的区别：视频/音频节点返回【本体】URL 而非封面图，并标记媒体类型。
- * 判定顺序（对齐 AssetNode：`data.assetType || detectAssetType`）：
- *   1. 显式 `data.assetType==='video'|'audio'` → 取本体 url（videoUrl/audioUrl/url/assetUrl）；
- *   2. 存在 `data.videoUrl` / `data.audioUrl` → 判 video / audio（视频生成/提取/处理等节点）；
- *   3. 退化为 getNodeAssetUrl 主图 url → 按扩展名判型（video/audio 原样标记，其余按 image）。
- * 只返回可作 AI 多模态上下文的媒体（image / video / audio），text / 空返回 { type:'', url:'' }。
- */
-type MediaType = MediaRefAssetType | '';
-
-export function getNodeMedia(node: Node | null): { type: MediaType; url: string } {
-  const d = (node?.data || {}) as {
-    assetType?: string;
-    videoUrl?: string;
-    audioUrl?: string;
-    url?: string;
-    assetUrl?: string;
-    [k: string]: unknown;
-  };
-  let explicit: MediaRefAssetType | '' = '';
-  let url = '';
-  // 「声明了 video/audio 本体」= 可引用媒体白名单派生（image 走 assetUrl，不取本体字段）
-  if (isMediaRefType(d.assetType) && d.assetType !== 'image') {
-    explicit = d.assetType;
-    url = d.videoUrl || d.audioUrl || d.url || d.assetUrl || '';
-  } else if (typeof d.videoUrl === 'string' && d.videoUrl) {
-    explicit = 'video';
-    url = d.videoUrl;
-  } else if (typeof d.audioUrl === 'string' && d.audioUrl) {
-    explicit = 'audio';
-    url = d.audioUrl;
-  }
-  if (url) return { type: explicit || classifyUrl(url), url };
-  const image = getNodeAssetUrl(node);
-  if (!image) return { type: '', url: '' };
-  return { type: classifyUrl(image), url: image };
-}
-
-/** 选中派生产物：「选中且带媒体」节点的只读投影（AgentPanel 待引用区消费） */
+/** 选中派生产物：「选中且带媒体」节点的只读投影（AgentPanel 待发送区消费） */
 export interface SelectedAsset {
   nodeId: string;
   nodeType: string | undefined;
@@ -98,12 +36,17 @@ export interface SelectedAsset {
  * 除 nodeId/type/label/url 外，一并带出画布坐标 position(x/y) 与媒体类型 type（对齐参考项目
  * daxiong-canvas-plugins canvas-agent agentBuildAttachmentsFromNodes）：让 LLM 感知参考素材
  * 来自画布哪个位置、是什么形态。
+ *
+ * @param resolveContentUrl contentId → resource url 解析器（媒体地址真源在 resource 表，由调用方注入）
  */
-export function deriveSelectedAssets(nodes: Node[] | null | undefined): SelectedAsset[] {
+export function deriveSelectedAssets(
+  nodes: Node[] | null | undefined,
+  resolveContentUrl: ContentUrlResolver,
+): SelectedAsset[] {
   return (nodes || [])
     .filter((n) => n.selected)
     .map((n) => {
-      const media = getNodeMedia(n);
+      const media = getNodeMedia(n, resolveContentUrl);
       const label = (n.data?.label ?? n.data?.projectName ?? '') as string;
       return {
         nodeId: n.id,

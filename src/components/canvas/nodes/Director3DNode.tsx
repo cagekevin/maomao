@@ -11,6 +11,8 @@ import { useNodeRename } from '@/hooks/useNodeRename';
 import { patchNodeDataById } from '@/hooks/useNodeData';
 import { toAbsoluteFileUrl, saveInlineToLocal } from '@/components/base/api/index';
 import { useRenderAssetResolver } from '@/components/base/utils/media/assetUrl';
+// 主图写回唯一入口（含「旧身份必须失效」不变式）—— 导出视频写下游 AssetNode 必须走它。
+import { replaceNodeImage, clearNodeMainImage } from '@/components/base/utils/media/nodeImage';
 import { Director3DOverlay } from '@/components/director3d/Director3DOverlay';
 import { uploadFileToLocal } from '@/components/base/api/index';
 import { generateId } from '@/components/base/core/idGen';
@@ -206,8 +208,11 @@ function Director3DNode({ id, data, selected }: Director3DNodeProps) {
       if (targets.length > 0) {
         // 已有下游 AssetNode：写最近导出视频
         const targetId = targets[0];
-        // 只写 assetUrl（docs/118 §7.3 ⑤ 写侧唯一）：不再双写存量字段 data.url。
-        patchNodeDataById(setNodes, targetId, { assetUrl: lastUrl, assetType: 'video' });
+        // 主图写回走唯一入口；assetType 随同一次不可变更新写下去。
+        replaceNodeImage(
+          { id: targetId, dataUrl: lastUrl, dataPatch: { assetType: 'video' } },
+          setNodes,
+        );
       } else {
         // 无下游 AssetNode：新建并连线
         const me = getNode(id);
@@ -284,11 +289,17 @@ function Director3DNode({ id, data, selected }: Director3DNodeProps) {
         if (up.ok) persistedThumb = up.url;
         else logger.warn('3D 节点', '缩略图落盘失败，保留原值（不阻断）', { message: up.message });
       }
-      // 写回节点：assetUrl 存缩略图，彻底移除旧 directorProject 字段（patchNodeDataById 浅合并 + undefined 等价删键）
-      patchNodeDataById(setNodes, id, {
-        assetUrl: persistedThumb || getNode(id)?.data?.assetUrl || null,
-        directorProject: undefined,
-      });
+      // 写回节点：assetUrl 存缩略图，彻底移除旧 directorProject 字段。
+      // 走主图写回唯一入口（含「旧身份失效」不变式）；确实无封面可写时按「清空主图」处理（与旧 `|| null` 等义）。
+      const cover = persistedThumb || String(getNode(id)?.data?.assetUrl || '');
+      if (cover) {
+        replaceNodeImage(
+          { id, dataUrl: cover, dataPatch: { directorProject: undefined } },
+          setNodes,
+        );
+      } else {
+        clearNodeMainImage(id, setNodes, { directorProject: undefined });
+      }
       // 分类回写：图片 → 图片盒子；视频 → AssetNode
       if (captures && captures.length > 0) {
         const imageCaptures = captures.filter((c) => c.type === 'image');

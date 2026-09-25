@@ -35,12 +35,16 @@ import { useAssetDropPaste, useGlobalPaste } from './hooks/useAssetDropPaste.ts'
 import { copyImageToClipboard } from './components/base/utils/net/clipboard.ts';
 import GhostTargetNode from './components/canvas/nodes/GhostTargetNode.tsx';
 import AgentPanel from './components/agent/panels/AgentPanel.tsx';
+// 选中派生住画布域（依赖 selected/position = ReactFlow 语义）；节点主媒体读取住横切层。
 import {
   deriveSelectedAssets,
   selectedAssetSig,
   selectedNodeIdSig,
   type SelectedAsset,
-} from './components/canvas/lib/nodeMedia.ts';
+} from './components/canvas/lib/selectedAssets.ts';
+import { getNodeAssetUrl } from './components/base/utils/media/nodeMedia.ts';
+import { buildContentUrlResolver } from './components/base/utils/media/assetUrl.ts';
+import { getResources } from './components/resource/resourceStore.ts';
 // 画布节点只读快照桥（docs/136 地基）：剪辑器在 ReactFlowProvider 之外、拿不到 useReactFlow，
 // 故把 nodes 投影到 base 层供「可引用媒体源」读取。单向：只有本文件写，其他模块只读。
 import { setCanvasNodesSnapshot } from './components/canvas/lib/canvasNodesBridge.ts';
@@ -510,7 +514,8 @@ function Canvas() {
   //（AgentPanel 若每次渲染都拿到新数组，会重跑其侧 effect，历史上曾因此 OOM）。
   const selectedAssetSigRef = React.useRef('');
   React.useEffect(() => {
-    const list = deriveSelectedAssets(nodes);
+    // 传入 contentId → resource url 解析器：媒体地址真源在 resource 表（内容寻址，构造上稳定）。
+    const list = deriveSelectedAssets(nodes, buildContentUrlResolver(getResources()));
     const sig = selectedAssetSig(list);
     if (sig === selectedAssetSigRef.current) return;
     selectedAssetSigRef.current = sig;
@@ -917,8 +922,10 @@ function Canvas() {
   // 这是把图片以 image/png 写进剪贴板，可粘到微信/PS 等其它软件。复用公共 clipboard.copyImageToClipboard。
   const copyNodeImage = useCallback(async (nodeId: string) => {
     const node = nodesRef.current.find((n) => n.id === nodeId);
-    const imgUrl =
-      (node?.data?.assetUrl as string | undefined) ?? (node?.data?.url as string | undefined);
+    // 【唯一读入口】此前内联 `assetUrl ?? url` 嗅探 ⇒ **不认 contentId**：只持 contentId 的文件型
+    // 节点（素材库拖入 / 导入面板建的）明明显示正常，复制却报「该节点没有图片」——
+    // 与 TD-14-2 / TD-16-23 同母体的第三处坏读。改走 getNodeAssetUrl（内部委托 resolveAssetDisplayUrl）。
+    const imgUrl = getNodeAssetUrl(node ?? null, buildContentUrlResolver(getResources()));
     if (!imgUrl) {
       showToast('该节点没有图片', { type: 'warning' });
       return;

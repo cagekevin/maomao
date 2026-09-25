@@ -41,6 +41,8 @@ import {
 } from '@/components/base/core/event/toastStore';
 import FullscreenShell from '@/components/base/panels/FullscreenShell';
 import { IMG_MAX_DIM } from '@/components/image/lib/imageLimits';
+// 主图写回唯一入口（含「旧身份必须失效」不变式）—— 截图回本节点必须走它，不得直写 assetUrl。
+import { replaceNodeImage } from '@/components/base/utils/media/nodeImage';
 
 /**
  * 720 全景图节点（复刻官方 Zl.jsx / panoramaNode）。
@@ -380,7 +382,7 @@ function PanoramaNode({ id, data, selected }: PanoramaNodeProps) {
         const shots = await viewerRef.current.capture(angles, ratioStr);
         if (shots && shots.length > 0) {
           if (angles.length === 1 && shots[0]) {
-            patchNodeDataById(setNodes, id, { assetUrl: shots[0] });
+            replaceNodeImage({ id, dataUrl: shots[0] }, setNodes);
           }
           // 输出到图片盒子（对齐官方 onCaptureToBox / H_.jsx xr）：
           //  1) 有连接到本节点的 imageBoxNode 下游 → 把截图追加到该图片盒子的 images

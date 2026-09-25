@@ -1,20 +1,26 @@
 /**
  * nodeMedia 单测（04 区母体 TD-04-24/25/27）。
- * 覆盖：
- *   - getNodeAssetUrl / getNodeMedia：自 useCanvasAgentTools 下沉后的行为回归（原样搬迁，逐例保持）
- *   - deriveSelectedAssets：从 nodes[].selected 实时派生「选中带媒体节点」（幽灵清除 / 媒体更新）
- *   - selectedAssetSig / selectedNodeIdSig：内容签名短路（拖动坐标不进签名 → 引用稳定）
+ *
+ * 【2026-09-25 按件切后分成两处被测】
+ *   - `base/utils/media/nodeMedia.ts`（**横切**）：
+ *       getNodeAssetUrl / getNodeMedia —— 逐例保持原行为（零炸基线），并新增「认 contentId」断言。
+ *   - `canvas/lib/selectedAssets.ts`（**画布语义**）：
+ *       deriveSelectedAssets / selectedAssetSig / selectedNodeIdSig / selectedNodeIdsOfSig。
  */
 import { describe, it, expect } from 'vitest';
 import type { Node } from '@xyflow/react';
 import {
   getNodeAssetUrl,
   getNodeMedia,
+  type ContentUrlResolver,
+} from '../../src/components/base/utils/media/nodeMedia.ts';
+import { buildContentUrlResolver } from '../../src/components/base/utils/media/assetUrl.ts';
+import {
   deriveSelectedAssets,
   selectedAssetSig,
   selectedNodeIdSig,
   selectedNodeIdsOfSig,
-} from '../../src/components/canvas/lib/nodeMedia.ts';
+} from '../../src/components/canvas/lib/selectedAssets.ts';
 
 const mkNode = (data: Record<string, unknown> = {}, over: Partial<Node> = {}): Node => ({
   id: 'n',
@@ -23,52 +29,89 @@ const mkNode = (data: Record<string, unknown> = {}, over: Partial<Node> = {}): N
   ...over,
 });
 
-describe('getNodeAssetUrl（下沉回归）', () => {
+/** 没有 contentId 可解析时的解析器（真实调用方在无 resource 时等价于它） */
+const noContent: ContentUrlResolver = () => null;
+
+describe('getNodeAssetUrl（下沉回归 + 唯一读入口委托）', () => {
   it('data.assetUrl 优先，data.url 兜底', () => {
-    expect(getNodeAssetUrl(mkNode({ assetUrl: 'A', url: 'B' }))).toBe('A');
-    expect(getNodeAssetUrl(mkNode({ url: 'B' }))).toBe('B');
+    expect(getNodeAssetUrl(mkNode({ assetUrl: 'A', url: 'B' }), noContent)).toBe('A');
+    expect(getNodeAssetUrl(mkNode({ url: 'B' }), noContent)).toBe('B');
   });
   it('images / assetUrls 数组（字符串元素 / {url} / {assetUrl}）', () => {
-    expect(getNodeAssetUrl(mkNode({ images: ['http://a'] }))).toBe('http://a');
-    expect(getNodeAssetUrl(mkNode({ images: [{ url: 'http://b' }] }))).toBe('http://b');
-    expect(getNodeAssetUrl(mkNode({ images: [{ assetUrl: 'http://c' }] }))).toBe('http://c');
-    expect(getNodeAssetUrl(mkNode({ assetUrls: ['http://d'] }))).toBe('http://d');
+    expect(getNodeAssetUrl(mkNode({ images: ['http://a'] }), noContent)).toBe('http://a');
+    expect(getNodeAssetUrl(mkNode({ images: [{ url: 'http://b' }] }), noContent)).toBe('http://b');
+    expect(getNodeAssetUrl(mkNode({ images: [{ assetUrl: 'http://c' }] }), noContent)).toBe(
+      'http://c',
+    );
+    expect(getNodeAssetUrl(mkNode({ assetUrls: ['http://d'] }), noContent)).toBe('http://d');
   });
   it('无图 → 空串', () => {
-    expect(getNodeAssetUrl(mkNode({}))).toBe('');
-    expect(getNodeAssetUrl(null)).toBe('');
+    expect(getNodeAssetUrl(mkNode({}), noContent)).toBe('');
+    expect(getNodeAssetUrl(null, noContent)).toBe('');
+  });
+
+  // ── 母体断言（TD-14-2 / TD-16-23）：读侧必须认 contentId 型节点 ──────────────────
+  // 断言用**真实解析器**跑「contentId → resource url」端到端，不是断实现细节。
+  // 把委托改回「只嗅探 assetUrl/url」⇒ 本组必红。
+  it('认得「只持 contentId」的文件型节点（母体：曾静默读不到 → 上游缩略图空白 / 画布来源少节点）', () => {
+    const resolve = buildContentUrlResolver([{ contentId: 'sha1:abc', url: '/files/abc.png' }]);
+    expect(getNodeAssetUrl(mkNode({ contentId: 'sha1:abc' }), resolve)).toBe('/files/abc.png');
+    expect(getNodeMedia(mkNode({ contentId: 'sha1:abc' }), resolve)).toEqual({
+      type: 'image',
+      url: '/files/abc.png',
+    });
+  });
+
+  it('contentId 是稳定身份，优先于存量字段（编辑后不得再解析出旧图）', () => {
+    const resolve = buildContentUrlResolver([{ contentId: 'sha1:new', url: '/files/new.png' }]);
+    expect(
+      getNodeAssetUrl(mkNode({ contentId: 'sha1:new', assetUrl: 'http://old.png' }), resolve),
+    ).toBe('/files/new.png');
+  });
+
+  it('contentId 查不到 resource（已删）→ 回落存量字段，不静默返回空', () => {
+    expect(
+      getNodeAssetUrl(mkNode({ contentId: 'sha1:gone', assetUrl: 'http://a/1.png' }), noContent),
+    ).toBe('http://a/1.png');
   });
 });
 
 describe('getNodeMedia（下沉回归）', () => {
   it('视频节点返回本体 videoUrl + type=video', () => {
     expect(
-      getNodeMedia(mkNode({ videoUrl: 'http://a/c.mp4', assetUrl: 'http://a/cov.png' })),
+      getNodeMedia(mkNode({ videoUrl: 'http://a/c.mp4', assetUrl: 'http://a/cov.png' }), noContent),
     ).toEqual({ type: 'video', url: 'http://a/c.mp4' });
-    expect(getNodeMedia(mkNode({ assetType: 'video', url: 'http://a/c.mp4' }))).toEqual({
+    expect(getNodeMedia(mkNode({ assetType: 'video', url: 'http://a/c.mp4' }), noContent)).toEqual({
       type: 'video',
       url: 'http://a/c.mp4',
     });
   });
   it('音频节点返回本体 audioUrl + type=audio', () => {
-    expect(getNodeMedia(mkNode({ audioUrl: 'http://a/v.mp3' }))).toEqual({
+    expect(getNodeMedia(mkNode({ audioUrl: 'http://a/v.mp3' }), noContent)).toEqual({
       type: 'audio',
       url: 'http://a/v.mp3',
     });
   });
   it('图片节点退化为主图 + type=image；无媒体返回空', () => {
-    expect(getNodeMedia(mkNode({ assetUrl: 'http://a/1.png' }))).toEqual({
+    expect(getNodeMedia(mkNode({ assetUrl: 'http://a/1.png' }), noContent)).toEqual({
       type: 'image',
       url: 'http://a/1.png',
     });
-    expect(getNodeMedia(mkNode({}))).toEqual({ type: '', url: '' });
+    expect(getNodeMedia(mkNode({}), noContent)).toEqual({ type: '', url: '' });
+  });
+  it('声明了 video 本体类型但只持 contentId → 仍能解析出地址（原实现静默为空）', () => {
+    const resolve = buildContentUrlResolver([{ contentId: 'sha1:v', url: '/files/v.mp4' }]);
+    expect(getNodeMedia(mkNode({ assetType: 'video', contentId: 'sha1:v' }), resolve)).toEqual({
+      type: 'video',
+      url: '/files/v.mp4',
+    });
   });
 });
 
 describe('deriveSelectedAssets（单一事实来源 = nodes[].selected）', () => {
   it('未选中 → 空列表', () => {
-    expect(deriveSelectedAssets([mkNode({ assetUrl: 'http://a/1.png' })])).toEqual([]);
-    expect(deriveSelectedAssets(null)).toEqual([]);
+    expect(deriveSelectedAssets([mkNode({ assetUrl: 'http://a/1.png' })], noContent)).toEqual([]);
+    expect(deriveSelectedAssets(null, noContent)).toEqual([]);
   });
 
   it('选中带媒体节点 → 投影出 nodeId/type/url/坐标/label', () => {
@@ -79,7 +122,7 @@ describe('deriveSelectedAssets（单一事实来源 = nodes[].selected）', () =
       ),
       mkNode({ assetUrl: 'http://a/2.png' }, { id: 'n2', selected: false }),
     ];
-    expect(deriveSelectedAssets(nodes)).toEqual([
+    expect(deriveSelectedAssets(nodes, noContent)).toEqual([
       {
         nodeId: 'n1',
         nodeType: 'imageGenerateNode',
@@ -94,7 +137,7 @@ describe('deriveSelectedAssets（单一事实来源 = nodes[].selected）', () =
 
   it('选中无媒体节点（如文本）→ 被过滤掉', () => {
     const nodes = [mkNode({ text: 'hi' }, { id: 't1', selected: true, type: 'textGenerateNode' })];
-    expect(deriveSelectedAssets(nodes)).toEqual([]);
+    expect(deriveSelectedAssets(nodes, noContent)).toEqual([]);
   });
 
   it('视频/音频节点 → type 原样透传（不被拍平成 image）', () => {
@@ -102,23 +145,33 @@ describe('deriveSelectedAssets（单一事实来源 = nodes[].selected）', () =
       mkNode({ assetType: 'video', url: 'http://a/c.mp4' }, { id: 'v1', selected: true }),
       mkNode({ assetType: 'audio', url: 'http://a/vo.mp3' }, { id: 'a1', selected: true }),
     ];
-    expect(deriveSelectedAssets(nodes).map((a) => a.type)).toEqual(['video', 'audio']);
+    expect(deriveSelectedAssets(nodes, noContent).map((a) => a.type)).toEqual(['video', 'audio']);
   });
 
   it('label 兜底 data.projectName', () => {
     const nodes = [
       mkNode({ assetUrl: 'http://a/1.png', projectName: '项目名' }, { id: 'n1', selected: true }),
     ];
-    expect(deriveSelectedAssets(nodes)[0].label).toBe('项目名');
+    expect(deriveSelectedAssets(nodes, noContent)[0].label).toBe('项目名');
+  });
+
+  it('选中「只持 contentId」的节点 → 也能进待发送区（此前被静默判空）', () => {
+    const resolve = buildContentUrlResolver([{ contentId: 'sha1:sel', url: '/files/sel.png' }]);
+    const nodes = [mkNode({ contentId: 'sha1:sel' }, { id: 'n1', selected: true })];
+    expect(deriveSelectedAssets(nodes, resolve)).toEqual([
+      expect.objectContaining({ nodeId: 'n1', type: 'image', url: '/files/sel.png' }),
+    ]);
   });
 
   it('节点媒体 URL 变化 → 派生结果随之更新（原「仅 select 变化才同步」的缺口）', () => {
-    const before = deriveSelectedAssets([
-      mkNode({ assetUrl: 'http://a/old.png' }, { id: 'n1', selected: true }),
-    ]);
-    const after = deriveSelectedAssets([
-      mkNode({ assetUrl: 'http://a/new.png' }, { id: 'n1', selected: true }),
-    ]);
+    const before = deriveSelectedAssets(
+      [mkNode({ assetUrl: 'http://a/old.png' }, { id: 'n1', selected: true })],
+      noContent,
+    );
+    const after = deriveSelectedAssets(
+      [mkNode({ assetUrl: 'http://a/new.png' }, { id: 'n1', selected: true })],
+      noContent,
+    );
     expect(selectedAssetSig(before)).not.toBe(selectedAssetSig(after));
   });
 });
@@ -126,7 +179,9 @@ describe('deriveSelectedAssets（单一事实来源 = nodes[].selected）', () =
 describe('selectedAssetSig / selectedNodeIdSig（短路签名）', () => {
   it('selectedAssetSig：内容（nodeId/type/url）变化敏感', () => {
     expect(
-      selectedAssetSig(deriveSelectedAssets([mkNode({ url: 'u1' }, { id: 'a', selected: true })])),
+      selectedAssetSig(
+        deriveSelectedAssets([mkNode({ url: 'u1' }, { id: 'a', selected: true })], noContent),
+      ),
     ).toBe('a:image:u1');
   });
 

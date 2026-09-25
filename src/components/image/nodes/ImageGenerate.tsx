@@ -15,7 +15,7 @@ import { NODE_AREA_FIXED_BASE_SIZE } from '@/components/base/core/config';
 import ImageZoomDialog from '@/components/base/ui/display/ImageZoomDialog';
 import '@/components/image/editors/ImageEditor';
 import { useImageHoverActions } from '@/components/image/useImageHoverActions';
-import { replaceNodeImage } from '@/components/image/lib/nodeImage';
+import { replaceNodeImage } from '@/components/base/utils/media/nodeImage';
 import { useNodeData } from '@/hooks/useNodeData';
 import { useAssetInsertion } from '@/hooks/useAssetInsertion';
 import { useDisconnectSource } from '@/hooks/useDisconnectSource';

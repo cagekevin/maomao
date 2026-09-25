@@ -18,6 +18,8 @@ import { generateId } from '../../base/core/idGen.ts';
 import { logger } from '@/components/base/core/log/logger';
 import { toAbsoluteFileUrl } from '@/components/base/utils/media/assetUrl';
 import { createAgentCanvasHost, type AgentCanvasHostCtx } from './agentCanvasHost.ts';
+// 主图写回唯一入口（含「旧身份必须失效」不变式）—— agent 生成结果写回不得直写 assetUrl。
+import { replaceNodeImage } from '@/components/base/utils/media/nodeImage';
 
 /** 计划单步（generations 数组元素）：字段均可选，因 LLM 计划数据可能不完整。 */
 export interface GenerationStep {
@@ -590,7 +592,7 @@ export async function executePlan({
       // 防节点在生成期间被删除/合并（409）导致对悬空对象写回。节点已消失则跳过写回。
       const live = host.getNode(nodeId);
       if (live) {
-        host.updateNodeData(nodeId, { assetUrl: resultUrl });
+        replaceNodeImage({ id: nodeId, dataUrl: resultUrl }, ctx.setNodes);
         // 完成时再锁一次参数（对齐大雄 L248 finishAgentNodeImages 末尾 lock），防 update_node/重渲染回落
         lockNodeSettings(nodeId, {
           m: model || defaults.model,
