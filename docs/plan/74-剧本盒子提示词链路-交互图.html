@@ -378,7 +378,7 @@
             ['镜头数量要求', '约 N 镜 / 自动（:222-224）'],
             ['统一视觉风格', '填了 globalStyle 才追加，并要求模型原样回吐（:226-228）'],
           ],
-          fmt: '<b>① system 里的输出格式约束 = SCRIPT_WRITER_FORMAT（prompts.js:26-30，写死，不可改）</b>\n要求模型严格输出一个 JSON 对象（只返回纯 JSON，不要解释、不要 Markdown 代码块）：\n{\n  "projectName":"2至8个中文字符",\n  "globalStyle":"整部片子的统一视觉风格",\n  "logline":"一句话故事核心（可选）",\n  "shots":[{"index":1,"duration":"5s","description":"…只对已注册资产用 @名称 引用…",\n           "shotType":"景别","lighting":"光影氛围","dialogue":"对白或旁白","sound":"音效","motion":"运镜"}],\n  "assets":[{"category":"character|scene|prop","name":"名称","description":"主体外观描述"}]\n}\n【硬性要求】故事中出现的所有场景必须全部注册为 scene；每个分镜 description 必须 @ 引用其发生的场景；\nassets 的 name 必须与 shots 的 description 里 @ 引用的名称完全一致。\n\n<b>引擎侧还有两道保险</b>：\n· 模型支持时强制 response_format = json_object（useJsonObject，:238）\n· parseJsonText 解析失败 → 提示「JSON 不完整或格式有误」；解析出 0 个可用分镜 → 提示「格式不符」，都不写回',
+          fmt: '<b>① system 里的输出格式约束 = SCRIPT_WRITER_FORMAT（prompts.js:26-30，写死，不可改）</b>\n要求模型严格输出一个 JSON 对象（只返回纯 JSON，不要解释、不要 Markdown 代码块）：\n{\n  "projectName":"2至8个中文字符",\n  "globalStyle":"整部片子的统一视觉风格",\n  "logline":"一句话故事核心（可选）",\n  "shots":[{"index":1,"duration":"5s","description":"…只对已注册资产用 @名称 引用…",\n           "shotType":"景别","lighting":"光影氛围","dialogue":"对白或旁白","sound":"音效","motion":"运镜"}],\n  "assets":[{"category":"character|scene|prop","name":"名称","description":"主体外观描述"}]\n}\n【硬性要求】故事中出现的所有场景必须全部注册为 scene；每个分镜 description 必须 @ 引用其发生的场景；\nassets 的 name 必须与 shots 的 description 里 @ 引用的名称完全一致。\n\n<b>引擎侧还有一道保险</b>：\n· parseJsonText 解析失败 → 提示「JSON 不完整或格式有误」；解析出 0 个可用分镜 → 提示「格式不符」，都不写回',
           user: 'story 原文（data.story + "\\n\\n" + data.upstreamStory）\n（上游图片走 images 参数，随消息一起发给模型看图）',
           out: [
             ['shots[]', 'description / duration / shotType / lighting / motion / dialogue / sound'],
@@ -599,7 +599,7 @@
 <table class="tb">
 <tr><th>步骤</th><th>用的模型</th><th>关键参数</th></tr>
 <tr><td>① 剧本</td><td>文本模型（data.textModel || selectedModel，:91）</td>
-    <td>temperature 0.7；模型支持时才强制 json_object（useJsonObject）</td></tr>
+    <td>temperature 0.7</td></tr>
 <tr><td>② 资产生图</td><td><b>资产生图模型</b>（assetModelSettings.globalModel，:100）</td>
     <td>size = globalSize || '2K'；aspectRatio = globalAspectRatio || '16:9'；n=1；<b>不传参考图</b></td></tr>
 <tr><td>③ 分镜提示词</td><td>文本模型</td>
