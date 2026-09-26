@@ -337,7 +337,6 @@ export async function relayChat(
     signal?: AbortSignal;
     timeoutMs?: number;
     temperature?: number;
-    responseFormat?: string;
   } = {},
 ): Promise<RelayGenerationResult> {
   const { signal } = opts;
@@ -363,7 +362,6 @@ export async function relayChat(
     timeoutMs: totalBudgetMs,
   };
   if (opts.temperature !== undefined) body.temperature = opts.temperature;
-  if (opts.responseFormat) body.response_format = opts.responseFormat;
   try {
     // 统一入口：chat 走同步快路径，后端立即返 {code:0,data:{status:'completed',text}}。
     // 响应体 = **原始信封 `{code,data}`**（httpClient 不剥信封）⇒ 文本在 `env.data.text`；

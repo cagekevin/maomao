@@ -231,18 +231,16 @@ describe('generate — chat 消息与透传（迁移自 chatApi）', () => {
     expect(res.error).toBe('上游未返回文本内容');
   });
 
-  it('temperature 与 responseFormat 透传 relayChat（json→json_object 归一）', async () => {
+  it('temperature 透传 relayChat', async () => {
     h.mockRelayChat.mockResolvedValue({ ok: true, content: 'x' });
     await api.chatCompletions({
       provider: { id: 'p1' },
       model: 'm',
       messages: [],
       temperature: 0.7,
-      responseFormat: 'json',
     });
     const opts = h.mockRelayChat.mock.calls[0][1];
     expect(opts.temperature).toBe(0.7);
-    expect(opts.responseFormat).toBe('json_object');
   });
 
   it('无参考图 → 不调 normalizeAssetUrlsForSend，消息原样', async () => {

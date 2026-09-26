@@ -2,7 +2,7 @@
  * 阶段三（entry 组件）· 脚本盒引擎纯逻辑单测
  *
  * 对应 docs/10-测试覆盖补齐计划-2026-08-17.md §三「entry 组件」：
- *   - scriptBoxEngine.js 的纯导出函数（parseJsonText / useJsonObject /
+ *   - scriptBoxEngine.js 的纯导出函数（parseJsonText /
  *     dialogueLines / assembleShotUser）与引擎编排（createScriptBoxEngine）。
  *   - 真实生成走 chatApi/imageApi，通过 vi.mock 注入假实现，隔离网络与 React 依赖。
  *
@@ -60,7 +60,7 @@ import {
 } from '@/components/scriptbox/scriptBoxSchema.ts';
 import type { ScriptAsset } from '@/components/scriptbox/scriptBoxPrompts.ts';
 
-const { parseJsonText, useJsonObject, dialogueLines, assembleShotUser, createScriptBoxEngine } =
+const { parseJsonText, dialogueLines, assembleShotUser, createScriptBoxEngine } =
   await import('@/components/scriptbox/scriptBoxEngine.ts');
 
 const { chatCompletions } = await import('@/components/generate/lib/generate');
@@ -79,22 +79,6 @@ describe('scriptBoxEngine · 纯导出函数', () => {
     });
     it('空串 → {ok:false,data:null}', () => {
       expect(parseJsonText('')).toEqual({ ok: false, data: null });
-    });
-  });
-
-  describe('useJsonObject', () => {
-    it('gpt/deepseek/claude 判定：deepseek→false', () => {
-      expect(useJsonObject('deepseek-chat')).toBe(false);
-    });
-    it('claude → false', () => {
-      expect(useJsonObject('claude-3-opus')).toBe(false);
-    });
-    it('gpt/其他 → true', () => {
-      expect(useJsonObject('gpt-4o')).toBe(true);
-      expect(useJsonObject('gemini-1.5-pro')).toBe(true);
-    });
-    it('未传/空 → true', () => {
-      expect(useJsonObject()).toBe(true);
     });
   });
 

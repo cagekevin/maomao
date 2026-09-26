@@ -82,7 +82,6 @@ export async function handleGenerateSubmit(
       messages: Array.isArray(body.messages) ? (body.messages as unknown[]) : undefined,
       images: Array.isArray(body.images) ? (body.images as string[]) : undefined,
       temperature: typeof body.temperature === 'number' ? body.temperature : undefined,
-      responseFormat: typeof body.response_format === 'string' ? body.response_format : undefined,
       persist: false, // 文本不落盘（聊天数据流）
     });
     if (!out.ok) {

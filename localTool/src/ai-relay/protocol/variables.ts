@@ -15,7 +15,6 @@ export const PROTOCOL_VARIABLE_NAMES = new Set([
   'tools',
   'toolChoice',
   'temperature',
-  'response_format',
   'size',
   'aspectRatio',
   'imageSize',

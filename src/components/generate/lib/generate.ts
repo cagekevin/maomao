@@ -48,7 +48,6 @@ export interface GenerateRequest {
   seconds?: number; // video：时长（秒）
   images?: string[];
   temperature?: number;
-  responseFormat?: string;
 }
 
 /** generateImage 入参（对外签名不变；n/quality 保留兼容，当前由后端 preset 决定不在此拼装） */
@@ -109,7 +108,6 @@ export interface ChatCompletionsOptions {
   /** 参考图 URL（可选） */
   images?: string[];
   temperature?: number;
-  responseFormat?: 'json_object' | 'json' | string;
   signal?: AbortSignal;
   /** 请求级前端 task_id（reportGenerate 任务号，经 frontTaskId 透传后端；可选） */
   taskId?: string;
@@ -171,9 +169,6 @@ async function generate(
         // 【143 · S5′】chat 的**任务总预算**（不是「等上游响应」段值）—— 与流式路径同源。
         timeoutMs: CHAT_TOTAL_TIMEOUT,
         ...(req.temperature !== undefined ? { temperature: req.temperature } : {}),
-        ...(req.responseFormat
-          ? { responseFormat: req.responseFormat === 'json' ? 'json_object' : req.responseFormat }
-          : {}),
       },
     );
     if (r.ok && typeof r.content === 'string') return { ok: true, content: r.content };
@@ -281,7 +276,6 @@ export function chatCompletions(opts: ChatCompletionsOptions): Promise<GenerateR
       messages: opts.messages,
       images: opts.images,
       temperature: opts.temperature,
-      responseFormat: opts.responseFormat,
     },
     undefined,
     opts.signal,

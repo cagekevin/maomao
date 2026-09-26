@@ -42,8 +42,6 @@ export interface RelayGenerateInput {
   images?: string[];
   /** chat：采样温度（有传才进 body，preset 纯模板剔项） */
   temperature?: number;
-  /** chat：response_format（如 'json_object'），TextNode JSON 依赖 */
-  responseFormat?: string;
   /** chat + 画布 Agent：function calling 工具 schema（有则走 chatWithTools 非流式出站） */
   tools?: unknown;
   /** chat：tool_choice（如 'auto'/'required'），配合 tools */

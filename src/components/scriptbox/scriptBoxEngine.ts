@@ -135,13 +135,6 @@ export function parseJsonText(raw: unknown): { ok: boolean; data: unknown } {
   }
 }
 
-/** 是否使用 json_object（deepseek/claude 不强制，对齐官方 r 判定）。
- *  顶层纯函数，导出供单测（剧本盒纯逻辑）。 */
-export function useJsonObject(modelId?: string): boolean {
-  const m = String(modelId || '').toLowerCase();
-  return !m.includes('deepseek') && !m.includes('claude');
-}
-
 /**
  * 剧本盒子 —— 引擎层（接真系统，经 localTool 统一生成入口 /api/generate → 供应商；旧 /api/proxy 出站已退役）。
  *
@@ -378,7 +371,6 @@ export function createScriptBoxEngine({
           provider,
           model: modelId,
           temperature: 0.7,
-          responseFormat: useJsonObject(modelId) ? 'json_object' : undefined,
           signal,
           images: upstreamAssetUrls,
           messages: [
@@ -761,7 +753,6 @@ export function createScriptBoxEngine({
             provider,
             model: modelId,
             temperature: 0.7,
-            responseFormat: useJsonObject(modelId) ? 'json_object' : undefined,
             signal,
             messages: [
               { role: 'system', content: system },
