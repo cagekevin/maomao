@@ -34,6 +34,18 @@ const OPENAI_CHAT_PROTOCOL: ModelProtocol = {
   },
 };
 
+/**
+ * OpenAI 兼容生图（sync）。
+ * ⚠️ 【可达性标注 · ADR-0063 第⑤类「跨边界」· 2026-09-26】本 preset **不在 localTool 的生产链路上**：
+ * 生产 image/video 唯一通道 = `relay-poll.ts` 的 `resolveProviderAsyncProtocol()`，它**只认** provider 配置里
+ * `model_protocols[capability]` 的 `{ preset:'custom', protocol }`，**没有任何回退到内置 preset 的分支**
+ * （未配置即报错，见 `relay-poll.ts:399-408`）；且 `generateEngine.relayGenerate` 对 image/video 直接返回
+ * 「需走异步句柄」，故**生产上不存在 sync 生图路径**。
+ * 本 preset 仅经 **ai-relay kit 的对外 API 面**可达（消费方在仓外/宿主）：
+ * `getModelProtocolPreset('openai-image')` ← `createRelay()`（0 仓内调用）· `generateImage()`（0 仓内调用）·
+ * `getDefaultCustomProtocol('image')`（0 消费者，仅 `protocol/index.ts` 再导出）。
+ * ⇒ 有意保留（对外 API 面），**不按死代码删**；另注：`knip.json:63` 整体 ignore `localTool/**` ⇒ 死代码闸不覆盖本文件。
+ */
 const OPENAI_IMAGE_PROTOCOL: ModelProtocol = {
   version: 2,
   mode: 'sync',

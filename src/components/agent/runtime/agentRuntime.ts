@@ -24,7 +24,7 @@
  */
 
 // 【出口收口 L3b】出站统一走前端生成门面 chatStream（不再裸拼 provider URL / 直连 /api/agent）。
-// 旧 /api/proxy 已退役；providerUrlAdapters 的 URL 拼装链与 requestModes（responses 形态）随知识退场删除。
+// 旧 /api/proxy 已退役；providerUrlAdapters 的 URL 拼装链与 responses 形态随知识退场删除。
 import { chatStream } from '@/components/generate/lib/generate';
 import type { GenerationProvider } from '@/types';
 import type { relayChatMessage as ApiChatMessage } from '@/components/generate/lib/generate';
@@ -272,7 +272,7 @@ export async function roundTrip(
 /**
  * resolveBody —— roundTrip 的「已拿到 HTTP 2xx 响应后」的 body 读取 + 解析心智（抽离以便挂 总超时）。
  * 覆盖非流式（普通 JSON）与流式（SSE 逐块）两种形态（chat/completions）；
- * responses 形态已随 requestModes 退役（L3b 知识退场）。语义与先前内联完全一致，仅被 withTimeout 包一层。
+ * responses 形态已退役（L3b 知识退场）。语义与先前内联完全一致，仅被 withTimeout 包一层。
  */
 async function resolveBody(
   res: Response,
@@ -489,7 +489,7 @@ async function resolveBody(
     buffer = parts.pop() || '';
     for (const chunk of parts) {
       const before = acc.content.length + acc.reasoning.length + acc.toolCalls.length;
-      // chat/completions SSE 逐块解析；responses 形态已随 requestModes 退役（L3b 知识退场）
+      // chat/completions SSE 逐块解析；responses 形态已退役（L3b 知识退场）
       consumeOutcome(parseSSEChunk(chunk, acc), chunk);
       if (acc.content.length + acc.reasoning.length + acc.toolCalls.length > before)
         scheduleFlush();
