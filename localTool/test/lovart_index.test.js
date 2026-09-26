@@ -370,3 +370,92 @@ test('chatLovartText 非流式：send→poll→抽 text，返回整段文本（�
   );
   assert.equal(text, '你好，我是助手。');
 });
+
+test('chatLovartText：上游 done 但无文本 → 抛错并带出上游 result 原文（禁止静默变空串）', async () => {
+  // 复现线上形态：status done + items 里没有任何 text（只有素材）⇒ 旧行为 return ''，
+  // 前端只能转发兜底句「上游未返回文本内容」，上游真身丢失。
+  const transport = async (opts) => {
+    if (opts.path === '/v1/openapi/project/save')
+      return json({ code: 0, data: { project_id: 'proj-x' } });
+    if (opts.path === '/v1/openapi/project/validate')
+      return json({ code: 0, data: { valid: true } });
+    if (opts.path === '/v1/openapi/mode/set') return json({ code: 0, data: {} });
+    if (opts.path === '/v1/openapi/chat') return json({ code: 0, data: { thread_id: 't-empty' } });
+    if (opts.path === '/v1/openapi/chat/status') return json({ code: 0, data: { status: 'done' } });
+    if (opts.path === '/v1/openapi/chat/result')
+      return json({
+        code: 0,
+        data: { items: [{ type: 'image', artifacts: [{ content: 'http://cdn/r.png' }] }] },
+      });
+    return json({ code: 0, data: {} });
+  };
+  // 原文要由**后端**发出来（生产者留痕），文案只给人话 —— 故这里同时钉两件事：
+  //   ① console.error 里带上游 result 原文（直出字符串，不经前端 logger 的 JSON 二次转义）；
+  //   ② 错误 message 不含原文（否则会随 `data.error` 被前端 `JSON.stringify(detail)` 转义成 `\"`）。
+  const logged = [];
+  const origError = console.error;
+  console.error = (...args) => logged.push(args.join(' '));
+  try {
+    await assert.rejects(
+      () =>
+        chatLovartText(
+          { ...PROFILE, transport },
+          { model: 'lovart-chat', messages: [{ role: 'user', content: '写剧本' }] },
+        ),
+      (e) => {
+        assert.ok(e instanceof LovartError, '应抛 LovartError');
+        assert.match(e.message, /上游 result 为空/, '文案给人话 + 指针');
+        assert.ok(!e.message.includes('cdn/r.png'), '原文不进文案（避免前端日志二次转义）');
+        return true;
+      },
+    );
+  } finally {
+    console.error = origError;
+  }
+  assert.ok(
+    logged.some((s) => s.includes('上游 result 原文') && s.includes('http://cdn/r.png')),
+    '上游 result 原文必须由后端留痕发出（唯一能看到真身的一方）',
+  );
+});
+
+test('chatLovartText：上游给了 failures 原因 → 错误文案用**上游原话**（不再自编"未返回文本内容"）', async () => {
+  const reason =
+    'API Error (provider:API_CONTENT_POLICY): Content policy violation: the prompt was rejected';
+  const transport = async (opts) => {
+    if (opts.path === '/v1/openapi/project/save')
+      return json({ code: 0, data: { project_id: 'proj-x' } });
+    if (opts.path === '/v1/openapi/project/validate')
+      return json({ code: 0, data: { valid: true } });
+    if (opts.path === '/v1/openapi/mode/set') return json({ code: 0, data: {} });
+    if (opts.path === '/v1/openapi/chat') return json({ code: 0, data: { thread_id: 't-fail' } });
+    if (opts.path === '/v1/openapi/chat/status') return json({ code: 0, data: { status: 'done' } });
+    if (opts.path === '/v1/openapi/chat/result')
+      return json({
+        code: 0,
+        data: {
+          thread_id: 't-fail',
+          status: 'done',
+          items: [],
+          failures: [{ tool: 'generate_media', code: 'TOOL_FAILED', message: reason }],
+        },
+      });
+    return json({ code: 0, data: {} });
+  };
+  const origError = console.error;
+  console.error = () => {};
+  try {
+    await assert.rejects(
+      () =>
+        chatLovartText(
+          { ...PROFILE, transport },
+          { model: 'lovart-chat', messages: [{ role: 'user', content: '写剧本' }] },
+        ),
+      (e) => {
+        assert.equal(e.message, reason, '必须原样透传上游 failures 的原话');
+        return true;
+      },
+    );
+  } finally {
+    console.error = origError;
+  }
+});

@@ -450,7 +450,13 @@ test('files·saveRemoteUrl 并发同 URL 且下载失败 → 两请求都失败�
   mockFetchOnce(async () => {
     calls++;
     await sleep(20);
-    return new Response('boom', { status: 500, headers: { 'content-type': 'text/plain' } });
+    // 退避提速：`Retry-After` 是协议里的正路（本原语优先采用它），声明 1ms 即可让
+    // 「1 首发 + 3 重试」不再真等 800+1600+3200ms 的指数退避 —— 本用例断言的是
+    // **并发共享同一 in-flight、两次请求同败**，与退避时长无关。
+    return new Response('boom', {
+      status: 500,
+      headers: { 'content-type': 'text/plain', 'retry-after': '0.001' },
+    });
   });
   const opts = { fileUrl: 'https://cdn.example.com/fail.png', subfolder: 'canvas' };
   const res1 = makeRes();

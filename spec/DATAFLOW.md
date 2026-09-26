@@ -576,6 +576,9 @@ task/nodeRuntimeStore.ts（纯内存瞬态 map，不落盘）
 前端 generate/lib/relayProxy ─→ POST :18080 /api/generate
    → routes/generate.ts（capability 分流，端点无 fetch/落盘，只透传）
        ├─ chat：generateEngine.relayChatStream(SSE 打字机) / relayChat（同步）
+       │    └─ providerId=lovart → ai-relay/providers/lovart（chatLovartText 同步轮询／streamChatLovart 合成 SSE）
+       │         ├─ 出站体：lovart_contract.normalizeLovartSendBody（prompt／project_id 恒发，attachments／tool_config 非空才附）
+       │         └─ 结果读取：lovart_task.extractLovartChatText（status=done → GET /chat/result → items[].text；空文本即失败，文案带上游原文）
        └─ image/video：relay-poll 注册句柄（submit 即返 taskId，GET attach 收结果；**无取消端点** — ADR-0061）
    → generateEngine → ai-relay/（protocol kit + providerCatalog + generate.ts 能力）
    → 出站：厂商直连 lgw.lovart.ai（Lovart 需 VPN，经 fetchWithProxy 代理）

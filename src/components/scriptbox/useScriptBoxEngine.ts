@@ -151,6 +151,69 @@ export function useScriptBoxEngine(
   // 引擎回调（引擎实例即回调集合）：经本 hook 返回值下发，**不再写进 node.data**（TD-09-4）。
   const callbacks = engineRef.current;
 
+  // ════════════════════════════════════════════════════════════════
+  // 【刷新自愈】清掉被落盘的「执行态」（genMask / 各级 loading）
+  // ════════════════════════════════════════════════════════════════
+  // 【要解决的病（用户可见）】下面这些是**瞬时 UI 标志**，却写在 node.data 里，经
+  //   `canvasSnapshotSchema.NODE_KEEP` 的「data 整包透传」随画布快照落盘 ⇒ 刷新后被原样恢复：
+  //     · 顶层 `genMask`                      → 步骤1 标题栏「生成中 N 字 · Ns」计时器
+  //       （标题里的 `genChars` 同样落盘，但**经取证恒为 0** —— 全仓唯一写点就是生成开始时
+  //        `updateData({ genMask: true, genChars: 0 })`，此后从无递增 ⇒ 它不是脏值，故不清理）
+  //     · `shots[].promptLoading`             → 步骤3 卡片「正在生成提示词…」遮罩
+  //     · `shots[].imgGenLoading`             → 步骤3 卡片「正在生成关键帧…」遮罩
+  //     · `shots[].tailFrameVariantsLoading`  → 步骤3 尾帧变体遮罩
+  //     · `assets[].loading`                  → 步骤2 资产卡遮罩
+  //   而刷新后**没有任何一条路径会来复位它**：
+  //     ① 生成任务的 .then/.catch、② `runAbortable` 的 withTimeout 守卫 —— 都随页面卸载消失；
+  //     ③ `normalizeScriptBoxData` 只补缺省（`{...默认, ...存量}`，存量赢），不复位执行态；
+  //     ④ 文本任务无 resultUrl ⇒ 被下方 recover handler 的 `!d.resultUrl` 守卫挡掉，无恢复通道。
+  //   ⇒ 表现为「计时器从 0 重新开始涨、遮罩永在」＝用户报的「文本一直在跑，永远不停止」。
+  //
+  // 【判据（与本仓既有先例一致：执行态不入持久化）】
+  //   · `agent/conversation/conversationState.ts` P4 自愈：streaming「绝不该落盘、水化即清」；
+  //   · `task/nodeRuntimeStore.ts`：loading/error 是纯瞬态，「不入 node.data / 画布快照」。
+  //   本处只做该判据的**「水化即清」半边**（另半边=把执行态迁出 node.data，本轮不做）。
+  //
+  // 【为什么放这里，而不是放进 `normalizeScriptBoxData`】normalize 被 `getData()` **每次读取**
+  //   都调用；放进去会把**正在生成中**的 loading 一起清掉（动画消失）。必须只在挂载这一刻擦一次。
+  //
+  // 【幂等与开销】① 每个 nodeId 只做一次（ref 守卫，含 StrictMode 双调用）；
+  //   ② 无残留时**直接 return，不写回**——避免每次挂载都白触发一次 setNodes（连带一次快照落盘）。
+  //   复位只碰执行态，不改动任何业务数据（shots 内容 / assets 内容 / 用户输入一概不动）。
+  // ════════════════════════════════════════════════════════════════
+  const runtimeCleanedRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!nodeId || runtimeCleanedRef.current === nodeId) return;
+    runtimeCleanedRef.current = nodeId;
+    const d0 = normalizeScriptBoxData((data ?? {}) as Record<string, unknown>);
+    const genMaskOn = Boolean((d0 as { genMask?: unknown }).genMask);
+    const shotsBusy = (d0.shots || []).some(
+      (s) => s.promptLoading || s.imgGenLoading || s.tailFrameVariantsLoading,
+    );
+    const assetsBusy = (d0.assets || []).some((a) => a.loading);
+    if (!genMaskOn && !shotsBusy && !assetsBusy) return; // 无残留 → 不写回（零开销）
+    updateData((latest) => ({
+      ...(genMaskOn ? { genMask: false } : {}),
+      ...(shotsBusy
+        ? {
+            shots: (latest.shots || []).map((s) =>
+              s.promptLoading || s.imgGenLoading || s.tailFrameVariantsLoading
+                ? {
+                    ...s,
+                    promptLoading: false,
+                    imgGenLoading: false,
+                    tailFrameVariantsLoading: false,
+                  }
+                : s,
+            ),
+          }
+        : {}),
+      ...(assetsBusy
+        ? { assets: (latest.assets || []).map((a) => (a.loading ? { ...a, loading: false } : a)) }
+        : {}),
+    }));
+  }, [nodeId, updateData, data]);
+
   // 【TD-01-9 / TD-01-12】「生成中刷新」回填：任务中心 pollTask 找回 resultUrl 后，经 eventBus 广播
   // `agent:task-completed`。节点侧 useNodeGeneration 按 nodeId 精准回填；剧本盒此前**不订阅**。
   // 本 handler 按**伪 nodeId 前缀**分别回填剧本盒的两类任务（规则单源在 scriptBoxSchema）：

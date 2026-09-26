@@ -14,9 +14,8 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const src = path.join(__dirname, '..', 'src');
 const toUrl = (p) => 'file:///' + p.split(path.sep).join('/');
 
-const { pollLovartThread, extractLovartArtifacts, extractLovartText } = await import(
-  toUrl(path.join(src, 'ai-relay/providers/lovart/lovart_task.ts'))
-);
+const { pollLovartThread, extractLovartArtifacts, extractLovartText, extractLovartFailureText } =
+  await import(toUrl(path.join(src, 'ai-relay/providers/lovart/lovart_task.ts')));
 
 /** 快速 deps：轮询/复核延迟压到 0，避免真 sleep 拖慢。 */
 const FAST = {
@@ -149,4 +148,45 @@ test('extractLovartText：拼接文本回复', () => {
     ],
   };
   assert.equal(extractLovartText(result), 'Hello world');
+});
+
+test('extractLovartFailureText：读上游 data.failures[].message（去重、按序拼接）', () => {
+  const result = {
+    items: [],
+    failures: [
+      { tool: 'generate_media', code: 'TOOL_FAILED', message: 'API_CONTENT_POLICY: 拒绝 A' },
+      { tool: 'generate_media', code: 'TOOL_FAILED', message: 'API_CONTENT_POLICY: 拒绝 A' }, // 重复 → 去重
+      { tool: 'generate_media', code: 'TOOL_FAILED', message: 'API_CONTENT_POLICY: 拒绝 B' },
+    ],
+  };
+  assert.equal(
+    extractLovartFailureText(result),
+    'API_CONTENT_POLICY: 拒绝 A\nAPI_CONTENT_POLICY: 拒绝 B',
+  );
+  assert.equal(extractLovartFailureText({ items: [] }), '', '无 failures → 空串');
+});
+
+test('无产物时：上游失败原因（failures）优先于自编兜底文案', () => {
+  // 实测评测形态：agent 去调生图工具被安全策略拒绝 ⇒ items 里没有 artifacts，原因在 failures 里
+  const result = {
+    items: [{ type: 'assistant', text: '我来为你创作分镜脚本。' }],
+    failures: [
+      {
+        tool: 'generate_media',
+        tool_hint: 'generate_image_gpt_image_2',
+        code: 'TOOL_FAILED',
+        message:
+          'API Error (provider:API_CONTENT_POLICY): Content policy violation: the prompt was rejected',
+      },
+    ],
+  };
+  assert.throws(
+    () => extractLovartArtifacts(result),
+    (e) => {
+      assert.equal(e.type, 'no_artifact');
+      assert.match(e.message, /API_CONTENT_POLICY/, '必须透传上游原话');
+      assert.ok(!/可能被内容审核拒绝/.test(e.message), '不得用自编兜底句盖掉上游原话');
+      return true;
+    },
+  );
 });

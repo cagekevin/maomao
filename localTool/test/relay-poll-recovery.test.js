@@ -300,3 +300,29 @@ test('[146 D17] 扫描跳过（快照 capability 非法）⇒ 该行落 unknown�
   );
   assert.match(st.error, /无法恢复/, '文案要说明「重启后无法恢复」并指向任务中心');
 });
+
+/**
+ * 【收尾 · 停句柄】本文件多处**真调** `initRelayPoller()`，而恢复扫描会把文件前面建的
+ * `running` 行（`task_resume_poll`／`task_still_pending`）一并重建为**真句柄**，
+ * 其轮询定时器（`relay-poll.ts` 的 `setInterval`）指向 `example.test`、永远等不到终态
+ * ⇒ 定时器常驻 ⇒ **用例全过后进程不退出**（文件级测试超时/挂死）。
+ * 做法与 `relay-poll-segment.test.js` 一致：谁起了句柄谁收尾（`cancelGenerateTask` 是
+ * 公开出口里唯一能停句柄的那个）。
+ */
+test.after(async () => {
+  for (const id of [
+    'task_resume_poll',
+    'task_still_pending',
+    'task_unknown_state',
+    'task_unknown_not_resumed',
+    'task_failed_x',
+    'task_unknown_with_handle',
+    'task_bad_capability',
+    'task_good_capability',
+    'task_unknown_thread',
+    'task_orphan_running',
+    'task_d17_bad_cap',
+  ]) {
+    await poll.cancelGenerateTask(id);
+  }
+});

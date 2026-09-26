@@ -377,15 +377,17 @@ export async function relayChat(
     })) as CodeData<{ status?: string; text?: string; error?: string }>;
     const d = env?.data;
     if (d?.text) return { ok: true, content: d.text };
-    // 【唯一留痕出口 · 集中收口】未取到文本（空内容 / 后端业务错 / 信封形状不符）时**原文必带**。
-    // 本函数是前端唯一能同时看到 `code` 与 `data`（原文）的地方 ⇒ 留痕只在此打一次。
-    // **禁止**在 7 个 chatCompletions 消费端（scriptBox×5 / TextGenerate / contextCompression）各补一份：
-    // 它们只拿得到 `error` 字符串、看不到原文，抄一份 = 同一证据 N 份（第二份真相 + 改文案改 N 处）。
+    // 【消费者只转发】后端给了失败原因（`code:-1 + data.error`）⇒ 原样上行，**不在此另打留痕**：
+    // 上游原文已由**生产者**（后端 lovart adapter）发出来了（那条 `[lovart] …` 日志直达控制台），
+    // 消费者再打一份 = 同一证据 N 份；且此处只有 `error` 字符串，看不到上游真身。
+    if (d?.error) return { ok: false, error: d.error };
+    // 【唯一留痕出口 · 集中收口】走到这里 = **既无文本、也无 error**（空内容 / 信封形状不符）——
+    // 这种「信封本身坏了」的形态后端无从主张，只能由本函数兜底报出，故 7 个 chatCompletions 消费端
+    // （scriptBox×5 / TextGenerate / contextCompression）禁止各补一份：它们只拿得到 `error` 字符串。
     logger.warn('relayProxy', '[relay] chat 未取到文本（原文 code/data 见下）', {
       code: env?.code,
       data: d ?? env,
     });
-    if (d?.error) return { ok: false, error: d.error };
     return { ok: false, error: '上游未返回文本内容' };
   } catch (e) {
     // 【中止判定】真·用户取消（AbortError）或 信号已中止（signal 先中止、后续步骤连带抛错）。

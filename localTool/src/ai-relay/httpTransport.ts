@@ -199,6 +199,8 @@ export async function stableRequest(opts: StableRequestOptions): Promise<StableR
 
   const maxRetries = opts.maxRetries ?? DEFAULT_MAX_RETRIES;
   const maxBytes = opts.maxBytes ?? DEFAULT_MAX_BYTES;
+  // 退避基数：缺省真源常量；调用方（测试）可注入小值，避免为真 sleep 白等数秒。
+  const baseDelayMs = opts.retryDelayMs ?? DEFAULT_BASE_DELAY_MS;
   // 【TD-08-41 · 2026-09-17】缺省 = **空集**（不按状态码重试）。
   //
   // 【为什么改（原先缺省 = 中央 RETRYABLE_HTTP_STATUSES）】原口径让**每个**调用点都自动按
@@ -272,7 +274,7 @@ export async function stableRequest(opts: StableRequestOptions): Promise<StableR
             const delay =
               err.retryAfterMs && err.retryAfterMs > 0
                 ? err.retryAfterMs
-                : Math.min(DEFAULT_MAX_RETRY_DELAY_MS, DEFAULT_BASE_DELAY_MS * 2 ** attempt);
+                : Math.min(DEFAULT_MAX_RETRY_DELAY_MS, baseDelayMs * 2 ** attempt);
             await sleep(delay);
             continue;
           }
@@ -282,7 +284,7 @@ export async function stableRequest(opts: StableRequestOptions): Promise<StableR
         // 业务/服务端错误（RelayHttpError 带状态码）走上一分支：未显式声明 retryStatuses 即直接抛。
         lastError = err;
         if (attempt < maxRetries && !opts.signal?.aborted) {
-          await sleep(Math.min(DEFAULT_MAX_RETRY_DELAY_MS, DEFAULT_BASE_DELAY_MS * 2 ** attempt));
+          await sleep(Math.min(DEFAULT_MAX_RETRY_DELAY_MS, baseDelayMs * 2 ** attempt));
           continue;
         }
         throw err;

@@ -272,13 +272,29 @@ describe('relayProxy · chat 预算贯通（TD-01-24）', () => {
   it('relayChat：后端 200 但 text 为空 → 留痕带原文 code/data（信封原样）', async () => {
     const warn = vi.spyOn(logger, 'warn').mockImplementation(() => {});
     // 空 text + 无 error：正是线上「上游未返回文本内容」的形态
-    h.mockHttpRequest.mockResolvedValueOnce(envResp({ status: 'completed', kind: 'text', text: '' }));
+    h.mockHttpRequest.mockResolvedValueOnce(
+      envResp({ status: 'completed', kind: 'text', text: '' }),
+    );
     const r = await relayChat(chatIntent);
     expect(r).toEqual({ ok: false, error: '上游未返回文本内容' });
     expect(warn).toHaveBeenCalledTimes(1);
     const [, , detail] = warn.mock.calls[0] as [string, string, { code?: number; data?: unknown }];
     expect(detail.code).toBe(0);
     expect(detail.data).toEqual({ status: 'completed', kind: 'text', text: '' });
+    warn.mockRestore();
+  });
+
+  it('relayChat：后端给了业务错误 → 原样转发，**前端不另打留痕**（原文由后端发出）', async () => {
+    const warn = vi.spyOn(logger, 'warn').mockImplementation(() => {});
+    const msg = 'Lovart 未返回文本内容（上游 result 为空，原文见 [lovart] 日志）';
+    h.mockHttpRequest.mockResolvedValueOnce({
+      code: -1,
+      data: { error: msg, providerId: 'lovart', capability: 'chat' },
+    });
+    const r = await relayChat(chatIntent);
+    expect(r).toEqual({ ok: false, error: msg });
+    // 消费者只转发：留痕已由生产者（后端 adapter）打一次，前端再打 = 同一证据 N 份
+    expect(warn).not.toHaveBeenCalled();
     warn.mockRestore();
   });
 

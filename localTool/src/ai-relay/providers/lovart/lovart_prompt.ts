@@ -141,10 +141,11 @@ export function buildLovartPrompt(
 /** 按模型规格构造结构化路 tool_config（prompt_only 模型返回 undefined，B7）。 */
 export function buildLovartToolConfig(modelId: string): Record<string, unknown> | undefined {
   const spec = LOVART_MODEL_SPECS[modelId];
-  // CHAT 不在 main.py 的别名表内，沿用 specs 直接下发。
-  if (spec?.category === 'CHAT') {
-    return spec.tool ? { prefer_tool_categories: { [spec.category]: [spec.tool] } } : undefined;
-  }
+  // CHAT 不下发 tool_config —— `prefer_tool_categories` 的**类别取上游值域 IMAGE／VIDEO**。
+  // 依据 = 母本 apimart-gateway/main.py 的 `resolve_prefer_models`（`if category not in ("IMAGE","VIDEO"): return None`），
+  // 其 chat 路径 `resolve(...,"IMAGE") or resolve(...,"VIDEO")` 恒为 None ⇒ 该字段整个不下发。
+  // （`LovartCategory` 是本域枚举，与上游 `prefer_tool_categories` 的值域不是同一判据。）
+  if (spec?.category === 'CHAT') return undefined;
   // specs 已登记：按其 category 精确路由到对应别名表。
   if (spec) {
     const prefer = resolvePreferModels(modelId, spec.category);

@@ -744,7 +744,10 @@ export function createScriptBoxEngine({
             (videoConstraint
               ? `\n【生视频强制约束，仅作用于 videoPrompt】\n${videoConstraint}`
               : '') +
-            `\n【videoPrompt 格式硬性要求】videoPrompt 必须以“【时长 ${seconds}秒】”单独一行开头，随后换行书写视频内容。` +
+            // 【消歧 · 勿与 system 对撞】system（MANGA_SHOT）明令「禁止用秒数/时间区间**定位画面**」，
+            // 而本句要求 videoPrompt **开头标一次总时长** —— 两句话铺在一起容易被模型互相稀释。
+            // 故此处把边界写死：秒数**只出现在开头这一处**，正文里仍按"第一个画面/第二个画面"顺序描述。
+            `\n【videoPrompt 格式硬性要求】videoPrompt 必须以“【时长 ${seconds}秒】”单独一行开头（**全篇仅此一处出现秒数，正文一律不得用秒数/时间区间定位画面**），随后换行书写视频内容。` +
             (feedback && String(feedback).trim()
               ? `\n【用户本次修改意见（必须严格遵循）】${String(feedback).trim()}`
               : '');

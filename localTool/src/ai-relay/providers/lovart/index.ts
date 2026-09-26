@@ -16,7 +16,7 @@ import { sendLovartChatWithProject } from './lovart_project.js';
 import { setLovartMode } from './lovart_client.js';
 import { resolveLovartAttachments } from './lovart_attachments.js';
 import { buildLovartPrompt, buildLovartToolConfig } from './lovart_prompt.js';
-import { pollLovartThread, extractLovartArtifacts, extractLovartText } from './lovart_task.js';
+import { pollLovartThread, extractLovartArtifacts, extractLovartChatText } from './lovart_task.js';
 import { getLovartStatus, getLovartResult, confirmLovartThread } from './lovart_client.js';
 import { synthesizeLovartChatStream } from './lovart_stream.js';
 import { RelayHttpError, isRetryableHttpStatus } from '../../httpTransport.js';
@@ -184,7 +184,8 @@ export async function streamChatLovart(
   const toolConfig = buildLovartToolConfig(opts.model);
   const { threadId } = await sendLovartChatWithProject(deps, { prompt, attachments, toolConfig });
   const result = await pollLovartThread(deps, threadId);
-  const text = extractLovartText(result);
+  // 空文本 fail-loud：抽取层把上游 result 原文带进错误（生产者给全），前端只转发。
+  const text = extractLovartChatText(result);
   return synthesizeLovartChatStream(text, deps.signal); // 交回 parseStream
 }
 
@@ -204,7 +205,8 @@ export async function chatLovartText(
   const toolConfig = buildLovartToolConfig(opts.model);
   const { threadId } = await sendLovartChatWithProject(deps, { prompt, attachments, toolConfig });
   const result = await pollLovartThread(deps, threadId);
-  return extractLovartText(result);
+  // 空文本 fail-loud（同 streamChatLovart）：上游 result 原文随错误带出，不在本层编兜底文案。
+  return extractLovartChatText(result);
 }
 
 // ── 统一异步任务原语（ADAPTER_SPEC §2：submitTask + pollTaskOnce，供 relay 异步句柄）──

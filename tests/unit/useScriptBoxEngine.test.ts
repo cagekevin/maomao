@@ -123,12 +123,48 @@ describe('useScriptBoxEngine', () => {
   it('挂载后不向 node.data 注入任何函数（撤销重注入后必须零写入）', () => {
     renderHook(() => useScriptBoxEngine('sb1', { shots: [] }));
     // 挂载期 setNodes 不该被调（旧实现会调一次写 15 个函数字段）
+    // 注：无「执行态残留」时，本 hook 的刷新自愈 effect 同样不写回（见下方两个用例）。
     for (const [updater] of setNodes.mock.calls) {
       if (typeof updater !== 'function') continue;
       const out = updater([{ id: 'sb1', data: {} }])[0] as { data: Record<string, unknown> };
       const fnKeys = Object.entries(out.data || {}).filter(([, v]) => typeof v === 'function');
       expect(fnKeys.map(([k]) => k)).toEqual([]);
     }
+  });
+
+  /**
+   * 【刷新自愈 · 2026-09-26】执行态（genMask / 各级 loading）是**瞬时 UI 标志**，却写在 node.data 里，
+   * 经 `canvasSnapshotSchema.NODE_KEEP` 的 data 整包透传随快照落盘 ⇒ 刷新后原样恢复；
+   * 而生成任务的 .then/.catch 与 `runAbortable` 的 withTimeout 都已随页面卸载 ⇒ **无人复位**
+   * ⇒ 表现为「一直在跑，永远不停止」。本 hook 在**挂载时清一次**（头注见 useScriptBoxEngine 同名 effect）。
+   * 先红后绿：把该 effect 短路 ⇒ 本用例红（挂载期零 setNodes，断言 `toBeGreaterThan(0)` 即挂）。
+   */
+  it('挂载时清掉被落盘的执行态（genMask / shots.loading / assets.loading）', () => {
+    const dirty = {
+      genMask: true,
+      shots: [
+        { id: 1, promptLoading: true, imgGenLoading: true, tailFrameVariantsLoading: true },
+        { id: 2 },
+      ],
+      assets: [{ id: 'a', loading: true }],
+    };
+    renderHook(() => useScriptBoxEngine('sb1', dirty));
+    const calls = setNodes.mock.calls.filter((c) => typeof c[0] === 'function');
+    expect(calls.length).toBeGreaterThan(0);
+    const out = calls[calls.length - 1][0]([{ id: 'sb1', data: dirty }])[0];
+    expect(out.data.genMask).toBe(false);
+    expect(out.data.shots[0]).toMatchObject({
+      promptLoading: false,
+      imgGenLoading: false,
+      tailFrameVariantsLoading: false,
+    });
+    expect(out.data.shots[1].promptLoading).toBeUndefined(); // 干净镜头不被改写
+    expect(out.data.assets[0].loading).toBe(false);
+  });
+
+  it('挂载时无执行态残留 → 不写回（避免每次挂载多一次 setNodes）', () => {
+    renderHook(() => useScriptBoxEngine('sb1', { shots: [{ id: 1 }], assets: [{ id: 'a' }] }));
+    expect(setNodes.mock.calls.filter((c) => typeof c[0] === 'function').length).toBe(0);
   });
 
   it('createScriptBoxEngine 用最新 data（getData 读 getNodes）', () => {

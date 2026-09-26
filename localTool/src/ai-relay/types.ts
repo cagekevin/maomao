@@ -146,6 +146,12 @@ export interface StableRequestOptions {
   maxBytes?: number;
   maxRetries?: number;
   /**
+   * 重试退避基数（ms）：第 n 次重试等待 `retryDelayMs * 2^n`（上限 `DEFAULT_MAX_RETRY_DELAY_MS`）。
+   * 缺省 `DEFAULT_BASE_DELAY_MS`（生产不传 = 行为不变）。
+   * **测试注入小值提速**（与 `maxRetries` 同族的注入面）：退避是**真 sleep**，用例不该为此白等数秒。
+   */
+  retryDelayMs?: number;
+  /**
    * **显式**声明「哪些状态码在本场景可重试」；**缺省 = 空集（不按状态码重试）**。
    *
    * 【TD-08-41 · 2026-09-17 收口】缺省曾 = 中央 `RETRYABLE_HTTP_STATUSES`（408/429/5xx），

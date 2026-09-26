@@ -80,6 +80,7 @@ test('TD-08-25 下载重试：403 首次失败 + 显式 retryStatuses 含 403 �
     candidates: ['https://cdn.example.com/a.png'],
     retryStatuses: [403, ...RETRYABLE_HTTP_STATUSES],
     maxRetries: 3,
+    retryDelayMs: 1, // 提速：退避是**真 sleep**，用例不该为此白等 800ms 级
     fetchImpl: impl,
   });
   assert.equal(response.status, 200, '403 后被重试并拿到 200');
@@ -132,6 +133,7 @@ test('TD-08-41：显式声明 retryStatuses 时按该集重试（5xx 可被显�
     candidates: ['https://cdn.example.com/a.png'],
     retryStatuses: [...RETRYABLE_HTTP_STATUSES],
     maxRetries: 3,
+    retryDelayMs: 1, // 提速（同上）：断言的是"重试了几次"，与退避时长无关
     fetchImpl: impl,
   });
   assert.equal(response.status, 200, '显式声明后可重试 → 第二次 200');
@@ -150,6 +152,7 @@ test('只有网络错误才重试：fetch 抛网络错误 → 缺省仍重试（
         method: 'POST', // 非幂等也照重：红线允许的是**网络错误**这一类别，与 method 无关
         candidates: ['https://api.example.com/submit'],
         maxRetries: 2,
+        retryDelayMs: 1, // 提速（同上）：锁的是"仍重试"，不是退避时长
         fetchImpl: impl,
       }),
     (e) => {
