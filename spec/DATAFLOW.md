@@ -84,7 +84,7 @@ scriptbox/scriptBoxEngine.ts（ScriptBoxNode 挂载）
      （写剧本 / data.shots[].prompt 等），**不经过任务中心 reportGenerate**
 
 ─ 其它直接消费 generate 门面（非「节点生成→任务中心回填」范式，仅供 trace chat 链路）
-  agent/runtime/agentRuntime.ts      → chatStream（AI 助手 SSE 对话）
+  agent/runtime/agentRuntime.ts      → chatStream（AI 助手对话；stream 由设置「响应方式」决定）
   agent/runtime/contextCompression.ts → chatCompletions（上下文压缩，会话级，不经任务中心）
 
 判型：base/utils/media/assetType.resolveAssetType ◄── src/hooks/useConnectedInputs
@@ -323,7 +323,7 @@ api/filesApi（全站文件域单点：upload[FormData/JSON 双模式] / move[co
    │     前者「落盘完成 → 刷新」含同目录重拉，后者订阅 agent:task-completed 重拉生成列表）
    ├→ src/hooks/useAssetDropPaste · src/hooks/useResourceMoveToFolder · src/hooks/useAssetDragToCanvas
    ├→ image/nodes/ImageBoxNode（resolveNodeAssetUrl）· image/useImageHoverActions（showThenPersistInline）· image/nodes/AssetNode
-   ├→ scriptbox/scriptBoxEngine（uploadFileToLocal/saveResultToTasks）· src/hooks/useNodeGeneration（saveResultToTasks）
+   ├→ scriptbox/scriptBoxEngine（uploadFileToLocal）· text/TextGenerate（saveTextToTasks）· generate/lib/generationOrchestration（saveResultToTasks，节点与剧本盒共用）
    ├→ video/depthVideo/DepthVideoModal · video/lib/videoEngine（uploadFileToLocal → videoProcess 桶）· director3d/d3dPersistence（saveInlineToLocal）
    └→ 地基：utils/uploadDirs（subfolder 中央表）· utils/mediaType（判型）· utils/previewUrl · utils/imageUrl（URL 归一）
 
