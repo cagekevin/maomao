@@ -98,7 +98,8 @@ export async function relaySubmit(
       ...(intent.resolution !== undefined ? { resolution: intent.resolution } : {}),
       ...(intent.duration !== undefined ? { duration: String(intent.duration) } : {}),
     };
-    // httpRequest 默认 parseJson:true → 成功返纯 data 对象（无 .json()）；非 2xx 抛 HttpError 被下层 catch。
+    // 响应体 = **原始信封 `{code,data}`**（httpClient 只解析、不剥信封，真源见其 parseSuccessBodyOf）
+    // ⇒ 本层取 `env.data`；非 2xx 抛 HttpError 被下层 catch。
     // localTool 端点恒 200 + {code,data} 信封，故 res.ok 恒真；业务失败走 code:-1 + data.error。
     // 【根治·2026-09-04】POST 提交只负责「接受任务入队」，localTool 端已提交即返回（出站挪进后台句柄），
     // 响应近瞬回，无需默认 15s 掐点——去掉本层超时（timeoutMs:0=禁用），杜绝「已发到 lovart 却被 15s 误报超时」。
@@ -134,7 +135,8 @@ export async function relaySubmit(
 /** 单次 GET attach：查某 frontTaskId 当前进度/结果。 */
 export async function relayPoll(frontTaskId: string): Promise<RelayPollData> {
   try {
-    // parseJson:true 默认 → 返纯 data；非 2xx 抛 HttpError 进 catch → 返回 running 下轮续查
+    // 响应体 = **原始信封 `{code,data}`**（httpClient 不剥信封）⇒ 状态在 `env.data`；
+    // 非 2xx 抛 HttpError 进 catch → 返回 running 下轮续查
     // 【根治·2026-09-04】单次 GET attach 只读 localTool 内存/DB 句柄，近瞬回；
     // 真正的长等待由外层 relayAttachUntilDone 的等待上限兜底（143 S4′ 起 = 后端告知的 `budgetMs`），
     // 故去掉本层 15s 掐点，
@@ -364,7 +366,8 @@ export async function relayChat(
   if (opts.responseFormat) body.response_format = opts.responseFormat;
   try {
     // 统一入口：chat 走同步快路径，后端立即返 {code:0,data:{status:'completed',text}}。
-    // httpRequest 默认 parseJson:true → 成功返纯 data 对象；非 2xx 抛 HttpError 进 catch。
+    // 响应体 = **原始信封 `{code,data}`**（httpClient 不剥信封）⇒ 文本在 `env.data.text`；
+    // 非 2xx 抛 HttpError 进 catch。
     const env = (await httpRequest(`${API_BASE}/api/generate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -376,6 +379,14 @@ export async function relayChat(
     })) as CodeData<{ status?: string; text?: string; error?: string }>;
     const d = env?.data;
     if (d?.text) return { ok: true, content: d.text };
+    // 【唯一留痕出口 · 集中收口】未取到文本（空内容 / 后端业务错 / 信封形状不符）时**原文必带**。
+    // 本函数是前端唯一能同时看到 `code` 与 `data`（原文）的地方 ⇒ 留痕只在此打一次。
+    // **禁止**在 7 个 chatCompletions 消费端（scriptBox×5 / TextGenerate / contextCompression）各补一份：
+    // 它们只拿得到 `error` 字符串、看不到原文，抄一份 = 同一证据 N 份（第二份真相 + 改文案改 N 处）。
+    logger.warn('relayProxy', '[relay] chat 未取到文本（原文 code/data 见下）', {
+      code: env?.code,
+      data: d ?? env,
+    });
     if (d?.error) return { ok: false, error: d.error };
     return { ok: false, error: '上游未返回文本内容' };
   } catch (e) {
@@ -393,6 +404,15 @@ export async function relayChat(
       );
       return { ok: false, aborted: true, error: '已停止' };
     }
+    // 【唯一留痕出口 · 集中收口】非中止失败（HttpError 带上游错误体 / 网络 / 超时）**原文必带**。
+    // `HttpError.data` = 上游错误响应体（httpClient 唯一出口解析）；HTTP 状态是传输层的决定性事实。
+    const errRaw =
+      typeof e === 'object' && e !== null ? (e as { status?: unknown; data?: unknown }) : {};
+    logger.warn('relayProxy', '[relay] chat 请求失败（原文 data 见下）', {
+      status: errRaw.status,
+      error: e instanceof Error ? e.message : String(e),
+      data: errRaw.data,
+    });
     return { ok: false, error: e instanceof Error ? e.message : '聊天失败' };
   }
 }

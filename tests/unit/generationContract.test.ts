@@ -89,6 +89,26 @@ describe('runGenerationContract', () => {
     expect(out).toMatchObject({ ok: true, resultUrl: '/files/tasks/x.png' });
   });
 
+  it('成功但无 URL（text：结果在 content）→ settle 仍必须下发（否则节点 onSuccess 永不执行）', async () => {
+    // 断言的是**行为效果**：成功 ⇒ 一定通知调用方。文本节点(r.url 缺失)曾被 `if (url)` 挡掉。
+    // 把 generationOrchestration 里 `settle?.(url, …)` 改回 `if (url) settle?.(…)` → 本用例必红。
+    const settleMock = vi.fn();
+    const out = await runGenerationOrchestration({
+      taskNodeId: 't1',
+      type: 'text',
+      signal: sig,
+      settle: settleMock,
+      run: async () => ({ ok: true, content: '你好' }),
+    });
+    expect(settleMock).toHaveBeenCalledTimes(1);
+    const [url, r] = settleMock.mock.calls[0] as [string, { content?: string }];
+    expect(url).toBe(''); // 无 URL 如实给空串，不编
+    expect(r.content).toBe('你好'); // 结果本体（节点 onSuccess 靠它 setText）
+    expect(saveResultToTasksMock).not.toHaveBeenCalled(); // 无 URL 不落盘（文本走 saveTextToTasks）
+    expect(taskCtl.done).toHaveBeenCalledWith('');
+    expect(out).toMatchObject({ ok: true, resultUrl: '' });
+  });
+
   // 【已删用例：不落盘（saveToTasks:false）】2026-09-20 · ADR-0030（幽灵预留即假接缝）。
   //   该开关 3 个生产调用方**零处显式传它**（全吃默认 true）⇒ 从未接线；这个用例是它**唯一的消费者**
   //   （= ADR-0030 §裁决 所说"只被它自己的单测引用"的假消费证据）。开关与用例一并删除，

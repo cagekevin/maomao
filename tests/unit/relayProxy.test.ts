@@ -27,6 +27,7 @@ import {
   relayChatStream,
 } from '../../src/components/generate/lib/relayProxy.ts';
 import { CHAT_TOTAL_TIMEOUT } from '../../src/components/base/core/config.ts';
+import { logger } from '../../src/components/base/core/log/logger.ts';
 
 function envResp(data: any) {
   // httpRequest parseJson:true 真实返回纯信封对象 { code, data }（无 .json）
@@ -262,5 +263,52 @@ describe('relayProxy · chat 预算贯通（TD-01-24）', () => {
     });
     const [, opts] = h.mockHttpRequest.mock.calls[0] as [string, { body: string }];
     expect(JSON.parse(opts.body).timeoutMs).toBe(CHAT_TOTAL_TIMEOUT);
+  });
+
+  // ── 失败/空内容的原文留痕（唯一出口；消费端不得再各加一份）──
+  // 断言的是**行为效果**：给定后端真返的信封 → 唯一出口的留痕必须带原文。
+  // 把 relayChat 的两处 logger.warn 去掉 → 本组断言必红（先红后绿，见轮次日志探针）。
+
+  it('relayChat：后端 200 但 text 为空 → 留痕带原文 code/data（信封原样）', async () => {
+    const warn = vi.spyOn(logger, 'warn').mockImplementation(() => {});
+    // 空 text + 无 error：正是线上「上游未返回文本内容」的形态
+    h.mockHttpRequest.mockResolvedValueOnce(envResp({ status: 'completed', kind: 'text', text: '' }));
+    const r = await relayChat(chatIntent);
+    expect(r).toEqual({ ok: false, error: '上游未返回文本内容' });
+    expect(warn).toHaveBeenCalledTimes(1);
+    const [, , detail] = warn.mock.calls[0] as [string, string, { code?: number; data?: unknown }];
+    expect(detail.code).toBe(0);
+    expect(detail.data).toEqual({ status: 'completed', kind: 'text', text: '' });
+    warn.mockRestore();
+  });
+
+  it('relayChat：信封形状不符（无 data）→ 留痕带整个 env（不静默）', async () => {
+    const warn = vi.spyOn(logger, 'warn').mockImplementation(() => {});
+    h.mockHttpRequest.mockResolvedValueOnce({ code: 0 });
+    const r = await relayChat(chatIntent);
+    expect(r.ok).toBe(false);
+    const [, , detail] = warn.mock.calls[0] as [string, string, { data?: unknown }];
+    expect(detail.data).toEqual({ code: 0 });
+    warn.mockRestore();
+  });
+
+  it('relayChat：非 2xx / 网络失败 → 留痕带 HTTP 状态与上游错误体', async () => {
+    const warn = vi.spyOn(logger, 'warn').mockImplementation(() => {});
+    const httpErr = Object.assign(new Error('上游 502'), {
+      name: 'HttpError',
+      status: 502,
+      data: { message: 'bad gateway' },
+    });
+    h.mockHttpRequest.mockRejectedValueOnce(httpErr);
+    const r = await relayChat(chatIntent);
+    expect(r).toEqual({ ok: false, error: '上游 502' });
+    const [, , detail] = warn.mock.calls[0] as [
+      string,
+      string,
+      { status?: number; data?: unknown; error?: string },
+    ];
+    expect(detail.status).toBe(502);
+    expect(detail.data).toEqual({ message: 'bad gateway' });
+    warn.mockRestore();
   });
 });

@@ -150,7 +150,12 @@ export async function runGenerationOrchestration({
         }
       }
       // ② 写回「应显示的 URL」，并把「本地化是否真的发生」一并交出（消费方据此定状态，不靠猜）
-      if (url) settle?.(url, r, taskCtl, { localized });
+      // 【必须无条件下发 · 2026-09-26】`settle` 的语义是「成功 ⇒ 通知调用方（写回 URL + 节点 onSuccess）」，
+      // **与有没有 URL 无关**。text 结果本体在 `content`（`r.url` 缺失）—— 原 `if (url)` 把它一并挡掉
+      // ⇒ 节点 `onSuccess` 永不执行：节点空白 + 无报错 + 任务中心却记成功（实证 2026-09-26 文本节点）。
+      // URL 只决定「本地化 / 落盘 / 写回字段」这些**子步骤**，不决定「要不要通知」。
+      // 无 URL 时调用方收到 `''`：`writeBackResult` 内部已有 `if (key && url)` 守卫 ⇒ 天然 no-op，安全。
+      settle?.(url, r, taskCtl, { localized });
       // ③ 落盘唯一出口（P0-C）：**契约内的无条件一步**，不是可选分支（ADR-0053 / 2026-09-20 深模块化）。
       //
       // 【为什么删掉原来的 `saveToTasks?: boolean`（默认 true）开关】

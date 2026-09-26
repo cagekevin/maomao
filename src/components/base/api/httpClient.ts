@@ -17,7 +17,9 @@
  *  - 错误分类：TimeoutError / NetworkError / HttpError(status,data) / AbortError。
  *  - 受限重试：仅网络/超时错误自动重试（业务 4xx/5xx 不重试），默认最多 3 次。
  *
- * 【返回】parseJson=true（默认）时返回解析后的 JSON；HTTP 非 2xx 抛 HttpError。
+ * 【返回】parseJson=true（默认）时返回**解析后的原始响应体**；HTTP 非 2xx 抛 HttpError。
+ *   ⚠️ **不剥 `{code,data}` 信封** —— 信封是 localTool 端点的形状，本层只解析、不改形状
+ *   （消费方 `env.data` 取值；曾因本行只说"返回解析后的 JSON"被误读成"已剥成纯 data"，见 relayProxy 注释）。
  * 【失败面（TD-18-22 收口，全部诚实可见，不再压成 `{}`）】
  *  - 非 2xx（无论 parseJson）→ `HttpError(status, message, data)`；`message` 优先取错误信封，
  *    非 JSON 错误体则**原文进 message**（TD-03-11 本意，此前因 body 二次读取必拒而从未生效）；
