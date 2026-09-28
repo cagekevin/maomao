@@ -535,12 +535,13 @@ function ImageGenerate({ id, data, selected }: ImageGenerateProps) {
     [id, setNodes, aspectRatio, fitByRatio, patchData],
   );
 
-  // 共享图片 hover 能力（裁剪/标记/压缩）：写回走 setAssetUrl + patchData（不可变落盘）。
+  // 共享图片 hover 能力（抠图/裁剪/标记/放大/压缩/复制）：写回走 setAssetUrl + patchData（不可变落盘）。
   const {
     editor: _editor,
     setEditor: _setEditor,
     cropping,
     renderEditor,
+    renderMattingEditor,
     renderInlineCropper,
     imageButtons,
   } = useImageHoverActions({
@@ -551,7 +552,7 @@ function ImageGenerate({ id, data, selected }: ImageGenerateProps) {
     onImageReplaced: handleImageReplaced,
   });
 
-  // hover 操作栏按钮：图片类共享能力(crop/edit/compress)走 useImageHoverActions（带 onClick，修死按钮），
+  // hover 操作栏按钮：图片类共享能力（抠图/裁剪/标记/放大/压缩/复制）走 useImageHoverActions（带 onClick，修死按钮），
   // zoom/upload/send/jianying/download 按生图节点语义各自声明。
   // 【TD-04-41】配置数组 + 各按钮回调引用稳定（否则 memo(HoverToolbar) 浅比较必失败）。
   const handleToolbarCameraStudio = useCallback(() => setIsCameraStudioOpen(true), []);
@@ -924,6 +925,11 @@ function ImageGenerate({ id, data, selected }: ImageGenerateProps) {
 
         {/* 图片编辑器（裁剪/标记/压缩）：统一机制渲染，editor 关闭时返回 null */}
         {renderEditor()}
+
+        {/* AI 抠图编辑器：图片态可抠，产出透明 PNG 覆盖本节点。
+            ★ 与 AssetNode 同一条机制（useImageHoverActions）⇒ 两个宿主的抠图入口不再分叉；
+            保存复用 hook 的统一出口（上屏 → 落盘换持久 URL → 再写回）。 */}
+        {renderMattingEditor()}
       </NodeShell>
 
       {/* 摄影棚面板 */}

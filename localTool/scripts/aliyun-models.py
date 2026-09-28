@@ -28,6 +28,22 @@ sha256 一致性由 fetch-runtime-models.mjs 的 MANIFEST 兜底校验。
 云盘结构
 --------
   资源盘 /runtime-models/<tool>.zip        （解压后 = 本机 localTool/runtime-models/<tool>/）
+
+清单 / 说明不入包（2026-09-28）
+------------------------------
+  任意层级的 `MANIFEST.json` / `README.md`（按**文件名**判，含 `vendor/onnxruntime/README.md`）
+  都是 **git 追踪的真源**，随仓库走，不该由网盘包反向覆盖 ——
+  实测：旧 `depth-video.zip`（plan 147 之前打的包）解压后把仓库里较新的 MANIFEST/README
+  顶回了旧版（差 41 行，且 `MANIFEST.runtime` 字段丢失）。
+  故**两侧都收口**：打包时排除这些文件名，解压时按成员名跳过（防旧包）。
+  收益：网盘只管**二进制**，清单/说明只有 git 一份真相 —— 不会再有第二份会漂移的副本。
+  （被排除的都是 tracked 件 ⇒ 换机 `git clone` 即得，不丢文件；已逐包核过。）
+
+上传是**覆盖**语义（2026-09-28）
+------------------------------
+  aligo `upload_file` 的 `check_name_mode` **默认 `auto_rename`** ⇒ 同名不同大小会新建
+  `<tool> (1).zip` 而**不替换旧文件**（"以为替换成功、其实两份并存"）。`upload()` 显式传
+  `check_name_mode='overwrite'` —— 云端 `<tool>.zip` 是本机目录的**镜像**，只能有一份。
 """
 import os
 import sys
@@ -45,6 +61,14 @@ except ModuleNotFoundError:
 HERE = Path(__file__).resolve().parent
 RUNTIME_ROOT = HERE.parent / 'runtime-models'      # localTool/runtime-models
 REMOTE_BASE = '/runtime-models'                     # 资源盘根目录
+
+# git 追踪的"清单/说明"——**不属于模型二进制**，不入包、不覆盖（见文件头"清单 / 说明不入包"）。
+DOC_NAMES = ('MANIFEST.json', 'README.md')
+
+
+def _is_tracked_doc(arcname):
+    """该 zip 成员是不是 git 追踪的清单/说明（按**文件名**判，不按路径 —— 目录名随便起）。"""
+    return Path(arcname).name in DOC_NAMES
 
 
 def make_ali():
@@ -79,24 +103,40 @@ def _ensure_base(ali):
 
 
 def _make_zip(tool):
-    """把 localTool/runtime-models/<tool> 压成 <tool>.zip（含 depth-video/... 结构）。"""
+    """把 localTool/runtime-models/<tool> 压成 <tool>.zip（含 depth-video/... 结构）。
+
+    **排除** `MANIFEST.json` / `README.md`（git 真源，见文件头"清单 / 说明不入包"）。
+    """
     base = RUNTIME_ROOT / tool
     if not base.exists():
         print(f'❌ 本地目录不存在: {base}')
         sys.exit(1)
     zip_path = RUNTIME_ROOT / f'{tool}.zip'
     print(f'🗜️  打包 {base} → {zip_path} ...')
+    skipped = 0
     with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as z:
         for root, dirs, files in os.walk(base):
             for f in files:
+                if _is_tracked_doc(f):
+                    skipped += 1
+                    continue
                 fp = Path(root) / f
                 arcname = fp.relative_to(RUNTIME_ROOT)
                 z.write(fp, arcname)
+    if skipped:
+        print(f'ℹ️  跳过 {skipped} 份清单/说明（git 真源，不入包）')
     print(f'✅ 打包完成: {zip_path.stat().st_size/1e6:.1f} MB')
     return zip_path
 
 
 def upload(tool='depth-video'):
+    """打包 + 上传 `<tool>.zip`（同名**覆盖**）。
+
+    【为什么必须显式 overwrite】aligo `upload_file` 的 `check_name_mode` **默认 `auto_rename`**
+    ⇒ 同名不同大小时会新建 `three (1).zip`、**旧文件原样留着**：`download all` 便同时列到两份，
+    既白占网盘、又让"旧包"继续参与解压（2026-09-28 实测坑，差点以为"替换"成功）。
+    本脚本的语义是**镜像**（云端 `<tool>.zip` = 本机目录），故显式覆盖。
+    """
     ali = make_ali()
     zip_path = _make_zip(tool)
     base_id = _ensure_base(ali)
@@ -105,7 +145,7 @@ def upload(tool='depth-video'):
         if f and getattr(f, 'type', None) == 'file' and f.name == name and (f.size or 0) == zip_path.stat().st_size:
             print(f'ℹ️ 云端已存在同大小 {name}，跳过')
             return
-    ali.upload_file(str(zip_path), parent_file_id=base_id)
+    ali.upload_file(str(zip_path), parent_file_id=base_id, check_name_mode='overwrite')
     print(f'✅ 上传完成: /runtime-models/{name}')
 
 
@@ -128,7 +168,17 @@ def _fetch_and_extract(ali, remote_file, name):
         print(f'📥 已下载 {name}')
     print(f'📦 解压到 {RUNTIME_ROOT} ...')
     with zipfile.ZipFile(zip_path) as z:
-        z.extractall(str(RUNTIME_ROOT))
+        # 逐成员解压，**跳过清单/说明**（旧包仍带它们 ⇒ 会把仓库里较新的版本顶回旧版）。
+        skipped = 0
+        for info in z.infolist():
+            if info.is_dir():
+                continue
+            if _is_tracked_doc(info.filename):
+                skipped += 1
+                continue
+            z.extract(info, str(RUNTIME_ROOT))
+    if skipped:
+        print(f'ℹ️  已保留本地仓库版 {skipped} 份清单/说明（网盘包内的不入盘）')
     print(f'✅ {name} 解压完成')
 
 

@@ -1,6 +1,6 @@
 import { useState, useCallback, useMemo } from 'react';
-import { Crop, Pencil, Maximize2, Minimize2, Copy } from 'lucide-react';
-import { ImageEditor, InlineImageCropper } from './editors';
+import { Crop, Pencil, Maximize2, Minimize2, Copy, SquareDashedMousePointer } from 'lucide-react';
+import { ImageEditor, InlineImageCropper, MattingEditor } from './editors';
 
 import { compressImage } from '@/components/base/utils/imageCompress';
 import { upscaleImage } from '@/components/image/lib/imageUpscale';
@@ -16,6 +16,12 @@ import { formatBytes } from '@/components/base/core/utils';
  * 「裁剪 / 标记 / 压缩 / 发送到素材库 / 下载」这套图片行为能力。此前两节点各写一份，
  * 生图节点的 crop/edit 甚至漏写 onClick 成了死按钮（功能漂移）。抽出统一 hook，
  * 两节点只声明差异项（上传语义不同），共享能力一处维护、一处修复。
+ *
+ * 【AI 抠图也走这条机制（2026-09-28 修订）】`MattingEditor` 首版被**直接钉在 AssetNode**
+ * （`docs/plan/148` §八 B：只挂 AssetNode）⇒ 生图节点抠不到图，同一个"图片 hover 能力"
+ * 又分叉成两处接线。现收进本 hook（与 `ImageEditor` 同一条机制、同一个保存出口
+ * `handleEditorSave`）：两个宿主动作入口**天然一致**，`MattingEditor` 也就名副其实地
+ * 落在 `editors/`（该子域判据 = **多宿主共享的编辑器**）。
  *
  * 【解耦写回】hook 不耦合 setNodes / patchData 差异：调用方传 onImageReplaced(dataUrl, dims?)，
  * 由各自节点决定如何把新图写回（两节点均经 base/nodeImage.ts 的 replaceNodeImage 唯一写入口）。
@@ -39,13 +45,14 @@ import { formatBytes } from '@/components/base/core/utils';
  * @returns {{
  *   editor,          // 编辑器开合态：null | { tool:'crop'|'pencil' }
  *   setEditor,       // 开关编辑器
- *   handleEditorSave,// ImageEditor.onSave
+ *   handleEditorSave,// ImageEditor.onSave（抠图也复用：同一条落盘出口）
  *   handleCompress,  // 压缩按钮 onClick
  *   compressing,     // 压缩中（按钮 loading 用）
  *   handleUpscale,   // 放大按钮 onClick
  *   upscaling,       // 放大中（按钮 loading 用）
- *   imageButtons,    // 共享图片 hover 按钮数组（crop/edit/compress/upscale）
- *   renderEditor     // 渲染 ImageEditor 的函数（返回 JSX 或 null）
+ *   imageButtons,    // 共享图片 hover 按钮数组（matting/crop/edit/upscale/compress/copy）
+ *   renderEditor,    // 渲染 ImageEditor 的函数（返回 JSX 或 null）
+ *   renderMattingEditor // 渲染 MattingEditor 的函数（返回 JSX 或 null）
  * }}
  */
 interface UseImageHoverActionsArgs {
@@ -70,6 +77,7 @@ export function useImageHoverActions({
 }: UseImageHoverActionsArgs) {
   const [editor, setEditor] = useState<{ tool: 'crop' | 'pencil' } | null>(null); // 全屏 ImageEditor（重编辑入口，保留）
   const [cropping, setCropping] = useState(false); // 就地裁剪浮层
+  const [mattingOpen, setMattingOpen] = useState(false); // 全屏 AI 抠图（去背景）
   const [compressing, setCompressing] = useState(false);
   const [upscaling, setUpscaling] = useState(false);
   // 复制节点（Ctrl+V 粘贴到画布）；与右键菜单「复制」共用 clipboard.copyNodesToClipboard。
@@ -141,7 +149,7 @@ export function useImageHoverActions({
     }
   }, [url, upscaling, onImageReplaced]);
 
-  // 共享图片 hover 按钮：裁剪（就地）/ 放大 / 压缩（图片编辑核心能力）。
+  // 共享图片 hover 按钮：抠图（AI 去背景）/ 裁剪（就地）/ 标记 / 放大 / 压缩 / 复制节点。
   // 仅 hasImage 时显示（无图不显示死按钮）。发送/下载由各节点按自身语义保留。
   // 【TD-04-41】回调必须引用稳定 —— 本数组被 AssetNode / ImageGenerate 交给 memo(HoverToolbar)，
   // 数组或其内部回调每帧新建 ⇒ 浅比较必失败、memo 恒失效（**修节点侧也无效，根在这里**）。
@@ -151,9 +159,23 @@ export function useImageHoverActions({
   const handleEditOpen = useCallback(() => {
     if (url) setEditor({ tool: 'pencil' });
   }, [url]);
+  const handleMattingOpen = useCallback(() => {
+    if (url) setMattingOpen(true);
+  }, [url]);
   const handleCopyNode = useCallback(() => copyNode(id), [copyNode, id]);
   const imageButtons = useMemo(
     () => [
+      {
+        key: 'matting',
+        // 【图标 = PS「对象选择工具」形态：虚线选框 + 指针】（行业惯例：PS 的 AI 一键选主体就是这个符号）。
+        // ❌ 不用 Scissors：本仓剪刀已被"切割/分割"占用（GridSplitNode 切刀 · 时间轴分割），且与「裁剪」撞。
+        // ❌ 不用 WandSparkles：那是"魔棒"，PS 里专指**纯色背景**工具，不是 AI 抠图。
+        icon: <SquareDashedMousePointer size={14} />,
+        title: 'AI 抠图（去背景）',
+        hoverClass: 'hover:text-sky-400',
+        onClick: handleMattingOpen,
+        show: hasImage && !!url,
+      },
       {
         key: 'crop',
         icon: <Crop size={14} />,
@@ -190,7 +212,16 @@ export function useImageHoverActions({
         show: true,
       },
     ],
-    [hasImage, url, handleCropOpen, handleEditOpen, handleUpscale, handleCompress, handleCopyNode],
+    [
+      hasImage,
+      url,
+      handleMattingOpen,
+      handleCropOpen,
+      handleEditOpen,
+      handleUpscale,
+      handleCompress,
+      handleCopyNode,
+    ],
   );
 
   // 渲染编辑器（调用方在节点末尾 render，全屏重编辑入口，保留未删）
@@ -214,11 +245,25 @@ export function useImageHoverActions({
       />
     ) : null;
 
+  // 渲染 AI 抠图编辑器（调用方在节点末尾 render）——**onSave 复用 handleEditorSave**：
+  // 与 ImageEditor/裁剪/压缩/放大同一条出口（立即上屏 → 落盘换 /files/ 持久 URL → 再写回），
+  // 不另写第二条落盘路径。
+  const renderMattingEditor = () =>
+    mattingOpen && url ? (
+      <MattingEditor
+        assetUrl={url}
+        onSave={handleEditorSave}
+        onClose={() => setMattingOpen(false)}
+      />
+    ) : null;
+
   return {
     editor,
     setEditor,
     cropping,
     setCropping,
+    mattingOpen,
+    setMattingOpen,
     handleEditorSave,
     handleCropSave,
     handleCompress,
@@ -227,6 +272,7 @@ export function useImageHoverActions({
     upscaling,
     imageButtons,
     renderEditor,
+    renderMattingEditor,
     renderInlineCropper,
   };
 }

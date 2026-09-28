@@ -11,7 +11,6 @@ import {
   Download,
   Camera,
   Layers,
-  SquareDashedMousePointer,
 } from 'lucide-react';
 import { useReactFlow } from '@xyflow/react';
 import NodeShell from '@/components/canvas/parts/NodeShell';
@@ -38,7 +37,7 @@ import { downloadUrl } from '@/components/base/utils/net/clipboard';
 import { showToast, toastError } from '@/components/base/core/event/toastStore';
 import { sendToResourceLibrary, getResources } from '@/components/resource/resourceStore';
 import { openResourceLibrary } from '@/components/base/store/taskStore';
-import { CameraStudioPanel, MattingEditor } from '../editors';
+import { CameraStudioPanel } from '../editors';
 import type { CameraStudioResult } from '../editors';
 import { useCanvasEdges } from '@/components/canvas/structure/CanvasEdgesContext';
 import { DepthVideoModal, spawnDepthVideoNode } from '@/components/video';
@@ -90,8 +89,6 @@ function AssetNode({ id, data, selected }: AssetNodeProps) {
   const [isCameraStudioOpen, setIsCameraStudioOpen] = useState(false);
   // 深度转视频弹窗开关 + 画布历史（undo）：供 spawnDepthVideoNode 原子提交，复用 VideoGenerate 范式
   const [depthOpen, setDepthOpen] = useState(false);
-  // AI 抠图编辑器开关（图片态可用）；产出经 onSave 走 replaceImage 写回本节点
-  const [mattingOpen, setMattingOpen] = useState(false);
   const history = useCanvasEdges();
 
   // 查看大图：原生 <dialog> 弹层（双击图片 → showModal，点图/Esc 关闭，无外框/标题栏）。
@@ -154,12 +151,9 @@ function AssetNode({ id, data, selected }: AssetNodeProps) {
     editor: _editor,
     setEditor: _setEditor,
     renderEditor,
+    renderMattingEditor,
     renderInlineCropper,
     imageButtons,
-    // 【编辑器产出的统一保存出口】任何「编辑器产出 dataURL → 写回节点」都走它：
-    // ① 立即上屏 dataURL → ② 落盘换 /files/ 持久 URL → ③ 再写回持久 URL（策略见 filesApi.showThenPersistInline）。
-    // 抠图（MattingEditor）与 ImageEditor 的 onSave 签名同形 ⇒ 直接复用，不另写第二条落盘路径。
-    handleEditorSave,
   } = useImageHoverActions({
     id,
     url,
@@ -305,13 +299,12 @@ function AssetNode({ id, data, selected }: AssetNodeProps) {
   // 画布内显示地址由 useImageFallbackSrc 给出（本地 /files/ → 按需小图，治全分辨率解码卡顿；
   // 外部 http/data/blob → 原图），失败回退策略与 LazyImage 同一出处；缩放弹层与发送仍用原图 `url`。
 
-  // hover 操作栏按钮：图片类共享能力(crop/edit/compress)走 useImageHoverActions，
+  // hover 操作栏按钮：图片类共享能力（抠图/裁剪/标记/放大/压缩/复制）走 useImageHoverActions，
   // upload/send/download 按本节点多类型语义各自声明。
   // 【TD-04-41】配置数组 + 各按钮回调引用稳定（否则 memo(HoverToolbar) 浅比较必失败）。
   const handleToolbarUpload = useCallback(() => fileRef.current?.click(), []);
   const handleToolbarCameraStudio = useCallback(() => setIsCameraStudioOpen(true), []);
   const handleToolbarDepth = useCallback(() => setDepthOpen(true), []);
-  const handleToolbarMatting = useCallback(() => setMattingOpen(true), []);
   const handleToolbarSend = useCallback(() => {
     if (!url) {
       toastError('没有可发送的素材');
@@ -350,17 +343,6 @@ function AssetNode({ id, data, selected }: AssetNodeProps) {
         show: type === 'video' && !!url,
         onClick: handleToolbarDepth,
       },
-      {
-        key: 'matting',
-        // 【图标 = PS「对象选择工具」形态：虚线选框 + 指针】（行业惯例：PS 的 AI 一键选主体就是这个符号）。
-        // ❌ 不用 Scissors：本仓剪刀已被"切割/分割"占用（GridSplitNode 切刀 · 时间轴分割），且与「裁剪」撞。
-        // ❌ 不用 WandSparkles：那是"魔棒"，PS 里专指**纯色背景**工具，不是 AI 抠图。
-        icon: <SquareDashedMousePointer size={14} />,
-        title: 'AI 抠图（去背景）',
-        hoverClass: 'hover:text-sky-400',
-        show: type === 'image' && !!url,
-        onClick: handleToolbarMatting,
-      },
       ...imageButtons,
       {
         key: 'send',
@@ -393,7 +375,6 @@ function AssetNode({ id, data, selected }: AssetNodeProps) {
       handleToolbarUpload,
       handleToolbarCameraStudio,
       handleToolbarDepth,
-      handleToolbarMatting,
       handleToolbarSend,
     ],
   );
@@ -556,6 +537,10 @@ function AssetNode({ id, data, selected }: AssetNodeProps) {
       {/* 图片编辑器（裁剪/标记）：统一机制渲染，editor 关闭时返回 null */}
       {renderEditor()}
 
+      {/* AI 抠图编辑器：统一机制渲染（与 ImageEditor 同一条出口：上屏 → 落盘 → 换持久 URL），
+          关闭时返回 null。此前这段是 AssetNode 的私有接线 ⇒ 生图节点抠不到图（2026-09-28 收进 hook）。 */}
+      {renderMattingEditor()}
+
       {/* 查看大图：共享 ImageZoomDialog。
         图片→kind="image" 看海报/大图；视频→kind="video" 统一走视频播放预览（含截屏按钮） */}
       <ImageZoomDialog ref={dialogRef} url={url} kind={type === 'video' ? 'video' : 'image'} />
@@ -577,18 +562,6 @@ function AssetNode({ id, data, selected }: AssetNodeProps) {
             });
             setDepthOpen(false);
           }}
-        />
-      )}
-
-      {/* AI 抠图编辑器：图片态可抠，产出透明 PNG 写回本节点。
-          ★ onSave 直接复用 handleEditorSave（与 ImageEditor 同一条出口：上屏 → 落盘 → 换持久 URL）。
-            此前这里直调 replaceImage ⇒ 只写字段、产物永不落盘（MB 级 dataURL 常驻 node.data，
-            且与其余四条编辑器路径不同构）。 */}
-      {mattingOpen && type === 'image' && url && (
-        <MattingEditor
-          assetUrl={url}
-          onSave={handleEditorSave}
-          onClose={() => setMattingOpen(false)}
         />
       )}
 

@@ -121,6 +121,15 @@ vi.mock('../../src/components/image/editors/InlineImageCropper.tsx', () => ({
     return <div data-testid="inline-cropper" data-url={assetUrl} />;
   },
 }));
+// MattingEditor：记录最近渲染的 assetUrl，便于断言「生图节点也能抠图」
+//（2026-09-28 修订：抠图原只挂 AssetNode，生图节点抠不到图；现与 ImageEditor 同走 useImageHoverActions）
+let lastMattingUrl: any = null;
+vi.mock('../../src/components/image/editors/MattingEditor.tsx', () => ({
+  default: ({ assetUrl }: any) => {
+    lastMattingUrl = assetUrl;
+    return <div data-testid="matting-editor" data-url={assetUrl} />;
+  },
+}));
 
 import ImageGenerate from '../../src/components/image/nodes/ImageGenerate.tsx';
 
@@ -130,6 +139,7 @@ beforeEach(() => {
   mockGetNodes.mockReturnValue([]);
   mockAddNodes.mockClear();
   lastEditorUrl = null;
+  lastMattingUrl = null;
   inlineCropperOpen = false;
   // jsdom 无 IntersectionObserver；补一个类型完整的最小实现（DOM lib 已有声明，故无需 as any）
   if (!globalThis.IntersectionObserver) {
@@ -181,6 +191,15 @@ describe('ImageGenerate hover 工具栏 — 共享图片能力', () => {
     render(<ImageGenerate id="pn1" data={{ assetUrl: 'http://x/result.png' }} selected={false} />);
     expect(screen.getByTitle('标记')).toBeTruthy();
     expect(screen.getByTitle('压缩图片（80%）')).toBeTruthy();
+  });
+
+  it('有生图结果时，hover 栏出现「AI 抠图（去背景）」且点击打开抠图编辑器', async () => {
+    // 回归锁：抠图曾只挂 AssetNode ⇒ 生图节点缺这一步（用户 2026-09-28 点名修正）。
+    render(<ImageGenerate id="pn1" data={{ assetUrl: 'http://x/result.png' }} selected={false} />);
+    expect(lastMattingUrl).toBeNull(); // 初始未打开
+    fireEvent.click(screen.getByTitle('AI 抠图（去背景）'));
+    await waitFor(() => expect(lastMattingUrl).toBe('http://x/result.png'));
+    expect(screen.getByTestId('matting-editor')).toBeTruthy();
   });
 
   it('有生图结果时仍保留生图节点专属按钮（摄影棚/发送到剪映素材库），且放大按钮已移除', () => {

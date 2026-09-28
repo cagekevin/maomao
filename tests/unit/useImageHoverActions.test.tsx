@@ -47,7 +47,7 @@ const findBtn = (btns: any, key: any) => btns.find((b: any) => b.key === key);
 describe('useImageHoverActions — 图片共享 hover 能力', () => {
   beforeEach(() => {});
 
-  it('有图时 crop/edit/upscale/compress 均显示（按钮可用性契约）', () => {
+  it('有图时 matting/crop/edit/upscale/compress 均显示（按钮可用性契约）', () => {
     const { result } = renderHook(() =>
       useImageHoverActions({
         id: 'n1',
@@ -58,12 +58,12 @@ describe('useImageHoverActions — 图片共享 hover 能力', () => {
       }),
     );
     const btns = result.current.imageButtons;
-    for (const k of ['crop', 'edit', 'upscale', 'compress']) {
+    for (const k of ['matting', 'crop', 'edit', 'upscale', 'compress']) {
       expect(findBtn(btns, k).show, `按钮 ${k} 有图时应显示`).toBe(true);
     }
   });
 
-  it('无图时 crop/edit/upscale/compress 均隐藏', () => {
+  it('无图时 matting/crop/edit/upscale/compress 均隐藏', () => {
     const { result } = renderHook(() =>
       useImageHoverActions({
         id: 'n1',
@@ -73,9 +73,33 @@ describe('useImageHoverActions — 图片共享 hover 能力', () => {
         onImageReplaced: () => {},
       }),
     );
-    for (const k of ['crop', 'edit', 'upscale', 'compress']) {
+    for (const k of ['matting', 'crop', 'edit', 'upscale', 'compress']) {
       expect(findBtn(result.current.imageButtons, k).show, `${k} 无图时应隐藏`).toBe(false);
     }
+  });
+
+  it('点击抠图(matting) → 打开 MattingEditor → renderMattingEditor 渲染（两个宿主共用同一入口）', () => {
+    const { result } = renderHook(() =>
+      useImageHoverActions({
+        id: 'n1',
+        url: 'http://x/a.png',
+        hasImage: true,
+        label: 'L',
+        onImageReplaced: () => {},
+      }),
+    );
+    expect(result.current.mattingOpen).toBe(false);
+    expect(result.current.renderMattingEditor()).toBeNull();
+    act(() => {
+      findBtn(result.current.imageButtons, 'matting').onClick();
+    });
+    expect(result.current.mattingOpen).toBe(true);
+    expect(result.current.renderMattingEditor()).not.toBeNull();
+    // 关闭
+    act(() => {
+      result.current.setMattingOpen(false);
+    });
+    expect(result.current.renderMattingEditor()).toBeNull();
   });
 
   it('点击裁剪 → 打开就地裁剪浮层（cropping=true）→ renderInlineCropper 渲染', () => {

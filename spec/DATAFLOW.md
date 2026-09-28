@@ -442,7 +442,8 @@ canvas/topology/useCanvasEventSubscriptions（3 全局订阅收拢）
 动作入口：image/useImageHoverActions（← image/nodes/AssetNode · image/nodes/ImageGenerate）
 编辑器/工具：image/editors/ImageEditor · image/editors/InlineImageCropper · image/editors/OverlayEditor
             + base/utils/imageCompress · image/lib/imageUpscale · base/utils/media/previewUrl（预览 URL 生命周期唯一出口）
-            + image/lib/matting/*（AI 抠图能力片：config/engine/loader/门面；← image/editors/MattingEditor）
+            + image/lib/matting/*（AI 抠图能力片：config/engine/loader/门面）
+              ← image/editors/MattingEditor ← image/useImageHoverActions.renderMattingEditor（2026-09-28 起两宿主共用）
 能力片（节点+编辑器+算法同居）：image/faceMosaic/*（FaceMosaicNode + FaceMosaicEditor + faceMosaic.ts；2026-09-25 重组）
 查看器：base/ui/display/ImageZoomDialog（命令式 showModal）· image/editors/PanoViewer（← image/nodes/PanoramaNode）· base/ui/display/VideoThumbnail · base/ui/display/LazyImage
 摄影参数：image/editors/cameraParams/*（← image/nodes/ImageGenerate）
@@ -478,7 +479,7 @@ canvas 产出：全库 canvas → 图像 dataURL 统一经 core/utils.canvasToIm
   DepthVideoModal ← RUNTIME_MODELS = video/depthVideo/depthUrls.ts（运行时资源 URL 单源 · `/depth-video/*` 历史前缀）
                     · engine.ts（纯逻辑） · loader.ts（运行时装载）
 
-本机模型资产（一模型一目录 localTool/runtime-models/<modelId>/：depth-video · mediapipe · three）：
+本机模型资产（一模型一目录 localTool/runtime-models/<modelId>/；**清单不在此维护副本**，现算用 `node localTool/scripts/runtime-model.mjs list`；还原入口 = `localTool/runtime-models/README.md`「零」）：
   localTool/src/paths.ts（getRuntimeModelDir = **物理落点唯一真源**；DEPTH_VIDEO_MODEL_ID = `/depth-video` 别名源）
     ← localTool/src/index.ts::handleRuntimeModelResource（URL→物理根唯一映射；纯 GET；403/400/404 如实）
         ↑ PREFIX_MODELS（`/models/<modelId>/*`）· PREFIX_DEPTH_VIDEO（别名）← utils/localOnlyPaths.ts（本地专属前缀唯一真源，不转发外网）
