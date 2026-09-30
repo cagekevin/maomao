@@ -1550,7 +1550,11 @@ function Canvas() {
               elevateNodesOnSelect
               elevateEdgesOnSelect={false}
               nodeOrigin={NODE_ORIGIN}
-              onlyRenderVisibleElements={nodes.length > 20}
+              /* 常开（2026-09-30 · TD-04-72）：视口外不渲染对用户**无感**，不该按节点数开关。
+              原 `nodes.length > 20` 属规模判据（docs/plan/139 §九红线 2 / §3.2 A 类）。
+              ⚠️ 若实测发现 fitView / 自动整理受影响，那是"依赖未渲染节点的 measured 尺寸"这个
+              缺陷本身，该去修它，不许退回按节点数开关。 */
+              onlyRenderVisibleElements
               /* 框选统一走 React Flow 默认的 Shift+拖拽，关闭 selectionOnDrag，
              避免与 panOnDrag 抢 mousedown 导致框选错位 */
               selectionOnDrag={false}
@@ -1567,9 +1571,12 @@ function Canvas() {
                 color="#333"
                 bgColor="#0d0c0c"
               />
-              {/* 小地图（仅当开启且节点数 <100 时显示） */}
+              {/* 小地图（开启即显示 · 2026-09-30 删节点数判据 TD-04-73）
+                  实测大画布（>100 节点）开小地图 pan/zoom **不掉帧** —— MiniMap 内部已优化
+                  （`useStore(selectorNodeIds)` 只订阅 id + 每节点 memo，见 @xyflow/react 源码），
+                  原 `nodes.length < 100` 属规模判据（docs/plan/139 §九红线 2）。 */}
               {/* 抉择：定位在左下角工具栏上方（bottom-16），样式令牌 #222/#333/nodeColor#444 对齐 docs/39 */}
-              {minimapOn && nodes.length < 100 && (
+              {minimapOn && (
                 <div className="absolute left-4 bottom-16 z-canvas-tools flex flex-col items-start gap-2 pointer-events-none">
                   <MiniMap
                     pannable
