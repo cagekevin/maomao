@@ -21,7 +21,6 @@ import { replaceNodeImage, clearNodeMainImage } from '@/components/base/utils/me
 import { detectAssetType, detectFileType } from '@/components/base/utils/media/assetType';
 import { fileNameFromUrl } from '@/components/base/core/utils';
 import { assetTypeLabel, type AssetType } from '@/types';
-import { useAssetDegrade } from '@/hooks/useAssetDegrade';
 import { NODE_AREA_FIXED_BASE_SIZE } from '@/components/base/core/config';
 import { useVideoPoster } from '@/hooks/useVideoPoster';
 import { useNodeRename } from '@/hooks/useNodeRename';
@@ -57,8 +56,9 @@ import { EXT_BY_TYPE } from '@/components/base/api/filesApi';
  *  - 编辑 = initialTool='pencil'
  * 保存后把 canvas dataURL 写回 data.assetUrl（useReactFlow setNodes 不可变更新）。
  *
- * 通用能力抽到 base/：useAssetDegrade（性能降级），宽高比自适应走 NodeShell 的 useSizeSync（area-fixed），
+ * 通用能力抽到 base/：宽高比自适应走 NodeShell 的 useSizeSync（area-fixed），
  * useVideoPoster（视频首帧封面）、detectAssetType（类型判断）。
+ * 【2026-09-30】原 useAssetDegrade（性能降级）已删 —— 静止媒体零成本，docs/plan/139 §3.2 A 类。
  */
 interface AssetNodeData {
   label?: string;
@@ -97,9 +97,6 @@ function AssetNode({ id, data, selected }: AssetNodeProps) {
   // 内容类型：优先显式 data.assetType（blob: 等无扩展名/前缀的 URL 无法靠字符串判断，
   // 由产出方明确标注，如视频处理节点的 audio/video 输出），否则统一走 detectAssetType
   const type = data.assetType || detectAssetType(url);
-
-  // 性能模式媒体降级（hideMedia：'image' / 'image video audio' / ''，见 useAssetDegrade）
-  const { hideMedia } = useAssetDegrade();
 
   // 节点按媒体真实宽高比自适应：area-fixed 模式下，媒体加载/裁剪后把比例交给 useSizeSync
   // 锁定面积（与 ImageGenerate / VideoGenerate 统一的面积恒定模型），形状跟随媒体比例。
@@ -421,15 +418,6 @@ function AssetNode({ id, data, selected }: AssetNodeProps) {
             className="flex-1 p-0 bg-surface-strong flex items-center justify-center relative overflow-hidden rounded-xl"
             style={{ minHeight: 160 }}
           >
-            {/* 性能模式媒体降级：缩小时隐藏图片/视频/音频（复刻官方"图片视频已隐藏"） */}
-            {hideMedia && (
-              <div className="absolute inset-0 flex items-center justify-center bg-surface-strong">
-                <div className="flex flex-col items-center gap-1 opacity-60">
-                  <ImageIcon size={18} className="text-muted-2" />
-                  <span className="text-meta text-muted">性能模式已隐藏</span>
-                </div>
-              </div>
-            )}
             {/* 素材已移除：引用的 resource 已删（fail-loud，docs/122 #5）。显式呈现缺失态，不静默破图 */}
             {assetMissing && (
               <div className="absolute inset-0 flex items-center justify-center bg-surface-strong">
@@ -441,7 +429,7 @@ function AssetNode({ id, data, selected }: AssetNodeProps) {
             )}
             {/* 图片（onLoad 按实际比例自适应节点形状；双击查看大图，复刻官方 onDoubleClick→onZoom）。
               onError 两段回退见 imgStage —— 缩略图端点失败不再等于「用户看到裂图」。 */}
-            {type === 'image' && !hideMedia.includes('image') && imgSrc && !imgFailed && (
+            {type === 'image' && imgSrc && !imgFailed && (
               <img
                 src={imgSrc}
                 alt="Content"
@@ -470,7 +458,7 @@ function AssetNode({ id, data, selected }: AssetNodeProps) {
               封面用抓取的 posterUrl（首帧 dataURL）；playable 开启节点内 controls 播放态；
               onLoadedMetadata 按视频宽高自适应节点形状（area-fixed 锁面积）；
               双击容器打开自定义大图弹窗（含截屏/下载当前帧按钮）。 */}
-            {type === 'video' && !hideMedia.includes('video') && (
+            {type === 'video' && (
               <VideoThumbnail
                 src={url}
                 poster={posterUrl}
@@ -482,7 +470,7 @@ function AssetNode({ id, data, selected }: AssetNodeProps) {
               />
             )}
             {/* 音频 */}
-            {type === 'audio' && !hideMedia.includes('audio') && (
+            {type === 'audio' && (
               <div className="w-full h-full flex flex-col items-center justify-center bg-surface p-2 gap-2">
                 <Music size={24} className="text-blue-500 mb-2" />
                 {/* 【2026-09-17 TD-16-29②】原来是**裸 `<audio>`（无 onError）**：音频文件缺失/4xx 时

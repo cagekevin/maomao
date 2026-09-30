@@ -324,6 +324,18 @@ body,
     transform: translateX(220%) skewX(-20deg);
   }
 }
+/* 【2026-09-30 · docs/plan/139】生成中动画由「组件内联 style」收口到 class：
+   内联 style 的优先级高于 class 规则 ⇒ 性能模式 `.perf-on` 的降级盖不住它。
+   收口后 `.react-flow.perf-on .gen-anim-* { animation: none !important }` 才能生效。 */
+.gen-anim-spin {
+  animation: npbSpin 0.9s linear infinite;
+}
+.gen-anim-glow {
+  animation: npbGlow 1.8s ease-in-out infinite;
+}
+.gen-anim-shimmer {
+  animation: npbShimmer 2.2s ease-in-out infinite;
+}
 @keyframes genTipIn {
   0% {
     opacity: 0;
@@ -664,52 +676,47 @@ body,
 }
 
 /* =====================================================================
- * 画布性能优化（复刻官方 V_.jsx：LOD 分级渲染降级 + 大画布轻量模式）
- * 由 LodListener 把 lod-1/2/3 挂到 .react-flow，这里定义对应样式；
- * 与各节点内部 useAssetDegrade 的 JS 隐藏互为兜底。
- * 注：官方另有 viewport-moving / pan-performance-mode / is-large-canvas
- * 的预留 CSS，但官方代码从未添加这些 class，故原型不引入（避免死样式）。
+ * 画布性能模式（2026-09-30 重设计 · docs/plan/139）
+ *
+ * 唯一开关：`App.tsx` 给 `<ReactFlow className>` 产出 `perf-on`
+ * （声明式一行，无 JS 消费者、无阈值、无档位）。
+ *
+ * 判据（只降两类）：
+ *   ① 用户什么都不做时**仍在持续烧**的（粒子 / 辉光 / 生成中动画 / 视频解码）
+ *   ② 用户**明示要隐藏**的（连线本体，2026-09-30 裁定）
+ *
+ * 已删（A 类「该直接实现」，不是降级 —— 详见 docs/plan/139 §3.2）：
+ *   · lod-1/2/3 的静态内容隐藏（img/input/textarea/button/iframe）——静止零成本
+ *   · 节点 opacity:0.8 —— opacity<1 反而创建合成层（负收益）
+ *   · performance-large-canvas（节点数>100 收窄 hit 区）——规模判据
  * ===================================================================== */
-/* lod-1：视频解码代价最高，先隐藏（分级阈值真源 = canvas/shell/lod.tsx，勿在此复述数值） */
-.react-flow.lod-1 .react-flow__node video {
-  display: none;
-}
-/* lod-2：再隐藏图片，节点保留外形与 handle 用于连线 */
-.react-flow.lod-2 .react-flow__node img {
-  visibility: hidden;
-}
-/* lod-3：兜底全局降级 */
-.react-flow.lod-3 .react-flow__node iframe {
-  display: none;
-}
-.react-flow.lod-3 .react-flow__node textarea {
-  visibility: hidden;
-}
-.react-flow.lod-3 .react-flow__node input {
-  visibility: hidden;
-}
-.react-flow.lod-3 .react-flow__node button {
-  visibility: hidden;
-}
-.react-flow.lod-3 .react-flow__node .nodrag {
-  opacity: 0;
-  pointer-events: none;
-}
-/* P3（docs/106）：删除死规则 .node-content { display:none }——NodeShell 主容器没有 node-content 类，
-   规则从未生效（缩到极小仍渲染内容）。曾考虑给主容器加该 class，但会触发三处实质回归：
-   ① CustomHandle 端口就渲染在主容器内 → display:none 使端口 rect 归零 → 边 code-008/消失；
-   ② 内容自适应节点（ScriptBox/GridSplit/GridMerge/VideoExtract）的 RO 会把极小高度写回并持久化；
-   ③ 与 lod-2/3 的 visibility:hidden 叠加视觉等于清空节点。故首选删死规则（方案 A）。 */
-.react-flow.lod-3 .react-flow__node {
-  opacity: 0.8;
-  transition: opacity 0.2s;
-}
 
-/* 大画布轻量模式：仅收窄 hit 区降低命中测试成本（复刻 V_.jsx:55-60）。
-   由 App.jsx 在节点数 > 100 时给 .react-flow 加 performance-large-canvas class。
-   连线彗星/辉光的开关由 CustomEdge 按「可视区 + 低 LOD」逐边决定。 */
-.react-flow.performance-large-canvas .cust-edge-hit {
-  stroke-width: 16 !important;
+/* ① 连线本体 + 特效：只作用于**正式边**（`.react-flow__edge` 限定）。
+   ⚠️ 不能写成裸 `.cust-edge-*` —— 拖拽中的临时连线（ConnectionLine）用同一套类，
+   一旦被隐藏，用户拖拽时**看不见线**（不知道连到哪）= 能力受损。
+   拖拽线是交互反馈，性能模式不降它（只有 1 条，成本可忽略）。
+
+   ⚠️ **选中态例外（2026-09-30 二次修）**：只隐藏**未选中 / 未关联**的边 ——
+   · `cust-edge-hit` **永不隐藏**：它是 22px 透明命中层，隐藏后边**彻底点不中**（删边/选边都做不了）= 能力受损；
+   · `cust-edge-base` / `glow` / `comet` 在**选中或关联选中**（`.is-active`，由 CustomEdge 按 `selected || relatedToSelected` 加）
+     时保持可见 —— 那是用户的当前焦点与操作反馈（否则点了边/选了节点，看不出连到哪）。
+   一句话：**平时不画线，但你选中的那条（及关联的）照画。** */
+.react-flow.perf-on .react-flow__edge .cust-edge-base:not(.is-active),
+.react-flow.perf-on .react-flow__edge .cust-edge-glow:not(.is-active),
+.react-flow.perf-on .react-flow__edge .cust-edge-comet:not(.is-active) {
+  display: none;
+}
+/* ① 视频解码：停下。
+   若实测 display:none 不停解码，节点侧用 usePerfMode + pause()（docs/plan/139 §6.3）。 */
+.react-flow.perf-on .react-flow__node video {
+  display: none;
+}
+/* ① 生成中动画（npb*）：只停装饰动画 —— 进度与错误必须仍可见（红线 5）。
+   类名由 GeneratingOverlay 提供（原为内联 style，CSS 盖不住，2026-09-30 收口到 class）。 */
+.react-flow.perf-on .gen-anim-spin,
+.react-flow.perf-on .gen-anim-glow,
+.react-flow.perf-on .gen-anim-shimmer {
+  animation: none !important;
 }
 
 /* ===== 剧本盒 @资产 引用高亮（hlAt 输出的 span.at，青色以便快速定位） ===== */

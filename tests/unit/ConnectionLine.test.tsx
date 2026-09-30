@@ -1,35 +1,28 @@
 /**
- * ConnectionLine 深度测试。
- *
  * 拖拽中的临时连线（复刻原 Pg.jsx）：与选中 comet 同一套视觉
  * （cust-edge-glow + cust-edge-base is-active + 粒子流光）。
- * 关键契约：LOD 降级 —— lodLevel>=2（缩到很小）时关闭辉光与粒子流，只保留基础线。
- * 此前测试只有「挂载不崩」冒烟，LOD 降级分支完全测不出。
- * 本文件 mock useLod 控制 lodLevel，断言：
- *  - lodLevel<2：基础线 + 辉光 + 粒子流全部渲染
- *  - lodLevel>=2：辉光与粒子流消失，基础线保留（性能降级）
- *  - bezier path d 透传给各层 path
+ *
+ * 【2026-09-30 · docs/plan/139】原「LOD 降级（`lodLevel>=2` → 关辉光/粒子）」断言已删 ——
+ * 该降级已撤销：拖拽线是**交互反馈**，性能模式不降它（隐藏后用户看不见连到哪 = 能力受损）。
+ * 现锁：基础线 + 辉光 + 粒子流**始终**渲染；bezier path d 透传给各层 path。
+ * （性能模式的边降级只作用于正式边，由 index.css 的 `.perf-on .react-flow__edge` 承接，不在本组件。）
  */
 import React from 'react';
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render } from '@testing-library/react';
 
 const h = vi.hoisted(() => {
-  const particles: any = [];
-  let lodLevel = 0;
+  const particles: any[] = [];
   return {
     particles,
     CometParticlesMock: (props: any) => {
       h.particles.push(props);
       return <g data-testid="comet-particles" />;
     },
-    setLodLevel: (v: any) => {
-      lodLevel = v;
-    },
-    useLodMock: () => ({ lodLevel }),
   };
 });
 
+// 固定 bezier path：让「d 透传给各层」可判（真实 getBezierPath 的曲率随 @xyflow/react 版本变化，不该锁它）
 vi.mock('@xyflow/react', () => ({
   getBezierPath: vi.fn(() => ['M0,0 C10,10 90,10 100,100']),
   Position: { Left: 'left', Right: 'right', Top: 'top', Bottom: 'bottom' },
@@ -39,20 +32,15 @@ vi.mock('../../src/components/canvas/edges/CometParticles.tsx', () => ({
   default: (props: any) => h.CometParticlesMock(props),
 }));
 
-vi.mock('../../src/components/canvas/shell/lod.tsx', () => ({
-  useLod: () => h.useLodMock(),
-}));
-
 import ConnectionLine from '../../src/components/canvas/edges/ConnectionLine.tsx';
 
-describe('ConnectionLine — 正常渲染（lodLevel < 2）', () => {
+describe('ConnectionLine — 始终渲染（性能模式不降拖拽线）', () => {
   afterEach(() => {
     h.particles.length = 0;
-    h.setLodLevel(0);
   });
 
   function setup(props: Partial<React.ComponentProps<typeof ConnectionLine>> = {}) {
-    const view = render(
+    return render(
       React.createElement(
         ConnectionLine as unknown as React.ComponentType<Record<string, unknown>>,
         {
@@ -64,7 +52,6 @@ describe('ConnectionLine — 正常渲染（lodLevel < 2）', () => {
         },
       ),
     );
-    return view;
   }
 
   it('渲染隐藏 mpath path（供粒子沿其运动）', () => {
@@ -82,7 +69,7 @@ describe('ConnectionLine — 正常渲染（lodLevel < 2）', () => {
     expect(view.container.querySelector('.cust-edge-glow.is-active')).toBeTruthy();
   });
 
-  it('lodLevel<2 时渲染粒子流光', () => {
+  it('始终渲染粒子流光（不再受 lodLevel 影响）', () => {
     const view = setup();
     expect(h.particles).toHaveLength(1);
     expect(h.particles[0].pathId).toBe('cust-conn-mpath');
@@ -95,42 +82,5 @@ describe('ConnectionLine — 正常渲染（lodLevel < 2）', () => {
     const d = 'M0,0 C10,10 90,10 100,100';
     expect(view.container.querySelector('.cust-edge-base')!.getAttribute('d')).toBe(d);
     expect(view.container.querySelector('.cust-edge-glow')!.getAttribute('d')).toBe(d);
-  });
-});
-
-describe('ConnectionLine — LOD 性能降级（lodLevel >= 2）', () => {
-  afterEach(() => {
-    h.particles.length = 0;
-    h.setLodLevel(0);
-  });
-
-  function setup(lod: any) {
-    h.setLodLevel(lod);
-    const view = render(
-      React.createElement(
-        ConnectionLine as unknown as React.ComponentType<Record<string, unknown>>,
-        {
-          fromX: 0,
-          fromY: 0,
-          toX: 100,
-          toY: 100,
-        },
-      ),
-    );
-    return view;
-  }
-
-  it('lodLevel=2：关闭辉光与粒子流，保留基础线', () => {
-    const view = setup(2);
-    expect(view.container.querySelector('.cust-edge-base')).toBeTruthy();
-    expect(view.container.querySelector('.cust-edge-glow')).toBeNull();
-    expect(h.particles).toHaveLength(0);
-  });
-
-  it('lodLevel=3（最小视图）：同样关闭特效', () => {
-    const view = setup(3);
-    expect(view.container.querySelector('.cust-edge-base')).toBeTruthy();
-    expect(view.container.querySelector('.cust-edge-glow')).toBeNull();
-    expect(h.particles).toHaveLength(0);
   });
 });

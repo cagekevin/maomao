@@ -18,7 +18,6 @@ import NodeShell from '@/components/canvas/parts/NodeShell';
 import { useConnectedInputs } from '@/hooks/useConnectedInputs';
 import { useNodeData } from '@/hooks/useNodeData';
 import { useNodeRename } from '@/hooks/useNodeRename';
-import { useAssetDegrade } from '@/hooks/useAssetDegrade';
 import LazyImage from '@/components/base/ui/display/LazyImage';
 import ImageZoomDialog from '@/components/base/ui/display/ImageZoomDialog';
 import { toastWarning, toastError } from '@/components/base/core/event/toastStore';
@@ -81,9 +80,7 @@ interface ImageBoxNodeProps {
   selected?: boolean;
 }
 function ImageBoxNode({ id, data, selected }: ImageBoxNodeProps) {
-  const { isHidden } = useAssetDegrade();
   const render = useRenderAssetResolver();
-  const hideImage = isHidden('image');
 
   const fileRef = useRef<HTMLInputElement | null>(null);
   // 直接从官方 Rg.jsx 借 state 命名：d=拖拽中, m=打开的缩略图下标, _=菜单定位, y=拖拽源, x=拖拽目标
@@ -651,20 +648,19 @@ function ImageBoxNode({ id, data, selected }: ImageBoxNodeProps) {
             {/* 单图模式 */}
             {!expanded && current && (
               <>
-                {!hideImage && (
-                  <img
-                    src={render(current.url)}
-                    alt={current.label || `图片 ${activeIndex + 1}`}
-                    className="w-full h-full object-cover cursor-pointer"
-                    draggable={false}
-                    loading="lazy"
-                    decoding="async"
-                    onDoubleClick={(e) => {
-                      e.stopPropagation();
-                      openZoom(current.url);
-                    }}
-                  />
-                )}
+                {/* 2026-09-30（docs/plan/139 §3.2）：原 `!hideImage` 性能降级已删 —— 静止 img 零成本 */}
+                <img
+                  src={render(current.url)}
+                  alt={current.label || `图片 ${activeIndex + 1}`}
+                  className="w-full h-full object-cover cursor-pointer"
+                  draggable={false}
+                  loading="lazy"
+                  decoding="async"
+                  onDoubleClick={(e) => {
+                    e.stopPropagation();
+                    openZoom(current.url);
+                  }}
+                />
                 {images.length > 1 && (
                   <div className="absolute bottom-1.5 left-1/2 -translate-x-1/2 flex items-center gap-1.5 px-1.5 py-1 rounded-full bg-black/60 backdrop-blur-sm opacity-0 group-hover/node:opacity-100 transition-opacity">
                     <button

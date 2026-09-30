@@ -72,7 +72,11 @@ export const SETTING_DEFS = [
   {
     key: 'performanceMode',
     type: 'boolean',
-    default: true,
+    // 【2026-09-30】默认由 true 改 false（docs/plan/139）。
+    // 旧语义：开关开（默认）+ 缩小 → 才降级 ⇒ 默认视觉 = 完整（有连线/特效）。
+    // 新语义：开关开 → 直接降级（含隐藏连线本体）⇒ 若仍默认 true，会**默认就隐藏连线**，
+    // 对「看拓扑/连线」是能力回归。改 false 保持"默认视觉不变"，用户要清爽时自己开。
+    default: false,
     ui: false, // 左下角小菜单已有独立开关，不在设置页重复（保留注册表管默认值/云同步）
     group: '性能',
     icon: Zap,

@@ -34,7 +34,7 @@ import { resolvePromptChips, mergeReferenceImageUrls } from '@/components/canvas
 import { PROMPT_PANEL_PAD_X } from '@/components/canvas/shell/promptLayout';
 import { useNodeResize, useOutsideClick } from '@/components/base/core/interaction/uiHooks';
 import { useConnectedInputs } from '@/hooks/useConnectedInputs';
-import { useAssetDegrade } from '@/hooks/useAssetDegrade';
+import { usePerfMode } from '@/hooks/usePerfMode';
 import { useVideoPoster } from '@/hooks/useVideoPoster';
 import '@/components/base/ui/display/LazyImage';
 import VideoThumbnail from '@/components/base/ui/display/VideoThumbnail';
@@ -56,7 +56,9 @@ import { useNodeField } from '@/hooks/useNodeField';
  * 视频生成节点（复刻原 As.jsx / videoGenerateNode）
  * 已迁移到基座：NodeShell + HoverToolbar + ExpandablePanel + GenerateButton + ModelSelect。
  * 保留差异化：主显示区、比例/分辨率/时长菜单、素材区、提示词输入。
- * 性能降级用通用 useAssetDegrade：lodLevel>=3 藏视频（与官方横幅 yt===3 一致）。
+ * 【2026-09-30】原 `useAssetDegrade`（lodLevel>=3 藏视频）已删 —— 静止零成本，降它≈0 收益
+ * （docs/plan/139 §3.2 A 类）。视频解码是 §6.3 的「必须 JS」例外：改用 `usePerfMode` 条件渲染，
+ * 并保留「已隐藏」占位（状态必须可见 —— 红线 5）。其余降级由 CSS `.perf-on` 承接。
  */
 /** 参考文本形态（resolvePromptChips 要求 id/label 必填） */
 interface RefText {
@@ -92,9 +94,9 @@ interface VideoGenerateProps {
 }
 
 function VideoGenerate({ id, data, selected }: VideoGenerateProps) {
-  // 性能模式媒体降级（通用 hook）：hideVideo = isHidden('video')，即 lodLevel>=3
-  const { isHidden } = useAssetDegrade();
-  const hideVideo = isHidden('video');
+  // 性能模式（docs/plan/139 §6.3）：视频解码是唯一「必须 JS」的例外 —— 条件渲染占位 / 停挂 <video>。
+  // 其余降级（连线本体 / 粒子 / 辉光 / 生成中动画）全由 CSS `.perf-on` 承接，本节点不参与。
+  const perfMode = usePerfMode();
 
   // 通用连线数据传递：读取直接上游节点的图片/文本作为参考素材
   const connected = useConnectedInputs(id);
@@ -375,14 +377,14 @@ function VideoGenerate({ id, data, selected }: VideoGenerateProps) {
         <div
           className={`flex items-center justify-center absolute inset-0 rounded-xl overflow-hidden ${videoUrl ? '' : 'bg-surface-muted'}`}
         >
-          {/* 性能模式媒体降级：缩小时隐藏视频（复刻官方"图片视频已隐藏"） */}
-          {videoUrl && !loading && !error && hideVideo && (
+          {/* 性能模式：停下视频解码，显示占位（状态必须可见 —— 红线 5） */}
+          {videoUrl && !loading && !error && perfMode && (
             <div className="flex flex-col items-center justify-center gap-1 absolute inset-0 bg-surface-muted">
               <Clapperboard size={24} className="text-muted" />
               <span className="text-caption text-muted">性能模式已隐藏</span>
             </div>
           )}
-          {videoUrl && !hideVideo && (
+          {videoUrl && !perfMode && (
             <VideoThumbnail
               videoRef={videoRef}
               src={videoUrl}

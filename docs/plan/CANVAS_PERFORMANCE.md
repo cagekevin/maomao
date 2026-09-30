@@ -3,7 +3,10 @@
 > 面向对象：ReactFlow 画布（节点数量大、含大量图片/视频媒体节点时）。
 > 参考源码（历史）：`src/bundle/httpClient-BknZwXjG_components/`（官方混淆产物，**该目录已移除，仅供溯源对照**）
 > 关键文件（历史符号）：`shared.js`、`H_.jsx`、`V_.jsx`、`_Component131.jsx`、`_Component122.jsx`、`xi.jsx`/`Zo.jsx`/`bo.jsx`、`Lg.jsx`、`Mg.jsx`/`Pg.jsx` 等。
-> 原型现状：`src/`（对应 `App.jsx` / `index.css` / `components/base/` 下的 `LodListener`/`LodProvider`/`useLod`/`useMediaDegrade`/`LazyImage`/`CustomEdge`/`ConnectionLine`）
+> 原型现状：`src/`（对应 `App.jsx` / `index.css` / `components/base/` 下的 `LazyImage`/`CustomEdge`/`ConnectionLine`）
+> ⚠️ **2026-09-30 重设计（docs/plan/139）**：LOD 4 档 / `LodProvider` / `useLod` / `LodContext` / `useAssetDegrade` 已**整体退役**；
+> 性能降级改为**单一开关** `.react-flow.perf-on`（`App.tsx` 一行 `className`）+ `index.css` 承接，无阈值、无档位。
+> 本文中「原型现状」列的 LOD 分档描述**已过时**，以下相关行已就地更正。
 
 ---
 
@@ -13,18 +16,18 @@
 
 | 机制 | 官方触发条件 | 原型现状 |
 |---|---|---|
-| LOD 4 档缩放降级 | zoom ≤ 0.5 / 0.3 / 0.2 | ✅ 已实现（LodListener/LodProvider/useLod/useMediaDegrade） |
-| lod-1/2/3 全局 CSS 降级 | 同上 | ✅ **已落地**（index.css，复刻 V_.jsx） |
+| LOD 4 档缩放降级 | zoom ≤ 0.5 / 0.3 / 0.2 | ❌ **已退役**（2026-09-30，docs/plan/139：分档降的是"静止零成本"对象 + 跨阈值全量重渲） |
+| lod-1/2/3 全局 CSS 降级 | 同上 | ❌ **已删**（同上） |
 | 服务端缩略图降载 | useThumbnail 开启 | ❌ 未接入（原型为本地 blob，无缩略图服务） |
 | 图片按屏幕宽度换档 | useThumbnail + zoom | ❌ 未接入 |
 | 视频 poster 封面替代 | useThumbnail + 有封面 | ✅ **已落地**（DiscountVideoNode，useVideoPoster + preload=none） |
 | onlyRenderVisibleElements | 节点 > 20 | ✅ **已落地**（App.jsx） |
 | selectionOnDrag 动态开关 | 节点 ≤ 80 | ✅ **已落地**（App.jsx） |
-| 大画布 hit 命中区收窄 | 节点 > 100 | ✅ **已落地**（performance-large-canvas + cust-edge-hit） |
-| 边特效按选中/LOD 降级 | 选中或 lod<2 | ✅ 已实现（ConnectionLine lod<2 + CustomEdge 选中化） |
+| 大画布 hit 命中区收窄 | 节点 > 100 | ❌ **已删**（2026-09-30：规模判据；且影响命中成本的是边数、不是节点数） |
+| 边特效降级 | 选中 / 性能模式开关 | ✅ 已实现（`CustomEdge` 选中化 + `.perf-on` CSS；**ConnectionLine 不再降级**，2026-09-30） |
 | IntersectionObserver 懒加载 | 进入视口 120px | ✅ **已落地**（LazyImage 组件 → ImageBoxNode / DiscountVideoNode 素材缩略图） |
 | React.memo 组件缓存 | 全节点 | ⚠️ 部分（LazyImage 已 memo；未盲目包全节点，见 §九） |
-| 视口移动防抖 / rAF 节流 | pan 期间 | ⚠️ LOD class 已 rAF 节流；viewportMoving 未用（官方 CSS 未激活，见 §八） |
+| 视口移动防抖 / rAF 节流 | pan 期间 | ⚠️ 原「LOD class rAF 节流」随退役删除（2026-09-30）；viewportMoving 未用（官方 CSS 未激活，见 §八） |
 | willReadFrequently | 抽帧/读像素 | ⚠️ 部分（videoEngine/gif 已用） |
 | 上传即生成缩略图 | 上传图片/视频 | ❌ 无后端缩略图 |
 
@@ -161,7 +164,8 @@ className={nodes.length > 100 ? 'performance-large-canvas' : undefined}
 - `shared.js:11529-11531`、`1927`、`c_.jsx:21-23`、`B_.jsx:5-7`。
 
 ### 原型现状
-✅ `LodListener`（`useStore(s => s.transform?.[2])`）已采用。其余节点若需响应缩放，应同样用 `useStore` 选择器而非订阅整棵 store。
+❌ **已退役**（2026-09-30）：原 `LodListener`（`useStore(s => s.transform?.[2])`）随 lod 分档删除 —— 降级不再由缩放驱动（无阈值）。
+节点若需响应缩放，仍应用 `useStore` 选择器而非订阅整棵 store。
 
 ---
 
@@ -171,7 +175,10 @@ className={nodes.length > 100 ? 'performance-large-canvas' : undefined}
 - 连线预览（`Pg.jsx:41`）：`f = lodLevel < 2` 才渲染 comet/glow。
 
 ### 原型现状
-✅ `ConnectionLine.jsx` 已实现 `enableFx = lodLevel < 2`（关闭辉光 + 粒子）；`CustomEdge.jsx` 已实现「选中或关联选中才渲染 glow/comet」，普通边只有细线，与官方 `Mg.jsx` 一致，无需改动。
+- `CustomEdge.tsx`：✅「选中或关联选中才渲染 glow/comet」，普通边只有细线，与官方 `Mg.jsx` 一致。
+- `ConnectionLine.tsx`：❌ **原 `enableFx = lodLevel < 2` 已删**（2026-09-30）—— 拖拽线是**交互反馈**，
+  隐藏后用户看不见连到哪（能力受损）；且同时只有 1 条，渲染成本可忽略。
+- 性能模式下的边降级（**只作用于正式边**）由 `index.css` 的 `.perf-on .react-flow__edge …` 承接。
 
 ---
 

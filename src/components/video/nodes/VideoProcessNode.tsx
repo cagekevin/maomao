@@ -27,7 +27,6 @@ import {
   timeToX,
   xToTime,
 } from '@/components/video/lib/timeScale';
-import { useAssetDegrade } from '@/hooks/useAssetDegrade';
 import { useNodeResize } from '@/components/base/core/interaction/uiHooks';
 import { useCanvasKeydown } from '@/components/canvas/topology/canvasHotkeys';
 import { showToast } from '@/components/base/core/event/toastStore';
@@ -313,7 +312,6 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
   // 标题改名 → 写回 data.label（下游 @名 匹配 / 素材条显示跟随），单一实现收口到 useNodeRename
   const rename = useNodeRename(id);
   const history = useCanvasEdges();
-  const { isHidden } = useAssetDegrade();
   const { onMainBoxResize: _onMainBoxResize } = useNodeResize(id);
   const contentRef = useRef<HTMLDivElement | null>(null);
 
@@ -1558,34 +1556,35 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
         {/* 视频预览 */}
         {currentUrl ? (
           <div className="relative bg-black rounded-md overflow-hidden border border-edge">
-            {!isHidden('video') && (
-              <video
-                ref={videoRef}
-                src={currentUrl}
-                controls={mode !== 'trim' && mode !== 'concat'}
-                playsInline
-                preload="metadata"
-                onTimeUpdate={(e) => {
-                  if (!isScrubbing.current) {
-                    if (mode === 'concat') {
-                      if (isPlaying && currentClip)
-                        setPlayheadTime(
-                          // 夹取到片段源起点（等价原内联 Math.max(0, cur - sourceStart)）
-                          timelineTimeAt(
-                            Math.max(currentClip.sourceStart ?? 0, e.currentTarget.currentTime),
-                            currentClip,
-                          ),
-                        );
-                    } else {
-                      setPlayheadTime(e.currentTarget.currentTime);
-                    }
+            {/* 2026-09-30（docs/plan/139 §3.2）：原 `!isHidden('video')` 性能降级已删 ——
+                本节点是**处理工作区**，预览是操作对象（拖时间轴/取帧/预览），隐藏它 = 用户无法操作。
+                只有「生成结果展示」类（VideoGenerate）才降级。 */}
+            <video
+              ref={videoRef}
+              src={currentUrl}
+              controls={mode !== 'trim' && mode !== 'concat'}
+              playsInline
+              preload="metadata"
+              onTimeUpdate={(e) => {
+                if (!isScrubbing.current) {
+                  if (mode === 'concat') {
+                    if (isPlaying && currentClip)
+                      setPlayheadTime(
+                        // 夹取到片段源起点（等价原内联 Math.max(0, cur - sourceStart)）
+                        timelineTimeAt(
+                          Math.max(currentClip.sourceStart ?? 0, e.currentTarget.currentTime),
+                          currentClip,
+                        ),
+                      );
+                  } else {
+                    setPlayheadTime(e.currentTarget.currentTime);
                   }
-                }}
-                onPlay={() => setIsPlaying(true)}
-                onPause={() => setIsPlaying(false)}
-                className="nodrag nowheel w-full aspect-video object-contain"
-              />
-            )}
+                }
+              }}
+              onPlay={() => setIsPlaying(true)}
+              onPause={() => setIsPlaying(false)}
+              className="nodrag nowheel w-full aspect-video object-contain"
+            />
           </div>
         ) : (
           <div className="nodrag aspect-video rounded-md border border-dashed border-edge-raised flex items-center justify-center gap-2 text-muted">
@@ -2015,18 +2014,17 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
           </div>
           <div className="flex-1 min-h-0 flex flex-col gap-3 overflow-y-auto custom-scrollbar">
             <div className="relative bg-black rounded-md overflow-hidden border border-edge">
-              {!isHidden('video') && (
-                <video
-                  ref={videoRef}
-                  src={currentClip.url}
-                  playsInline
-                  preload="metadata"
-                  onTimeUpdate={(e) => setPlayheadTime(e.currentTarget.currentTime)}
-                  onPlay={() => setIsPlaying(true)}
-                  onPause={() => setIsPlaying(false)}
-                  className="nodrag nowheel w-full aspect-video object-contain"
-                />
-              )}
+              {/* 同上：处理工作区不降级 */}
+              <video
+                ref={videoRef}
+                src={currentClip.url}
+                playsInline
+                preload="metadata"
+                onTimeUpdate={(e) => setPlayheadTime(e.currentTarget.currentTime)}
+                onPlay={() => setIsPlaying(true)}
+                onPause={() => setIsPlaying(false)}
+                className="nodrag nowheel w-full aspect-video object-contain"
+              />
             </div>
             <div className="nodrag nowheel rounded-md border border-edge bg-surface-well overflow-hidden flex flex-col shrink-0">
               <div className="h-9 px-2 flex shrink-0 items-center gap-1 border-b border-edge">

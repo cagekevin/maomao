@@ -597,7 +597,7 @@ task/nodeRuntimeStore.ts（纯内存瞬态 map，不落盘）
 订阅基座：    src/hooks/useStoreSelector.ts（selector+shallowEqual 记忆化，防连坐重渲）
 跨窗口冲突：  src/hooks/useCanvasSync.ts（BroadcastChannel + 3s 版本轮询）
 画布快捷键：  src/hooks/useCanvasShortcuts.ts · canvas/structure/useCanvasHistory.ts（逻辑下沉纯类）
-工具：        src/hooks/useVideoPoster.ts · src/hooks/useAssetDegrade.ts · src/hooks/useLocalToolStatus.ts（ensurePoll 幂等）
+工具：        src/hooks/useVideoPoster.ts · src/hooks/usePerfMode.ts · src/hooks/useLocalToolStatus.ts（ensurePoll 幂等）
 产出契约：    src/hooks/useConnectedInputs.ts（33 fan-in，写侧声明，见 §六）
 建边/改名：    src/hooks/useDisconnectSource.ts · src/hooks/useEdgeData.ts
 生成链路：    src/hooks/useGenerateNode.ts · src/hooks/useNodeGeneration.ts（见 §一）· scriptbox/useScriptBoxEngine.ts

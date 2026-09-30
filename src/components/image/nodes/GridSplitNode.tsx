@@ -17,7 +17,6 @@ import { useNodeRename } from '@/hooks/useNodeRename';
 import NodeShell from '@/components/canvas/parts/NodeShell';
 import { ASSET_NODE_SIZE } from '@/components/canvas/contract/nodeDefaults';
 import { useConnectedInputs } from '@/hooks/useConnectedInputs';
-import { useAssetDegrade } from '@/hooks/useAssetDegrade';
 import { useContentHeightSync } from '@/components/base/core/interaction/uiHooks';
 import { showToast, toastWarning } from '@/components/base/core/event/toastStore'; // 保留阻断校验提示
 import { toAbsoluteFileUrl, persistInlineOrKeep } from '@/components/base/api/index';
@@ -212,7 +211,6 @@ function GridSplitNode({ id, data, selected }: GridSplitNodeProps) {
   // TD-04-13：标题双击改名 → 写回 data.label（此前渲染 data.label 却漏接 onRename，与兄弟节点不一致）。
   const rename = useNodeRename(id);
   const history = useCanvasEdges();
-  const { isHidden } = useAssetDegrade();
   // 订阅「画布显示缩略图」设置：显示地址实时随开关（见 docs/18）
   const render = useRenderAssetResolver();
   // 内容区引用：高度自适应（内容撑多高，节点就多高，不留空白，复刻 ScriptBoxNode 自适应方案）
@@ -919,16 +917,15 @@ function GridSplitNode({ id, data, selected }: GridSplitNodeProps) {
           {assetUrl ? (
             <div className="relative w-full">
               <div className="relative w-full h-[180px] rounded bg-black/50 overflow-hidden shadow-inner">
-                {!isHidden('image') && (
-                  <img
-                    src={render(assetUrl)}
-                    alt="Source"
-                    loading="lazy"
-                    decoding="async"
-                    className="w-full h-full object-contain block opacity-80 select-none pointer-events-none"
-                    draggable={false}
-                  />
-                )}
+                {/* 2026-09-30（docs/plan/139 §3.2）：原 `!isHidden('image')` 降级已删 —— 静止 img 零成本 */}
+                <img
+                  src={render(assetUrl)}
+                  alt="Source"
+                  loading="lazy"
+                  decoding="async"
+                  className="w-full h-full object-contain block opacity-80 select-none pointer-events-none"
+                  draggable={false}
+                />
                 <div
                   ref={mainCanvasRef}
                   className="absolute inset-0 nodrag"

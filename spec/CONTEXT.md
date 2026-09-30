@@ -87,7 +87,9 @@
 
 * **历史栈入参**：`useCanvasHistory` 的 `record` 必须**显式传最新快照**（nodesRef/edgesRef），禁异步 setState 取旧值。
 
-* **性能降级**：通过 `canvas/shell/lod.tsx`（LodProvider + useLod）处理，包含视口移动、节点数、连线特效限制。
+* **性能降级**：唯一开关 = `App.tsx` 给 `<ReactFlow className>` 产出的 `perf-on`（值源 `appSettings.performanceMode`，默认 `false`），
+  降级规则全在 `index.css` 的 `.perf-on` 下（无阈值 / 无档位 / JS 零消费者）。
+  **已退役**（2026-09-30，docs/plan/139）：`lod.tsx` / `useLod` / `LodContext` / `useAssetDegrade` / `performance-large-canvas`。
 
 ### B. 连线与节点体系红线
 

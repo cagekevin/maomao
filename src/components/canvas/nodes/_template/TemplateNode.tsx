@@ -17,7 +17,6 @@ import GeneratingOverlay from '@/components/canvas/parts/GeneratingOverlay';
 // ═══ 基座 hook（统一范式）═══
 import { useNodeResize } from '@/components/base/core/interaction/uiHooks';
 import { useConnectedInputs } from '@/hooks/useConnectedInputs';
-import { useAssetDegrade } from '@/hooks/useAssetDegrade';
 import { useAssetInsertion } from '@/hooks/useAssetInsertion';
 import { useGenerateNode } from '@/hooks/useGenerateNode';
 import { useNodePrefs } from '@/components/canvas/contract/nodePrefs';
@@ -68,7 +67,7 @@ import { PROMPT_PANEL_PAD_X } from '@/components/canvas/shell/promptLayout';
  *  - 右下角手柄：ResizeFullscreenHandle（拖拽改尺寸+双击全屏）✓
  *  - 数据范式：useState 存 UI + setNodes 写回 data + useSyncNodeData 外部同步
  *    + useNodePrefs 参数记忆 + useNodeResize 尺寸写回 ✓
- *  - 性能降级：useAssetDegrade ✓
+ *  - 性能降级：**无**（2026-09-30 删 useAssetDegrade —— 静止 img 零成本，docs/plan/139 §3.2）
  *  - 生成契约：useNodeGeneration（提交/进度/成功写回/失败/重试）✓
  *
  * 【上/下游数据怎么接（对应"接节点"的通用机制）】
@@ -161,10 +160,7 @@ function TemplateNode({ id, data, selected }: TemplateNodeProps) {
   // ─── 1. 上游数据 + 性能降级（通用）───
   // useConnectedInputs：读取直接上游节点的产出（图片/文本）作为参考输入；空则渲染空态
   const connected = useConnectedInputs(id);
-  // useAssetDegrade：lodLevel>=2 时隐藏生成结果（大画布性能降级）
-  const { isHidden } = useAssetDegrade();
   const render = useRenderAssetResolver();
-  const hideResult = isHidden('image');
 
   // 上游合并：图片 + 文本（多个上游节点自动聚合；data.images/texts 额外资产也并入）
   // 注意：connected.images 与 data.images 可能重复进入同一批资产图（同 id/url，如剧本盒 script-asset-xxx），
@@ -353,12 +349,7 @@ function TemplateNode({ id, data, selected }: TemplateNodeProps) {
 
       {/* 主显示框（唯一必须 children；用 flex-1 填满，别用 h-full） */}
       <div className="relative flex flex-col w-full flex-1 min-h-0" onClick={toggleExpanded}>
-        {hideResult ? (
-          // 性能降级：大画布隐藏结果（通用）
-          <div className="flex-1 flex items-center justify-center text-caption text-muted">
-            图片已隐藏
-          </div>
-        ) : assetUrl ? (
+        {assetUrl ? (
           <div className="flex-1 relative overflow-hidden rounded-xl">
             <img
               src={render(assetUrl)}

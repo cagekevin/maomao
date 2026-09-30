@@ -109,7 +109,6 @@ const EditorShell = React.lazy(() =>
 );
 import { buildNodeTypeComponents } from './components/canvas/shell/NodePalette.ts';
 import { defaultNodeData } from './components/canvas/contract/nodeDataSchema.ts';
-import LodProvider, { useLod } from './components/canvas/shell/lod.tsx';
 import ToastContainer from './components/base/ui/feedback/ToastContainer.tsx';
 import ConfirmContainer from './components/base/ui/feedback/ConfirmContainer.tsx';
 import RenameDialog from './components/base/ui/feedback/RenameDialog.tsx';
@@ -1479,7 +1478,7 @@ function Canvas() {
    * ReactFlow 画布 + 覆盖层（右键菜单）
    * ==================================================================== */
   return (
-    <LodProvider enablePerformanceMode={performanceMode}>
+    <>
       {/* 顶层：flex 纵向布局*/}
       <div className="relative flex flex-col h-screen bg-canvas font-sans text-primary">
         {/* 本地引擎未连接全屏提醒 */}
@@ -1556,7 +1555,9 @@ function Canvas() {
              避免与 panOnDrag 抢 mousedown 导致框选错位 */
               selectionOnDrag={false}
               panOnDrag
-              className={nodes.length > 100 ? 'performance-large-canvas' : undefined}
+              /* 性能模式唯一开关（docs/plan/139）：声明式产出 perf-on，index.css 承接全部降级。
+              关 ⇒ 不加 class ⇒ 完全不降级。原 performance-large-canvas（节点数>100）已删（规模判据）。 */
+              className={performanceMode ? 'perf-on' : undefined}
             >
               {/* 点阵网格：gap=20 / size=1.5 / color=#333（点略放大更易辨识） */}
               <Background
@@ -1579,8 +1580,7 @@ function Canvas() {
                   />
                 </div>
               )}
-              {/* 性能模式横幅（ge 开 且 lodLevel>=2 时顶部黄条） */}
-              {/* lodLevel 由 LodProvider 内部监听缩放自动算（缩放越小 level 越高）：>=2 缩到 ≤0.3，>=3 缩到 ≤0.2 */}
+              {/* 性能模式提示条（开关开时显示；判据见组件定义处） */}
               <LodPerformanceBanner performanceMode={performanceMode} />
               {/* 画布在其他窗口被修改警告条（Sn 时红色横幅，点击刷新页面） */}
               {canvasConflict && (
@@ -1595,9 +1595,9 @@ function Canvas() {
                   </div>
                 </Panel>
               )}
-              {/* LOD 视口缩放监听已收进 LodProvider 内部（lod.jsx）：
-              enablePerformanceMode=false 时内部清空 lod class 并令 lodLevel=0，
-              因此「性能模式关 → 节点不隐藏媒体、横幅不弹」天然成立（各节点用 useLod 读 lodLevel）。 */}
+              {/* 性能模式：`className` 上的 `perf-on` 是唯一降级开关（docs/plan/139）。
+              开关关 → 不加 class → 完全不降级；所有降级规则由 index.css 的 .perf-on 承接，
+              JS 侧零降级态消费者（原 lodLevel / useLod / LodProvider 已整体退役）。 */}
             </ReactFlow>
           </CanvasEdgesProvider>
 
@@ -1729,21 +1729,21 @@ function Canvas() {
           </button>
         )}
       </div>
-    </LodProvider>
+    </>
   );
 }
 
-// 性能模式黄条：性能模式开且 lodLevel>=2 时顶部黄条。
-// 抽为子组件是因为 lodLevel 已收进 LodProvider 内部，需在 Provider 内用 useLod() 读，
-// 而非在 Canvas 外层读已删除的 App 级 state。
+// 性能模式提示条：开关开时提示「已简化显示」。
+// 【2026-09-30】判据由 `lodLevel>=2` 改为 `performanceMode`（lod 分档已删，见 docs/plan/139）：
+// 新设计不再隐藏图片（静止零成本，降它≈0 收益），只隐藏连线本体 + 停持续动画。
+// 同时去掉原 `animate-pulse` —— 提示条自己每帧脉冲，与「性能模式」自相矛盾（plan §3.2 A 类）。
 function LodPerformanceBanner({ performanceMode }: { performanceMode: boolean }) {
-  const { lodLevel } = useLod();
-  if (!performanceMode || lodLevel < 2) return null;
+  if (!performanceMode) return null;
   return (
     <Panel position="top-center" className="mt-4 pointer-events-none">
-      <div className="bg-yellow-500/20 border border-yellow-500/50 text-yellow-200 px-4 py-2 rounded-full text-xs font-bold shadow-lg backdrop-blur-sm flex items-center gap-2 animate-pulse">
+      <div className="bg-yellow-500/20 border border-yellow-500/50 text-yellow-200 px-4 py-2 rounded-full text-xs font-bold shadow-lg backdrop-blur-sm flex items-center gap-2">
         <Zap size={14} className="text-yellow-400" />
-        {lodLevel === 3 ? '已进入全局性能模式 (图片视频已隐藏)' : '低缩放性能模式 (图片已隐藏)'}
+        性能模式已开启（连线与特效已简化）
       </div>
     </Panel>
   );

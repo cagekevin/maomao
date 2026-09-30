@@ -50,5 +50,6 @@ export type { StructuralSnapshot } from './structure/structuralSnapshot.ts';
 export { registerTool, getTools } from './toolRegistry.ts';
 export type { ToolDef, ToolResult } from './toolRegistry.ts';
 
-/* ── G5 · 画布外壳（LOD 性能降级）── */
-export { useLod } from './shell/lod.tsx';
+/* ── G5 · 画布外壳 ── */
+/* 【2026-09-30】原 `export { useLod } from './shell/lod.tsx'` 已删 ——
+   lod 分档整体退役（docs/plan/139），降级改由 `.react-flow.perf-on` 的 CSS 承接。 */

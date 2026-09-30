@@ -33,7 +33,6 @@ import { sendToResourceLibrary } from '@/components/resource/resourceStore';
 import { openResourceLibrary } from '@/components/base/store/taskStore';
 import { useNodeResize, useOutsideClick } from '@/components/base/core/interaction/uiHooks';
 import { useConnectedInputs } from '@/hooks/useConnectedInputs';
-import { useAssetDegrade } from '@/hooks/useAssetDegrade';
 import { useGenerateNode } from '@/hooks/useGenerateNode';
 import { useFitNodeRatio } from '@/components/image/hooks/useFitNodeRatio';
 import '@/components/base/api/index';
@@ -61,7 +60,8 @@ import { generateId } from '@/components/base/core/idGen';
  * 生图节点（复刻原 bo.jsx / imageGenerateNode）
  * 已迁移到基座：NodeShell + HoverToolbar + ExpandablePanel + PromptInput + GenerateButton + ModelSelect。
  * 保留差异化：主图片框、素材缩略图区、画质/比例/渲染质量菜单、请求格式、批量 xN。
- * 性能降级用通用 useAssetDegrade：lodLevel>=2 藏生图结果（与官方横幅"图片已隐藏"一致）。
+ * 【2026-09-30】原 `useAssetDegrade`（lodLevel>=2 藏生图结果）已删 —— 静止 `<img>` 解码一次即纹理，
+ * 不重绘就不烧，降它≈0 收益（docs/plan/139 §3.2 A 类）。性能模式对图片节点不再有任何隐藏。
  */
 /** 参考图素材形态（ResourceStrip / PromptInput / generateImage 共用） */
 interface RefImage {
@@ -120,9 +120,6 @@ const IMAGE_MODEL_COST_MAP: Record<string, number> = { 'dall-e-3': 4 };
 
 function ImageGenerate({ id, data, selected }: ImageGenerateProps) {
   const render = useRenderAssetResolver();
-  // 性能模式媒体降级（通用 hook）：hideResult = isHidden('image')，即 lodLevel>=2
-  const { isHidden } = useAssetDegrade();
-  const hideResult = isHidden('image');
 
   // 通用连线数据传递：读取直接上游节点的产出（图片/文本）作为参考输入
   const connected = useConnectedInputs(id);
@@ -663,14 +660,7 @@ function ImageGenerate({ id, data, selected }: ImageGenerateProps) {
           <div
             className={`flex items-center justify-center absolute inset-0 rounded-xl overflow-hidden ${hasImage ? '' : 'bg-canvas'}`}
           >
-            {/* 性能模式媒体降级：缩小时隐藏生图结果（复刻官方"图片已隐藏"） */}
-            {hasImage && !loading && !error && hideResult && (
-              <div className="flex flex-col items-center justify-center gap-1 absolute inset-0 bg-surface-muted">
-                <ImageIcon size={24} className="text-muted" />
-                <span className="text-caption text-muted">性能模式已隐藏</span>
-              </div>
-            )}
-            {hasImage && !hideResult && (
+            {hasImage && (
               <img
                 ref={mainImgRef}
                 src={render(assetUrl)}

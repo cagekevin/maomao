@@ -16,6 +16,11 @@ import { useState, useEffect, useMemo } from 'react';
  *  - label          状态文字（如"生图中..." / "生成中... 45%"）
  *  - backgroundUrl  生成中背景（当前结果图或参考图，可选）
  *  - category       灵感 tips 分类（'text' | 'image' | 'video' | 'general'，默认 'general'）
+ *
+ * 【2026-09-30 · docs/plan/139】三处持续动画（扫光/光晕/旋转）由「组件内联 style」收口到 class
+ * （`gen-anim-shimmer` / `gen-anim-glow` / `gen-anim-spin`，动画定义在 index.css）。
+ * 原因：内联 style 优先级高于 class 规则 ⇒ 性能模式 `.perf-on` 的降级盖不住它。
+ * 只降**装饰动画**；`label`（进度文字）与背景不受影响 —— 进度必须仍可见（红线 5）。
  */
 const GEN_TIPS = [
   // text
@@ -246,10 +251,9 @@ export default function GeneratingOverlay({
 
       {/* 扫光条（从左到右） */}
       <div
-        className="absolute inset-y-0 w-1/2 pointer-events-none"
+        className="gen-anim-shimmer absolute inset-y-0 w-1/2 pointer-events-none"
         style={{
           background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.07), transparent)',
-          animation: 'npbShimmer 2.2s ease-in-out infinite',
         }}
       />
 
@@ -259,11 +263,10 @@ export default function GeneratingOverlay({
         <div className="relative w-6 h-6 flex items-center justify-center">
           {/* 呼吸光晕 */}
           <div
-            className="absolute w-8 h-8 rounded-full"
+            className="gen-anim-glow absolute w-8 h-8 rounded-full"
             style={{
               background:
                 'radial-gradient(circle, rgba(255,255,255,0.45) 0%, rgba(255,255,255,0) 70%)',
-              animation: 'npbGlow 1.8s ease-in-out infinite',
             }}
           />
           {/* 旋转 SVG 圆环 */}
@@ -272,8 +275,7 @@ export default function GeneratingOverlay({
             height="24"
             viewBox="0 0 36 36"
             fill="none"
-            className="relative"
-            style={{ animation: 'npbSpin 0.9s linear infinite' }}
+            className="gen-anim-spin relative"
           >
             <circle cx="18" cy="18" r="15" stroke="rgba(255,255,255,0.2)" strokeWidth="2.5" />
             <path

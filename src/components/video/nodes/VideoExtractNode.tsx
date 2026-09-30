@@ -4,7 +4,7 @@ import NodeShell from '@/components/canvas/parts/NodeShell';
 import { useContentHeightSync } from '@/components/base/core/interaction/uiHooks';
 import GenerateButton from '@/components/canvas/parts/GenerateButton';
 import { useConnectedInputs } from '@/hooks/useConnectedInputs';
-import { useAssetDegrade } from '@/hooks/useAssetDegrade';
+
 import { showToast } from '@/components/base/core/event/toastStore';
 import { contentSet } from '@/components/base/core/contentStore';
 import { confirmPersist } from '@/components/base/core/log/degrade';
@@ -82,8 +82,6 @@ interface ExtractTimes {
 
 function VideoExtractNode({ id, data, selected }: VideoExtractNodeProps) {
   const connected = useConnectedInputs(id);
-  const { isHidden } = useAssetDegrade();
-  const hideVideo = isHidden('video');
   const render = useRenderAssetResolver();
 
   // 模式与参数
@@ -457,23 +455,24 @@ function VideoExtractNode({ id, data, selected }: VideoExtractNodeProps) {
 
           {mode === 'manual' && videoUrl && !errorMessage && (
             <div className="flex flex-col gap-3 bg-surface p-3 rounded-lg border border-edge flex-shrink-0">
-              {!hideVideo && (
-                <video
-                  ref={(el) => {
-                    videoRef.current = el;
-                    // TD-22-55：预览元素也会被「复制当前帧」回读 canvas，
-                    // crossOrigin 须走跨源裁决单点（同源不设 / 真跨源才 anonymous），不得静态恒设。
-                    if (el) setCrossOriginForReadable(el, videoUrl);
-                  }}
-                  src={videoUrl}
-                  className="w-full aspect-video bg-black rounded"
-                  onLoadedMetadata={(e) => setDuration(e.currentTarget.duration)}
-                  onTimeUpdate={(e) => setCurrentTime(e.currentTarget.currentTime)}
-                  playsInline
-                  muted
-                  controls
-                />
-              )}
+              {/* 2026-09-30（docs/plan/139 §3.2）：原 `!hideVideo` 性能降级已删 ——
+                  本节点是**处理工作区**，预览是操作对象（拖时间轴/取帧），隐藏它 = 用户无法操作（能力受损）。
+                  只有「生成结果展示」类（VideoGenerate）才降级。 */}
+              <video
+                ref={(el) => {
+                  videoRef.current = el;
+                  // TD-22-55：预览元素也会被「复制当前帧」回读 canvas，
+                  // crossOrigin 须走跨源裁决单点（同源不设 / 真跨源才 anonymous），不得静态恒设。
+                  if (el) setCrossOriginForReadable(el, videoUrl);
+                }}
+                src={videoUrl}
+                className="w-full aspect-video bg-black rounded"
+                onLoadedMetadata={(e) => setDuration(e.currentTarget.duration)}
+                onTimeUpdate={(e) => setCurrentTime(e.currentTarget.currentTime)}
+                playsInline
+                muted
+                controls
+              />
               <div className="flex items-center gap-2 text-xs">
                 <button
                   onClick={() => {
