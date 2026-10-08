@@ -36,9 +36,9 @@
           "label": "Nano Banana Pro"
         },
         {
-          "id": "nano-bn-2",
+          "id": "nano-bn-2.1",
           "type": "image",
-          "label": "Nano Banana 2"
+          "label": "Nano Banana 2.1"
         },
         {
           "id": "nano-bn-2-lite",
@@ -77,6 +77,6 @@
     }
   ],
   "discountVideoModel": "seedance-2.0-mini\nseedance-2.0-fast\nseedance-2\nminimax-h3\nkling-v3-omni",
-  "drawingModel": "gpt-image-2-low\ngpt-image-2-medium\nano-bn-2-lite\nano-bn-2\nano-bn-pro",
+  "drawingModel": "gpt-image-2-low\ngpt-image-2-medium\nano-bn-2-lite\nnano-bn-2.1\nano-bn-pro",
   "textModel": "lovart-chat"
 }

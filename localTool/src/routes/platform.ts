@@ -36,7 +36,7 @@ export async function handleWorkflowAppsByProject(
 
 const BUILTIN_MODELS = {
   // 文生图模型（来自 main.py _IMAGE_RULES）
-  image: ['gpt-image-2-low', 'gpt-image-2-medium', 'gpt-image-2', 'nano-bn-pro', 'nano-bn-2'],
+  image: ['gpt-image-2-low', 'gpt-image-2-medium', 'gpt-image-2', 'nano-bn-pro', 'nano-bn-2.1'],
   // 文生视频模型（来自 main.py _VIDEO_RULES，共 16 项）
   // 注：kling 与 kling-v3 在网关侧均映射到 generate_video_kling_v3，
   // 但两者都是官方别名，字段契约需保留，不能去重。
@@ -60,7 +60,7 @@ const BUILTIN_MODEL_SERIES: Array<{ name: string; seriesKey: string; seriesLabel
   { name: 'gpt-image-2-medium', seriesKey: 'gpt-image', seriesLabel: 'GPT Image 系列' },
   { name: 'gpt-image-2', seriesKey: 'gpt-image', seriesLabel: 'GPT Image 系列' },
   { name: 'nano-bn-pro', seriesKey: 'nano-bn', seriesLabel: 'Nano Banana 系列' },
-  { name: 'nano-bn-2', seriesKey: 'nano-bn', seriesLabel: 'Nano Banana 系列' },
+  { name: 'nano-bn-2.1', seriesKey: 'nano-bn', seriesLabel: 'Nano Banana 系列' },
 ];
 
 // ── GET /public/platform/builtin ──

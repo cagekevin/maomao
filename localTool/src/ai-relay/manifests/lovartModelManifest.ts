@@ -35,11 +35,11 @@ export const LOVART_MODEL_MANIFEST: import('../types.js').CatalogModel[] = [
     description: 'Lovart Nano Banana Pro',
   },
   {
-    id: 'nano-bn-2',
-    name: 'Nano Banana 2',
+    id: 'nano-bn-2.1',
+    name: 'Nano Banana 2.1',
     category: 'image',
     provider: 'lovart',
-    description: 'Lovart Nano Banana 2',
+    description: 'Lovart Nano Banana 2.1',
   },
   {
     id: 'nano-bn-2-lite',

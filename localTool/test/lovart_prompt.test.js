@@ -97,13 +97,13 @@ test('B7 prompt_only：nano-bn-2-lite 无 tool_config（undefined）', () => {
   assert.equal(tc, undefined, 'prompt_only 模型不下发 tool_config');
 });
 
-test('回归：别名前缀不误吞——nano-bn-2 与 nano-bn-2-lite 各自命中（空串规则可达）', () => {
-  // main.py 缺陷修复：'nano-bn-2' 是 'nano-bn-2-lite' 的前缀子串，
-  // 若短规则排前面，lite 会被误吞成 generate_image_nano_banana_2，导致其空串规则永不可达。
+test('回归：别名前缀不误吞——nano-bn-2.1 与 nano-bn-2-lite 各自命中（空串规则可达）', () => {
+  // 更新(2026-10-08)：上游 Nano Banana 2 → 2.1，'nano-bn-2' 退役改挂 'nano-bn-2.1'，工具名同步 _2_1。
+  // 原前缀冲突（'nano-bn-2' 是 'nano-bn-2-lite' 子串）随退役消失；lite 仍排在前，防将来重加时回归。
   assert.deepEqual(
-    buildLovartToolConfig('nano-bn-2').prefer_tool_categories.IMAGE,
-    ['generate_image_nano_banana_2'],
-    'nano-bn-2 命中 _nano_banana_2',
+    buildLovartToolConfig('nano-bn-2.1').prefer_tool_categories.IMAGE,
+    ['generate_image_nano_banana_2_1'],
+    'nano-bn-2.1 命中 _nano_banana_2_1',
   );
   assert.equal(
     buildLovartToolConfig('nano-bn-2-lite'),

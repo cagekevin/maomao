@@ -76,11 +76,14 @@ export const LOVART_IMAGE_RULES: ReadonlyArray<readonly [readonly string[], stri
   ],
   [['gpt-image-2', 'gpt-image2', 'gptimage2'], 'generate_image_gpt_image_2'],
   [['nano-bn-pro', 'nano bn pro', 'nanobnpro'], 'generate_image_nano_banana_pro'],
-  // 顺序修正（相对 main.py 的缺陷修复）：'nano-bn-2' 是 'nano-bn-2-lite' 的前缀子串，
-  // 若按 main.py 把 'nano-bn-2' 排在前面，lite 会被前缀规则误吞成 generate_image_nano_banana_2，
-  // 导致本行空串规则永远不可达。故 lite 必须排在 'nano-bn-2' 之前。
+  // 顺序修正（相对 main.py 的缺陷修复）：'nano-bn-2' 曾是 'nano-bn-2-lite' 的前缀子串，
+  // 若按 main.py 把短规则排在前面，lite 会被前缀规则误吞，导致本行空串规则永远不可达。故 lite 必须排前。
+  // 更新(2026-10-08)：上游 Nano Banana 2 升级为 2.1 —— 'nano-bn-2' 退役，改挂 'nano-bn-2.1'
+  //   （不再与 lite 构成前缀冲突；lite 仍保留在前，防将来重加 'nano-bn-2' 时回归）。
+  //   上游工具名同步改为 generate_image_nano_banana_2_1（点号转下划线，对齐 gpt-image-2.5→2_5 惯例；
+  //   工具名内不保留裸点号）。
   [['nano-bn-2-lite', 'nano banana 2 lite', 'nanobn2lite'], ''],
-  [['nano-bn-2', 'nano bn 2'], 'generate_image_nano_banana_2'],
+  [['nano-bn-2.1', 'nano bn 2.1'], 'generate_image_nano_banana_2_1'],
 ];
 
 /**
@@ -149,7 +152,7 @@ export const LOVART_VIDEO_RULES: ReadonlyArray<readonly [readonly string[], stri
  */
 export const LOVART_PROMPT_MODEL_NAMES: Record<string, string> = {
   'nano-bn-pro': 'Nano Banana Pro',
-  'nano-bn-2': 'Nano Banana 2',
+  'nano-bn-2.1': 'Nano Banana 2.1',
   'nano-bn-2-lite': 'Nano Banana 2 Lite',
   'seedance-2.0-mini': 'Seedance 2.0 mini',
   'minimax-h3': 'MiniMax H3',
@@ -166,7 +169,7 @@ export const LOVART_MODEL_SPECS: Record<string, LovartModelSpec> = {
   'gpt-image-2-medium': { category: 'IMAGE', readableName: 'GPT Image 2 Medium' },
   'gpt-image-2-high': { category: 'IMAGE', readableName: 'GPT Image 2 High' },
   'nano-bn-pro': { category: 'IMAGE', readableName: 'Nano Banana Pro' },
-  'nano-bn-2': { category: 'IMAGE', readableName: 'Nano Banana 2' },
+  'nano-bn-2.1': { category: 'IMAGE', readableName: 'Nano Banana 2.1' },
   'nano-bn-2-lite': { category: 'IMAGE', readableName: 'Nano Banana 2 Lite' },
   'gpt-image-2.5-sunburst-low': { category: 'IMAGE', readableName: 'GPT Image 2.5 Sunburst Low' },
   'gpt-image-2.5-sunburst-medium': {

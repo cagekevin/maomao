@@ -30,7 +30,12 @@
           "streaming": false,
           "promptOnly": false
         },
-        { "id": "nano-bn-2", "label": "Nano Banana 2", "streaming": false, "promptOnly": false },
+        {
+          "id": "nano-bn-2.1",
+          "label": "Nano Banana 2.1",
+          "streaming": false,
+          "promptOnly": false
+        },
         {
           "id": "nano-bn-2-lite",
           "label": "Nano Banana 2 Lite",
