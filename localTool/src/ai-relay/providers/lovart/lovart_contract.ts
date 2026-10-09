@@ -27,8 +27,6 @@ export interface LovartDirectProfile {
   signal?: AbortSignal;
   /** 出站传输；缺省用中央 stableRequest。测试注入 fake transport 断言请求体。 */
   transport?: LovartTransport;
-  /** 参考图下载用 fetch；缺省全局 fetch。测试注入 fake。 */
-  fetchImpl?: typeof fetch;
   /** 轮询间隔（ms）；缺省 lovart_config.POLL_INTERVAL_MS。测试注入小值提速。 */
   pollIntervalMs?: number;
   /** done 后复核等待（ms）；缺省 lovart_config.DONE_RECHECK_MS。测试注入小值提速。 */

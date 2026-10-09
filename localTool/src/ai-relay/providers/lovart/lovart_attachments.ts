@@ -1,10 +1,13 @@
 /**
  * lovart_attachments — 参考素材形态收口：把各种形态统一转成 Lovart 可用的 CDN URL（attachments）。
  *
- * 忠实对齐 apimart-gateway/main.py 的 TaskService.resolve_attachments（"跟 main 一模一样"）：
+ * 对齐 apimart-gateway/main.py 的 TaskService.resolve_attachments（流程/分支对齐；扩展名判定本仓自持权威）：
  *   - http(s) 公网 URL        → 直接透传（Lovart 服务器可访问，不打日志）
- *   - http(s) 本机回环地址     → 本机直连下载字节 → 上传 Lovart CDN（Lovart 访问不到用户本机端口）
  *   - data: base64           → 解析 header 得扩展名 → 解码 → 上传 CDN
+ *
+ * 【2026-10-09 · TD-08-46】原「http(s) 本机回环地址 → 本机直连下载 → 传 CDN」分支**已删**：
+ *   出站不再把本机图补成回环 URL，而是内联成 data:（见 utils/resolveLocalImages.ts）⇒ 本机图现走
+ *   上面的 data: 分支。回环 URL 分支从此无生产者（禁重建，理由见 resolveLocalImages.ts 尾）。
  *   - 无前缀裸 base64（魔数）  → 识别魔数（JPEG/PNG/GIF/WebP/BMP/视频/音频）→ 解码 → 上传 CDN
  *   - 其余（blob: / 本地路径 / 未知格式）→ **计入 failed_count 并留痕**（2026-09-17 TD-08-40 改）：
  *     拿不到内容就转不出 CDN，而"prompt 声称有参考图、Lovart 却收不到"正是本文件头下方那条
@@ -108,21 +111,6 @@ function bytesFromDataUrl(dataUrl: string): { bytes: Uint8Array; ext: string } {
   return { bytes, ext };
 }
 
-/** 是否本机回环 host（127.0.0.1 / localhost / 0.0.0.0 / [::1]）。照 main 语义。 */
-function isLoopbackHostname(host: string | null): boolean {
-  const h = (host || '').toLowerCase();
-  return h === '127.0.0.1' || h === 'localhost' || h === '0.0.0.0' || h === '[::1]';
-}
-
-/** 从 http(s) URL 提取 hostname（含 IPv6 字面量）。Node URL 对无 scheme 不适用，此处仅用于已确认 http 的 URL。 */
-function hostnameOf(u: string): string | null {
-  try {
-    return new URL(u).hostname;
-  } catch {
-    return null;
-  }
-}
-
 /**
  * 参考素材统一收口入口。
  * @param urls 任意形态的参考素材列表（图生图 URL / messages image_url / 特惠视频 files 等）
@@ -134,7 +122,6 @@ export async function resolveLovartAttachments(
   urls?: string[],
 ): Promise<string[] | undefined> {
   if (!urls || urls.length === 0) return undefined;
-  const fetchImpl: typeof fetch = deps.fetchImpl ?? fetch;
   const out: string[] = [];
   let failedCount = 0;
   let lastErr: string | null = null;
@@ -146,31 +133,10 @@ export async function resolveLovartAttachments(
     }
     const u = raw.trim();
 
-    // 1) http(s)
+    // 1) http(s) 外网 URL：直接透传（main 语义，不打日志）。
+    //    ⚠️ 本机图**不再**以回环 URL 形态进来（2026-10-09 · TD-08-46：出站已改内联 base64）⇒
+    //    本机图走下方 data: 分支，此处不再有「下载回环再传 CDN」。
     if (u.startsWith('http://') || u.startsWith('https://')) {
-      const host = hostnameOf(u);
-      if (host && isLoopbackHostname(host)) {
-        // 1a) 本机回环：Lovart 服务器访问不到用户本机端口，必须本地下载后转 CDN。
-        //     注：main 用 trust_env=False 本地直连池绕过系统代理；localTool 直连用 fetchImpl（缺省全局 fetch），
-        //     出站代理问题由 localTool 出站口 resolveLocalImages/代理配置在更上层统一解决，此处直接下载。
-        try {
-          const resp = await fetchImpl(u);
-          if (!resp.ok) throw new Error(`下载本机回环参考图失败 (${resp.status})`);
-          const bytes = new Uint8Array(await resp.arrayBuffer());
-          const ext = extFromMime(resp.headers.get('content-type'));
-          const cdn = await uploadLovartFile(deps, bytes, `_local_${randHex()}.${ext}`);
-          if (cdn) out.push(cdn);
-          else {
-            failedCount += 1;
-            lastErr = '本机回环图上传 CDN 返回空';
-          }
-        } catch (e) {
-          failedCount += 1;
-          lastErr = (e as Error).message;
-        }
-        continue;
-      }
-      // 1b) 其余外网 URL：直接透传（main 语义，不打日志）
       out.push(u);
       continue;
     }
@@ -261,8 +227,8 @@ export async function resolveLovartAttachments(
 /**
  * 是否"像本机路径"（`file:` / 盘符路径 / 以 `/` 开头的绝对路径）。
  *
- * 【为什么单独判一类（TD-08-40）】上游 `resolveImagesForEgress(v,'cdn')` 本应把本机 `/files/`
- * **补成回环 URL**（`http://127.0.0.1:18080/...`）再交到这里 —— 落到本分支说明它**没被转**。
+ * 【为什么单独判一类（TD-08-40）】上游 `resolveLocalImages` 本应把本机 `/files/` **内联成 data:**
+ * 再交到这里 —— 落到本分支说明它**没被转**（仍是原 `/files/` 或裸路径）。
  * 把它与"未知形态"分开留痕，是为了让这条日志能直接指向上游漏转（可 grep `kind:'local-path'`），
  * 而不是混在"未知素材形态"里看不出该修哪儿。
  */

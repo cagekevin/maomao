@@ -24,8 +24,6 @@ export interface LovartClientDeps {
   timeoutMs?: number;
   /** 出站传输；缺省用中央 stableRequest。测试注入 fake transport。 */
   transport?: LovartTransport;
-  /** 参考图下载用的 fetch；缺省全局 fetch。测试注入 fake 断言下载失败阻断（B8）。 */
-  fetchImpl?: typeof fetch;
   /** 轮询间隔（ms）；缺省 lovart_config.POLL_INTERVAL_MS。测试注入小值提速。 */
   pollIntervalMs?: number;
   /** done 后复核等待（ms）；缺省 lovart_config.DONE_RECHECK_MS。测试注入小值提速。 */

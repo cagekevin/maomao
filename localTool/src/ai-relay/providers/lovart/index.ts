@@ -41,7 +41,6 @@ function toDeps(
     signal: signal ?? profile.signal,
     timeoutMs: timeoutMs ?? profile.timeoutMs,
     transport: profile.transport,
-    fetchImpl: profile.fetchImpl,
     pollIntervalMs: profile.pollIntervalMs,
     doneRecheckMs: profile.doneRecheckMs,
     projectCacheFile: profile.projectCacheFile,

@@ -22,7 +22,7 @@ function toFileUrl(p) {
   return 'file:///' + p.split(path.sep).join('/');
 }
 
-const { resolveLocalImages, resolveImagesForEgress, refFormatOf, toLoopbackUrl } = await import(
+const { resolveLocalImages } = await import(
   toFileUrl(path.join(src, 'utils', 'resolveLocalImages.ts'))
 );
 const { getUploadDir } = await import(toFileUrl(path.join(src, 'db', 'database.ts')));
@@ -79,31 +79,24 @@ test('文件缺失 → 保留原 URL（失败可见，不静默丢弃）', async
   assert.equal(out, '/files/sub/missing.png');
 });
 
-test('出站形态分流：视频在 cdn 形态不打 error（假警消失）、在 base64 形态留真警（2026-09-20）', async () => {
+test('视频 /files/ → data:video/mp4;base64（2026-10-09 · 直读原字节内联，不再走回环 URL）', async () => {
   const errors = [];
-  const logs = [];
   const origError = console.error;
-  const origLog = console.log;
   console.error = (...a) => errors.push(a.join(' '));
-  console.log = (...a) => logs.push(a.join(' '));
+  let out;
   try {
-    // ① cdn（lovart 直连）：/files/ 补成回环可下载 URL 交 adapter 自取 —— 非图片媒体天然走这条，不碰 Jimp。
-    //    这里若打 error，就是 2026-09-20 那条假警（请求其实 200 成功、视频已成功转 CDN 附件）。
-    assert.equal(
-      await resolveImagesForEgress('/files/sub/v.mp4', 'cdn'),
-      'http://127.0.0.1:18080/files/sub/v.mp4',
-    );
-    assert.deepEqual(errors, []);
-    // ② base64（非直连平台）：内联不了 ⇒ 原样保留 + error 留痕。该形态下上游**确实**读不到本机地址，
-    //    所以这条是**真警**，必须保留（勿为了"消假警"把它一起静音 —— 那就变成静默丢参考图了）。
-    assert.equal(await resolveImagesForEgress('/files/sub/v.mp4', 'base64'), '/files/sub/v.mp4');
-    assert.equal(errors.length, 1);
-    assert.match(errors[0], /读文件失败/);
+    out = await resolveLocalImages('/files/sub/v.mp4');
   } finally {
     console.error = origError;
-    console.log = origLog;
   }
-  assert.match(logs.join('\n'), /resolve:cdn-url/);
+  assert.match(out, /^data:video\/mp4;base64,/);
+  // 字节原样（夹具 = `000000206674797069736f6d`），不压缩、不改写。
+  assert.equal(
+    Buffer.from(out.split(',')[1], 'base64').toString('hex'),
+    '000000206674797069736f6d',
+  );
+  // 视频已能内联 ⇒ 不再落"读文件失败"真警分支（那条真警从此只服务文本 / 未知形态）。
+  assert.equal(errors.filter((e) => /读文件失败/.test(e)).length, 0);
 });
 
 test('嵌套结构：messages 的 image_url.url + image_urls[] + reference_images[] 全转换，非图字段原样', async () => {
@@ -158,58 +151,5 @@ test('幂等：已转换的 base64 再入 → 原样返回', async () => {
   assert.equal(twice, once);
 });
 
-/* ═══ 出站形态裁决（resolveImagesForEgress / refFormatOf / toLoopbackUrl）═══ */
-
-test('refFormatOf：仅 lovart 走 cdn，其余走 base64', () => {
-  assert.equal(refFormatOf('lovart'), 'cdn');
-  assert.equal(refFormatOf('modelscope'), 'base64');
-  assert.equal(refFormatOf('anything-else'), 'base64');
-});
-
-test('toLoopbackUrl：相对 /files/ 补成回环 URL；绝对自指/公网/data 原样', () => {
-  assert.equal(toLoopbackUrl('/files/sub/a.png'), 'http://127.0.0.1:18080/files/sub/a.png');
-  assert.equal(
-    toLoopbackUrl('http://127.0.0.1:18080/files/sub/a.png'),
-    'http://127.0.0.1:18080/files/sub/a.png',
-  );
-  assert.equal(
-    toLoopbackUrl('http://localhost:18080/files/sub/a.png'),
-    'http://localhost:18080/files/sub/a.png',
-  );
-  assert.equal(toLoopbackUrl('http://public/x.png'), 'http://public/x.png');
-  assert.equal(toLoopbackUrl('data:image/png;base64,abc'), 'data:image/png;base64,abc');
-});
-
-test('resolveImagesForEgress cdn：本机 /files/ 转回环 URL（不 base64）；公网/data 原样', async () => {
-  const out = await resolveImagesForEgress(
-    ['/files/sub/a.png', 'http://public/x.png', 'data:image/png;base64,abc'],
-    'cdn',
-  );
-  assert.equal(out[0], 'http://127.0.0.1:18080/files/sub/a.png', '本机图给回环 URL，不预 base64');
-  assert.equal(out[1], 'http://public/x.png', '公网 URL 原样');
-  assert.equal(out[2], 'data:image/png;base64,abc', 'data: 原样（blob 无法避免 base64）');
-});
-
-test('resolveImagesForEgress base64：行为与 resolveLocalImages 一致（本机图→base64）', async () => {
-  const out = await resolveImagesForEgress('/files/sub/a.png', 'base64');
-  assert.match(out, /^data:image\/png;base64,/);
-});
-
-test('resolveImagesForEgress cdn 嵌套：messages 的 image_url.url 转回环，非图字段原样', async () => {
-  const payload = {
-    messages: [
-      {
-        role: 'user',
-        content: [
-          { type: 'image_url', image_url: { url: '/files/sub/a.png' } },
-          { type: 'text', text: '描述' },
-        ],
-      },
-    ],
-    prompt: '原样',
-  };
-  const out = await resolveImagesForEgress(payload, 'cdn');
-  assert.equal(out.messages[0].content[0].image_url.url, 'http://127.0.0.1:18080/files/sub/a.png');
-  assert.equal(out.messages[0].content[1].text, '描述');
-  assert.equal(out.prompt, '原样');
-});
+/* 【2026-10-09 · TD-08-46】原「出站形态裁决」用例组（resolveImagesForEgress / refFormatOf /
+ * toLoopbackUrl）已删：这些符号随 cdn 回环妥协一并退役，锁已撤设计的测试必须删。 */

@@ -80,7 +80,6 @@ export interface <Id>Profile {
   timeoutMs?: number;
   signal?: AbortSignal;
   transport?: AdapterTransport;  // 测试注入
-  fetchImpl?: typeof fetch;      // 附件下载/外部抓取的注入点（测试）
   pollIntervalMs?: number;       // 测试提速
   doneRecheckMs?: number;        // 测试提速
 }

@@ -118,18 +118,11 @@ test('C1 generateVideoLovart 返回 { url }', async () => {
 
 test('B8 对齐 main：公网 http 参考图直接透传（不下载不上传 CDN），不阻断', async () => {
   const t = makeTransport();
-  // 公网 URL 直接作为 attachment 透传，fetch 不被调用
-  let fetchCalled = 0;
-  const fetchImpl = async () => {
-    fetchCalled += 1;
-    return new Response('x', { status: 200 });
-  };
   const out = await generateImageLovart(
-    { ...PROFILE, transport: t.transport, fetchImpl },
+    { ...PROFILE, transport: t.transport },
     { model: 'gpt-image-2-low', prompt: 'x', imageUrls: ['http://ref.example/a.png'] },
   );
   assert.deepEqual(out, ['http://cdn/r.png']);
-  assert.equal(fetchCalled, 0, '公网 URL 不下载');
   assert.deepEqual(
     t.sendBodies[0].attachments,
     ['http://ref.example/a.png'],
@@ -137,47 +130,8 @@ test('B8 对齐 main：公网 http 参考图直接透传（不下载不上传 CD
   );
 });
 
-test('B8 对齐 main：本机回环 http 下载失败 → 阻断，未进入 send（不部分成功）', async () => {
-  const t = makeTransport();
-  // 本机回环（Lovart 访问不到用户本机端口）需网关自下载后上传 CDN；下载失败须阻断
-  const fetchImpl = async () => new Response('not found', { status: 404 });
-  await assert.rejects(
-    () =>
-      generateImageLovart(
-        { ...PROFILE, transport: t.transport, fetchImpl },
-        {
-          model: 'gpt-image-2-low',
-          prompt: 'x',
-          imageUrls: ['http://127.0.0.1:18080/files/a.png'],
-        },
-      ),
-    (e) => e instanceof LovartError && e.type === 'upload_failed',
-  );
-  assert.equal(t.sendBodies.length, 0, '下载失败不得进入 send');
-});
-
-test('B8 回环 URL 下载成功 → 上传 CDN 进 attachments（lovart cdn 态：喂回环 URL 而非预 base64）', async () => {
-  const t = makeTransport();
-  // 回环 URL fetch 成功返回一张 1x1 红点 PNG 字节
-  const pngB64 =
-    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=';
-  const fetchImpl = async () =>
-    new Response(Buffer.from(pngB64, 'base64'), {
-      status: 200,
-      headers: { 'content-type': 'image/png' },
-    });
-  const out = await generateImageLovart(
-    { ...PROFILE, transport: t.transport, fetchImpl },
-    { model: 'gpt-image-2-low', prompt: 'x', imageUrls: ['http://127.0.0.1:18080/files/a.png'] },
-  );
-  assert.deepEqual(out, ['http://cdn/r.png']);
-  assert.equal(t.sendBodies.length, 1);
-  assert.deepEqual(
-    t.sendBodies[0].attachments,
-    ['http://cdn/up.png'],
-    '回环 URL 下载后上传 CDN 进 attachments',
-  );
-});
+// 【2026-10-09 · TD-08-46】原两条「回环 URL 下载 → 传 CDN」用例已删：该分支已随出站统一
+// 内联 base64 一并退役（本机图现在以 data: 进来，走下方 data: 分支）。锁已撤设计的测试必须删。
 
 test('B8 参考图 base64 经上传成功：send 请求体 attachments 含 CDN URL', async () => {
   const t = makeTransport();

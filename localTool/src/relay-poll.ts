@@ -38,7 +38,7 @@ import type {
 import { submitLovartTask, pollLovartTaskOnce } from './ai-relay/providers/lovart/index.js';
 import { budgetMsFor } from './budget.js';
 import { isRelayCapability, type RelayCapability } from './capability.js';
-import { resolveLocalImages, resolveImagesForEgress } from './utils/resolveLocalImages.js';
+import { resolveLocalImages } from './utils/resolveLocalImages.js';
 import { saveRemoteUrl } from './routes/files.js';
 import { upsertTask } from './routes/tasks.js';
 import {
@@ -208,7 +208,7 @@ export interface DirectSubmitInput {
   size?: string;
   /**
    * 参考图原始 url 列表（/files/ 或外链）。**存库保留原值**（避免 base64 膨胀 DB），
-   * 真正的出站归一推迟到后台提交时由 runDirectSubmit **就地**决定（本通道走回环 URL，不是 base64）。
+   * 真正的出站归一推迟到后台提交时由 runDirectSubmit 执行（本机媒体内联 base64）。
    */
   images?: string[];
   /** video：清晰度 */
@@ -244,7 +244,7 @@ interface PollHandle {
    * 【段边界 · 2026-09-21】交出 thread_id / 上游 task_id 的时刻（= `submit_ack_at` 的写入点）。
    * `undefined` = 仍在「我们段」（提交 + 素材出站）；有值 = 已交出，**上游段的预算从这里起算**。
    *
-   * 为什么必须有它：原先**一个**总超时同时装了这两段 —— 素材出站（实测 3s↔69s：adapter 下载回环
+   * 为什么必须有它：原先**一个**总超时同时装了这两段 —— 素材出站（实测 3s↔69s：内联 base64
    * +传 CDN+建 project）的耗时被记在上游账上，超时还统一报成"生成超时"（责任与文案双错位：
    * 上游最终成功落盘的任务，前端/后端已按"生成超时"判死）。
    */
@@ -288,9 +288,9 @@ interface RelayPollSnapshot {
   /** 段①（发送 Lovart 成功前）子步骤耗时（毫秒），仅观测用、不影响行为。 */
   submitTiming?: {
     queueMs: number; // 进队 -> 真正开始提交（含轮询首跳延迟）
-    egressMs: number; // resolveImagesForEgress（cdn 形态：仅改 URL，几乎为 0）
+    egressMs: number; // resolveLocalImages（本机媒体内联 base64：读盘 + 压缩/直读）
     modeMs: number; // setLovartMode
-    attachmentsMs: number; // 下载本机回环参考图 + 传 Lovart CDN（重灾区候选）
+    attachmentsMs: number; // 解码内联 base64 + 传 Lovart CDN（段① 重灾区候选）
     sendChatMs: number; // sendLovartChatWithProject
     imageCount: number; // 参考图张数
     totalMs: number; // 段① 总长 = submit_ack_at − startedAt
@@ -548,14 +548,12 @@ async function runDirectSubmit(handle: PollHandle, profile: LovartDirectProfile)
   let images: string[] | undefined;
   let egressMs = 0;
   try {
-    // 参考图形态按 lovart 直连（cdn）：不预压 base64，转回环可下载 URL 交给 adapter
-    // resolveLovartAttachments 自取（下载→传 CDN），省掉 encode→decode 两遍。见 resolveLocalImages.ts 头。
-    // **只有这一个平台走这条，且只是为了省这一步** —— 妥协，不是架构维度：
-    // 就地决定，不设判据层、不写 ADR、不据此切文件或建"通道 / 平台"层。
+    // 参考图归一：本机 /files/ 媒体内联 base64（图片压缩 / 视频音频原样），交 adapter 上传 CDN。
+    // 统一走 resolveLocalImages 一条（2026-10-09 · TD-08-46：cdn 回环妥协已退役）。见其文件头。
     const tEg0 = Date.now();
     images =
       p.images && p.images.length > 0
-        ? ((await resolveImagesForEgress(p.images, 'cdn')) as string[])
+        ? ((await resolveLocalImages(p.images)) as string[])
         : undefined;
     egressMs = Date.now() - tEg0;
   } catch (e) {
