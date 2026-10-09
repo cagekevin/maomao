@@ -9,6 +9,9 @@
  *
  * 【红线：本模块只做「线协议 ↔ 既有入口」的翻译】
  *   - chat      → `relayGenerate`（同步；providerId=lovart 时走 providers/lovart 直连）
+ *                 ⚠️ lovart 适配器**无 function calling** ⇒ 本层对其**丢弃 tools**（否则 relayGenerate
+ *                 会走 chatWithTools 分支打 `{lovart基址}/chat/completions`，Lovart 无此端点必失败）；
+ *                 `stream:true` 由本层把整段文本合成 OpenAI SSE（Lovart 无真流式）。
  *   - image/video → `submitGenerateTask` + `getGenerateStatus`（复用 relay-poll 的异步句柄，
  *                   不丢图、可重启恢复）
  *   ⇒ 本模块**不** import ai-relay、**不**自写 fetch、**不**碰 DB / 协议执行 / 轮询。
@@ -27,13 +30,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-import {
-  json,
-  parseJsonBody,
-  parseMultipart,
-  sendError,
-  relativePathFromFilesUrl,
-} from '../utils/helpers.js';
+import { json, parseJsonBody, parseMultipart, relativePathFromFilesUrl } from '../utils/helpers.js';
 import { getUploadDir, getDb } from '../db/database.js';
 import { relayGenerate } from '../generateEngine.js';
 import { submitGenerateTask, getGenerateStatus, cancelGenerateTask } from '../relay-poll.js';
@@ -94,7 +91,44 @@ export function handleOpenAiModels(_req: IncomingMessage, res: ServerResponse): 
   json(res, { object: 'list', data });
 }
 
-// ── POST /chat/completions：文本/工具（同步；lovart 走 providerId 分流）────────
+/**
+ * OpenAI chat.completion.chunk 的 SSE 合成（把已拿到的整段文本写成流）。
+ *
+ * 【为什么需要】BeefTV（含其画布 Agent）可能带 `stream:true` 请求；若此时回普通 JSON，
+ * 客户端按 SSE 解析会拿不到内容而报"聊天没成功"。Lovart 是「异步轮询拿整段文本」（无真流式），
+ * 故这里把整段文本一次性写成 SSE chunk——语义等价、客户端照常工作。
+ */
+function streamChatCompletion(
+  res: ServerResponse,
+  opts: { model: string; text: string; toolCalls?: unknown[] },
+): void {
+  const id = newId('chatcmpl-');
+  const created = Math.floor(Date.now() / 1000);
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    Connection: 'keep-alive',
+    'X-Accel-Buffering': 'no',
+    'Access-Control-Allow-Origin': '*',
+  });
+  const chunk = (delta: Record<string, unknown>, finish: string | null): string =>
+    `data: ${JSON.stringify({
+      id,
+      object: 'chat.completion.chunk',
+      created,
+      model: opts.model,
+      choices: [{ index: 0, delta, finish_reason: finish }],
+    })}\n\n`;
+  const hasTools = Array.isArray(opts.toolCalls) && opts.toolCalls.length > 0;
+  const first: Record<string, unknown> = { role: 'assistant', content: opts.text };
+  if (hasTools) first.tool_calls = opts.toolCalls;
+  res.write(chunk(first, null));
+  res.write(chunk({}, hasTools ? 'tool_calls' : 'stop'));
+  res.write('data: [DONE]\n\n');
+  res.end();
+}
+
+// ── POST /chat/completions：文本（同步/SSE；lovart 走 providerId 分流）──────────
 export async function handleOpenAiChatCompletions(
   req: IncomingMessage,
   res: ServerResponse,
@@ -105,13 +139,19 @@ export async function handleOpenAiChatCompletions(
   const model = str(body.model) || 'lovart-chat';
   const messages = Array.isArray(body.messages) ? (body.messages as unknown[]) : [];
   const tools = Array.isArray(body.tools) ? (body.tools as unknown[]) : [];
+  const wantStream = body.stream === true;
+  // 【关键修复】Lovart 直连适配器**不支持 function calling**：一旦把 tools 透传给 relayGenerate，
+  // generateEngine 会走 `chatWithTools` 分支 → POST `{lovart 基址}/chat/completions`（Lovart 无此
+  // OpenAI 端点）⇒ 必失败（BeefTV 画布 Agent 恰好总带 tools，故"聊天没成功"）。故 lovart 丢弃 tools，
+  // 退化为纯文本对话（Agent 把整段文本当最终回答）；其它 provider 照常透传（其 chatWithTools 有效）。
+  const forwardTools = providerId === 'lovart' ? [] : tools;
   const out = await relayGenerate({
     providerId,
     capability: 'chat',
     model,
     messages,
-    tools: tools.length ? tools : undefined,
-    toolChoice: body.tool_choice,
+    tools: forwardTools.length ? forwardTools : undefined,
+    toolChoice: forwardTools.length ? body.tool_choice : undefined,
     timeoutMs: normalizeOverrideMs(body.timeout_ms ?? body.timeoutMs),
     persist: false, // 文本不落盘（聊天数据流）
   });
@@ -119,6 +159,9 @@ export async function handleOpenAiChatCompletions(
     return sendOpenAiError(res, out.error || '聊天失败');
   }
   const hasTools = Array.isArray(out.toolCalls) && out.toolCalls.length > 0;
+  if (wantStream) {
+    return streamChatCompletion(res, { model, text: out.text ?? '', toolCalls: out.toolCalls });
+  }
   const message: Record<string, unknown> = {
     role: 'assistant',
     content: out.text ?? (hasTools ? null : ''),
