@@ -95,6 +95,17 @@ import {
   handleLocalPatchMerge,
   handleLocalPatchFingerprint,
 } from './routes/localPatch.js';
+// OpenAI 兼容面：把 Lovart 全能力暴露成 BeefTV 三插件（chat/images/videos）可直连的渠道。
+// 详见 routes/openaiCompat.ts 文件头（只做线协议翻译，复用 relayGenerate / relay-poll）。
+import {
+  handleOpenAiModels,
+  handleOpenAiChatCompletions,
+  handleOpenAiImagesGenerations,
+  handleOpenAiVideosCreate,
+  handleOpenAiVideosGet,
+  handleOpenAiVideosContent,
+  handleOpenAiVideosCancel,
+} from './routes/openaiCompat.js';
 
 // handler 第三参统一为 url:URL。无需第三参者少参直接放；需 string id 者闭包提取。
 // 返回值允许 boolean：catch-all 的 handlePassthrough 返回 Promise<boolean>（转发判定），
@@ -256,6 +267,21 @@ export const routes: Route[] = [
   { method: 'POST', pattern: '/api/local-patch/crop', handler: handleLocalPatchCrop },
   { method: 'POST', pattern: '/api/local-patch/merge', handler: handleLocalPatchMerge },
   { method: 'POST', pattern: '/api/local-patch/fingerprint', handler: handleLocalPatchFingerprint },
+
+  // ── OpenAI 兼容面（BeefTV 三插件可直连；详见 routes/openaiCompat.ts）──
+  // ⚠️ 路径前缀不一致是 BeefTV 插件 manifest 写死的差异：chat 无 `/v1`，image/video 有 `/v1`。
+  //    两条别名都挂，BeefTV 侧 baseUrl 统一填 `http://127.0.0.1:18080` 即可全通。
+  { method: 'GET', pattern: '/v1/models', handler: handleOpenAiModels },
+  { method: 'POST', pattern: '/chat/completions', handler: handleOpenAiChatCompletions },
+  { method: 'POST', pattern: '/v1/chat/completions', handler: handleOpenAiChatCompletions },
+  { method: 'POST', pattern: '/v1/images/generations', handler: handleOpenAiImagesGenerations },
+  { method: 'POST', pattern: '/images/generations', handler: handleOpenAiImagesGenerations },
+  { method: 'POST', pattern: '/v1/videos', handler: handleOpenAiVideosCreate },
+  { method: 'POST', pattern: '/videos', handler: handleOpenAiVideosCreate },
+  // 顺序：`.../content` 必须先于裸 `.../{id}`（后者 `[^/]+$` 不含 `/content`，但前置更稳）。
+  { method: 'GET', pattern: /^\/v1\/videos\/[^/]+\/content$/, handler: handleOpenAiVideosContent },
+  { method: 'GET', pattern: /^\/v1\/videos\/[^/]+$/, handler: handleOpenAiVideosGet },
+  { method: 'DELETE', pattern: /^\/v1\/videos\/[^/]+$/, handler: handleOpenAiVideosCancel },
 
   // ── catch-all 透传（必须最后，标 catchAll）──
   // pattern 用永远命中的正则；是否转发由 handlePassthrough 内部判定（isLocalOnlyPath）。
