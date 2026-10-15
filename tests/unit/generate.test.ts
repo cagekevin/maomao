@@ -8,7 +8,6 @@
  *   - 模态差异化（image 比例→像素查表；video 时长/清晰度/总超时）
  *   - abort 统一抛 AbortError（修正 1 选 A + §4.2.1 铁律：message 恒可被 /abort/i 匹配）
  *   - 参考图统一出口守卫（normalizeAssetUrlsForSend）/ 参考图 attach 消息块
- *   - resolveImagePixel 查表纯函数（迁自 imageApi → base/utils/imagePixel.ts）
  *   - barrel 契约（只导出具名门面，不导出 generate）
  *
  * 注：#5/#6/#9（chatStream 相关）随 L3b 并入本文件。
@@ -41,7 +40,6 @@ vi.mock('../../src/components/generate/lib/relayProxy.ts', () => ({
 }));
 
 const api = await import('@/components/generate/lib/generate');
-const { resolveImagePixel } = await import('@/components/generate/lib/imagePixel');
 const { normalizeAssetUrlsForSend } =
   await import('../../src/components/base/utils/media/assetUrl.ts');
 
@@ -98,7 +96,7 @@ describe('generate — 三模态差异与信封（#2/#3 + 迁移）', () => {
     expect(intent.providerId).toBe('lovart');
     expect(intent.model).toBe('gpt-image-2-low');
     expect(intent.prompt).toBe('a cat');
-    expect(intent.size).toBe('880x1776'); // 9:16 + 1K → 精确像素
+    expect(intent.size).toBe('1080x1920'); // 9:16 + 1K → 精确像素（严格 9:16）
     expect(intent.frontTaskId).toBe('front-task-1');
     // 【143 · S4′】不再传 `timeoutMs` —— 等待上限由**后端**在 POST 响应里告知（`budgetMs`）。
     // 断言"该字段不存在"= 锁住「前端不自持上游预算」这个新契约：回退到本地常量即红。
@@ -282,25 +280,6 @@ describe('generate — chat 消息与透传（迁移自 chatApi）', () => {
     });
     const sent = h.mockRelayChat.mock.calls[0][0].messages;
     expect(sent[0].content).toBe('hi');
-  });
-});
-
-describe('resolveImagePixel 查表（#7）', () => {
-  it('Auto / 空 → 空串（不指定 size）', () => {
-    expect(resolveImagePixel('Auto', '2K')).toBe('');
-    expect(resolveImagePixel('auto', '1K')).toBe('');
-    expect(resolveImagePixel('', '1K')).toBe('');
-  });
-  it('比例+档位 → 精确像素', () => {
-    expect(resolveImagePixel('9:16', '2K')).toBe('1152x2048');
-    expect(resolveImagePixel('16:9', '2K')).toBe('2048x1152');
-    expect(resolveImagePixel('1:1', '4K')).toBe('2880x2880');
-  });
-  it('档位查不到 → 回退该比例 1K', () => {
-    expect(resolveImagePixel('9:16', '8K')).toBe('880x1776');
-  });
-  it('比例未知 → 兜底 1024x1024', () => {
-    expect(resolveImagePixel('99:1', '1K')).toBe('1024x1024');
   });
 });
 

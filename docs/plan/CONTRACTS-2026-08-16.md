@@ -193,7 +193,7 @@ audio: audios / reference_audios / files
 prompt（或 input）      必需
 image_urls / images / attachments / reference_images / videos / audios / files   参考素材
 model                   模型名
-size                    像素尺寸（如 880x1776，由前端查表转精确像素）
+size                    像素尺寸（如 1080x1920，由前端查表转精确像素）
 resolution              清晰度（视频：720p/1080p 等）
 duration / aspect_ratio 视频时长/比例
 wait                    true→同步SSE模式；false/缺省→异步提交返回task_id
@@ -235,7 +235,7 @@ webhook                 可选回调地址
 - 同步/异步由 **provider.image_mode** 决定（API 设置页「图片生成模式」）：
   - `sync`：URL 带 `?wait=1` → 网关同步 SSE 返回；
   - `async`：提交返回 `[{status:'submitted', task_id}]` → 轮询 `GET /v1/tasks/{id}`。
-- **比例×清晰度 → 精确像素查表**（`resolveImagePixel`）：把「比例+档位」转固定像素（如 `9:16+1K → 880x1776`），避免不同 AI 理解错位。`Auto`/空 → 不指定 size。
+- **比例×清晰度 → 精确像素查表**（`resolveImagePixel`）：把「比例+档位」转固定像素（如 `9:16+1K → 1080x1920`），避免不同 AI 理解错位。`Auto`/空 → 不指定 size。
 - 请求体：除 `prompt/model/n` 外，同时带 `size`(像素)、`image_size`(档位大写)、`resolution`(档位)、`quality`(非auto)、`image_urls`(参考图)。
 - 返回信封：`{ok:true, url}` 或 `{ok:false, error}`。
 
@@ -334,7 +334,7 @@ discountVideo→特惠视频  custom→万能  rhWebapp→AI应用
 5. **任务中心重复任务 bug**：`persistThreadId` 绝不为网关 `task_id` 单独建行（那是 `nodeId=null` 垃圾来源），只为前端 `frontTaskId` 行补 `thread_id`。
 6. **`/api/tasks` 返回 `id===taskId`**；前端去重键用 `id`，否则 reload 后重复累加。
 7. **视频强制异步**，不读 `image_mode`，不 sync；提交即返回 `task_id` 必须回填 `pollTaskId` 否则刷新断链。
-8. **比例必须查表转精确像素**（如 `9:16+1K→880x1776`），不要原样传「9:16 + 1K」给上游。
+8. **比例必须查表转精确像素**（如 `9:16+1K→1080x1920`），不要原样传「9:16 + 1K」给上游。
 9. **`localTool` 进程 fetch 不继承浏览器代理**；下载 Lovart CDN 图用 `fetchWithProxy`（直连优先，失败走本机代理端口）避免 400 超时。
 10. **KV `set` 会外置 base64 为磁盘文件**，契约返回仍是 `{ok:true}`，失败字段自动回退保留原 base64，不破坏契约。
 
