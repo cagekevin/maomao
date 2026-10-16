@@ -36,14 +36,12 @@ import {
   getTrackHeight,
   getCumulativeHeightBefore,
   getTotalTracksHeight,
-  canTracktHaveAudio,
-  canTrackBeHidden,
-  isTrackHidden,
-  isTrackMuted,
+  getTrackControls,
+  type TTrackControlKey,
   getTimelineZoomMin,
   getTimelinePaddingPx,
-  isMainTrack,
 } from '@/components/videoEditor/engine/timeline';
+import type { EditorCore } from '@/components/videoEditor/engine/core';
 import { TimelineToolbar } from './timeline-toolbar';
 import { useScrollSync } from '@/components/videoEditor/hooks-cutia/timeline/use-scroll-sync';
 import { useElementSelection } from '@/components/videoEditor/hooks-cutia/timeline/element/use-element-selection';
@@ -58,6 +56,41 @@ import { DragLine } from './drag-line';
 import { invokeAction } from '@/components/videoEditor/engine/lib/actions';
 import { useTrackReorder } from '@/components/videoEditor/hooks-cutia/timeline/use-track-reorder';
 import { cn } from '@/components/videoEditor/utils/ui';
+
+/**
+ * 轨道可控项的**图标 / 文案 / 动作（唯一映射）** —— 左侧图标区与右键菜单**都读它**。
+ *
+ * 【为什么要有这张表】原先"图标区"与"右键菜单"各写一遍同一个动作的图标、文案、动作与守卫：
+ * 图标区有守卫（`canTracktHaveAudio` / `canTrackBeHidden`）、菜单**两个都没写** ⇒ 文本 / 贴纸轨
+ * 的右键里出现「静音轨道」、音频轨里出现「隐藏轨道」，点了没反应。
+ *
+ * 【现在的分工】**可用性**由 `getTrackControls(track)` 一份声明，**外观与动作**由本表一份；
+ * 两处渲染都遍历那份声明 ⇒ 不可能分叉（不是"拦住"，是**不可用的项根本不生成**）。
+ */
+const TRACK_CONTROL_META: Record<
+  TTrackControlKey,
+  {
+    icons: { on: LucideIcon; off: LucideIcon };
+    labels: { on: string; off: string };
+    run: (args: { editor: EditorCore; trackId: string }) => void;
+  }
+> = {
+  mute: {
+    icons: { on: Volume2, off: VolumeX },
+    labels: { on: '取消静音轨道', off: '静音轨道' },
+    run: ({ editor, trackId }) => editor.timeline.toggleTrackMute({ trackId }),
+  },
+  visibility: {
+    icons: { on: Eye, off: EyeOff },
+    labels: { on: '显示轨道', off: '隐藏轨道' },
+    run: ({ editor, trackId }) => editor.timeline.toggleTrackVisibility({ trackId }),
+  },
+  remove: {
+    icons: { on: Trash2, off: Trash2 },
+    labels: { on: '删除轨道', off: '删除轨道' },
+    run: ({ editor, trackId }) => editor.timeline.removeTrack({ trackId }),
+  },
+};
 
 export function VideoEditorTimeline() {
   const tracksContainerHeight = { min: 0, max: 800 };
@@ -258,6 +291,9 @@ export function VideoEditorTimeline() {
                         reorderState.dragTrackId !== track.id;
                       const isBeingDragged =
                         reorderState.isDragging && reorderState.dragTrackId === track.id;
+                      // 【唯一可用性声明】本条轨有哪些操作由这里决定 —— 图标区与右键菜单
+                      // **都遍历它**（不可用的操作不会出现在任一处 ⇒ 不存在"漏守卫"）。
+                      const controls = getTrackControls(track);
 
                       return (
                         <div
@@ -286,34 +322,19 @@ export function VideoEditorTimeline() {
                             }}
                           />
                           <div className="flex min-w-0 flex-1 items-center justify-end gap-2">
-                            {canTracktHaveAudio(track) && (
-                              <TrackToggleIcon
-                                isOff={isTrackMuted(track)}
-                                icons={{
-                                  on: Volume2,
-                                  off: VolumeX,
-                                }}
-                                onClick={() =>
-                                  editor.timeline.toggleTrackMute({
-                                    trackId: track.id,
-                                  })
-                                }
-                              />
-                            )}
-                            {canTrackBeHidden(track) && (
-                              <TrackToggleIcon
-                                isOff={isTrackHidden(track)}
-                                icons={{
-                                  on: Eye,
-                                  off: EyeOff,
-                                }}
-                                onClick={() =>
-                                  editor.timeline.toggleTrackVisibility({
-                                    trackId: track.id,
-                                  })
-                                }
-                              />
-                            )}
+                            {/* 图标区：遍历同一份 `controls`（`remove` 只在右键菜单里出现）。 */}
+                            {controls
+                              .filter(({ key }) => key !== 'remove')
+                              .map(({ key, isOff }) => (
+                                <TrackToggleIcon
+                                  key={key}
+                                  isOff={isOff}
+                                  icons={TRACK_CONTROL_META[key].icons}
+                                  onClick={() =>
+                                    TRACK_CONTROL_META[key].run({ editor, trackId: track.id })
+                                  }
+                                />
+                              ))}
                             <TrackIcon track={track} />
                           </div>
                         </div>
@@ -426,6 +447,8 @@ export function VideoEditorTimeline() {
                     tracks.map((track, index) => {
                       const isBeingDragged =
                         reorderState.isDragging && reorderState.dragTrackId === track.id;
+                      // 与左侧图标区**同一份**声明（含 `remove`）。
+                      const controls = getTrackControls(track);
 
                       return (
                         <ContextMenu key={track.id}>
@@ -477,41 +500,28 @@ export function VideoEditorTimeline() {
                             >
                               {'粘贴元素'}
                             </ContextMenuItem>
-                            <ContextMenuItem
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                timeline.toggleTrackMute({
-                                  trackId: track.id,
-                                });
-                              }}
-                            >
-                              <Volume2 />
-                              <span>{isTrackMuted(track) ? '取消静音轨道' : '静音轨道'}</span>
-                            </ContextMenuItem>
-                            <ContextMenuItem
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                timeline.toggleTrackVisibility({
-                                  trackId: track.id,
-                                });
-                              }}
-                            >
-                              <Eye />
-                              <span>{isTrackHidden(track) ? '显示轨道' : '隐藏轨道'}</span>
-                            </ContextMenuItem>
-                            <ContextMenuItem
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                timeline.removeTrack({
-                                  trackId: track.id,
-                                });
-                              }}
-                              variant="destructive"
-                              disabled={isMainTrack(track)}
-                            >
-                              <Trash2 />
-                              {'删除轨道'}
-                            </ContextMenuItem>
+                            {/* 开关项**遍历同一份 `controls`**（与左侧图标区同源）——
+                                不可用的操作根本不在列表里，故此处**不需要任何能力守卫**。
+                                （旧实现：图标区有守卫、菜单两个都没写 ⇒ 文本 / 贴纸轨的右键里
+                                  出现「静音轨道」、音频轨里出现「隐藏轨道」，点了没反应。） */}
+                            {controls.map(({ key, isOff }) => {
+                              const meta = TRACK_CONTROL_META[key];
+                              const Icon = isOff ? meta.icons.off : meta.icons.on;
+
+                              return (
+                                <ContextMenuItem
+                                  key={key}
+                                  variant={key === 'remove' ? 'destructive' : undefined}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    meta.run({ editor, trackId: track.id });
+                                  }}
+                                >
+                                  <Icon />
+                                  <span>{isOff ? meta.labels.on : meta.labels.off}</span>
+                                </ContextMenuItem>
+                              );
+                            })}
                           </ContextMenuContent>
                         </ContextMenu>
                       );

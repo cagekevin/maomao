@@ -19,6 +19,14 @@ export class DeleteElementsCommand extends Command {
     const editor = getEditor();
     this.savedState = editor.timeline.getTracks();
 
+    // 【空入参 ⇒ 什么都不做】否则会走完整流程：`updateTracks` 收到内容未变的新数组
+    // （notify + 压一条**空历史记录**），且末尾那条 `filter` 还会顺手删掉本来就空的非主轨
+    // —— 一次"什么都没删"的操作却改了数据。调用方（action handler）也守，但命令侧必须兜底。
+    if (this.elements.length === 0) {
+      this.markNotApplied();
+      return;
+    }
+
     const deletedMediaIds = new Set<string>();
     for (const track of this.savedState) {
       for (const element of track.elements) {

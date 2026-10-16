@@ -15,14 +15,16 @@ export class ToggleTrackMuteCommand extends Command {
     this.savedState = editor.timeline.getTracks();
 
     const targetTrack = this.savedState.find((track) => track.id === this.trackId);
-    if (!targetTrack) {
+    // 【不可静音 ⇒ 提前返回】文本 / 贴纸轨没有 `muted` 语义。若不在此返回，
+    // `updatedTracks` 会是一个**内容逐项未变的新数组**：`updateTracks` 照样 notify，
+    // 并在历史栈里压一条**空记录**（用户按撤销时"什么都没变"）。
+    if (!targetTrack || !canTracktHaveAudio(targetTrack)) {
+      this.markNotApplied();
       return;
     }
 
     const updatedTracks = this.savedState.map((track) =>
-      track.id === this.trackId && canTracktHaveAudio(track)
-        ? { ...track, muted: !isTrackMuted(track) }
-        : track,
+      track.id === this.trackId ? { ...track, muted: !isTrackMuted(track) } : track,
     );
 
     editor.timeline.updateTracks(updatedTracks);

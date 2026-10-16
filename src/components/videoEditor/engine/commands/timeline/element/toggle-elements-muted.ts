@@ -2,6 +2,7 @@ import { Command } from '@/components/videoEditor/engine/commands/base-command';
 import type { TimelineTrack } from '@/components/videoEditor/types/timeline';
 import {
   canElementHaveAudio,
+  findElementInTracks,
   isElementMuted,
 } from '@/components/videoEditor/engine/timeline/element-utils';
 import { getEditor } from '@/components/videoEditor/engine/core/editorInstance';
@@ -17,21 +18,30 @@ export class ToggleElementsMutedCommand extends Command {
     const editor = getEditor();
     this.savedState = editor.timeline.getTracks();
 
+    // 【可静音集合（唯一判据）】只有能出声的元素（video / audio）才谈静音；
+    // 集合为空 ⇒ 提前返回（否则压一条**空历史记录**，用户按撤销时"什么都没变"）。
     const mutableElements = this.elements.filter(({ trackId, elementId }) => {
-      const track = this.savedState?.find((t) => t.id === trackId);
-      const element = track?.elements.find((e) => e.id === elementId);
-      return element && canElementHaveAudio(element);
+      const element = findElementInTracks({
+        tracks: this.savedState ?? [],
+        trackId,
+        elementId,
+      });
+      return element !== null && canElementHaveAudio(element);
     });
 
     if (mutableElements.length === 0) {
+      this.markNotApplied();
       return;
     }
 
     const shouldMute = mutableElements.some(({ trackId, elementId }) => {
-      const track = this.savedState?.find((t) => t.id === trackId);
-      const element = track?.elements.find((e) => e.id === elementId);
+      const element = findElementInTracks({
+        tracks: this.savedState ?? [],
+        trackId,
+        elementId,
+      });
       // `mutableElements` 已按 `canElementHaveAudio` 过滤 ⇒ 这里只问"当前是否已静音"。
-      return element ? !isElementMuted(element) : false;
+      return element !== null && !isElementMuted(element);
     });
 
     const updatedTracks = this.savedState.map((track) => {

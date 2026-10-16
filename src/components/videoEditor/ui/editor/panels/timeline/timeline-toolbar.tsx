@@ -123,9 +123,12 @@ function ToolbarLeftSection() {
           onClick={({ event }) => handleAction({ action: 'split-right', event })}
         />
 
+        {/* 「复制 / 删除」必须**有选中**才有意义 ⇒ 无选中时灰掉（与「定格」同款）。
+            命令侧也各加了空入参兜底 —— UI 门是体验，命令门是治本。 */}
         <ToolbarButton
           icon={<Copy />}
           tooltip={'复制元素'}
+          disabled={selectedElements.length === 0}
           onClick={({ event }) => handleAction({ action: 'duplicate-selected', event })}
         />
 
@@ -139,6 +142,7 @@ function ToolbarLeftSection() {
         <ToolbarButton
           icon={<Trash2 />}
           tooltip={'删除元素'}
+          disabled={selectedElements.length === 0}
           onClick={({ event }) => handleAction({ action: 'delete-selected', event })}
         />
 

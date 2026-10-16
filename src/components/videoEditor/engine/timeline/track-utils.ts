@@ -91,6 +91,46 @@ export function isTrackMuted(track: TimelineTrack): boolean {
   return canTracktHaveAudio(track) && track.muted === true;
 }
 
+/** 轨道可控项（时间轴上的图标按钮与右键菜单项共用同一份声明）。 */
+export type TTrackControlKey = 'mute' | 'visibility' | 'remove';
+
+export interface TTrackControl {
+  key: TTrackControlKey;
+  /** 该开关当前处于"关"态（喇叭已静音 / 眼睛已隐藏）；`remove` 无此语义，恒 `false`。 */
+  isOff: boolean;
+}
+
+/**
+ * **「这条轨有哪些操作可用」的唯一声明** —— 图标按钮与右键菜单项**都遍历它渲染**。
+ *
+ * 【为什么必须是数据而不是两处各写 `if`】原先图标区与右键菜单是**两个独立入口**：
+ * 图标区写了能力守卫（`canTracktHaveAudio` / `canTrackBeHidden`），菜单**两个都没写** ——
+ * 于是文本 / 贴纸轨的右键里出现「静音轨道」、音频轨的右键里出现「隐藏轨道」，点了没反应。
+ * 同一判据写在两个入口 ⇒ 必然漏一个；而这类漏**没有编译期兜底**（都是合法 JSX）。
+ *
+ * ⇒ 现在两处**遍历同一份数据**：不可用的操作**根本不会出现在列表里** ——
+ *   不是"拦住"，是**不存在**。
+ *
+ * 【诚实边界】它保证的是"UI 生不出不可用的项"；`TimelineManager` 的开关方法仍是公开 API，
+ * 直接调用时能力判定仍在那一个谓词里（`canTracktHaveAudio` / `canTrackBeHidden`）——
+ * 判据只有一份，不存在第二处写法。
+ */
+export function getTrackControls(track: TimelineTrack): TTrackControl[] {
+  const controls: TTrackControl[] = [];
+
+  if (canTracktHaveAudio(track)) {
+    controls.push({ key: 'mute', isOff: isTrackMuted(track) });
+  }
+  if (canTrackBeHidden(track)) {
+    controls.push({ key: 'visibility', isOff: isTrackHidden(track) });
+  }
+  if (!isMainTrack(track)) {
+    controls.push({ key: 'remove', isOff: false });
+  }
+
+  return controls;
+}
+
 export function getTrackClasses({ type }: { type: TrackType }) {
   // 轨道底色视觉已收敛到 videoEditorTheme.css §8（.ve-clip-bg-*）
   return `ve-clip-bg-${type}`;

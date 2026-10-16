@@ -113,6 +113,26 @@ export function isElementMuted(element: TimelineElement): boolean {
   return canElementHaveAudio(element) && element.muted === true;
 }
 
+/**
+ * **按 `(trackId, elementId)` 在轨道快照里定位元素（唯一查找原语）**。
+ *
+ * 【为什么收】"选中项 = `{trackId, elementId}`" 是所有批量命令的入参形态，
+ * 定位元素要连写两层可选链（`tracks.find(...)?.elements.find(...)`）—— 各命令里
+ * 抄了 4 遍，任一处把 `?.` 写漏或把 id 比错字段就是"这条命令静默什么都没做"。
+ */
+export function findElementInTracks({
+  tracks,
+  trackId,
+  elementId,
+}: {
+  tracks: TimelineTrack[];
+  trackId: string;
+  elementId: string;
+}): TimelineElement | null {
+  const track = tracks.find((t) => t.id === trackId);
+  return track?.elements.find((e) => e.id === elementId) ?? null;
+}
+
 export function requiresMediaId({ element }: { element: CreateTimelineElement }): boolean {
   return (
     element.type === 'video' ||

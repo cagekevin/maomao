@@ -30,6 +30,13 @@ export class SplitElementsCommand extends Command {
     this.previousSelection = editor.selection.getSelectedElements();
     this.rightSideElements = [];
 
+    // 【空入参 ⇒ 什么都不做】否则每条轨都原样返回（内容未变的新数组）⇒
+    // `updateTracks` notify 一次并压一条**空历史记录**（用户按撤销时"什么都没变"）。
+    if (this.elements.length === 0) {
+      this.markNotApplied();
+      return;
+    }
+
     const updatedTracks = this.savedState.map((track) => {
       const elementsToSplit = this.elements.filter((el) => el.trackId === track.id);
 

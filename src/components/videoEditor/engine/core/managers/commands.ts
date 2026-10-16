@@ -11,9 +11,21 @@ export class CommandManager {
 
   execute({ command }: { command: Command }): Command {
     command.execute();
+    this.pushIfApplied({ command });
+    return command;
+  }
+
+  /**
+   * 【入栈唯一判据】只有**真的改动了状态**的命令才进撤销历史。
+   *
+   * 空转（`getDidApply() === false`）⇒ 不入栈，且**不清 redo**（历史状态整体不动 ——
+   * 既然什么都没改，就不该剥夺用户的重做能力）。判据本体在 `Command.markNotApplied()`。
+   */
+  private pushIfApplied({ command }: { command: Command }): void {
+    if (!command.getDidApply()) return;
+
     this.history.push(command);
     this.redoStack = [];
-    return command;
   }
 
   /**

@@ -28,6 +28,14 @@ export class DuplicateElementsCommand extends Command {
     this.previousSelection = editor.selection.getSelectedElements();
     this.duplicatedElements = [];
 
+    // 【空入参 ⇒ 什么都不做】没有可复制的元素时若继续，`updatedTracks` 会是一个
+    // **内容完全未变的新数组**：`updateTracks` 照样 notify，并在历史栈里压一条**空记录**
+    // （用户按撤销时"什么都没变"）。工具栏「复制元素」在无选中时正会走到这里。
+    if (this.elements.length === 0) {
+      this.markNotApplied();
+      return;
+    }
+
     const updatedTracks = [...this.savedState];
 
     for (const track of this.savedState) {
