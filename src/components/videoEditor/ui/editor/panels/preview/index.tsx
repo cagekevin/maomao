@@ -49,8 +49,6 @@ function RenderTreeController() {
   const mediaAssets = editor.media.getAssets();
   const activeProject = editor.project.getActive();
 
-  const { width, height } = usePreviewSize();
-
   useDeepCompareEffect(() => {
     if (!activeProject) return;
 
@@ -59,22 +57,17 @@ function RenderTreeController() {
       tracks,
       mediaAssets,
       duration,
-      canvasSize: { width, height },
-      fitCanvasSize: activeProject.settings.originalCanvasSize ?? {
-        width,
-        height,
-      },
-      background: activeProject.settings.background,
+      settings: activeProject.settings,
     });
 
     editor.renderer.setRenderTree({ renderTree });
   }, [
     tracks,
     mediaAssets,
+    // 影响渲染树的 `settings` 三项：背景 / 当前画布 / 原始画布（适配基准由 buildScene 内部派生）。
     activeProject?.settings.background,
+    activeProject?.settings.canvasSize,
     activeProject?.settings.originalCanvasSize,
-    width,
-    height,
   ]);
 
   return null;

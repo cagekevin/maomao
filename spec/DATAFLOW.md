@@ -525,6 +525,54 @@ video/depthVideo/*（上传落盘走 filesApi.uploadFileToLocal）
 director3d/App.tsx · director3d/panels/Timeline.tsx（MP4 导出走 uploadFileToLocal；TD-22-19 键盘门）
 videoEditor/ui/editor/panels/timeline/timeline-element.tsx
 videoEditor/ui/editor/panels/timeline/video-thumbnail-strip.tsx
+videoEditor/engine/timeline/track-utils.ts（**轨道状态判据唯一实现**）
+  `isTrackMuted`（导出）· `isTrackHidden` / `isElementHidden`（**模块私有**：只许经下面的投影生效）
+  `getOutputTracks(tracks)` = **「参与输出」的轨道/元素投影**（滤掉 hidden 轨与 hidden 元素）
+    ← 消费方（一律从这里取，**禁直接读 `track.elements` 做输出**）：
+        画面：engine/services/renderer/scene-builder.ts（**图层序 = tracks 数组序**，下标 0 = 最上层 ⇒ 绘制序取反序）
+              下游 3 处 buildScene：预览 ui/editor/panels/preview · 导出 renderer-manager · 缩略图 project-manager
+        命中：engine/lib/preview/hit-test.ts（与渲染同一条反序式子，点击层与画面层一致）
+        吸附：hooks-cutia/use-preview-interaction.ts
+        声音：engine/lib/media/audio.ts::collectAudioSources（**预览与导出共用的唯一采集判据**）
+    ⇒ 消费方**拿不到** hidden 项 ⇒ 漏判在结构上无处发生（时间轴"眼睛"图标读标志本身属显示，不经此）
+
+videoEditor 的「输出 = 预览」五条共用真源（**每条只能有一个产生方**）：
+  ① 画面树：scene-builder.buildScene({ settings, tracks, mediaAssets, duration })
+         ← 预览 RenderTreeController / 导出 renderer-manager / 缩略图 project-manager（三处同函数）
+  ② 音频：engine/lib/media/audio.ts::collectAudioSources（判据，纯函数）→ resolveAudioSourceBuffer（取字节 + 解码唯一出口）
+         → mixAudioChannels（导出/字幕混轨）· AudioManager.scheduleClipNode（实时播放调度）
+         消费方两个：预览 AudioManager / 导出+字幕 createTimelineAudioBuffer
+         产物判据：`createTimelineAudioBuffer` **一段都没混进去**（全静音 / 全解析失败）⇒ 返回 null
+           = 不产出音轨（不出"全零音轨"这种没内容的东西）
+  ③ 适配基准尺寸：engine/lib/canvas-size.ts::getFitCanvasSize（= `originalCanvasSize ?? canvasSize`）
+         **派生收在产生方内部**：buildScene 与 hitTestElements 都收 `settings`，调用方拿不到该参数
+  ④ 帧时刻：engine/lib/time.ts::getFrameCount / getLastFrameTime（预览夹末帧与导出循环**同数、同刻**）
+  ⑤ 元素矩形：engine/lib/preview/element-bounds.ts::getElementCanvasRect（中心 + 宽高 + 旋转）
+         消费方：选中框 selection-overlay · 命中 hit-test · 吸附 use-preview-interaction
+         尺寸来源 = `MediaAsset.width/height`（**登记入口补全**：media-manager.addMediaAsset →
+           probeMediaDimensions；缺则回落画布尺寸）；渲染侧经 scene-builder 传同一个值
+           （`VisualNodeParams.mediaSize`）⇒ 画面 / 框子 / 命中三者同一套坐标
+         尺寸回落规则唯一实现：engine/lib/canvas-size.ts::getMediaDisplaySize（`media.width/height`
+           缺失**或非法**⇒ 回落画布尺寸；渲染的 `mediaSize` 与几何读同一个值）
+         contain 算式唯一实现：engine/lib/canvas-size.ts::getContainScale（渲染与几何共用）
+         文本排版唯一实现：engine/services/renderer/text-layout.ts::layoutText（渲染与几何共用同一份
+           字体串 / 换行 / 量宽高；曾三份，其中命中用的是 `0.6em` **估算**公式）
+         适配基准**必填**：`VisualNodeParams.fitCanvasSize`（渲染与几何必须同基准；曾因 `StickerNode`
+           漏传而回落"当前画布"⇒ 改过画布尺寸的作品上贴纸框子与画面错位）
+         文本几何口径：垂直按 `textBaseline`（bottom ⇒ 中心 = 底边 − H/2）；水平按 `textAlign`，
+           且**单行与多行锚点不同**（单行从锚点起 · 多行从 `∓boxWidth/2` 起）—— 两套分开算
+  ⑥ 元素时间区间：engine/timeline/element-utils.ts::getElementTimeRange（`[start, start + duration)` 唯一定义）
+         区间**判定**各一处（边界口径不同，别在调用方内联比较）：
+           · isElementActiveAtTime（半开 `[start,end)`）：命中 / 框子 / 吸附 / 文本绘制 / 定格可用性 /
+             冻结范围校验 共 6 处消费（其中一处曾写成它的德摩根展开）
+           · canSplitElementAtTime（开区间 `(start,end)`）：分割的**选取侧** `getElementsAtTime`
+             与**执行侧** `SplitElementsCommand` 守卫共用（曾各写一份 ⇒ 会出现"选得出来但切不动"）
+  ⑦ 素材索引：engine/lib/media/media-utils.ts::indexMediaAssets（`Map<assetId, MediaAsset>` 唯一派生）
+         消费方：scene-builder · hit-test · selection-overlay · use-preview-interaction · collectAudioSources
+  ⑦ 「导出**选中**片段」入参：engine/lib/export.ts::getSelectedVideoClip
+         **显式选中优先于 `hidden`**（该函数把轨与元素的 `hidden` 清成 false）：单条导出的语义是
+           "把这一条导出来"，而 `hidden` 只约束**整片输出**。不清的后果是**假成功** ——
+           `getOutputTracks` 滤掉它 ⇒ 渲染树空 ⇒ 导出全黑却报「片段已导出」
 videoEditor/engine/services/storage/service.ts（**载体已收口为单载体** 2026-09-16 · TD-02-35：
   工程本体/列表/活跃 id/素材元数据 = KV 键（键构造唯一真源 base/core/videoEditorKeys.ts，
   素材元数据键 = video_editor_media_meta_{projectId}）· 素材二进制 = localTool /files/ · 偏好/收藏 = contentStore local。

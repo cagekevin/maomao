@@ -14,6 +14,7 @@ import {
   canElementHaveAudio,
   canElementBeHidden,
   hasMediaId,
+  isElementHidden,
 } from '@/components/videoEditor/engine/timeline';
 import {
   ContextMenu,
@@ -310,7 +311,7 @@ function ElementInner({
     <div
       className={`ve-clip relative h-full cursor-pointer overflow-hidden ${getTrackClasses({
         type: track.type,
-      })} ${isBeingDragged ? 'z-30' : 'z-10'} ${canElementBeHidden(element) && element.hidden ? 'opacity-50' : ''}`}
+      })} ${isBeingDragged ? 'z-30' : 'z-10'} ${isElementHidden(element) ? 'opacity-50' : ''}`}
     >
       <button
         type="button"
@@ -328,7 +329,7 @@ function ElementInner({
           />
         </div>
 
-        {canElementBeHidden(element) && element.hidden && (
+        {isElementHidden(element) && (
           <div className="ve-veil pointer-events-none">
             <EyeOff className="size-6" />
           </div>
@@ -600,7 +601,7 @@ function VisibilityMenuItem({
   isMultipleSelected: boolean;
   isCurrentElementSelected: boolean;
 }) {
-  const isHidden = canElementBeHidden(element) && element.hidden;
+  const isHidden = isElementHidden(element);
 
   const getIcon = () => {
     if (isMultipleSelected && isCurrentElementSelected) {

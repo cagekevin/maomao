@@ -7,7 +7,7 @@ import { useMediaPreviewStore } from '@/components/videoEditor/stores/media-prev
 import { useActionHandler } from '@/components/videoEditor/hooks-cutia/actions/use-action-handler';
 import { useEditor } from '../use-editor';
 import { useElementSelection } from '../timeline/element/use-element-selection';
-import { getElementsAtTime } from '@/components/videoEditor/engine/timeline';
+import { getElementsAtTime, isElementActiveAtTime } from '@/components/videoEditor/engine/timeline';
 // 更新(2026-09-14)：TTS 域已删，占位为诚实失败。
 const generateAndInsertSpeech = async (): Promise<never> => {
   throw new Error('语音生成未移植（tts 域已移除）');
@@ -392,10 +392,9 @@ export function useEditorActions() {
       const sourceTrack = source.track;
 
       const currentTime = editor.playback.getCurrentTime();
-      if (
-        currentTime < sourceElement.startTime ||
-        currentTime >= sourceElement.startTime + sourceElement.duration
-      ) {
+      // 与画面 / 命中**同一判据**（这里曾写成它的德摩根展开 `t < start || t >= end` ——
+      // 同一判据的第六种写法，边界一改就与画面口径分叉）。
+      if (!isElementActiveAtTime({ element: sourceElement, time: currentTime })) {
         videoEditorToast.warning('请把播放头移到视频范围内');
         return;
       }
@@ -460,7 +459,7 @@ export function useEditorActions() {
             tracks,
             sourceTrackId: sourceTrack.id,
             startTime: currentTime,
-            endTime: currentTime + duration,
+            duration,
           });
           const commands: Command[] = [addMediaCommand];
 

@@ -14,33 +14,49 @@ import { ColorNode } from './nodes/color-node';
 import { BlurBackgroundNode } from './nodes/blur-background-node';
 import { TransitionNode } from './nodes/transition-node';
 import type { BaseNode } from './nodes/base-node';
-import type { TBackground, TCanvasSize } from '@/components/videoEditor/types/project';
+import type { TCanvasSize, TProjectSettings } from '@/components/videoEditor/types/project';
 import { DEFAULT_BLUR_INTENSITY } from '@/components/videoEditor/constants/project-constants';
-import { isMainTrack } from '@/components/videoEditor/engine/timeline';
+import { getOutputTracks } from '@/components/videoEditor/engine/timeline';
+import { getElementTimeRange } from '@/components/videoEditor/engine/timeline/element-utils';
+import { indexMediaAssets } from '@/components/videoEditor/engine/lib/media/media-utils';
 import { isBottomAlignedSubtitleText } from '@/components/videoEditor/engine/timeline/text-utils';
+import {
+  getFitCanvasSize,
+  getMediaDisplaySize,
+} from '@/components/videoEditor/engine/lib/canvas-size';
 
+/**
+ * 【为什么收 `settings` 而不是 `canvasSize` + `fitCanvasSize`】适配基准
+ * （`getFitCanvasSize`）曾由**每个调用方各自算一遍**（预览 / 导出 / 缩略图 / 命中四处），
+ * 任一处口径写歪，画面 / 框子 / 命中三者立刻互相错位，且只在"改过画布尺寸"的作品上显形。
+ * 现把派生收进本函数内部 ⇒ 调用方**拿不到** `fitCanvasSize` 这个参数，也就无从写歪。
+ */
 export type BuildSceneParams = {
-  canvasSize: TCanvasSize;
-  fitCanvasSize: TCanvasSize;
+  settings: Pick<TProjectSettings, 'canvasSize' | 'originalCanvasSize' | 'background'>;
   tracks: TimelineTrack[];
   mediaAssets: MediaAsset[];
   duration: number;
-  background: TBackground;
 };
 
 function buildVisualElementNode({
   element,
   mediaMap,
   fitCanvasSize,
+  canvasSize,
 }: {
   element: VideoElement | ImageElement;
   mediaMap: Map<string, MediaAsset>;
   fitCanvasSize: TCanvasSize;
+  canvasSize: TCanvasSize;
 }): BaseNode | null {
   const mediaAsset = mediaMap.get(element.mediaId);
   if (!mediaAsset?.file || !mediaAsset?.url) {
     return null;
   }
+
+  // 【显示尺寸 = 几何原语读的同一个值】走 `getMediaDisplaySize`（缺失/非法尺寸的回落规则
+  // 只有那一份）—— 否则渲染与框子/命中各按各的尺寸摆，用户"框子套不住画面"。
+  const mediaSize = getMediaDisplaySize({ media: mediaAsset, canvasSize });
 
   if (mediaAsset.type === 'video') {
     const videoElement = element as VideoElement;
@@ -54,6 +70,7 @@ function buildVisualElementNode({
       transform: element.transform,
       opacity: element.opacity,
       fitCanvasSize,
+      mediaSize,
       playbackRate: videoElement.playbackRate,
       reversed: videoElement.reversed,
     });
@@ -68,41 +85,36 @@ function buildVisualElementNode({
       transform: element.transform,
       opacity: element.opacity,
       fitCanvasSize,
+      mediaSize,
     });
   }
 
   return null;
 }
 
-function getElementEndTime({ element }: { element: VideoElement | ImageElement }): number {
-  return element.startTime + element.duration;
-}
-
 export function buildScene(params: BuildSceneParams) {
-  const { tracks, mediaAssets, duration, canvasSize, fitCanvasSize, background } = params;
+  const { tracks, mediaAssets, duration, settings } = params;
+  const { canvasSize, background } = settings;
+  const fitCanvasSize = getFitCanvasSize(settings);
 
   const rootNode = new RootNode({ duration });
-  const mediaMap = new Map(mediaAssets.map((m) => [m.id, m]));
+  const mediaMap = indexMediaAssets({ mediaAssets });
 
-  const visibleTracks = tracks.filter((track) => !('hidden' in track && track.hidden));
-
-  const orderedTracksTopToBottom = [
-    ...visibleTracks.filter((track) => !isMainTrack(track)),
-    ...visibleTracks.filter((track) => isMainTrack(track)),
-  ];
-
-  const orderedTracksBottomToTop = orderedTracksTopToBottom.slice().reverse();
+  // 【图层序唯一真源 = `tracks` 数组序】下标 0 = 时间轴列表最上一行 = **最上层**；
+  // `BaseNode` 按子节点加入顺序依次绘制、后加入者覆盖先加入者 ⇒ 绘制序取反序。
+  // 此处曾按 `isMainTrack` 把主轨强制挪到末位再反序 —— 那是**读取期重推导**用户拖过的顺序，
+  // 于是「时间轴上拖好的上下关系」在预览 / 导出 / 缩略图里全部失效（拖了等于没拖）。
+  //
+  // 【可见性】`getOutputTracks` 已把被隐藏的轨 / 元素滤掉 ⇒ 本处**看不到**它们，无从漏判。
+  const orderedTracksBottomToTop = getOutputTracks(tracks).slice().reverse();
 
   const contentNodes: BaseNode[] = [];
 
   for (const track of orderedTracksBottomToTop) {
-    const elements = track.elements
-      .filter((element) => !('hidden' in element && element.hidden))
-      .slice()
-      .sort((a, b) => {
-        if (a.startTime !== b.startTime) return a.startTime - b.startTime;
-        return a.id.localeCompare(b.id);
-      });
+    const elements = track.elements.slice().sort((a, b) => {
+      if (a.startTime !== b.startTime) return a.startTime - b.startTime;
+      return a.id.localeCompare(b.id);
+    });
 
     if (track.type === 'video') {
       const videoTrack = track as VideoTrack;
@@ -131,11 +143,13 @@ export function buildScene(params: BuildSceneParams) {
               element,
               mediaMap,
               fitCanvasSize,
+              canvasSize,
             });
             const incomingNode = buildVisualElementNode({
               element: nextElement,
               mediaMap,
               fitCanvasSize,
+              canvasSize,
             });
 
             if (outgoingNode && incomingNode) {
@@ -150,9 +164,7 @@ export function buildScene(params: BuildSceneParams) {
                   transitionStart: junctionTime - transition.duration / 2,
                   outgoingNode,
                   incomingNode,
-                  outgoingEndTime: getElementEndTime({
-                    element,
-                  }),
+                  outgoingEndTime: getElementTimeRange({ element }).end,
                   incomingStartTime: nextElement.startTime,
                 }),
               );
@@ -165,6 +177,7 @@ export function buildScene(params: BuildSceneParams) {
           element,
           mediaMap,
           fitCanvasSize,
+          canvasSize,
         });
         if (node) {
           processedIds.add(element.id);
@@ -201,6 +214,9 @@ export function buildScene(params: BuildSceneParams) {
             transform: element.transform,
             opacity: element.opacity,
             color: element.color,
+            // 必须与几何（`getElementCanvasRect` 贴纸分支）同基准 —— 否则改过画布尺寸的作品
+            // 上，框子按旧基准、画面按当前画布（`renderer.width/height` 回落），两者错位。
+            fitCanvasSize,
           }),
         );
       }

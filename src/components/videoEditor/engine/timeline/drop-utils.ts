@@ -73,8 +73,6 @@ function findBestCompatibleTrack({
   elementDuration: number;
   excludeElementId?: string;
 }): number | null {
-  const endTime = xPosition + elementDuration;
-
   // video/image → prefer main track first
   if (elementType === 'video' || elementType === 'image') {
     const mainIdx = getMainTrackIndex({ tracks });
@@ -82,7 +80,7 @@ function findBestCompatibleTrack({
       const hasOverlap = wouldElementOverlap({
         elements: tracks[mainIdx].elements,
         startTime: xPosition,
-        endTime,
+        duration: elementDuration,
         excludeElementId,
       });
       if (!hasOverlap) return mainIdx;
@@ -94,7 +92,7 @@ function findBestCompatibleTrack({
     const hasOverlap = wouldElementOverlap({
       elements: tracks[i].elements,
       startTime: xPosition,
-      endTime,
+      duration: elementDuration,
       excludeElementId,
     });
     if (!hasOverlap) return i;
@@ -245,11 +243,10 @@ export function computeDropTarget({
     trackType: track.type,
   });
 
-  const endTime = xPosition + elementDuration;
   const hasOverlap = wouldElementOverlap({
     elements: track.elements,
     startTime: xPosition,
-    endTime,
+    duration: elementDuration,
     excludeElementId,
   });
 

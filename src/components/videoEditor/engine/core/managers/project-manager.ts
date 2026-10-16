@@ -634,7 +634,7 @@ export class ProjectManager {
 
     if (duration === 0) return false;
 
-    const { canvasSize, originalCanvasSize, background } = this.active.settings;
+    const { canvasSize } = this.active.settings;
 
     const aspectRatio = canvasSize.height / canvasSize.width;
     const thumbWidth = Math.min(canvasSize.width, ProjectManager.THUMBNAIL_MAX_WIDTH);
@@ -644,9 +644,7 @@ export class ProjectManager {
       tracks,
       mediaAssets,
       duration,
-      canvasSize,
-      fitCanvasSize: originalCanvasSize ?? canvasSize,
-      background,
+      settings: this.active.settings,
     });
 
     const renderer = new CanvasRenderer({

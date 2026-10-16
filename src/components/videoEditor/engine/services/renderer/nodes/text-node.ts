@@ -2,73 +2,16 @@ import type { CanvasRenderer } from '../canvas-renderer';
 import { BaseNode } from './base-node';
 import type { TextElement } from '@/components/videoEditor/types/timeline';
 import {
-  FONT_SIZE_SCALE_REFERENCE,
+  hasTextBackground,
+  hasTextShadow,
   hasTextStroke,
 } from '@/components/videoEditor/constants/text-constants';
-import { buildFontFamilyStack } from '../font-stack';
+// 【排版唯一实现】字体串 / 换行 / 量宽高都在 text-layout —— 本文件只负责"怎么画"。
+// 命中与选中框读的是同一份排版（`getElementCanvasRect`），否则"框子套不住字、点不中自己看到的字"。
+import { layoutText, type TextLayout } from '../text-layout';
+import { isElementActiveAtTime } from '@/components/videoEditor/engine/timeline/element-utils';
 
 type RenderContext = CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
-
-function scaleFontSize({
-  fontSize,
-  canvasHeight,
-}: {
-  fontSize: number;
-  canvasHeight: number;
-}): number {
-  return fontSize * (canvasHeight / FONT_SIZE_SCALE_REFERENCE);
-}
-
-export function scaleBoxWidth({
-  boxWidth,
-  canvasHeight,
-}: {
-  boxWidth: number;
-  canvasHeight: number;
-}): number {
-  return boxWidth * (canvasHeight / FONT_SIZE_SCALE_REFERENCE);
-}
-
-function wrapText({
-  context,
-  text,
-  maxWidth,
-}: {
-  context: RenderContext;
-  text: string;
-  maxWidth: number;
-}): string[] {
-  const lines: string[] = [];
-  const paragraphs = text.split('\n');
-
-  for (const paragraph of paragraphs) {
-    if (paragraph === '') {
-      lines.push('');
-      continue;
-    }
-
-    const chars = Array.from(paragraph);
-    let currentLine = '';
-
-    for (const char of chars) {
-      const testLine = currentLine + char;
-      const metrics = context.measureText(testLine);
-
-      if (metrics.width > maxWidth && currentLine !== '') {
-        lines.push(currentLine);
-        currentLine = char;
-      } else {
-        currentLine = testLine;
-      }
-    }
-
-    if (currentLine !== '') {
-      lines.push(currentLine);
-    }
-  }
-
-  return lines.length > 0 ? lines : [''];
-}
 
 export type TextNodeParams = TextElement & {
   canvasCenter: { x: number; y: number };
@@ -78,7 +21,8 @@ export type TextNodeParams = TextElement & {
 
 export class TextNode extends BaseNode<TextNodeParams> {
   isInRange({ time }: { time: number }) {
-    return time >= this.params.startTime && time < this.params.startTime + this.params.duration;
+    // 「这一刻该不该画」与命中 / 框子 / 吸附**同一判据**（半开区间口径不得各写一遍）。
+    return isElementActiveAtTime({ element: this.params, time });
   }
 
   async render({ renderer, time }: { renderer: CanvasRenderer; time: number }) {
@@ -99,21 +43,16 @@ export class TextNode extends BaseNode<TextNodeParams> {
       renderer.context.scale(this.params.transform.scale, this.params.transform.scale);
     }
 
-    // 【2026-09-19】`fontWeight` 数据层已是**数字**（见 `types/timeline.ts`），此处**直通**。
-    // 原为 `fontWeight === 'bold' ? 'bold' : 'normal'` —— 二值压平会把 500/600 等档位
-    // 静默渲染成 400（= 用户"选了粗细没变化"），且与新类型不再兼容。
-    const fontWeight = this.params.fontWeight;
-    const fontStyle = this.params.fontStyle === 'italic' ? 'italic' : 'normal';
     const textBaseline = this.params.textBaseline || 'middle';
-    const scaledFontSize = scaleFontSize({
-      fontSize: this.params.fontSize,
+
+    // 【为什么用同一个上下文量】`layoutText` 会把 font 设进 `renderer.context`，
+    // 随后绘制直接复用它 —— 量的字与画的字**逐字同一个 font 串**。
+    const layout = layoutText({
+      element: this.params,
       canvasHeight: this.params.canvasHeight,
+      context: renderer.context,
     });
-    // 字体族走 `buildFontFamilyStack` 拼完整回落链 —— **不要在这里直接插 fontFamily**：
-    // 原样丢给浏览器时，不认识的字体名会被静默回落（画布无报错、用户以为"选了没生效"）。
-    // 定义与理由见 `../font-stack.ts`。
-    const fontFamilyStack = buildFontFamilyStack({ fontFamily: this.params.fontFamily });
-    renderer.context.font = `${fontStyle} ${fontWeight} ${scaledFontSize}px ${fontFamilyStack}`;
+
     renderer.context.textAlign = this.params.textAlign;
     renderer.context.textBaseline = textBaseline;
     renderer.context.fillStyle = this.params.color;
@@ -121,28 +60,10 @@ export class TextNode extends BaseNode<TextNodeParams> {
     const prevAlpha = renderer.context.globalAlpha;
     renderer.context.globalAlpha = this.params.opacity;
 
-    const boxWidth = this.params.boxWidth;
-    const hasBoxWidth = boxWidth !== undefined && boxWidth > 0;
-    const scaledBoxWidth = hasBoxWidth
-      ? scaleBoxWidth({
-          boxWidth,
-          canvasHeight: this.params.canvasHeight,
-        })
-      : 0;
-
-    if (hasBoxWidth) {
-      this.renderMultiline({
-        context: renderer.context,
-        scaledFontSize,
-        scaledBoxWidth,
-        textBaseline,
-      });
+    if (layout.hasBoxWidth) {
+      this.renderMultiline({ context: renderer.context, layout, textBaseline });
     } else {
-      this.renderSingleLine({
-        context: renderer.context,
-        scaledFontSize,
-        textBaseline,
-      });
+      this.renderSingleLine({ context: renderer.context, layout, textBaseline });
     }
 
     renderer.context.globalAlpha = prevAlpha;
@@ -151,19 +72,16 @@ export class TextNode extends BaseNode<TextNodeParams> {
 
   private renderSingleLine({
     context,
-    scaledFontSize,
+    layout,
     textBaseline,
   }: {
     context: RenderContext;
-    scaledFontSize: number;
+    layout: TextLayout;
     textBaseline: CanvasTextBaseline;
   }) {
-    if (this.params.backgroundColor && this.params.backgroundColor !== 'transparent') {
-      const metrics = context.measureText(this.params.content);
-      const ascent = metrics.actualBoundingBoxAscent ?? scaledFontSize * 0.8;
-      const descent = metrics.actualBoundingBoxDescent ?? scaledFontSize * 0.2;
-      const textW = metrics.width;
-      const textH = ascent + descent;
+    if (hasTextBackground({ backgroundColor: this.params.backgroundColor })) {
+      const textW = layout.width;
+      const textH = layout.height;
       const padX = this.params.backgroundPaddingX ?? 8;
       const padY = this.params.backgroundPaddingY ?? 4;
       const borderRadius = this.params.backgroundBorderRadius ?? 0;
@@ -194,7 +112,7 @@ export class TextNode extends BaseNode<TextNodeParams> {
       context.fillStyle = this.params.color;
     }
 
-    if (this.params.shadow) {
+    if (hasTextShadow(this.params.shadow)) {
       context.shadowColor = this.params.shadow.color;
       context.shadowOffsetX = this.params.shadow.offsetX;
       context.shadowOffsetY = this.params.shadow.offsetY;
@@ -208,7 +126,7 @@ export class TextNode extends BaseNode<TextNodeParams> {
       context.strokeText(this.params.content, 0, 0);
     }
 
-    if (this.params.shadow) {
+    if (hasTextShadow(this.params.shadow)) {
       context.shadowColor = 'transparent';
       context.shadowBlur = 0;
       context.shadowOffsetX = 0;
@@ -220,23 +138,14 @@ export class TextNode extends BaseNode<TextNodeParams> {
 
   private renderMultiline({
     context,
-    scaledFontSize,
-    scaledBoxWidth,
+    layout,
     textBaseline,
   }: {
     context: RenderContext;
-    scaledFontSize: number;
-    scaledBoxWidth: number;
+    layout: TextLayout;
     textBaseline: CanvasTextBaseline;
   }) {
-    const lines = wrapText({
-      context,
-      text: this.params.content,
-      maxWidth: scaledBoxWidth,
-    });
-
-    const lineHeight = scaledFontSize * 1.3;
-    const totalHeight = lines.length * lineHeight;
+    const { lines, lineHeight, boxWidth, height: totalHeight } = layout;
 
     let startY: number;
     if (textBaseline === 'bottom') {
@@ -249,12 +158,12 @@ export class TextNode extends BaseNode<TextNodeParams> {
 
     let textX = 0;
     if (context.textAlign === 'left') {
-      textX = -scaledBoxWidth / 2;
+      textX = -boxWidth / 2;
     } else if (context.textAlign === 'right') {
-      textX = scaledBoxWidth / 2;
+      textX = boxWidth / 2;
     }
 
-    if (this.params.backgroundColor && this.params.backgroundColor !== 'transparent') {
+    if (hasTextBackground({ backgroundColor: this.params.backgroundColor })) {
       const padX = this.params.backgroundPaddingX ?? 8;
       const padY = this.params.backgroundPaddingY ?? 4;
       const borderRadius = this.params.backgroundBorderRadius ?? 0;
@@ -264,9 +173,9 @@ export class TextNode extends BaseNode<TextNodeParams> {
       context.globalAlpha = prevAlpha * bgOpacity;
 
       context.fillStyle = this.params.backgroundColor;
-      const bgX = -scaledBoxWidth / 2 - padX;
+      const bgX = -boxWidth / 2 - padX;
       const bgY = startY - lineHeight / 2 - padY;
-      const bgW = scaledBoxWidth + padX * 2;
+      const bgW = boxWidth + padX * 2;
       const bgH = totalHeight + padY * 2;
 
       if (borderRadius > 0 && context.roundRect) {
@@ -284,7 +193,7 @@ export class TextNode extends BaseNode<TextNodeParams> {
     for (let i = 0; i < lines.length; i++) {
       const lineY = startY + i * lineHeight;
 
-      if (this.params.shadow) {
+      if (hasTextShadow(this.params.shadow)) {
         context.shadowColor = this.params.shadow.color;
         context.shadowOffsetX = this.params.shadow.offsetX;
         context.shadowOffsetY = this.params.shadow.offsetY;
@@ -298,7 +207,7 @@ export class TextNode extends BaseNode<TextNodeParams> {
         context.strokeText(lines[i], textX, lineY);
       }
 
-      if (this.params.shadow) {
+      if (hasTextShadow(this.params.shadow)) {
         context.shadowColor = 'transparent';
         context.shadowBlur = 0;
         context.shadowOffsetX = 0;

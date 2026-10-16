@@ -2,6 +2,7 @@ import type { TimelineTrack } from '@/components/videoEditor/types/timeline';
 
 export * from './track-utils';
 export * from './element-utils';
+import { getElementTimeRange } from './element-utils';
 export * from './zoom-utils';
 export * from './ruler-utils';
 export * from './transition-utils';
@@ -11,7 +12,7 @@ export function calculateTotalDuration({ tracks }: { tracks: TimelineTrack[] }):
 
   const trackEndTimes = tracks.map((track) =>
     track.elements.reduce((maxEnd, element) => {
-      const elementEnd = element.startTime + element.duration;
+      const elementEnd = getElementTimeRange({ element }).end;
       return Math.max(maxEnd, elementEnd);
     }, 0),
   );

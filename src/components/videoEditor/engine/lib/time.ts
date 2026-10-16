@@ -148,9 +148,22 @@ export function getSnappedSeekTime({
   return Math.max(0, Math.min(duration, snappedTime));
 }
 
+/**
+ * 作品**总帧数**（唯一实现）。
+ *
+ * 【为什么必须唯一】预览与导出必须数出**一样的帧**：导出按它循环渲染，
+ * 预览按它夹取末帧时刻（`getLastFrameTime` 派生自它）。
+ * 各写一份（`Math.ceil(duration * fps)` vs `duration - 1/fps`）时，时长非帧整数倍的
+ * 作品会**多出/少掉末帧** —— 成片与预览差一帧，且只在特定时长上显形。
+ */
+export function getFrameCount({ duration, fps }: { duration: number; fps: number }): number {
+  if (duration <= 0 || fps <= 0) return 0;
+  return Math.ceil(duration * fps);
+}
+
+/** 末帧的渲染时刻 = 第 `getFrameCount() - 1` 帧（与导出最后一帧**同一刻**）。 */
 export function getLastFrameTime({ duration, fps }: { duration: number; fps: number }): number {
-  if (duration <= 0) return 0;
-  if (fps <= 0) return duration;
-  const frameOffset = 1 / fps;
-  return Math.max(0, duration - frameOffset);
+  const frameCount = getFrameCount({ duration, fps });
+  if (frameCount === 0) return 0;
+  return frameToTime({ frame: frameCount - 1, fps });
 }

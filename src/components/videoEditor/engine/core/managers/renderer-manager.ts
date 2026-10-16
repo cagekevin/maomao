@@ -100,9 +100,7 @@ export class RendererManager {
         tracks,
         mediaAssets,
         duration,
-        canvasSize,
-        fitCanvasSize: activeProject.settings.originalCanvasSize ?? canvasSize,
-        background: activeProject.settings.background,
+        settings: activeProject.settings,
       });
 
       const exporter = new SceneExporter({

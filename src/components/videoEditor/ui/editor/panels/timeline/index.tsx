@@ -38,6 +38,7 @@ import {
   getTotalTracksHeight,
   canTracktHaveAudio,
   canTrackBeHidden,
+  isTrackHidden,
   getTimelineZoomMin,
   getTimelinePaddingPx,
   isMainTrack,
@@ -300,7 +301,7 @@ export function VideoEditorTimeline() {
                             )}
                             {canTrackBeHidden(track) && (
                               <TrackToggleIcon
-                                isOff={track.hidden}
+                                isOff={isTrackHidden(track)}
                                 icons={{
                                   on: Eye,
                                   off: EyeOff,
@@ -499,9 +500,7 @@ export function VideoEditorTimeline() {
                               }}
                             >
                               <Eye />
-                              <span>
-                                {canTrackBeHidden(track) && track.hidden ? '显示轨道' : '隐藏轨道'}
-                              </span>
+                              <span>{isTrackHidden(track) ? '显示轨道' : '隐藏轨道'}</span>
                             </ContextMenuItem>
                             <ContextMenuItem
                               onClick={(e) => {

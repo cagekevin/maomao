@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import type { MediaAsset } from '../../src/components/videoEditor/types/mediaAssets';
 import type { TimelineTrack, VideoElement } from '../../src/components/videoEditor/types/timeline';
 import {
-  collectAudioClips,
+  collectAudioSources,
   reverseAudioBuffer,
   toMonoSamples,
 } from '../../src/components/videoEditor/engine/lib/media/audio.ts';
@@ -14,7 +14,8 @@ import {
  *   1. `toMonoSamples` 的声道口径与**被它取代的** `decodeAudioToFloat32` **逐字一致**
  *      （立体声 `√2·(L+R)/2` 功率保持；不是简单平均）—— 否则字幕识别拿到的能量会变（静默漂移）。
  *   2. `reverseAudioBuffer` 逐声道倒序、**不动源 buffer**（同一素材的正序元素仍在引用它）。
- *   3. `collectAudioClips` 把 `reversed` 判据采集到 clip 上（实时播放据此取倒序副本 —— 档 2 的前置）。
+ *   3. `collectAudioSources`（预览与导出**共用**的唯一采集判据）把 `reversed` 带到 spec 上
+ *      （实时播放据此取倒序副本 —— 档 2 的前置）。
  */
 
 type FakeChannels = Float32Array[];
@@ -90,7 +91,7 @@ describe('TD-22-29 · reverseAudioBuffer（倒序副本原语）', () => {
   });
 });
 
-describe('TD-22-29 · collectAudioClips 采集倒放判据', () => {
+describe('TD-22-29 · collectAudioSources 采集倒放判据', () => {
   function makeTracks({ reversed }: { reversed: boolean }): TimelineTrack[] {
     const element = {
       id: 'el-1',
@@ -117,16 +118,16 @@ describe('TD-22-29 · collectAudioClips 采集倒放判据', () => {
 
   const mediaAssets = [{ id: 'media-1', type: 'video', file: {} } as unknown as MediaAsset];
 
-  it('reversed video 元素 → clip.reversed = true', async () => {
-    const clips = await collectAudioClips({ tracks: makeTracks({ reversed: true }), mediaAssets });
+  it('reversed video 元素 → spec.reversed = true', () => {
+    const { items } = collectAudioSources({ tracks: makeTracks({ reversed: true }), mediaAssets });
 
-    expect(clips).toHaveLength(1);
-    expect(clips[0].reversed).toBe(true);
+    expect(items).toHaveLength(1);
+    expect(items[0].reversed).toBe(true);
   });
 
-  it('未反转 → clip.reversed = false', async () => {
-    const clips = await collectAudioClips({ tracks: makeTracks({ reversed: false }), mediaAssets });
+  it('未反转 → spec.reversed = false', () => {
+    const { items } = collectAudioSources({ tracks: makeTracks({ reversed: false }), mediaAssets });
 
-    expect(clips[0].reversed).toBe(false);
+    expect(items[0].reversed).toBe(false);
   });
 });

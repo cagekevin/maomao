@@ -273,7 +273,6 @@ export class InsertElementCommand extends Command {
       return null;
     }
 
-    const elementEndTime = element.startTime + element.duration;
     const existingTrack = tracks.find((track) => {
       if (
         !canElementGoOnTrack({
@@ -287,7 +286,7 @@ export class InsertElementCommand extends Command {
       return !wouldElementOverlap({
         elements: track.elements,
         startTime: element.startTime,
-        endTime: elementEndTime,
+        duration: element.duration,
       });
     });
 

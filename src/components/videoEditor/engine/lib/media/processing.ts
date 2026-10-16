@@ -160,6 +160,41 @@ export async function extractVideoFrame({
 // 图片不再生成客户端 base64 缩略图（显示改走统一出口的服务端出图端点），删后**零消费者**。
 // 视频侧的 `generateThumbnail`（`<video>` seek 抽帧）**保留**：服务端出图端点是 Jimp，只处理图片。
 
+/**
+ * **探测媒体尺寸**（素材登记唯一入口的补全原语）。
+ *
+ * 【为什么必须有】`width/height` 是"元素在画布上占多大"的**唯一真源**：渲染
+ * （`scene-builder` → `visual-node`）与几何（`getElementCanvasRect`，服务命中 / 框子 / 吸附）
+ * 都读它。**任何登记路径漏填，框子与画面立刻错位** —— 实证：引用素材（画布 / 素材库 / 生成）
+ * 登记时只填 `name/type/file/persistentUrl`，于是 `getElementCanvasRect` 回落到画布尺寸，
+ * 选中框变成**整块画布**、画布上点哪都命中它。
+ *
+ * 返回 `null` = 该类型没有尺寸概念（音频）或探测失败（留痕，不阻断登记）。
+ */
+export async function probeMediaDimensions({
+  file,
+  type,
+}: {
+  file: File;
+  type: MediaAsset['type'];
+}): Promise<{ width: number; height: number } | null> {
+  try {
+    if (type === 'image') {
+      return await getImageDimensions({ file });
+    }
+
+    if (type === 'video') {
+      const info = await getVideoInfo({ videoFile: file });
+      return { width: info.width, height: info.height };
+    }
+
+    return null;
+  } catch (error) {
+    videoEditorLogger.warn('Media dimension probe failed', file.name, error);
+    return null;
+  }
+}
+
 export async function processMediaAssets({
   files,
   onProgress,

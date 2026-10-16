@@ -9,6 +9,7 @@ import { storageService } from '@/components/videoEditor/engine/services/storage
 import { generateUUID } from '@/components/base/core/idGen.ts';
 import { videoCache } from '@/components/videoEditor/engine/services/video-cache/service';
 import { collectElementsByMediaId } from '@/components/videoEditor/engine/timeline/element-utils';
+import { probeMediaDimensions } from '@/components/videoEditor/engine/lib/media/processing';
 import { videoEditorToast } from '@/components/videoEditor/lib/videoEditorToast';
 import { reportDegrade } from '@/components/base/core/log/degrade';
 
@@ -50,6 +51,19 @@ export class MediaManager {
       ...asset,
       id: generateUUID(),
     };
+
+    // 【素材尺寸 = 几何与渲染共用的真源，登记入口负责补全】任何路径（本地上传 / 画布引用 /
+    // 素材库引用）进来的素材都必须带 `width/height`：渲染（`scene-builder` → `visual-node`）
+    // 与几何（`getElementCanvasRect`，服务命中 / 框子 / 吸附）都读它，缺了就会退化成
+    // "元素占满整块画布"（选中框套不住画面、画布上点哪都命中）。
+    // 本地上传路径（`processFiles`）已探测过 → 此处不重复付费。
+    if (newAsset.width === undefined && newAsset.type !== 'audio') {
+      const size = await probeMediaDimensions({ file: newAsset.file, type: newAsset.type });
+      if (size) {
+        newAsset.width = size.width;
+        newAsset.height = size.height;
+      }
+    }
 
     this.assets = [...this.assets, newAsset];
     this.notify();

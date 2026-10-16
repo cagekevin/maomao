@@ -14,6 +14,7 @@ import {
 } from 'mediabunny';
 import type { RootNode } from './nodes/root-node';
 import { CanvasRenderer } from './canvas-renderer';
+import { getFrameCount } from '@/components/videoEditor/engine/lib/time';
 
 export type ExportFormat = 'mp4' | 'webm';
 export type ExportQuality = 'low' | 'medium' | 'high' | 'very_high';
@@ -80,7 +81,7 @@ export class SceneExporter extends EventEmitter<SceneExporterEvents> {
 
   async export({ rootNode }: { rootNode: RootNode }): Promise<ArrayBuffer | null> {
     const { fps } = this.renderer;
-    const frameCount = Math.ceil(rootNode.duration * fps);
+    const frameCount = getFrameCount({ duration: rootNode.duration, fps });
 
     const outputFormat = this.format === 'webm' ? new WebMOutputFormat() : new Mp4OutputFormat();
 

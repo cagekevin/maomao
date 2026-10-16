@@ -2,7 +2,10 @@ import { Command } from '@/components/videoEditor/engine/commands/base-command';
 import type { TimelineTrack } from '@/components/videoEditor/types/timeline';
 import { generateUUID } from '@/components/base/core/idGen.ts';
 import { getEditor } from '@/components/videoEditor/engine/core/editorInstance';
-import { getElementPlaybackRate } from '@/components/videoEditor/engine/timeline/element-utils';
+import {
+  canSplitElementAtTime,
+  getElementPlaybackRate,
+} from '@/components/videoEditor/engine/timeline/element-utils';
 
 export class SplitElementsCommand extends Command {
   private savedState: TimelineTrack[] | null = null;
@@ -43,10 +46,10 @@ export class SplitElementsCommand extends Command {
             return [element];
           }
 
-          const effectiveStart = element.startTime;
-          const effectiveEnd = element.startTime + element.duration;
-
-          if (this.splitTime <= effectiveStart || this.splitTime >= effectiveEnd) {
+          // 与**选取侧**（`getElementsAtTime`）同一判据：端点不切（会产出 0 长度段）。
+          // 曾各写一份（此处 `<= start || >= end`、选取侧 `time > start && time < end`）——
+          // 一处改边界就会出现"选得出来但切不动"（空转一次 updateTracks + 压一条空历史记录）。
+          if (!canSplitElementAtTime({ element, time: this.splitTime })) {
             return [element];
           }
 

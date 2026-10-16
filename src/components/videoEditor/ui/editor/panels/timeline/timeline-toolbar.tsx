@@ -28,6 +28,7 @@ import {
 import { Slider } from '@/components/videoEditor/ui/ui/slider';
 import { TIMELINE_CONSTANTS } from '@/components/videoEditor/constants/timeline-constants';
 import { sliderToZoom, zoomToSlider } from '@/components/videoEditor/engine/timeline/zoom-utils';
+import { isElementActiveAtTime } from '@/components/videoEditor/engine/timeline/element-utils';
 
 import { type TAction, invokeAction } from '@/components/videoEditor/engine/lib/actions';
 import { cn } from '@/components/videoEditor/utils/ui';
@@ -94,8 +95,7 @@ function ToolbarLeftSection() {
       : [];
   const canFreezeFrame =
     selected?.element.type === 'video' &&
-    currentTime >= selected.element.startTime &&
-    currentTime < selected.element.startTime + selected.element.duration;
+    isElementActiveAtTime({ element: selected.element, time: currentTime });
 
   const handleAction = ({ action, event }: { action: TAction; event: React.MouseEvent }) => {
     event.stopPropagation();

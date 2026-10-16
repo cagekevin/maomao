@@ -25,6 +25,72 @@ export function canTrackBeHidden(
   return track.type !== 'audio';
 }
 
+/**
+ * 轨 `hidden` —— **判据定义（唯一）**。
+ *
+ * 【两个入口，按用途选，别自己写 `!track.hidden`】
+ *   · **输出消费方**（画面 / 声音 / 命中 / 吸附）→ `getOutputTracks`：投影让它们**拿不到**
+ *     隐藏项，漏判在结构上不可能（谓词做不到这点：谓词仍要求"记得调"）。
+ *   · **编辑期逻辑**（按索引 / 原数组遍历、只判轨级）→ 本谓词。例如
+ *     `findAvailableVideoTrackAbove`（找可插入的轨）必须看**原数组**的下标与**全部**元素
+ *     （隐藏元素仍占时间轴位置，插入重叠判定不能忽略它们）—— 投影在这里会改变语义。
+ *
+ * 【为什么连编辑期也要经它】`!track.hidden` 与 `'hidden' in track && track.hidden === true`
+ * 行为等价但**写法不同**：同一判据两份写法，改语义（例如换成 `visibility` 枚举）时必然漏改一处。
+ */
+export function isTrackHidden(track: TimelineTrack): boolean {
+  return 'hidden' in track && track.hidden === true;
+}
+
+/**
+ * 元素 `hidden` —— **判据定义（唯一）**。
+ *
+ * 【两个入口，同 `isTrackHidden` 的分工】
+ *   · **输出消费方**（画面 / 声音 / 命中 / 吸附）→ `getOutputTracks`（拿不到隐藏元素）
+ *   · **UI 显示 / 编辑动作**（时间轴上的眼睛遮罩、"是否需要改"的幂等守卫）→ 本谓词
+ * 曾散落 5 处 `canElementBeHidden(element) && element.hidden`（写法与这里不同但行为等价）——
+ * 同一判据两种写法，改语义时必然漏改。
+ */
+export function isElementHidden(element: TimelineElement): boolean {
+  return 'hidden' in element && element.hidden === true;
+}
+
+/**
+ * **「参与输出」的轨道/元素投影（唯一入口）** —— 画面与声音共用同一个 `hidden`。
+ *
+ * 【语义】`hidden = true` ⇒ 该轨 / 该元素**不参与输出**：不出画面，也**不出声音**。
+ * 「只想关声音、保留画面」的入口是 `muted`（`isTrackMuted` / `element.muted`），不是 `hidden`。
+ *
+ * 【为什么是投影而不是谓词】谓词只把判据收成一个函数，消费方仍要**记得调**——
+ * 只要还看得见 `hidden` 项，漏判就随时可能发生（实证：关眼睛后画面消失、声音照播，
+ * 导出的成品同样带声音）。投影让输出消费方**根本拿不到**被隐藏的轨与元素 ⇒ 漏判无处发生。
+ *
+ * 【谁必须从这里取（禁直接读 `track.elements`）】
+ *   渲染 `scene-builder` · 命中 `hit-test` · 吸附 `use-preview-interaction` ·
+ *   音频 `collectAudioSources`（预览与导出共用）。
+ * 【UI 显示不受影响】时间轴上的"眼睛"图标读的是 `hidden` 标志本身（显示用途），不经此。
+ */
+export function getOutputTracks(tracks: TimelineTrack[]): TimelineTrack[] {
+  return tracks
+    .filter((track) => !isTrackHidden(track))
+    .map((track) =>
+      track.elements.some((element) => isElementHidden(element))
+        ? ({
+            ...track,
+            elements: track.elements.filter((element) => !isElementHidden(element)),
+          } as TimelineTrack)
+        : track,
+    );
+}
+
+/**
+ * **静音判据唯一实现**（只有 video / audio 轨有 `muted` 语义；文本 / 贴纸轨无声音）。
+ * 消费方（音频采集 `collectAudioSources`）一律经此，不各自内联 `canTracktHaveAudio(track) && track.muted`。
+ */
+export function isTrackMuted(track: TimelineTrack): boolean {
+  return canTracktHaveAudio(track) && track.muted === true;
+}
+
 export function getTrackClasses({ type }: { type: TrackType }) {
   // 轨道底色视觉已收敛到 videoEditorTheme.css §8（.ve-clip-bg-*）
   return `ve-clip-bg-${type}`;
@@ -192,7 +258,10 @@ export function ensureMainTrack({ tracks }: { tracks: TimelineTrack[] }): Timeli
       isMain: true,
       hidden: false,
     };
-    return [mainTrack, ...tracks];
+    // 追加在**末位**：轨道数组序 = 图层序（下标 0 = 最上层），主轨是基础层 ⇒ 必须垫底。
+    // 前置（`[mainTrack, ...tracks]`）会让缺主轨的旧工程把主轨摆到最上层 —— 与新插入逻辑
+    // （`getDefaultInsertIndexForTrack` 把新轨插在主轨之上）自相矛盾。
+    return [...tracks, mainTrack];
   }
 
   return tracks;

@@ -9,6 +9,23 @@ export function mediaSupportsAudio({ media }: { media: MediaAsset | null | undef
 }
 
 /**
+ * **素材索引（唯一派生）**：`Map<assetId, MediaAsset>`。
+ *
+ * 【为什么必须唯一】"按 id 查素材"里**用哪个键就是口径** —— `id` / `persistentUrl` / `contentId`
+ * 都有人用（本仓 `link-media-refs` 的双轨去重正是按 `contentId` + 归一化 `url` 判的），
+ * 故它不是一个"随便写写都一样"的平凡派生：消费方若自建索引并换成别的键，**它自己那一处**
+ * 就查不到素材（表现为画面缺失 / 音频无声，且只在"该键恰好不同"的数据上显形）。
+ * ⇒ 一律从这里取索引，别在消费方内联建 Map。
+ */
+export function indexMediaAssets({
+  mediaAssets,
+}: {
+  mediaAssets: MediaAsset[];
+}): Map<string, MediaAsset> {
+  return new Map(mediaAssets.map((asset) => [asset.id, asset]));
+}
+
+/**
  * File → 剪辑器媒体类型（image/video/audio）；非媒体 → null。
  *
  * 【TD-16-9 收口 2026-09-16】原为内联 `type.startsWith('image/'|'video/'|'audio/')` 三分支，

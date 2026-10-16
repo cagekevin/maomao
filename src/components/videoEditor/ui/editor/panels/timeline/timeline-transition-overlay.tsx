@@ -14,6 +14,8 @@ import type {
   TransitionType,
 } from '@/components/videoEditor/types/timeline';
 import { useEditor } from '@/components/videoEditor/hooks-cutia/use-editor';
+// 元素时间区间（唯一定义）：本文件**不自算结束时刻**，一律经此（别再加一个私有同名函数）。
+import { getElementTimeRange } from '@/components/videoEditor/engine/timeline/element-utils';
 import {
   findAdjacentPairs,
   getTransitionForPair,
@@ -26,10 +28,6 @@ type VisualElement = VideoElement | ImageElement;
 
 const MIN_TRANSITION_DURATION = 0.1;
 const MAX_TRANSITION_DURATION = 2.0;
-
-function getElementEndTime({ element }: { element: VisualElement }): number {
-  return element.startTime + element.duration;
-}
 
 export function TrackTransitionOverlays({
   track,
@@ -88,7 +86,7 @@ function TransitionJunctionOverlay({
   } | null>(null);
 
   const pixelsPerSecond = TIMELINE_CONSTANTS.PIXELS_PER_SECOND * zoomLevel;
-  const junctionTime = getElementEndTime({ element: fromElement });
+  const junctionTime = getElementTimeRange({ element: fromElement }).end;
   const junctionPx = junctionTime * pixelsPerSecond;
 
   const maxDuration = Math.min(fromElement.duration, toElement.duration, MAX_TRANSITION_DURATION);

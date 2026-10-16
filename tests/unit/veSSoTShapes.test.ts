@@ -6,7 +6,7 @@
  *   · TD-22-30 —— 字幕模板不再手抄 `TextElement` 全形状，且必须走唯一构造路径 `buildTextElement`；
  *   · TD-22-36 —— 动作参数契约只有 `TActionArgsMap` 一份（`ACTIONS[].args` 死副本已删）；
  *   · TD-22-28 —— 幽灵字段 `agentMessages` 已从类型与持久化层清干净；
- *   · TD-22-39 —— 库音频的取字节原语只有一处（原为 3 份逐字相同的 fetch+ok 校验）。
+ *   · TD-22-39 —— 音频取字节 + 解码原语只有一处（`resolveAudioSourceBuffer`，三条字节来源唯一分派）。
  * ════════════════════════════════════════════════════════════════
  * 说明：其中三条改用「源码级断言」（读文件比对）。它们锁的是**结构性事实**
  * （某副本不存在了 / 某原语只有一处），无法用运行期行为观察 —— 这正是防回潮所需的锁。
@@ -105,13 +105,13 @@ describe('TD-22-28 · 幽灵字段已清干净', () => {
   });
 });
 
-describe('TD-22-39 · 库音频取字节原语唯一', () => {
-  it('audio.ts 里只有一处 fetch 入口（原为 3 份逐字相同的骨架）', () => {
+describe('TD-22-39 · 音频取字节/解码原语唯一', () => {
+  it('audio.ts 里只有一处 fetch 入口 —— 即 `resolveAudioSourceBuffer`（三条字节来源的唯一分派点）', () => {
     const src = read('src/components/videoEditor/engine/lib/media/audio.ts');
     const fetchCalls = src.match(/await fetch\(/g) ?? [];
     expect(fetchCalls).toHaveLength(1);
-    // 三处消费方都经同一个原语
-    const viaPrimitive = src.match(/fetchLibraryAudioResponse\(/g) ?? [];
-    expect(viaPrimitive.length).toBeGreaterThanOrEqual(3);
+    // 取字节 + 解码只有这一个出口：预览（AudioManager）与导出（createTimelineAudioBuffer）都经它。
+    const resolvers = src.match(/resolveAudioSourceBuffer\(/g) ?? [];
+    expect(resolvers.length).toBeGreaterThanOrEqual(2);
   });
 });

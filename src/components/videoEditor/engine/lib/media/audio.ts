@@ -1,7 +1,6 @@
 import { videoEditorLogger } from '@/components/videoEditor/lib/videoEditorLogger';
 import type {
   AudioElement,
-  LibraryAudioElement,
   TimelineElement,
   TimelineTrack,
 } from '@/components/videoEditor/types/timeline';
@@ -10,13 +9,11 @@ import {
   canElementHaveAudio,
   getElementPlaybackRate,
 } from '@/components/videoEditor/engine/timeline/element-utils';
-import { canTracktHaveAudio } from '@/components/videoEditor/engine/timeline';
-import { mediaSupportsAudio } from '@/components/videoEditor/engine/lib/media/media-utils';
-
-export type CollectedAudioElement = Omit<
-  AudioElement,
-  'type' | 'mediaId' | 'id' | 'name' | 'sourceType' | 'sourceUrl'
-> & { buffer: AudioBuffer; reversed?: boolean };
+import { getOutputTracks, isTrackMuted } from '@/components/videoEditor/engine/timeline';
+import {
+  indexMediaAssets,
+  mediaSupportsAudio,
+} from '@/components/videoEditor/engine/lib/media/media-utils';
 
 export function createAudioContext(): AudioContext {
   const AudioContextConstructor =
@@ -87,256 +84,44 @@ export function reverseAudioBuffer({
   return reversed;
 }
 
-export async function collectAudioElements({
-  tracks,
-  mediaAssets,
-  audioContext,
-}: {
-  tracks: TimelineTrack[];
-  mediaAssets: MediaAsset[];
-  audioContext: AudioContext;
-}): Promise<{
-  items: CollectedAudioElement[];
-  skipped: Array<{ elementId: string; message: string }>;
-}> {
-  const mediaMap = new Map<string, MediaAsset>(mediaAssets.map((media) => [media.id, media]));
-  const pendingElements: Array<Promise<CollectedAudioElement | null>> = [];
-  /** 【2026-09-17】解析失败被跳过的元素（**生产者判词**原样收进来，由调用方决定怎么呈现）。
-   *  此前是 `if (!buffer) return null` 静默丢弃 ⇒ 导出成品少音频却零提示（产物受损且无从回查）。 */
-  const skipped: Array<{ elementId: string; message: string }> = [];
+/** 音频源里"字节从哪来"的三形态（**取字节方式的唯一列举**，消费方只按 kind 分派）。 */
+export type AudioSourceBytes =
+  | { kind: 'file'; file: File }
+  | { kind: 'url'; url: string }
+  | { kind: 'buffer'; buffer: AudioBuffer };
 
-  for (const track of tracks) {
-    if (canTracktHaveAudio(track) && track.muted) continue;
-
-    for (const element of track.elements) {
-      if (!canElementHaveAudio(element)) continue;
-      if (element.duration <= 0) continue;
-
-      const isTrackMuted = canTracktHaveAudio(track) && track.muted;
-      const isElementMuted = 'muted' in element ? (element.muted ?? false) : false;
-      const muted = isTrackMuted || isElementMuted;
-
-      if (element.type === 'audio') {
-        const volume = element.volume ?? 1;
-        pendingElements.push(
-          resolveAudioBufferForElement({
-            element,
-            mediaMap,
-            audioContext,
-          }).then((r): CollectedAudioElement | null => {
-            // 【2026-09-17 消费者只转发】失败**不再静默跳过**：把**生产者判词**原样收进
-            // `skipped`，由 `collectAudioElements` 一并回报（导出成品少音频这件事必须可见）。
-            if (!r.ok) {
-              skipped.push({ elementId: element.id, message: r.message });
-              return null;
-            }
-            return {
-              buffer: r.buffer,
-              startTime: element.startTime,
-              duration: element.duration,
-              trimStart: element.trimStart,
-              volume,
-              muted,
-              playbackRate: element.playbackRate ?? 1,
-            };
-          }),
-        );
-      }
-
-      if (element.type === 'video') {
-        const mediaAsset = mediaMap.get(element.mediaId);
-        if (!mediaAsset || !mediaSupportsAudio({ media: mediaAsset })) continue;
-
-        pendingElements.push(
-          resolveVideoAudioBuffer({
-            file: mediaAsset.file,
-            audioContext,
-          }).then((r): CollectedAudioElement | null => {
-            // 【2026-09-17 消费者只转发】同上：失败收进 `skipped`，不静默丢。
-            if (!r.ok) {
-              skipped.push({ elementId: element.id, message: r.message });
-              return null;
-            }
-            return {
-              buffer: r.buffer,
-              startTime: element.startTime,
-              duration: element.duration,
-              trimStart: element.trimStart,
-              volume: 1,
-              muted,
-              playbackRate: element.playbackRate ?? 1,
-              reversed: element.reversed ?? false,
-            };
-          }),
-        );
-      }
-    }
-  }
-
-  const resolvedElements = await Promise.all(pendingElements);
-  const audioElements: CollectedAudioElement[] = [];
-  for (const element of resolvedElements) {
-    if (element) audioElements.push(element);
-  }
-  // 【2026-09-17 消费者只转发】把"跳过了哪些、为什么"一并回报 —— 原来是**静默丢弃**
-  // ⇒ 用户在导出的成品里才发现某段没声音，零提示且事后无从回查（产物受损）。
-  return { items: audioElements, skipped };
-}
-
-/** 音频解析结果（**判别联合 + 生产者给可展示信息**）。
+/**
+ * **「时间轴 → 该出哪些声音」的唯一判据产出**（纯函数、同步、不取字节不解码）。
  *
- *  【2026-09-17 判据】错误必须由**产生它的那层**以判别联合透传（含可展示信息）；**消费者只转发**。
- *  原来三处 `catch { logger.warn; return null }` —— `null` 只让**开发者**看到失败，而上层
- *  （`collectAudioElements`）拿到 null 就**静默跳过该元素** ⇒ 用户在**导出的成品**里才发现
- *  "这段音频没了"，零提示（比"播放时没声音"更严重：那是**产物受损**且事后无从回查）。
+ * 【为什么必须是唯一一份（本仓头号母体）】"该出哪几段、每段的音量/静音/变速/反转/时间"
+ * 若被预览与导出各写一份 ⇒ **成片与预览必然漂移**。故判据只此一处，消费方两个
+ * （实时播放 `AudioManager` / 导出与字幕 `createTimelineAudioBuffer`）都从它取；
+ * **取字节与解码**也收口在 `resolveAudioSourceBuffer`（三条字节来源的分派不各写一遍）。
+ *
+ * 判据清单（改动前先问：预览与导出**是否都**该这么判）：
+ *   · 轨 `hidden` ⇒ 整轨不参与输出（画面 + 声音）；轨 `muted` ⇒ 只关声音（`muted: true` 由调度方跳过）。
+ *   · 元素 `hidden` / `duration <= 0` ⇒ 不参与输出。
+ *   · 音量：`getElementVolume`（video 元素无 `volume` 字段 ⇒ 1）；变速：`getElementPlaybackRate`；
+ *     反转：只有 video 元素有 `reversed`。
  */
-type AudioResolveOutcome = { ok: true; buffer: AudioBuffer } | { ok: false; message: string };
-
-async function resolveVideoAudioBuffer({
-  file,
-  audioContext,
-}: {
-  file: File;
-  audioContext: AudioContext;
-}): Promise<AudioResolveOutcome> {
-  try {
-    const arrayBuffer = await file.arrayBuffer();
-    const buffer = await audioContext.decodeAudioData(arrayBuffer.slice(0));
-    return { ok: true, buffer };
-  } catch (error) {
-    return {
-      ok: false,
-      message: `视频音轨解码失败：${error instanceof Error ? error.message : String(error)}`,
-    };
-  }
-}
-
-async function resolveAudioBufferForElement({
-  element,
-  mediaMap,
-  audioContext,
-}: {
-  element: AudioElement;
-  mediaMap: Map<string, MediaAsset>;
-  audioContext: AudioContext;
-}): Promise<AudioResolveOutcome> {
-  try {
-    if (element.sourceType === 'upload') {
-      const asset = mediaMap.get(element.mediaId);
-      // 【2026-09-17】"素材缺失／不含音轨"是**可判别的失败**，不是"解不出来"——
-      // 给出各自判词，让上层能区分（原来三者都压成同一个 `null`）。
-      if (!asset) return { ok: false, message: '音频素材不在本工程素材表中' };
-      if (!mediaSupportsAudio({ media: asset })) return { ok: false, message: '该素材不含音轨' };
-
-      const arrayBuffer = await asset.file.arrayBuffer();
-      const buffer = await audioContext.decodeAudioData(arrayBuffer.slice(0));
-      return { ok: true, buffer };
-    }
-
-    if (element.buffer) return { ok: true, buffer: element.buffer };
-
-    // 与 `fetchLibraryAudioSource/Clip` 共用同一个取字节原语（TD-22-39）。
-    const r = await fetchLibraryAudioResponse({ sourceUrl: element.sourceUrl });
-    // 取字节失败的**原因由该原语给出**（往往是网络/404），此处只**转发**，不自己编"解码失败"。
-    if (!r.ok) return { ok: false, message: r.message };
-
-    const arrayBuffer = await r.response.arrayBuffer();
-    const buffer = await audioContext.decodeAudioData(arrayBuffer.slice(0));
-    return { ok: true, buffer };
-  } catch (error) {
-    return {
-      ok: false,
-      message: `音频解码失败：${error instanceof Error ? error.message : String(error)}`,
-    };
-  }
-}
-
-export interface AudioClipSource {
-  id: string;
+export interface AudioSourceSpec {
+  elementId: string;
+  /** 解码缓存的稳定键（同素材多元素共享一次解码）。 */
   sourceKey: string;
-  file: File;
+  source: AudioSourceBytes;
   startTime: number;
   duration: number;
   trimStart: number;
-  muted: boolean;
   volume: number;
+  muted: boolean;
   playbackRate: number;
-  /**
-   * 倒放（**仅 video 元素有该字段**，audio 元素不支持反转）。
-   * 调度域不支持负向播放 ⇒ 喂给调度器前取倒序副本，起点随之换算（TD-22-29 档 2）。
-   */
   reversed: boolean;
 }
 
-/**
- * 库音频的**唯一取字节原语**：`sourceUrl` → 已校验 `ok` 的 `Response`（失败返 null + 一次 warn）。
- *
- * 【为什么抽它、抽到哪一层（TD-22-39）】库音频的取字节骨架在本文件里曾被抄成 **3 份**
- * （`fetchLibraryAudioSource` / `fetchLibraryAudioClip` / `resolveAudioBufferForElement` 的
- * 库分支），三处的 `fetch → 校验 ok → 抛同一条错误文案 → catch warn 返 null` **逐字相同**，
- * 只有「拿到字节之后做什么」不同（转 `File` / 转 `arrayBuffer` 解码）。
- * 按 Step 3 的「重复种类」判别：
- *   · 「怎么把字节取回来」（fetch / 校验 / 失败策略）= **探测重复** → 收口到本函数；
- *   · 「取回来之后干什么」（组装形状 / 解码）= **用途差异** → 各自保留在上层。
- * 参数取**最小契约** `{ sourceUrl }`（本原语只依赖它），不绑 `LibraryAudioElement`。
- */
-async function fetchLibraryAudioResponse({
-  sourceUrl,
-}: {
-  sourceUrl: string;
-}): Promise<{ ok: true; response: Response } | { ok: false; message: string }> {
-  try {
-    const response = await fetch(sourceUrl);
-    if (!response.ok) {
-      throw new Error(`Library audio fetch failed: ${response.status}`);
-    }
-    return { ok: true, response };
-  } catch (error) {
-    // 【生产者给可展示信息】原来只 `logger.warn` + `return null` ⇒ 上层只能自己编
-    // "解码失败"（其实这里往往是**网络/404**）。原因在此说清，消费者只转发。
-    return {
-      ok: false,
-      message: `库音频取字节失败：${error instanceof Error ? error.message : String(error)}`,
-    };
-  }
-}
-
-/** 库音频 → `File`（由上面的取字节原语派生）。 */
-async function fetchLibraryAudioFile({
-  element,
-}: {
-  element: LibraryAudioElement;
-}): Promise<File | null> {
-  const r = await fetchLibraryAudioResponse({ sourceUrl: element.sourceUrl });
-  if (!r.ok) return null;
-
-  const blob = await r.response.blob();
-  return new File([blob], `${element.name}.mp3`, { type: 'audio/mpeg' });
-}
-
-async function fetchLibraryAudioClip({
-  element,
-  muted,
-}: {
-  element: LibraryAudioElement;
-  muted: boolean;
-}): Promise<AudioClipSource | null> {
-  const file = await fetchLibraryAudioFile({ element });
-  if (!file) return null;
-
-  return {
-    id: element.id,
-    sourceKey: element.id,
-    file,
-    startTime: element.startTime,
-    duration: element.duration,
-    trimStart: element.trimStart,
-    muted,
-    volume: element.volume ?? 1,
-    playbackRate: element.playbackRate ?? 1,
-    // 库音频是 audio 元素，不支持反转（与 `collectMediaAudioClip` 的窄化口径一致）。
-    reversed: false,
-  };
+/** 采集阶段就能判定的失败（**生产者给可展示信息**，由调用方决定怎么呈现）。 */
+export interface AudioSourceSkipped {
+  elementId: string;
+  message: string;
 }
 
 function getElementVolume({ element }: { element: TimelineElement }): number {
@@ -346,91 +131,141 @@ function getElementVolume({ element }: { element: TimelineElement }): number {
   return 1;
 }
 
-function collectMediaAudioClip({
-  element,
-  mediaAsset,
-  muted,
-}: {
-  element: TimelineElement;
-  mediaAsset: MediaAsset;
-  muted: boolean;
-}): AudioClipSource {
-  return {
-    id: element.id,
-    sourceKey: mediaAsset.id,
-    file: mediaAsset.file,
-    startTime: element.startTime,
-    duration: element.duration,
-    trimStart: element.trimStart,
-    muted,
-    volume: getElementVolume({ element }),
-    playbackRate: getElementPlaybackRate({ element }),
-    // 只有 video 元素有 `reversed`（audio 元素类型上就没有该字段）⇒ 窄化后取值，缺省 false。
-    reversed: 'reversed' in element ? (element.reversed ?? false) : false,
-  };
-}
-
-export async function collectAudioClips({
+export function collectAudioSources({
   tracks,
   mediaAssets,
 }: {
   tracks: TimelineTrack[];
   mediaAssets: MediaAsset[];
-}): Promise<AudioClipSource[]> {
-  const clips: AudioClipSource[] = [];
-  const mediaMap = new Map<string, MediaAsset>(mediaAssets.map((asset) => [asset.id, asset]));
-  const pendingLibraryClips: Array<Promise<AudioClipSource | null>> = [];
+}): { items: AudioSourceSpec[]; skipped: AudioSourceSkipped[] } {
+  const mediaMap = indexMediaAssets({ mediaAssets });
+  const items: AudioSourceSpec[] = [];
+  const skipped: AudioSourceSkipped[] = [];
 
-  for (const track of tracks) {
-    const isTrackMuted = canTracktHaveAudio(track) && track.muted;
+  // 【可见性 = 参与输出】`getOutputTracks` 已把被隐藏的轨 / 元素滤掉 ⇒ 本处看不到它们，
+  // 与画面消费**同一批**轨道（预览与导出都经这里）。
+  for (const track of getOutputTracks(tracks)) {
+    const trackMuted = isTrackMuted(track);
 
     for (const element of track.elements) {
       if (!canElementHaveAudio(element)) continue;
+      if (element.duration <= 0) continue;
 
-      const isElementMuted = 'muted' in element ? (element.muted ?? false) : false;
-      const muted = isTrackMuted || isElementMuted;
+      const muted = trackMuted || ('muted' in element ? (element.muted ?? false) : false);
+
+      const base = {
+        startTime: element.startTime,
+        duration: element.duration,
+        trimStart: element.trimStart,
+        volume: getElementVolume({ element }),
+        muted,
+        playbackRate: getElementPlaybackRate({ element }),
+        reversed: 'reversed' in element ? (element.reversed ?? false) : false,
+      };
 
       if (element.type === 'audio') {
-        if (element.sourceType === 'upload') {
-          const mediaAsset = mediaMap.get(element.mediaId);
-          if (!mediaAsset) continue;
+        const resolvedBytes = resolveAudioElementBytes({ element, mediaMap, skipped });
+        if (!resolvedBytes) continue;
 
-          clips.push(
-            collectMediaAudioClip({
-              element,
-              mediaAsset,
-              muted,
-            }),
-          );
-        } else {
-          pendingLibraryClips.push(fetchLibraryAudioClip({ element, muted }));
-        }
+        items.push({
+          elementId: element.id,
+          sourceKey: resolvedBytes.sourceKey,
+          source: resolvedBytes.source,
+          ...base,
+        });
         continue;
       }
 
-      if (element.type === 'video') {
-        const mediaAsset = mediaMap.get(element.mediaId);
-        if (!mediaAsset) continue;
-
-        if (mediaSupportsAudio({ media: mediaAsset })) {
-          clips.push(
-            collectMediaAudioClip({
-              element,
-              mediaAsset,
-              muted,
-            }),
-          );
-        }
+      // video：只有**确知含音轨**的素材才参与（`mediaSupportsAudio` 按媒体类型判；
+      // 视频无音轨是常态，不是失败 ⇒ 静默跳过，不进 `skipped`）。
+      const mediaAsset = mediaMap.get(element.mediaId);
+      if (!mediaAsset) {
+        skipped.push({ elementId: element.id, message: '视频素材不在本工程素材表中' });
+        continue;
       }
+      if (!mediaSupportsAudio({ media: mediaAsset })) continue;
+
+      items.push({
+        elementId: element.id,
+        sourceKey: mediaAsset.id,
+        source: { kind: 'file', file: mediaAsset.file },
+        ...base,
+      });
     }
   }
 
-  const resolvedLibraryClips = await Promise.all(pendingLibraryClips);
-  for (const clip of resolvedLibraryClips) {
-    if (clip) clips.push(clip);
+  return { items, skipped };
+}
+
+/**
+ * 音频元素 → 字节来源。返回 `null` = 该元素不该发声，且**原因已收进 `skipped`**
+ * （"素材缺失／不含音轨"是**可判别的失败**，不是"解不出来"——给出各自判词，让上层能区分）。
+ */
+function resolveAudioElementBytes({
+  element,
+  mediaMap,
+  skipped,
+}: {
+  element: AudioElement;
+  mediaMap: Map<string, MediaAsset>;
+  skipped: AudioSourceSkipped[];
+}): { sourceKey: string; source: AudioSourceBytes } | null {
+  if (element.sourceType === 'upload') {
+    const asset = mediaMap.get(element.mediaId);
+    if (!asset) {
+      skipped.push({ elementId: element.id, message: '音频素材不在本工程素材表中' });
+      return null;
+    }
+    if (!mediaSupportsAudio({ media: asset })) {
+      skipped.push({ elementId: element.id, message: '该素材不含音轨' });
+      return null;
+    }
+    // 同素材多元素共享一次解码 ⇒ 缓存键取素材 id（不是元素 id）。
+    return { sourceKey: asset.id, source: { kind: 'file', file: asset.file } };
   }
 
-  return clips;
+  // 库音频：已解码的 `buffer` 优先（省一次网络往返；也避免"取字节失败 ⇒ 预览无声而成片有声"）。
+  if (element.buffer) {
+    return { sourceKey: element.id, source: { kind: 'buffer', buffer: element.buffer } };
+  }
+  return { sourceKey: element.id, source: { kind: 'url', url: element.sourceUrl } };
+}
+
+/**
+ * 字节 → `AudioBuffer`（**唯一取字节 + 解码原语**，预览与导出共用）。
+ *
+ * 【生产者给可展示信息】失败**不返回 null**：带判词的判别联合由调用方原样转发
+ * —— 否则上层只能自己编"解码失败"（其实往往是**网络/404**），且用户会在**导出的成品**里
+ * 才发现"这段音频没了"（产物受损且事后无从回查）。
+ */
+export async function resolveAudioSourceBuffer({
+  source,
+  audioContext,
+}: {
+  source: AudioSourceBytes;
+  audioContext: AudioContext;
+}): Promise<{ ok: true; buffer: AudioBuffer } | { ok: false; message: string }> {
+  if (source.kind === 'buffer') return { ok: true, buffer: source.buffer };
+
+  try {
+    if (source.kind === 'file') {
+      const arrayBuffer = await source.file.arrayBuffer();
+      // .slice(0) avoids the detached-buffer error on repeated decodes
+      return { ok: true, buffer: await audioContext.decodeAudioData(arrayBuffer.slice(0)) };
+    }
+
+    const response = await fetch(source.url);
+    if (!response.ok) {
+      return { ok: false, message: `库音频取字节失败：HTTP ${response.status}` };
+    }
+    const arrayBuffer = await response.arrayBuffer();
+    return { ok: true, buffer: await audioContext.decodeAudioData(arrayBuffer.slice(0)) };
+  } catch (error) {
+    return {
+      ok: false,
+      message: `音频解码失败：${error instanceof Error ? error.message : String(error)}`,
+    };
+  }
 }
 
 export async function createTimelineAudioBuffer({
@@ -448,58 +283,66 @@ export async function createTimelineAudioBuffer({
 }): Promise<AudioBuffer | null> {
   const context = audioContext ?? createAudioContext();
 
-  const { items: audioElements, skipped } = await collectAudioElements({
-    tracks,
-    mediaAssets,
-    audioContext: context,
-  });
-
-  // 【2026-09-17 判据落地】被跳过的元素**必须可见**（这是**产物受损**：导出/字幕用的音频会缺这几段）。
-  // 此前 `collectAudioElements` 里 `if (!buffer) return null` 静默丢弃，用户只能在成品里察觉"没声音"。
-  if (skipped.length > 0) {
-    videoEditorLogger.warn('时间轴音频：部分元素解析失败（该段音频将缺失）', { skipped });
-  }
-
-  if (audioElements.length === 0) return null;
+  const { items, skipped } = collectAudioSources({ tracks, mediaAssets });
 
   const outputChannels = 2;
   const outputLength = Math.ceil(duration * sampleRate);
   const outputBuffer = context.createBuffer(outputChannels, outputLength, sampleRate);
 
-  for (const element of audioElements) {
-    if (element.muted) continue;
+  let mixedCount = 0;
+  for (const spec of items) {
+    if (spec.muted) continue;
+
+    const resolved = await resolveAudioSourceBuffer({ source: spec.source, audioContext: context });
+    if (!resolved.ok) {
+      // 【消费者只转发】失败原因由 `resolveAudioSourceBuffer`（生产者）给全，此处原样收进 `skipped`。
+      skipped.push({ elementId: spec.elementId, message: resolved.message });
+      continue;
+    }
 
     mixAudioChannels({
-      element,
+      spec,
+      buffer: resolved.buffer,
       outputBuffer,
       outputLength,
       sampleRate,
     });
+    mixedCount++;
   }
+
+  // 【产物受损必须可见】被跳过的元素在此统一上报（导出成片少音频，用户与开发者都要能查）。
+  if (skipped.length > 0) {
+    videoEditorLogger.warn('时间轴音频：部分元素解析失败（该段音频将缺失）', { skipped });
+  }
+
+  // 【有声音才出音轨】一段都没混进去（全静音 / 全部解析失败）⇒ 返回 `null` = **不产出音轨**。
+  // 返回一条全零 buffer 等于凭空多一条没有内容的音轨，且把"全部解析失败"这件事掩盖成"有音轨"。
+  if (mixedCount === 0) return null;
 
   return outputBuffer;
 }
 
 function mixAudioChannels({
-  element,
+  spec,
+  buffer,
   outputBuffer,
   outputLength,
   sampleRate,
 }: {
-  element: CollectedAudioElement;
+  spec: AudioSourceSpec;
+  buffer: AudioBuffer;
   outputBuffer: AudioBuffer;
   outputLength: number;
   sampleRate: number;
 }): void {
   const {
-    buffer,
     startTime,
     trimStart,
     duration: elementDuration,
     volume,
     playbackRate = 1,
     reversed = false,
-  } = element;
+  } = spec;
 
   // 【声画同源（TD-22-14 母体）】下面是"源时间步进"的**样本域**等价实现：
   //   源窗口 = `[trimStart, trimStart + duration × rate]`（按**源侧**长度，不是时间轴长度），

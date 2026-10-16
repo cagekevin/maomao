@@ -6,13 +6,10 @@ import type {
 } from '@/components/videoEditor/types/timeline';
 import { generateUUID } from '@/components/base/core/idGen.ts';
 import type { TransitionType } from '@/components/videoEditor/types/timeline';
+// 元素时间区间（唯一定义）：本文件**不自算结束时刻**，一律经此（别再加一个私有同名函数）。
+import { getElementTimeRange } from '@/components/videoEditor/engine/timeline/element-utils';
 
 type VisualElement = VideoElement | ImageElement;
-
-// element.duration is already the visible duration on the timeline
-function getElementEndTime({ element }: { element: VisualElement }): number {
-  return element.startTime + element.duration;
-}
 
 /**
  * 「相邻」的容差（秒）。
@@ -36,7 +33,7 @@ export function areElementsAdjacent({
   elementA: VisualElement;
   elementB: VisualElement;
 }): boolean {
-  const endA = getElementEndTime({ element: elementA });
+  const endA = getElementTimeRange({ element: elementA }).end;
   const gap = Math.abs(elementB.startTime - endA);
   return gap < ADJACENCY_EPSILON;
 }

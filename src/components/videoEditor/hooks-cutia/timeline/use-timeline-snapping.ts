@@ -1,6 +1,7 @@
 import { useCallback } from 'react';
 import type { TimelineTrack } from '@/components/videoEditor/types/timeline';
 import { TIMELINE_CONSTANTS } from '@/components/videoEditor/constants/timeline-constants';
+import { getElementTimeRange } from '@/components/videoEditor/engine/timeline/element-utils';
 
 export interface SnapPoint {
   time: number;
@@ -43,8 +44,8 @@ export function useTimelineSnapping({
           for (const element of track.elements) {
             if (element.id === excludeElementId) continue;
 
-            const elementStart = element.startTime;
-            const elementEnd = element.startTime + element.duration;
+            // 吸附点 = 元素时间区间的两端（唯一定义，不在此处再算一遍结束时刻）。
+            const { start: elementStart, end: elementEnd } = getElementTimeRange({ element });
 
             snapPoints.push(
               {

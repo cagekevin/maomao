@@ -42,11 +42,11 @@ export async function generateSpeechFromText({
 function findAvailableAudioTrack({
   editor,
   startTime,
-  endTime,
+  duration,
 }: {
   editor: EditorCore;
   startTime: number;
-  endTime: number;
+  duration: number;
 }): string {
   const audioTracks = editor.timeline.getTracks().filter((t) => t.type === 'audio');
 
@@ -55,7 +55,7 @@ function findAvailableAudioTrack({
       !wouldElementOverlap({
         elements: track.elements,
         startTime,
-        endTime,
+        duration,
       }),
   );
 
@@ -127,7 +127,7 @@ export async function generateAndInsertSpeech({
   const trackId = findAvailableAudioTrack({
     editor,
     startTime,
-    endTime: startTime + result.duration,
+    duration: result.duration,
   });
 
   editor.timeline.insertElement({

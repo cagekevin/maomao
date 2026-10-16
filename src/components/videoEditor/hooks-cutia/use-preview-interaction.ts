@@ -8,17 +8,27 @@ import type {
   TimelineElement,
   TextElement,
 } from '@/components/videoEditor/types/timeline';
+import type { TProjectSettings } from '@/components/videoEditor/types/project';
 import { hitTestElements } from '@/components/videoEditor/engine/lib/preview/hit-test';
-import { FONT_SIZE_SCALE_REFERENCE } from '@/components/videoEditor/constants/text-constants';
 import {
-  getElementHalfSize,
-  getElementCenterInCanvas,
+  getElementCanvasRect,
   type ElementHalfSize,
 } from '@/components/videoEditor/engine/lib/preview/element-bounds';
 import {
   computePreviewSnap,
   type SnapGuide,
 } from '@/components/videoEditor/engine/lib/preview/snap';
+import {
+  getOutputTracks,
+  hasMediaId,
+  isElementActiveAtTime,
+} from '@/components/videoEditor/engine/timeline';
+import {
+  getFontScaleFactor,
+  getTextMeasureContext,
+  layoutText,
+} from '@/components/videoEditor/engine/services/renderer/text-layout';
+import { indexMediaAssets } from '@/components/videoEditor/engine/lib/media/media-utils';
 
 type ScaleHandle = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
 type ResizeHandle = 'left' | 'right';
@@ -115,23 +125,17 @@ export function usePreviewInteraction({
         clientY: event.clientY,
       });
 
-      const canvasWidth = canvasRef.current?.width ?? 0;
-      const canvasHeight = canvasRef.current?.height ?? 0;
-      const fitCanvasSize = editor.project.getActive().settings.originalCanvasSize ?? {
-        width: canvasWidth,
-        height: canvasHeight,
-      };
+      const settings = editor.project.getActive().settings;
       const tracks = editor.timeline.getTracks();
       const mediaAssets = editor.media.getAssets();
       const currentTime = editor.playback.getCurrentTime();
 
+      // 命中口径（画布尺寸 + 适配基准）由 `hitTestElements` 从 settings 内部派生 —— 本处不喂。
       const hitResult = hitTestElements({
         point: startPos,
         tracks,
         mediaAssets,
-        canvasWidth,
-        canvasHeight,
-        fitCanvasSize,
+        settings,
         currentTime,
       });
 
@@ -206,9 +210,7 @@ export function usePreviewInteraction({
         tracks,
         mediaAssets,
         currentTime,
-        canvasWidth,
-        canvasHeight,
-        fitCanvasSize,
+        settings,
         draggedElementIds,
         primaryElement: dragStateRef.current.elements[0],
       });
@@ -216,7 +218,7 @@ export function usePreviewInteraction({
       setIsDragging(true);
       event.currentTarget.setPointerCapture(event.pointerId);
     },
-    [selectedElements, editor, getCanvasCoordinates, canvasRef],
+    [selectedElements, editor, getCanvasCoordinates],
   );
 
   const handleScaleStart = useCallback(
@@ -285,12 +287,22 @@ export function usePreviewInteraction({
       });
 
       const canvasHeight = canvasRef.current?.height ?? 0;
-      const scaleFactor = canvasHeight / FONT_SIZE_SCALE_REFERENCE;
+      const scaleFactor = getFontScaleFactor({ canvasHeight });
 
+      // 起始框宽 = 元素**当前实际占宽**（`layoutText` 实测 —— 与渲染 / 框子同一份排版）。
+      // 不再用 `字符数 × 字号 × 0.6` 估算：`0.6 em` 是**西文**均宽，汉字是全角（≈1.0 em）
+      // ⇒ 中文文本拖框时起始基准明显偏窄，第一下拖动就会跳。
+      const layout = layoutText({
+        element: textElement,
+        canvasHeight,
+        context: getTextMeasureContext(),
+      });
       const initialBoxWidth =
         textElement.boxWidth && textElement.boxWidth > 0
           ? textElement.boxWidth
-          : textElement.content.length * textElement.fontSize * 0.6;
+          : scaleFactor > 0
+            ? layout.width / scaleFactor
+            : layout.width;
 
       resizeStateRef.current = {
         startX: startPos.x,
@@ -621,22 +633,20 @@ function buildSnapContext({
   tracks,
   mediaAssets,
   currentTime,
-  canvasWidth,
-  canvasHeight,
-  fitCanvasSize,
+  settings,
   draggedElementIds,
   primaryElement,
 }: {
   tracks: TimelineTrack[];
   mediaAssets: ReturnType<ReturnType<typeof useEditor>['media']['getAssets']>;
   currentTime: number;
-  canvasWidth: number;
-  canvasHeight: number;
-  fitCanvasSize: { width: number; height: number };
+  settings: Pick<TProjectSettings, 'canvasSize' | 'originalCanvasSize'>;
   draggedElementIds: Set<string>;
   primaryElement: { elementId: string; initialTransform: Transform };
 }): SnapContext | null {
-  const mediaMap = new Map(mediaAssets.map((a) => [a.id, a]));
+  const mediaMap = indexMediaAssets({ mediaAssets });
+  const canvasWidth = settings.canvasSize.width;
+  const canvasHeight = settings.canvasSize.height;
 
   let primaryEl: TimelineElement | undefined;
   for (const track of tracks) {
@@ -649,54 +659,44 @@ function buildSnapContext({
 
   if (!primaryEl || primaryEl.type === 'audio') return null;
 
-  const elementHalfSize = getElementHalfSize({
+  // 矩形走**唯一几何原语**（与画面 / 框子 / 命中同一份算式与尺寸来源）。
+  const primaryRect = getElementCanvasRect({
     element: primaryEl,
     transform: primaryElement.initialTransform,
-    mediaMap,
-    canvasWidth,
-    canvasHeight,
-    fitCanvasSize,
+    media: hasMediaId(primaryEl) ? mediaMap.get(primaryEl.mediaId) : undefined,
+    settings,
   });
 
-  if (!elementHalfSize) return null;
+  if (!primaryRect) return null;
+
+  const elementHalfSize: ElementHalfSize = {
+    halfWidth: primaryRect.width / 2,
+    halfHeight: primaryRect.height / 2,
+  };
 
   const otherElementBounds: SnapContext['otherElementBounds'] = [];
 
-  for (const track of tracks) {
-    if ('hidden' in track && track.hidden) continue;
+  // 吸附候选与画面/命中**同一批**轨道（隐藏项已由投影滤掉，无从漏判）。
+  for (const track of getOutputTracks(tracks)) {
     for (const element of track.elements) {
       if (element.type === 'audio') continue;
-      if ('hidden' in element && element.hidden) continue;
       if (draggedElementIds.has(element.id)) continue;
 
-      const isVisible =
-        currentTime >= element.startTime && currentTime < element.startTime + element.duration;
-      if (!isVisible) continue;
+      if (!isElementActiveAtTime({ element, time: currentTime })) continue;
 
-      const transform = (element as { transform: Transform }).transform;
-      const otherHalf = getElementHalfSize({
+      const rect = getElementCanvasRect({
         element,
-        transform,
-        mediaMap,
-        canvasWidth,
-        canvasHeight,
-        fitCanvasSize,
+        transform: (element as { transform: Transform }).transform,
+        media: hasMediaId(element) ? mediaMap.get(element.mediaId) : undefined,
+        settings,
       });
-      if (!otherHalf) continue;
-
-      const center = getElementCenterInCanvas({
-        element,
-        transform,
-        canvasWidth,
-        canvasHeight,
-        halfSize: otherHalf,
-      });
+      if (!rect) continue;
 
       otherElementBounds.push({
-        centerX: center.x,
-        centerY: center.y,
-        halfWidth: otherHalf.halfWidth,
-        halfHeight: otherHalf.halfHeight,
+        centerX: rect.centerX,
+        centerY: rect.centerY,
+        halfWidth: rect.width / 2,
+        halfHeight: rect.height / 2,
       });
     }
   }

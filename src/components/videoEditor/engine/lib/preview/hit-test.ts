@@ -4,9 +4,14 @@ import type {
   Transform,
 } from '@/components/videoEditor/types/timeline';
 import type { MediaAsset } from '@/components/videoEditor/types/mediaAssets';
-import type { TCanvasSize } from '@/components/videoEditor/types/project';
-import { isMainTrack } from '@/components/videoEditor/engine/timeline';
-import { getElementHalfSize, getElementCenterInCanvas } from './element-bounds';
+import type { TProjectSettings } from '@/components/videoEditor/types/project';
+import {
+  getOutputTracks,
+  hasMediaId,
+  isElementActiveAtTime,
+} from '@/components/videoEditor/engine/timeline';
+import { indexMediaAssets } from '@/components/videoEditor/engine/lib/media/media-utils';
+import { getElementCanvasRect } from './element-bounds';
 
 export interface HitResult {
   trackId: string;
@@ -41,39 +46,34 @@ function isPointInRotatedRect({
 /**
  * Returns the topmost visible element at the given canvas-coordinate point,
  * or null when nothing is hit.
+ *
+ * 【为什么收 `settings`】画布尺寸与适配基准（`getFitCanvasSize`）由本函数内部派生 ——
+ * 调用方**拿不到**这两个参数，也就无从与渲染口径写歪（命中区与画面必须同一套坐标）。
  */
 export function hitTestElements({
   point,
   tracks,
   mediaAssets,
-  canvasWidth,
-  canvasHeight,
-  fitCanvasSize = { width: canvasWidth, height: canvasHeight },
+  settings,
   currentTime,
 }: {
   point: { x: number; y: number };
   tracks: TimelineTrack[];
   mediaAssets: MediaAsset[];
-  canvasWidth: number;
-  canvasHeight: number;
-  fitCanvasSize?: TCanvasSize;
+  settings: Pick<TProjectSettings, 'canvasSize' | 'originalCanvasSize'>;
   currentTime: number;
 }): HitResult | null {
-  const mediaMap = new Map(mediaAssets.map((asset) => [asset.id, asset]));
+  const mediaMap = indexMediaAssets({ mediaAssets });
 
-  // keep hit-test ordering aligned with renderer layering:
-  // top-to-bottom = non-main -> main, then traverse bottom-to-top for draw order
-  const orderedTracksTopToBottom = [
-    ...tracks.filter((track) => !isMainTrack(track)),
-    ...tracks.filter((track) => isMainTrack(track)),
-  ];
-  const orderedTracksBottomToTop = orderedTracksTopToBottom.slice().reverse();
+  // 【命中序必须与渲染序同源】图层序 = `tracks` 数组序（下标 0 = 最上层）⇒ 遍历取反序
+  // （`scene-builder` 用同一条式子）。此处曾各抄一份 `isMainTrack` 分区 —— 同一真相两份副本，
+  // 且与渲染一起把用户拖动的顺序抹掉（命中与画面双双对不上时间轴列表）。
+  // 可见性同源：`getOutputTracks` 已滤掉隐藏项 ⇒ 本处看不到它们（与画面**同一批**候选）。
+  const orderedTracksBottomToTop = getOutputTracks(tracks).slice().reverse();
 
   const candidates: HitResult[] = [];
 
   for (const track of orderedTracksBottomToTop) {
-    if ('hidden' in track && track.hidden) continue;
-
     const orderedElements = track.elements.slice().sort((a, b) => {
       if (a.startTime !== b.startTime) return a.startTime - b.startTime;
       return a.id.localeCompare(b.id);
@@ -81,10 +81,7 @@ export function hitTestElements({
 
     for (const element of orderedElements) {
       if (element.type === 'audio') continue;
-      if ('hidden' in element && element.hidden) continue;
-      const isVisible =
-        currentTime >= element.startTime && currentTime < element.startTime + element.duration;
-      if (!isVisible) continue;
+      if (!isElementActiveAtTime({ element, time: currentTime })) continue;
 
       const transform = (element as { transform: Transform }).transform;
       candidates.push({ trackId: track.id, element, transform });
@@ -96,32 +93,23 @@ export function hitTestElements({
     const candidate = candidates[i];
     const { element, transform } = candidate;
 
-    const size = getElementHalfSize({
+    // 矩形走**唯一几何原语**（与画面 / 框子同一份算式与尺寸来源）。
+    const rect = getElementCanvasRect({
       element,
       transform,
-      mediaMap,
-      canvasWidth,
-      canvasHeight,
-      fitCanvasSize,
+      media: hasMediaId(element) ? mediaMap.get(element.mediaId) : undefined,
+      settings,
     });
 
-    if (!size) continue;
-
-    const center = getElementCenterInCanvas({
-      element,
-      transform,
-      canvasWidth,
-      canvasHeight,
-      halfSize: size,
-    });
+    if (!rect) continue;
 
     if (
       isPointInRotatedRect({
         point,
-        center,
-        halfWidth: size.halfWidth,
-        halfHeight: size.halfHeight,
-        rotationDeg: transform.rotate,
+        center: { x: rect.centerX, y: rect.centerY },
+        halfWidth: rect.width / 2,
+        halfHeight: rect.height / 2,
+        rotationDeg: rect.rotate,
       })
     ) {
       return candidate;

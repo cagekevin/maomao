@@ -4,18 +4,16 @@ import { useEditor } from '@/components/videoEditor/hooks-cutia/use-editor';
 import { useSelectedElements } from '@/components/videoEditor/hooks-cutia/timeline/element/use-element-selection';
 import { cn } from '@/components/videoEditor/utils/ui';
 import type {
+  AudioElement,
+  TimelineTrack,
   TimelineElement,
-  VideoElement,
-  ImageElement,
-  TextElement,
-  StickerElement,
   ElementType,
 } from '@/components/videoEditor/types/timeline';
 import type { MediaAsset } from '@/components/videoEditor/types/mediaAssets';
-import { FONT_SIZE_SCALE_REFERENCE } from '@/components/videoEditor/constants/text-constants';
-import { isBottomAlignedSubtitleText } from '@/components/videoEditor/engine/timeline/text-utils';
-// 字体族栈（**已有实现，不自己拼**）：与画布 `ctx.font` 用同一份，否则量出的宽高与渲染不一致。
-import { buildFontFamilyStack } from '@/components/videoEditor/engine/services/renderer/font-stack';
+import type { TProjectSettings } from '@/components/videoEditor/types/project';
+import { getElementCanvasRect } from '@/components/videoEditor/engine/lib/preview/element-bounds';
+import { indexMediaAssets } from '@/components/videoEditor/engine/lib/media/media-utils';
+import { hasMediaId, isElementActiveAtTime } from '@/components/videoEditor/engine/timeline';
 
 type ScaleHandle = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
 type ResizeHandle = 'left' | 'right';
@@ -25,6 +23,9 @@ const RESIZE_HANDLE_WIDTH = 6;
 const RESIZE_HANDLE_HEIGHT = 24;
 
 const SCALE_HANDLES: ScaleHandle[] = ['top-left', 'top-right', 'bottom-left', 'bottom-right'];
+
+/** 有 `transform` 的元素（音频元素不参与画布叠加层）。 */
+type VisualElement = Exclude<TimelineElement, AudioElement>;
 
 interface ElementBounds {
   left: number;
@@ -58,202 +59,40 @@ function getHandleCursor({ handle }: { handle: ScaleHandle }) {
   }
 }
 
-function computeMediaBounds({
+/**
+ * 元素 → 叠加层坐标（**唯一几何原语** `getElementCanvasRect` × 画布 → 显示的缩放）。
+ *
+ * 【为什么不再自己算】这里曾有 `computeMediaBounds` / `computeTextBounds` / `computeStickerBounds`
+ * 三份算式，与 `element-bounds`（命中 / 吸附）和 `visual-node`（渲染）**同一件事写三遍**，
+ * 且三份取值口径不同（文本：一份估算一份实测；贴纸：一份用画布宽、一份用适配基准）
+ * ⇒ 框子套不住画面、点不中自己看到的字。现只此一处派生。
+ */
+function getElementBounds({
   element,
   media,
-  canvasWidth,
-  canvasHeight,
-  fitCanvasSize,
+  settings,
   displayScale,
 }: {
-  element: VideoElement | ImageElement;
+  element: VisualElement;
   media: MediaAsset | undefined;
-  canvasWidth: number;
-  canvasHeight: number;
-  fitCanvasSize: { width: number; height: number };
+  settings: Pick<TProjectSettings, 'canvasSize' | 'originalCanvasSize'>;
   displayScale: number;
 }): ElementBounds | null {
-  if (!media) return null;
-
-  const mediaW = media.width || canvasWidth;
-  const mediaH = media.height || canvasHeight;
-  const containScale = Math.min(fitCanvasSize.width / mediaW, fitCanvasSize.height / mediaH);
-  const scaledW = mediaW * containScale * element.transform.scale;
-  const scaledH = mediaH * containScale * element.transform.scale;
-
-  const canvasX = canvasWidth / 2 + element.transform.position.x - scaledW / 2;
-  const canvasY = canvasHeight / 2 + element.transform.position.y - scaledH / 2;
+  const rect = getElementCanvasRect({
+    element,
+    transform: element.transform,
+    media,
+    settings,
+  });
+  if (!rect) return null;
 
   return {
-    left: canvasX * displayScale,
-    top: canvasY * displayScale,
-    width: scaledW * displayScale,
-    height: scaledH * displayScale,
-    rotate: element.transform.rotate,
+    left: (rect.centerX - rect.width / 2) * displayScale,
+    top: (rect.centerY - rect.height / 2) * displayScale,
+    width: rect.width * displayScale,
+    height: rect.height * displayScale,
+    rotate: rect.rotate,
   };
-}
-
-function computeTextBounds({
-  element,
-  canvasWidth,
-  canvasHeight,
-  displayScale,
-}: {
-  element: TextElement;
-  canvasWidth: number;
-  canvasHeight: number;
-  displayScale: number;
-}): ElementBounds {
-  const scaleFactor = canvasHeight / FONT_SIZE_SCALE_REFERENCE;
-  const scaledFontSize = element.fontSize * scaleFactor;
-
-  const elementBoxWidth = element.boxWidth;
-  const hasBoxWidth = elementBoxWidth !== undefined && elementBoxWidth > 0;
-  const scaledBoxWidth = hasBoxWidth ? elementBoxWidth * scaleFactor : 0;
-
-  // 【2026-09-19 修复"框子跟不上"】原为**估算公式**（`字符数 × 字号 × 0.6`），
-  // 而画布用 `ctx.measureText` 真实测量（见 `engine/.../nodes/text-node.ts`）——
-  // 同一件事两份判据。`0.6 em` 是**西文字符**的平均宽度，汉字是全角（≈1.0 em）
-  // ⇒ 中文文本的框子明显偏窄（换成中文字体后暴露）。
-  //
-  // 现改为**与渲染同一套测量**：建离屏 canvas、设上与渲染逐字相同的 `font`
-  // （字号 / 字重 / 斜体 / 族栈写法与 `text-node.ts` 对齐），再用 `measureText` 取真实宽高。
-  // 仅替换算式，函数签名 / 返回形状 / 调用方一律不变。
-  const measureContext = document.createElement('canvas').getContext('2d');
-  // 拿不到 2D 上下文 → **不静默兜底**（框子用猜的尺寸 = 用户可见的错误结果）：
-  // 抛错由 ErrorBoundary 接住，比"框子悄悄错位"诚实。
-  if (!measureContext) {
-    throw new Error('selection-overlay: 无法创建文本测量用的 2D 上下文');
-  }
-  measureContext.font = `${element.fontStyle} ${element.fontWeight} ${scaledFontSize}px ${buildFontFamilyStack({ fontFamily: element.fontFamily })}`;
-
-  let measuredWidth: number;
-  let measuredHeight: number;
-  const elementScale = element.transform.scale;
-
-  if (hasBoxWidth) {
-    // 多行：换行逐字试（与 `text-node.ts::wrapText` 同算法），行高 `fontSize * 1.3` 同值
-    const lines: string[] = [];
-    for (const paragraph of element.content.split('\n')) {
-      if (paragraph === '') {
-        lines.push('');
-        continue;
-      }
-      let currentLine = '';
-      for (const char of Array.from(paragraph)) {
-        const testLine = currentLine + char;
-        if (measureContext.measureText(testLine).width > scaledBoxWidth && currentLine !== '') {
-          lines.push(currentLine);
-          currentLine = char;
-        } else {
-          currentLine = testLine;
-        }
-      }
-      if (currentLine !== '') lines.push(currentLine);
-    }
-    if (lines.length === 0) lines.push('');
-    // 宽度取**最宽的那行**（内容实际占宽；盒子宽只是换行上限）
-    let widest = 0;
-    for (const line of lines) {
-      widest = Math.max(widest, measureContext.measureText(line).width);
-    }
-    measuredWidth = widest;
-    measuredHeight = lines.length * scaledFontSize * 1.3;
-  } else {
-    // 单行：与 `text-node.ts::renderSingleLine` 同口径（ascent/descent，缺失时回落 0.8/0.2 em）
-    const metrics = measureContext.measureText(element.content);
-    const ascent = metrics.actualBoundingBoxAscent ?? scaledFontSize * 0.8;
-    const descent = metrics.actualBoundingBoxDescent ?? scaledFontSize * 0.2;
-    measuredWidth = metrics.width;
-    measuredHeight = ascent + descent;
-  }
-
-  const centerX = canvasWidth / 2 + element.transform.position.x;
-  const baseY = canvasHeight / 2 + element.transform.position.y;
-  const isBottomAligned = isBottomAlignedSubtitleText({ element });
-  const scaledMeasuredWidth = measuredWidth * elementScale;
-  const scaledMeasuredHeight = measuredHeight * elementScale;
-  const topY = isBottomAligned ? baseY - scaledMeasuredHeight : baseY - scaledMeasuredHeight / 2;
-
-  return {
-    left: (centerX - scaledMeasuredWidth / 2) * displayScale,
-    top: topY * displayScale,
-    width: scaledMeasuredWidth * displayScale,
-    height: scaledMeasuredHeight * displayScale,
-    rotate: element.transform.rotate,
-  };
-}
-
-function computeStickerBounds({
-  element,
-  canvasWidth,
-  canvasHeight,
-  displayScale,
-}: {
-  element: StickerElement;
-  canvasWidth: number;
-  canvasHeight: number;
-  displayScale: number;
-}): ElementBounds {
-  const stickerSource = 200;
-  const containScale = Math.min(canvasWidth / stickerSource, canvasHeight / stickerSource);
-  const stickerSize = stickerSource * containScale * element.transform.scale;
-
-  const centerX = canvasWidth / 2 + element.transform.position.x;
-  const centerY = canvasHeight / 2 + element.transform.position.y;
-
-  return {
-    left: (centerX - stickerSize / 2) * displayScale,
-    top: (centerY - stickerSize / 2) * displayScale,
-    width: stickerSize * displayScale,
-    height: stickerSize * displayScale,
-    rotate: element.transform.rotate,
-  };
-}
-
-function computeElementBounds({
-  element,
-  media,
-  canvasWidth,
-  canvasHeight,
-  fitCanvasSize,
-  displayScale,
-}: {
-  element: TimelineElement;
-  media: MediaAsset | undefined;
-  canvasWidth: number;
-  canvasHeight: number;
-  fitCanvasSize: { width: number; height: number };
-  displayScale: number;
-}): ElementBounds | null {
-  switch (element.type) {
-    case 'video':
-    case 'image':
-      return computeMediaBounds({
-        element,
-        media,
-        canvasWidth,
-        canvasHeight,
-        fitCanvasSize,
-        displayScale,
-      });
-    case 'text':
-      return computeTextBounds({
-        element,
-        canvasWidth,
-        canvasHeight,
-        displayScale,
-      });
-    case 'sticker':
-      return computeStickerBounds({
-        element,
-        canvasWidth,
-        canvasHeight,
-        displayScale,
-      });
-    default:
-      return null;
-  }
 }
 
 function ElementOverlay({
@@ -390,26 +229,21 @@ export function SelectionOverlay({
   const activeProject = editor.project.getActive();
   const mediaAssets = editor.media.getAssets();
   const canvasWidth = activeProject?.settings.canvasSize.width ?? 0;
-  const canvasHeight = activeProject?.settings.canvasSize.height ?? 0;
-  const fitCanvasSize = activeProject?.settings.originalCanvasSize ?? {
-    width: canvasWidth,
-    height: canvasHeight,
-  };
   const displayScale = canvasWidth > 0 ? displaySize.width / canvasWidth : 1;
 
-  const mediaMap = useMemo(
-    () => new Map(mediaAssets.map((asset) => [asset.id, asset])),
-    [mediaAssets],
-  );
+  const mediaMap = useMemo(() => indexMediaAssets({ mediaAssets }), [mediaAssets]);
 
   const elementsWithTracks = editor.timeline.getElementsWithTracks({
     elements: selectedElements,
   });
 
-  const visibleElements = elementsWithTracks.filter(({ element }) => {
-    if (element.type === 'audio') return false;
-    return currentTime >= element.startTime && currentTime < element.startTime + element.duration;
-  });
+  const visibleElements = elementsWithTracks.filter(
+    (item): item is { track: TimelineTrack; element: VisualElement } => {
+      const { element } = item;
+      if (element.type === 'audio') return false;
+      return isElementActiveAtTime({ element, time: currentTime });
+    },
+  );
 
   if (visibleElements.length === 0 || displaySize.width === 0) {
     return null;
@@ -418,14 +252,12 @@ export function SelectionOverlay({
   return (
     <>
       {visibleElements.map(({ track, element }) => {
-        const media = 'mediaId' in element ? mediaMap.get(element.mediaId) : undefined;
+        const media = hasMediaId(element) ? mediaMap.get(element.mediaId) : undefined;
 
-        const bounds = computeElementBounds({
+        const bounds = getElementBounds({
           element,
           media,
-          canvasWidth,
-          canvasHeight,
-          fitCanvasSize,
+          settings: activeProject.settings,
           displayScale,
         });
 

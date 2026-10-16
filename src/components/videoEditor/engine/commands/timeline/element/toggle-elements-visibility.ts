@@ -1,6 +1,6 @@
 import { Command } from '@/components/videoEditor/engine/commands/base-command';
 import type { TimelineTrack } from '@/components/videoEditor/types/timeline';
-import { canElementBeHidden } from '@/components/videoEditor/engine/timeline/element-utils';
+import { isElementHidden } from '@/components/videoEditor/engine/timeline';
 import { getEditor } from '@/components/videoEditor/engine/core/editorInstance';
 
 export class ToggleElementsVisibilityCommand extends Command {
@@ -17,7 +17,7 @@ export class ToggleElementsVisibilityCommand extends Command {
     const shouldHide = this.elements.some(({ trackId, elementId }) => {
       const track = this.savedState?.find((t) => t.id === trackId);
       const element = track?.elements.find((e) => e.id === elementId);
-      return element && canElementBeHidden(element) && !element.hidden;
+      return element ? !isElementHidden(element) : false;
     });
 
     const updatedTracks = this.savedState.map((track) => {
@@ -25,7 +25,7 @@ export class ToggleElementsVisibilityCommand extends Command {
         const shouldUpdate = this.elements.some(
           ({ trackId, elementId }) => track.id === trackId && element.id === elementId,
         );
-        return shouldUpdate && canElementBeHidden(element) && element.hidden !== shouldHide
+        return shouldUpdate && isElementHidden(element) !== shouldHide
           ? { ...element, hidden: shouldHide }
           : element;
       });

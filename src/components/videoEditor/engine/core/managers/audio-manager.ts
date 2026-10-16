@@ -3,10 +3,11 @@ import { subscribe } from '@/components/base/core/event/eventBus';
 import { VIDEOEDITOR_SEEK_EVENT } from '@/components/base/core/contracts';
 import { releaseQuietly } from '@/components/base/utils/net/asyncGuard';
 import type { EditorCore } from '@/components/videoEditor/engine/core';
-import type { AudioClipSource } from '@/components/videoEditor/engine/lib/media/audio';
+import type { AudioSourceSpec } from '@/components/videoEditor/engine/lib/media/audio';
 import {
   createAudioContext,
-  collectAudioClips,
+  collectAudioSources,
+  resolveAudioSourceBuffer,
   reverseAudioBuffer,
 } from '@/components/videoEditor/engine/lib/media/audio';
 import { getVisualSourceTime } from '@/components/videoEditor/engine/timeline/element-utils';
@@ -16,7 +17,7 @@ export class AudioManager {
   private masterGain: GainNode | null = null;
   private playbackStartTime = 0;
   private playbackStartContextTime = 0;
-  private clips: AudioClipSource[] = [];
+  private clips: AudioSourceSpec[] = [];
   private decodedBuffers = new Map<string, AudioBuffer>();
   private queuedSources = new Set<AudioBufferSourceNode>();
   private playbackSessionId = 0;
@@ -171,7 +172,12 @@ export class AudioManager {
       await audioContext.resume();
     }
 
-    this.clips = await collectAudioClips({ tracks, mediaAssets });
+    // 判据来自与导出**同一份**采集原语（`collectAudioSources`）—— 预览与成片"该出哪几段声音"不再各判一遍。
+    const { items, skipped } = collectAudioSources({ tracks, mediaAssets });
+    if (skipped.length > 0) {
+      videoEditorLogger.warn('时间轴音频：部分元素解析失败（该段音频将缺失）', { skipped });
+    }
+    this.clips = items;
     if (!this.editor.playback.getIsPlaying()) return;
     if (sessionId !== this.playbackSessionId) return;
 
@@ -191,40 +197,40 @@ export class AudioManager {
     const audioContext = this.audioContext;
     if (!audioContext) return;
 
-    for (const clip of this.clips) {
-      if (clip.muted) continue;
+    for (const spec of this.clips) {
+      if (spec.muted) continue;
 
-      const clipEnd = clip.startTime + clip.duration;
+      const clipEnd = spec.startTime + spec.duration;
       if (clipEnd <= time) continue;
       if (sessionId !== this.playbackSessionId) return;
 
       try {
-        const buffer = await this.getDecodedBuffer({ clip });
+        const buffer = await this.getDecodedBuffer({ spec });
         if (!buffer) continue;
         if (sessionId !== this.playbackSessionId) return;
         if (!this.editor.playback.getIsPlaying()) return;
 
-        this.scheduleClipNode({ clip, buffer, time });
+        this.scheduleClipNode({ spec, buffer, time });
       } catch (error) {
-        videoEditorLogger.warn('Failed to schedule audio clip:', clip.id, error);
+        videoEditorLogger.warn('Failed to schedule audio clip:', spec.elementId, error);
       }
     }
   }
 
   private scheduleClipNode({
-    clip,
+    spec,
     buffer,
     time,
   }: {
-    clip: AudioClipSource;
+    spec: AudioSourceSpec;
     buffer: AudioBuffer;
     time: number;
   }): void {
     const audioContext = this.audioContext;
     if (!audioContext || !this.masterGain) return;
 
-    const rate = clip.playbackRate;
-    const elapsed = Math.max(0, time - clip.startTime);
+    const rate = spec.playbackRate;
+    const elapsed = Math.max(0, time - spec.startTime);
     // 【声画同源（TD-22-14 母体）】"现在该播源素材的哪一刻"**只允许有一个式子**：
     //   画面取帧走 `getVisualSourceTime`（`VisualNode.getLocalTime`，带 reversed），
     //   音频调度前先是**手写**同一式子（`trimStart + elapsed × rate`）—— 改一处忘另一处
@@ -237,21 +243,21 @@ export class AudioManager {
     //   —— 正是「以 `trimStart' = D − trimStart − rate × duration` 走**正序**算式」。
     //   所以这里只换算起点、仍走正序分支：**调度域（怎么播）与求值域（该播哪一刻）各守一处**，
     //   不必让 `getVisualSourceTime` 去理解"buffer 已被倒过来"。
-    const trimStart = clip.reversed
-      ? buffer.duration - clip.trimStart - rate * clip.duration
-      : clip.trimStart;
+    const trimStart = spec.reversed
+      ? buffer.duration - spec.trimStart - rate * spec.duration
+      : spec.trimStart;
     const sourceOffset = getVisualSourceTime({
-      timelineTime: Math.max(clip.startTime, time),
-      startTime: clip.startTime,
-      duration: clip.duration,
+      timelineTime: Math.max(spec.startTime, time),
+      startTime: spec.startTime,
+      duration: spec.duration,
       trimStart,
       playbackRate: rate,
     });
-    const remainingDuration = clip.duration - elapsed;
+    const remainingDuration = spec.duration - elapsed;
 
     if (remainingDuration <= 0) return;
 
-    const timelineStart = Math.max(clip.startTime, time);
+    const timelineStart = Math.max(spec.startTime, time);
     const scheduleTime = this.playbackStartContextTime + (timelineStart - this.playbackStartTime);
 
     const node = audioContext.createBufferSource();
@@ -259,7 +265,7 @@ export class AudioManager {
     node.playbackRate.value = rate;
 
     const clipGain = audioContext.createGain();
-    clipGain.gain.value = clip.volume;
+    clipGain.gain.value = spec.volume;
     node.connect(clipGain);
     clipGain.connect(this.masterGain);
 
@@ -283,34 +289,34 @@ export class AudioManager {
     });
   }
 
-  private async getDecodedBuffer({ clip }: { clip: AudioClipSource }): Promise<AudioBuffer | null> {
+  private async getDecodedBuffer({ spec }: { spec: AudioSourceSpec }): Promise<AudioBuffer | null> {
     // 倒放片段取的是**倒序副本** ⇒ 缓存键必须带上 `reversed` 维度，
     // 否则同一素材的正序元素与反转元素会互相串用（TD-22-29 档 2）。
-    const cacheKey = clip.reversed ? `${clip.sourceKey}#reversed` : clip.sourceKey;
+    const cacheKey = spec.reversed ? `${spec.sourceKey}#reversed` : spec.sourceKey;
     const cached = this.decodedBuffers.get(cacheKey);
     if (cached) return cached;
 
     const audioContext = this.audioContext;
     if (!audioContext) return null;
 
-    try {
-      const arrayBuffer = await clip.file.arrayBuffer();
-      // .slice(0) avoids the detached-buffer error on repeated decodes
-      const decoded = await audioContext.decodeAudioData(arrayBuffer.slice(0));
-      const buffer = clip.reversed
-        ? reverseAudioBuffer({ buffer: decoded, audioContext })
-        : decoded;
-      this.decodedBuffers.set(cacheKey, buffer);
-      return buffer;
-    } catch (error) {
-      // 【2026-09-17 TD-22-63 取证后证伪，防重报】解码失败**有留痕**（本 warn 带 sourceKey），
-      // 返回 null = 「该片段本次不发声」的**文档化契约**（getDecodedBuffer → 调用方 continue 跳过）：
+    // 取字节 + 解码走**与导出同一份**原语（`resolveAudioSourceBuffer`）—— 三条字节来源
+    // （文件 / 库 URL / 已解码 buffer）的分派不再各写一遍。
+    const resolved = await resolveAudioSourceBuffer({ source: spec.source, audioContext });
+    if (!resolved.ok) {
+      // 【TD-22-63 取证后证伪，防重报】解码失败**有留痕**（本 warn 带 sourceKey + 生产者判词），
+      // 返回 null = 「该片段本次不发声」的**文档化契约**（调用方 continue 跳过）：
       // ① 播放循环内 toast = 每帧刷屏（同一坏片段每 tick 都会再试）；
       // ② 持续态读者已存在：波形组件的「素材不可用」错误态（audio-waveform / MissingMediaIndicator）；
       // ③ 失败原因多为坏文件/不支持编码，用户可行动作 = 重新导入（波形错误态已表达）。
-      videoEditorLogger.warn('Failed to decode audio:', clip.sourceKey, error);
+      videoEditorLogger.warn('Failed to decode audio:', spec.sourceKey, resolved.message);
       return null;
     }
+
+    const buffer = spec.reversed
+      ? reverseAudioBuffer({ buffer: resolved.buffer, audioContext })
+      : resolved.buffer;
+    this.decodedBuffers.set(cacheKey, buffer);
+    return buffer;
   }
 
   private stopPlayback(): void {

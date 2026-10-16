@@ -21,6 +21,7 @@ import { patternCraftGradients } from '@/components/videoEditor/data/colors/patt
 import { colors } from '@/components/videoEditor/data/colors/solid';
 import { syntaxUIGradients } from '@/components/videoEditor/data/colors/syntax-ui';
 import { useEditor } from '@/components/videoEditor/hooks-cutia/use-editor';
+import { getFitCanvasSize } from '@/components/videoEditor/engine/lib/canvas-size';
 // 更新(2026-09-14)：AI providers 随 AI 域移除。
 import { cn } from '@/components/videoEditor/utils/ui';
 import {
@@ -107,7 +108,10 @@ function ProjectInfoView() {
     setCustomSelected(value === CANVAS_CUSTOM_VALUE);
 
     if (value === CANVAS_FIT_VALUE) {
-      const canvasSize = originalCanvasSize ?? currentCanvasSize;
+      const canvasSize = getFitCanvasSize({
+        canvasSize: currentCanvasSize,
+        originalCanvasSize,
+      });
       editor.project.updateSettings({ settings: { canvasSize } });
       return;
     }

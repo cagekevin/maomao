@@ -248,11 +248,11 @@ function canPlaceElementsOnTrack({
   elements: TimelineElement[];
 }): boolean {
   for (const element of elements) {
-    const endTime = element.startTime + element.duration;
+    // 直接给"区间"的两端来源（起点 + 时长），**不在调用方算结束时刻**。
     const hasOverlap = wouldElementOverlap({
       elements: track.elements,
       startTime: element.startTime,
-      endTime,
+      duration: element.duration,
     });
     if (hasOverlap) {
       return false;

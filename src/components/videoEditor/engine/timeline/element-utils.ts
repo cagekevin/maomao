@@ -1,4 +1,6 @@
 import { DEFAULT_TEXT_ELEMENT } from '@/components/videoEditor/constants/text-constants';
+// 轨级可见性判据（唯一实现）—— 编辑期按索引遍历时用谓词，输出路径用 `getOutputTracks` 投影。
+import { isTrackHidden } from './track-utils';
 import { TIMELINE_CONSTANTS } from '@/components/videoEditor/constants/timeline-constants';
 import type { MediaAsset } from '@/components/videoEditor/types/mediaAssets';
 import type {
@@ -35,6 +37,66 @@ export function hasMediaId(
   element: TimelineElement,
 ): element is UploadAudioElement | VideoElement | ImageElement {
   return 'mediaId' in element;
+}
+
+/**
+ * **元素在时间轴上占据的区间（唯一算式）**：`[startTime, startTime + duration)`。
+ *
+ * 【口径】`duration` 是**时间轴上的可见时长**（`trimStart` 是源素材入点、`playbackRate` 只参与
+ * 源域换算）⇒ 时间轴区间恒为 `start + duration`。这是数据模型的**算术定义**，没有口径可选项；
+ * 收成一处的收益是"改时间模型时只改这里"，**不是**防漂移（别把它当判据）。
+ *
+ * 【区间**判定**各有一处，别在调用方内联比较】
+ *   · 该不该显示 / 命中 → `isElementActiveAtTime`：半开 `[start, end)`（起点那一刻画面确实显示它）
+ *   · 能不能在此刻切成两段 → `canSplitElementAtTime`：开区间 `(start, end)`（端点上切出 0 长度段）
+ */
+export function getElementTimeRange({ element }: { element: TimelineElement }): {
+  start: number;
+  end: number;
+} {
+  return { start: element.startTime, end: element.startTime + element.duration };
+}
+
+/**
+ * **「这一刻该不该显示 / 命中这个元素」的唯一判据**（半开区间 `[start, end)`）。
+ *
+ * 【为什么必须唯一】命中（`hit-test`）/ 框子（`selection-overlay`）/ 吸附
+ * （`use-preview-interaction`）/ 文本绘制（`TextNode.isInRange`）/ 定格可用性
+ * （`timeline-toolbar`）曾各写一遍同一式子；`use-editor-actions` 还写了它的**德摩根展开**
+ * （`t < start || t >= end`）—— 同一判据六种写法，任一处把边界写歪就是"框子画着却点不中"，
+ * 且只在恰好落在边界的那一帧显形（最难自查的一类漂移）。
+ */
+export function isElementActiveAtTime({
+  element,
+  time,
+}: {
+  element: TimelineElement;
+  time: number;
+}): boolean {
+  const { start, end } = getElementTimeRange({ element });
+  return time >= start && time < end;
+}
+
+/**
+ * **「这一刻能不能把这个元素切成两段」的唯一判据**（开区间 `(start, end)`）。
+ *
+ * 【为什么与"显示"判据的边界不同】端点上切会产出 **0 长度段**（左段或右段为空）。
+ * 该判据有**两个消费方**，它们必须同口径：
+ *   · 选取：`getElementsAtTime`（"分割"动作无选中时取播放头所在元素）
+ *   · 执行：`SplitElementsCommand` 的守卫
+ * 曾各写一份（`(start,end)` vs `<= start || >= end`）—— 一处改边界就会出现
+ * **"选得出来但切不动"**：命令空转一次 `updateTracks`，还会往历史栈里压一条空记录
+ * （用户按撤销时"什么都没变"）。
+ */
+export function canSplitElementAtTime({
+  element,
+  time,
+}: {
+  element: TimelineElement;
+  time: number;
+}): boolean {
+  const { start, end } = getElementTimeRange({ element });
+  return time > start && time < end;
 }
 
 export function requiresMediaId({ element }: { element: CreateTimelineElement }): boolean {
@@ -81,18 +143,20 @@ export function collectElementsByMediaId({
 export function wouldElementOverlap({
   elements,
   startTime,
-  endTime,
+  duration,
   excludeElementId,
 }: {
   elements: TimelineElement[];
   startTime: number;
-  endTime: number;
+  /** 待判定元素在**时间轴上**的时长（不传 `endTime`：让调用方**不需要**算结束时刻）。 */
+  duration: number;
   excludeElementId?: string;
 }): boolean {
+  const endTime = startTime + duration;
   return elements.some((el) => {
     if (excludeElementId && el.id === excludeElementId) return false;
-    const elEnd = el.startTime + el.duration;
-    return startTime < elEnd && endTime > el.startTime;
+    const elRange = getElementTimeRange({ element: el });
+    return startTime < elRange.end && endTime > elRange.start;
   });
 }
 
@@ -100,12 +164,12 @@ export function findAvailableVideoTrackAbove({
   tracks,
   sourceTrackId,
   startTime,
-  endTime,
+  duration,
 }: {
   tracks: TimelineTrack[];
   sourceTrackId: string;
   startTime: number;
-  endTime: number;
+  duration: number;
 }): string | null {
   const sourceIndex = tracks.findIndex((track) => track.id === sourceTrackId);
 
@@ -114,8 +178,10 @@ export function findAvailableVideoTrackAbove({
     if (
       track.type === 'video' &&
       !track.isMain &&
-      !track.hidden &&
-      !wouldElementOverlap({ elements: track.elements, startTime, endTime })
+      // 判据经唯一实现（不能直读 `!track.hidden`）；此处**不能**用 `getOutputTracks` 投影 ——
+      // 它会把隐藏**元素**一并滤掉，而"是否与已有元素重叠"必须看全部元素（隐藏元素仍占位）。
+      !isTrackHidden(track) &&
+      !wouldElementOverlap({ elements: track.elements, startTime, duration })
     ) {
       return track.id;
     }
@@ -379,10 +445,8 @@ export function getElementsAtTime({
 
   for (const track of tracks) {
     for (const element of track.elements) {
-      const elementStart = element.startTime;
-      const elementEnd = element.startTime + element.duration;
-
-      if (time > elementStart && time < elementEnd) {
+      // 与 `SplitElementsCommand` 的守卫**同一判据**（开区间：端点上切会产出 0 长度段）。
+      if (canSplitElementAtTime({ element, time })) {
         result.push({ trackId: track.id, elementId: element.id });
       }
     }
