@@ -1,6 +1,9 @@
 import { Command } from '@/components/videoEditor/engine/commands/base-command';
 import type { TimelineTrack } from '@/components/videoEditor/types/timeline';
-import { canElementHaveAudio } from '@/components/videoEditor/engine/timeline/element-utils';
+import {
+  canElementHaveAudio,
+  isElementMuted,
+} from '@/components/videoEditor/engine/timeline/element-utils';
 import { getEditor } from '@/components/videoEditor/engine/core/editorInstance';
 
 export class ToggleElementsMutedCommand extends Command {
@@ -27,7 +30,8 @@ export class ToggleElementsMutedCommand extends Command {
     const shouldMute = mutableElements.some(({ trackId, elementId }) => {
       const track = this.savedState?.find((t) => t.id === trackId);
       const element = track?.elements.find((e) => e.id === elementId);
-      return element && canElementHaveAudio(element) && !element.muted;
+      // `mutableElements` 已按 `canElementHaveAudio` 过滤 ⇒ 这里只问"当前是否已静音"。
+      return element ? !isElementMuted(element) : false;
     });
 
     const updatedTracks = this.savedState.map((track) => {
@@ -35,7 +39,7 @@ export class ToggleElementsMutedCommand extends Command {
         const shouldUpdate = mutableElements.some(
           ({ trackId, elementId }) => track.id === trackId && element.id === elementId,
         );
-        return shouldUpdate && canElementHaveAudio(element) && element.muted !== shouldMute
+        return shouldUpdate && isElementMuted(element) !== shouldMute
           ? { ...element, muted: shouldMute }
           : element;
       });

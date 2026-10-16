@@ -39,6 +39,7 @@ import {
   canTracktHaveAudio,
   canTrackBeHidden,
   isTrackHidden,
+  isTrackMuted,
   getTimelineZoomMin,
   getTimelinePaddingPx,
   isMainTrack,
@@ -287,7 +288,7 @@ export function VideoEditorTimeline() {
                           <div className="flex min-w-0 flex-1 items-center justify-end gap-2">
                             {canTracktHaveAudio(track) && (
                               <TrackToggleIcon
-                                isOff={track.muted}
+                                isOff={isTrackMuted(track)}
                                 icons={{
                                   on: Volume2,
                                   off: VolumeX,
@@ -485,11 +486,7 @@ export function VideoEditorTimeline() {
                               }}
                             >
                               <Volume2 />
-                              <span>
-                                {canTracktHaveAudio(track) && track.muted
-                                  ? '取消静音轨道'
-                                  : '静音轨道'}
-                              </span>
+                              <span>{isTrackMuted(track) ? '取消静音轨道' : '静音轨道'}</span>
                             </ContextMenuItem>
                             <ContextMenuItem
                               onClick={(e) => {

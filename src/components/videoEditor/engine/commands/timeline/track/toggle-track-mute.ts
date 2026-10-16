@@ -1,7 +1,7 @@
 import { Command } from '@/components/videoEditor/engine/commands/base-command';
 import type { TimelineTrack } from '@/components/videoEditor/types/timeline';
 import { getEditor } from '@/components/videoEditor/engine/core/editorInstance';
-import { canTracktHaveAudio } from '@/components/videoEditor/engine/timeline';
+import { canTracktHaveAudio, isTrackMuted } from '@/components/videoEditor/engine/timeline';
 
 export class ToggleTrackMuteCommand extends Command {
   private savedState: TimelineTrack[] | null = null;
@@ -21,7 +21,7 @@ export class ToggleTrackMuteCommand extends Command {
 
     const updatedTracks = this.savedState.map((track) =>
       track.id === this.trackId && canTracktHaveAudio(track)
-        ? { ...track, muted: !track.muted }
+        ? { ...track, muted: !isTrackMuted(track) }
         : track,
     );
 

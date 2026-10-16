@@ -15,6 +15,7 @@ import {
   canElementBeHidden,
   hasMediaId,
   isElementHidden,
+  isElementMuted,
 } from '@/components/videoEditor/engine/timeline';
 import {
   ContextMenu,
@@ -161,7 +162,7 @@ export function TimelineElement({
     }
   };
 
-  const isMuted = canElementHaveAudio(element) && element.muted === true;
+  const isMuted = isElementMuted(element);
 
   return (
     <ContextMenu>

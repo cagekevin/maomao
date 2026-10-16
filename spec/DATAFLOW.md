@@ -526,7 +526,10 @@ director3d/App.tsx · director3d/panels/Timeline.tsx（MP4 导出走 uploadFileT
 videoEditor/ui/editor/panels/timeline/timeline-element.tsx
 videoEditor/ui/editor/panels/timeline/video-thumbnail-strip.tsx
 videoEditor/engine/timeline/track-utils.ts（**轨道状态判据唯一实现**）
-  `isTrackMuted`（导出）· `isTrackHidden` / `isElementHidden`（**模块私有**：只许经下面的投影生效）
+  **开关判据（每个开关一个谓词，消费方禁直读字段）**：
+    `isTrackHidden` / `isElementHidden`（可见性）· `isTrackMuted`（轨级静音）· `isMainTrack`（主轨识别）
+    元素级静音在 `element-utils.ts::isElementMuted`（与轨级结构对称：只有能出声的元素才谈静音）
+    可见性有**两个入口**：输出消费方经下面的投影（拿不到隐藏项），UI 显示与编辑期经谓词
   `getOutputTracks(tracks)` = **「参与输出」的轨道/元素投影**（滤掉 hidden 轨与 hidden 元素）
     ← 消费方（一律从这里取，**禁直接读 `track.elements` 做输出**）：
         画面：engine/services/renderer/scene-builder.ts（**图层序 = tracks 数组序**，下标 0 = 最上层 ⇒ 绘制序取反序）
@@ -569,7 +572,7 @@ videoEditor 的「输出 = 预览」五条共用真源（**每条只能有一个
              与**执行侧** `SplitElementsCommand` 守卫共用（曾各写一份 ⇒ 会出现"选得出来但切不动"）
   ⑦ 素材索引：engine/lib/media/media-utils.ts::indexMediaAssets（`Map<assetId, MediaAsset>` 唯一派生）
          消费方：scene-builder · hit-test · selection-overlay · use-preview-interaction · collectAudioSources
-  ⑦ 「导出**选中**片段」入参：engine/lib/export.ts::getSelectedVideoClip
+  ⑧ 「导出**选中**片段」入参：engine/lib/export.ts::getSelectedVideoClip
          **显式选中优先于 `hidden`**（该函数把轨与元素的 `hidden` 清成 false）：单条导出的语义是
            "把这一条导出来"，而 `hidden` 只约束**整片输出**。不清的后果是**假成功** ——
            `getOutputTracks` 滤掉它 ⇒ 渲染树空 ⇒ 导出全黑却报「片段已导出」

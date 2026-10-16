@@ -35,7 +35,9 @@ import {
   getElementTimeRange,
   getElementsAtTime,
   isElementActiveAtTime,
+  isElementMuted,
 } from '../../src/components/videoEditor/engine/timeline/element-utils.ts';
+import { isTrackMuted } from '../../src/components/videoEditor/engine/timeline/track-utils.ts';
 import { probeMediaDimensions } from '../../src/components/videoEditor/engine/lib/media/processing.ts';
 import { buildScene } from '../../src/components/videoEditor/engine/services/renderer/scene-builder.ts';
 import { getSelectedVideoClip } from '../../src/components/videoEditor/engine/lib/export.ts';
@@ -373,6 +375,26 @@ describe('文本几何（与渲染同一份排版）', () => {
       makeTextElement({ content: 'abcdef', boxWidth: 45, textAlign: 'center' }),
     );
     expect(centered?.centerX).toBeCloseTo(500, 6);
+  });
+});
+
+describe('开关判据（每个开关一个谓词，消费方禁直读字段）', () => {
+  const el = (fields: Record<string, unknown>) =>
+    ({ id: 'el', startTime: 0, duration: 1, ...fields }) as unknown as TimelineElement;
+
+  it('元素静音：只有能出声的元素（video／audio）才谈静音，`muted` 缺失 = 不静音', () => {
+    expect(isElementMuted(el({ type: 'video' }))).toBe(false);
+    expect(isElementMuted(el({ type: 'video', muted: true }))).toBe(true);
+    expect(isElementMuted(el({ type: 'audio', muted: true }))).toBe(true);
+    // 文本元素即便带 `muted: true` 也不算静音（它没有声音语义）——
+    // 这条正是「`canElementHaveAudio` 判据」与「裸 `'muted' in element`」的**唯一实质差别**。
+    expect(isElementMuted(el({ type: 'text', muted: true }))).toBe(false);
+  });
+
+  it('轨静音：只有能出声的轨（video／audio）才谈静音', () => {
+    expect(isTrackMuted({ type: 'video', muted: true } as unknown as TimelineTrack)).toBe(true);
+    expect(isTrackMuted({ type: 'audio', muted: true } as unknown as TimelineTrack)).toBe(true);
+    expect(isTrackMuted({ type: 'text', muted: true } as unknown as TimelineTrack)).toBe(false);
   });
 });
 

@@ -8,6 +8,7 @@ import type { MediaAsset } from '@/components/videoEditor/types/mediaAssets';
 import {
   canElementHaveAudio,
   getElementPlaybackRate,
+  isElementMuted,
 } from '@/components/videoEditor/engine/timeline/element-utils';
 import { getOutputTracks, isTrackMuted } from '@/components/videoEditor/engine/timeline';
 import {
@@ -151,7 +152,7 @@ export function collectAudioSources({
       if (!canElementHaveAudio(element)) continue;
       if (element.duration <= 0) continue;
 
-      const muted = trackMuted || ('muted' in element ? (element.muted ?? false) : false);
+      const muted = trackMuted || isElementMuted(element);
 
       const base = {
         startTime: element.startTime,

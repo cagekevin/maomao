@@ -99,6 +99,20 @@ export function canSplitElementAtTime({
   return time > start && time < end;
 }
 
+/**
+ * **元素级静音判据（唯一实现）** —— 与轨级 `isTrackMuted` 结构对称。
+ *
+ * 【语义】只有能出声的元素（video / audio）才谈静音；`muted` 缺失 = 不静音。
+ * 与 `hidden` 的分工同轨级：`muted` = 只关声音（保留画面），`hidden` = 不参与输出。
+ *
+ * 【消费方】音频采集 `audio.ts#collectAudioSources`（预览与导出共用）· 时间轴上的静音角标 ·
+ * 元素右键"静音"的幂等守卫 —— 曾各自内联（`canElementHaveAudio(element) && element.muted === true`
+ * 与 `'muted' in element ? (element.muted ?? false) : false` 两种写法）。
+ */
+export function isElementMuted(element: TimelineElement): boolean {
+  return canElementHaveAudio(element) && element.muted === true;
+}
+
 export function requiresMediaId({ element }: { element: CreateTimelineElement }): boolean {
   return (
     element.type === 'video' ||
@@ -176,6 +190,9 @@ export function findAvailableVideoTrackAbove({
   for (let index = sourceIndex - 1; index >= 0; index--) {
     const track = tracks[index];
     if (
+      // 此处**读字段本身**而非 `isMainTrack`：类型已收窄到 video ⇒ `isMainTrack` 的
+      // `type === 'video'` 检查是冗余的；而它作为**类型谓词**，在否定位置会让 TS 把
+      // `track` 推成 `never`（先 `type === 'video'` 收窄、再否定 VideoTrack 谓词 = 空集）。
       track.type === 'video' &&
       !track.isMain &&
       // 判据经唯一实现（不能直读 `!track.hidden`）；此处**不能**用 `getOutputTracks` 投影 ——
