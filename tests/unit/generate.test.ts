@@ -96,7 +96,7 @@ describe('generate — 三模态差异与信封（#2/#3 + 迁移）', () => {
     expect(intent.providerId).toBe('lovart');
     expect(intent.model).toBe('gpt-image-2-low');
     expect(intent.prompt).toBe('a cat');
-    expect(intent.size).toBe('1080x1920'); // 9:16 + 1K → 精确像素（严格 9:16）
+    expect(intent.size).toBe('720x1280'); // 9:16 + 1K → 精确像素（严格 9:16，1K 取 720 长边档）
     expect(intent.frontTaskId).toBe('front-task-1');
     // 【143 · S4′】不再传 `timeoutMs` —— 等待上限由**后端**在 POST 响应里告知（`budgetMs`）。
     // 断言"该字段不存在"= 锁住「前端不自持上游预算」这个新契约：回退到本地常量即红。
