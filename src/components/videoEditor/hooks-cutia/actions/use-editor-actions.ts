@@ -253,6 +253,13 @@ export function useEditorActions() {
   useActionHandler(
     'duplicate-selected',
     () => {
+      // 【动作的前提判定住在这里】"复制选中"的前提是"有选中"。它必须有，因为**按钮不是
+      // 唯一入口**：`use-keybindings` 对绑定的动作**无条件 `invokeAction`**（只查"是否在
+      // 输入框里"，不查"此刻能不能做"），且快捷键可自定义（`ctrl+d` 即默认绑定）。
+      // 工具栏按钮同时 `disabled`（视觉层）—— 但那只挡住鼠标，挡不住键盘。
+      if (selectedElements.length === 0) {
+        return;
+      }
       editor.timeline.duplicateElements({
         elements: selectedElements,
       });
@@ -263,6 +270,9 @@ export function useEditorActions() {
   useActionHandler(
     'toggle-elements-muted-selected',
     () => {
+      if (selectedElements.length === 0) {
+        return;
+      }
       editor.timeline.toggleElementsMuted({ elements: selectedElements });
     },
     undefined,
@@ -271,6 +281,9 @@ export function useEditorActions() {
   useActionHandler(
     'toggle-elements-visibility-selected',
     () => {
+      if (selectedElements.length === 0) {
+        return;
+      }
       editor.timeline.toggleElementsVisibility({ elements: selectedElements });
     },
     undefined,
