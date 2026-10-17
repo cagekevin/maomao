@@ -236,6 +236,7 @@ webhook                 可选回调地址
   - `sync`：URL 带 `?wait=1` → 网关同步 SSE 返回；
   - `async`：提交返回 `[{status:'submitted', task_id}]` → 轮询 `GET /v1/tasks/{id}`。
 - **比例×清晰度 → 精确像素查表**（`resolveImagePixel`）：把「比例+档位」转固定像素（如 `9:16+1K → 1080x1920`），避免不同 AI 理解错位。`Auto`/空 → 不指定 size。
+- **像素直给优先**（2026-10-17）：`size` 已是 `WxH` 形式（生图节点「尺寸」输入框，`data.pixelSize`）时**原样透传**，不再走查表 —— 用户手改的像素是最终真源。此时档位（1K/2K/4K）不参与请求，UI 亦不显示为生效项。
 - 请求体：除 `prompt/model/n` 外，同时带 `size`(像素)、`image_size`(档位大写)、`resolution`(档位)、`quality`(非auto)、`image_urls`(参考图)。
 - 返回信封：`{ok:true, url}` 或 `{ok:false, error}`。
 

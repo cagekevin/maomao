@@ -217,7 +217,8 @@ function lastPatchData(initialData = {}) {
   return undefined;
 }
 
-const mainMenuBtn = () => screen.getByText('Auto · 1K · 自动');
+// 按钮文案 =「比例标签 · 档位 · 像素」；'Auto' 槽位在 UI 上叫「自定义」，默认 1K → 1024×1024
+const mainMenuBtn = () => screen.getByText('自定义 · 1K · 1024×1024');
 
 describe('ImageGenerate 比例/画质/渲染质量菜单', () => {
   it('点击主菜单按钮可打开菜单，看到比例选项', () => {
@@ -235,7 +236,7 @@ describe('ImageGenerate 比例/画质/渲染质量菜单', () => {
 
     fireEvent.click(screen.getByText('1:1'));
 
-    // 菜单关闭：'1:1' 不再可见（主按钮此时显示 1:1 · 1K · 自动，但 getByText 精确匹配整串不会命中）
+    // 菜单关闭：'1:1' 不再可见（主按钮此时显示 1:1 · 1K · 1024×1024，getByText 精确匹配整串不会命中）
     expect(screen.queryByText('1:1')).toBeNull();
 
     await waitFor(() => expect(mockSetNodes).toHaveBeenCalled());
@@ -264,6 +265,16 @@ describe('ImageGenerate 比例/画质/渲染质量菜单', () => {
     await waitFor(() => expect(mockSetNodes).toHaveBeenCalled());
     const data = lastPatchData();
     expect(data.quality).toBe('high');
+  });
+
+  it('修改尺寸输入框后，pixelSize 以 WxH 写回 data（像素为真源）', async () => {
+    setup({});
+    fireEvent.click(mainMenuBtn());
+    const w = screen.getByLabelText('宽度像素');
+    fireEvent.change(w, { target: { value: '888' } });
+    fireEvent.blur(w);
+    // 未改的高度保持查表初值（Auto/自定义 → 1:1 的 1K = 1024）
+    await waitFor(() => expect(lastPatchData()?.pixelSize).toBe('888x1024'));
   });
 
   it('可连续多次切换比例（修复二次点不动）', async () => {

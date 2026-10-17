@@ -55,6 +55,14 @@ import { CameraStudioPanel, CameraSettingsSelector, applyCameraSettingsToPrompt 
 import type { CameraGenerationSettings, CameraStudioResult } from '../editors';
 
 import { generateId } from '@/components/base/core/idGen';
+import {
+  formatPixelSize,
+  parsePixelSize,
+  resolvePixelSize,
+  MIN_PIXEL_SIDE,
+  MAX_PIXEL_SIDE,
+} from '@/components/generate/lib/imagePixel';
+import type { PixelSize } from '@/components/generate/lib/imagePixel';
 
 /**
  * 生图节点（复刻原 bo.jsx / imageGenerateNode）
@@ -86,6 +94,8 @@ interface ImageGenerateData {
   assetUrl?: string;
   aspectRatio?: string;
   imageSize?: string;
+  /** 生成像素（真源，'WxH'）：用户手改过才有值；有值时显示与请求 size 都以它为准 */
+  pixelSize?: string;
   quality?: string;
   selectedModel?: string;
   count?: number;
@@ -173,6 +183,56 @@ function ImageGenerate({ id, data, selected }: ImageGenerateProps) {
   // 这样已挂载/快照还原的存量节点不会被记忆反向改写（见 nodePrefs.js 注释）。
   const [aspectRatio, setAspectRatio] = useState(data.aspectRatio ?? 'Auto');
   const [imageSize, setImageSize] = useState(data.imageSize ?? '1K');
+  // 【尺寸真源】data.pixelSize（'WxH'）：只有「用户手改过」才有值。
+  //  - 有值 → 显示 / 发送都以它为准（比例标签保持原样，不反推、不改高亮）
+  //  - 无值 → 按「比例 × 档位」查表派生（'Auto' 档位按 1:1 取初值，即「自定义」的起点）
+  // 【没有「不指定 size」状态】'Auto' 槽位的语义是「自定义」（UI 文案），像素永远确定、永远发送。
+  // 点比例/档位 = 清掉手改像素让查表重新接管；改 W/H = 写入 pixelSize。
+  const [pixelSize, setPixelSize] = useState<string | undefined>(data.pixelSize);
+  // 显示与发送共用的像素：显式像素优先，否则查表
+  const pixel = useMemo<PixelSize>(
+    () => parsePixelSize(pixelSize) ?? resolvePixelSize(aspectRatio, imageSize),
+    [pixelSize, aspectRatio, imageSize],
+  );
+  // 手改过像素 = 档位不再参与查表（它只决定预设初值）
+  const pixelCustom = !!parsePixelSize(pixelSize);
+  // 比例标签的显示名：内部值 'Auto' 在 UI 上叫「自定义」（不锁比例、尺寸自己定）
+  const ratioLabel = aspectRatio === 'Auto' ? '自定义' : aspectRatio;
+  // 按钮摘要：只显示真实参与请求的项 —— 手改像素后档位不参与，就不显示它。
+  const pixelLabel = pixelCustom
+    ? `${ratioLabel} · ${pixel.width}×${pixel.height}`
+    : `${ratioLabel} · ${imageSize} · ${pixel.width}×${pixel.height}`;
+  // 输入框草稿：允许中途清空/半输入（直接绑数字会在清空瞬间写回 0），失焦或回车才提交
+  const [pixelDraft, setPixelDraft] = useState({
+    w: String(pixel.width),
+    h: String(pixel.height),
+  });
+  // 像素被预设/Agent 同步改写时刷新草稿；用户正在输入时 pixel 不变，不会打断输入
+  React.useEffect(() => {
+    setPixelDraft({ w: String(pixel.width), h: String(pixel.height) });
+  }, [pixel.width, pixel.height]);
+
+  /** 提交输入框草稿：合法 → 写 pixelSize 并落盘；空/非法 → 回滚显示，不写盘 */
+  const commitPixelDraft = useCallback(
+    (key: 'w' | 'h') => {
+      const raw = key === 'w' ? pixelDraft.w : pixelDraft.h;
+      const n = Number(raw);
+      const next: PixelSize = { ...pixel };
+      if (raw.trim() && Number.isFinite(n) && n > 0) {
+        const side = Math.min(MAX_PIXEL_SIDE, Math.max(MIN_PIXEL_SIDE, Math.round(n)));
+        if (key === 'w') next.width = side;
+        else next.height = side;
+      }
+      if (next.width === pixel.width && next.height === pixel.height) {
+        setPixelDraft({ w: String(pixel.width), h: String(pixel.height) }); // 非法输入回滚显示
+        return;
+      }
+      const s = formatPixelSize(next.width, next.height);
+      setPixelSize(s);
+      requestAnimationFrame(() => patchData({ pixelSize: s }));
+    },
+    [pixelDraft, pixel, patchData],
+  );
   const [quality, setQuality] = useState(data.quality ?? 'auto');
   const [selectedModel, setSelectedModel] = useState(data.selectedModel ?? '');
   // 摄影参数（焦距/快门效果/光圈/曝光时间）：与 data.cameraSettings 同步，生成时拼进提示词
@@ -302,10 +362,15 @@ function ImageGenerate({ id, data, selected }: ImageGenerateProps) {
     setSelectedModel,
     // 收编 useSyncNodeData：Agent(update_node) 改 data 字段 → 同步本地 state（替原手写字段映射）
     sync: {
+      // 外部（Agent）改比例/档位 → 只跟随标签，**不清像素**。
+      // 为什么：清像素要写回 data，而 Agent 可能同一批里既改比例又给像素（pixelSize），
+      // 两条回调都跑时会把刚设的像素清掉；且「清像素」是用户点预设按钮的主动动作，不是同步副作用。
       aspectRatio: (v: unknown) => setAspectRatio(v as string),
       selectedModel: (v: unknown) => setSelectedModel(v as string),
       quality: (v: unknown) => setQuality(v as string),
       imageSize: (v: unknown) => setImageSize(v as string),
+      // Agent 直接给像素 → 以像素为真源（空/非法视为「回到查表」）
+      pixelSize: (v: unknown) => setPixelSize(typeof v === 'string' && v ? v : undefined),
       cameraSettings: (v: unknown) => setCameraSettings(v as CameraGenerationSettings | undefined),
     },
     resultKey: 'assetUrl', // 唯一写回路径：成功首写 / 落盘后覆盖 / 广播恢复
@@ -335,7 +400,8 @@ function ImageGenerate({ id, data, selected }: ImageGenerateProps) {
           // 芯片解析后的纯文本（图片芯片已替换为「图片N」，文本芯片已替换为纯文本）+ 摄影参数片段
           prompt: finalPrompt,
           model: modelId,
-          size: imageSize,
+          // 【像素为真源】永远发显示的像素（没有「不指定 size」状态）
+          size: formatPixelSize(pixel.width, pixel.height),
           n: count,
           aspectRatio,
           quality,
@@ -352,8 +418,8 @@ function ImageGenerate({ id, data, selected }: ImageGenerateProps) {
       // 经 useSyncNodeData 同步回本节点 state → 节点显示持久 URL。此处不再二次 saveResultToTasks
       // (旧逻辑为补"落盘持久 URL 未回写 node.data"的洞而多落一次 → 双落盘)，S3 统一由主落盘出口承接。
       setAssetUrl(r.url ?? ''); // 即时反馈(可能短暂显示原始 URL，data 同步后覆盖为持久 URL)
-      // 记忆本次参数（模型/比例/尺寸），供新建节点复用
-      setImgPrefs({ model: selectedModel, aspectRatio, imageSize });
+      // 记忆本次参数（模型/比例/档位/自定义像素），供新建节点复用
+      setImgPrefs({ model: selectedModel, aspectRatio, imageSize, pixelSize });
     },
     // 【精准节点回填】异步任务刷新后恢复轮询完成的广播 → 节点恢复显示图（resultUrl 写回 data 由 resultKey 自动）。
     // 仅生图 async 模式会命中（有 pollTaskId）；sync 同步无任务广播。
@@ -376,6 +442,7 @@ function ImageGenerate({ id, data, selected }: ImageGenerateProps) {
                   ...(data?.prompt ? { prompt: data.prompt } : {}),
                   assetUrl: resultUrl,
                   aspectRatio: data?.aspectRatio || 'Auto',
+                  ...(data?.pixelSize ? { pixelSize: data.pixelSize } : {}),
                 },
               },
             ],
@@ -526,6 +593,8 @@ function ImageGenerate({ id, data, selected }: ImageGenerateProps) {
         if (aspectRatio !== 'Auto') editedRatioRef.current = true;
         fitByRatio(w, h); // 直接改 node 尺寸跟随图片，等价 AssetNode 消费 dims 的落点
         setAspectRatio('Auto');
+        // 只改比例标签（让节点框跟随编辑后的图片）；生成尺寸 pixelSize 是用户的参数，
+        // 裁剪/扩图属于「编辑图片」而非「改生成设置」，不该顺手把用户设的尺寸清掉。
         patchData({ aspectRatio: 'Auto' }); // 写的是 aspectRatio 不是图，故不经 replaceNodeImage
       });
     },
@@ -741,18 +810,27 @@ function ImageGenerate({ id, data, selected }: ImageGenerateProps) {
                       }}
                     >
                       <span className="w-2.5 h-3 border border-current rounded-[2px]" />
-                      <span>
-                        {aspectRatio} · {imageSize} ·{' '}
-                        {qualityOptions.find((q) => q.value === quality)?.label}
-                      </span>
+                      {/* 按钮 =「比例 · 档位 · 尺寸」，尺寸是最终真源必须一眼可见。
+                          渲染质量留在菜单里（三项已占满，质量不参与尺寸决策）。
+                          手改过像素后档位退出参与，按钮就不再显示它（只显示真实生效的项）。 */}
+                      <span>{pixelLabel}</span>
                     </button>
                     {showImgMenu && (
                       <div
-                        className="absolute bottom-full left-0 mb-1 w-56 bg-surface-1 border border-edge rounded-lg shadow-popover p-3 z-dropdown flex flex-col gap-3"
+                        className="absolute bottom-full left-0 mb-1 w-64 bg-surface-1 border border-edge rounded-lg shadow-popover p-3 z-dropdown flex flex-col gap-3"
                         onClick={(e) => e.stopPropagation()}
                       >
                         <div>
-                          <div className="text-caption text-muted mb-2">画质</div>
+                          {/* 档位只通过「比例 × 档位」查表决定尺寸；手改过像素后档位不参与，
+                              点它会清掉自定义值、回到预设 —— 标出来，别让用户以为是按钮坏了。 */}
+                          <div className="text-caption text-muted mb-2 flex items-center justify-between">
+                            <span>画质</span>
+                            {pixelCustom && (
+                              <span className="text-caption-sm text-muted">
+                                点击将重置自定义尺寸
+                              </span>
+                            )}
+                          </div>
                           <div className="flex gap-1.5">
                             {sizeOptions.map((s) => (
                               <button
@@ -762,8 +840,12 @@ function ImageGenerate({ id, data, selected }: ImageGenerateProps) {
                                 onClick={() => {
                                   setShowImgMenu(false);
                                   setImageSize(s);
+                                  // 点档位 = 换预设：清掉手改像素，让「比例 × 档位」查表重新接管
+                                  setPixelSize(undefined);
                                   setImgPrefs({ imageSize: s });
-                                  requestAnimationFrame(() => patchData({ imageSize: s }));
+                                  requestAnimationFrame(() =>
+                                    patchData({ imageSize: s, pixelSize: undefined }),
+                                  );
                                 }}
                               >
                                 {s}
@@ -782,11 +864,16 @@ function ImageGenerate({ id, data, selected }: ImageGenerateProps) {
                                 onClick={() => {
                                   setShowImgMenu(false);
                                   setAspectRatio(r);
+                                  // 点比例 = 换预设：清掉手改像素，让「比例 × 档位」查表重新接管
+                                  setPixelSize(undefined);
                                   setImgPrefs({ aspectRatio: r });
-                                  requestAnimationFrame(() => patchData({ aspectRatio: r }));
+                                  requestAnimationFrame(() =>
+                                    patchData({ aspectRatio: r, pixelSize: undefined }),
+                                  );
                                 }}
                               >
-                                {r}
+                                {/* 内部值 'Auto' = 不锁比例、尺寸自己定 → UI 叫「自定义」 */}
+                                {r === 'Auto' ? '自定义' : r}
                               </button>
                             ))}
                           </div>
@@ -809,6 +896,55 @@ function ImageGenerate({ id, data, selected }: ImageGenerateProps) {
                                 {q.label}
                               </button>
                             ))}
+                          </div>
+                        </div>
+                        {/* 尺寸（真源）：这里显示的像素 = 生成请求实际发的 size。
+                            输入 W/H 即成为自定义像素（档位随即退出参与），比例标签保持原样不动。 */}
+                        <div>
+                          <div className="text-caption text-muted mb-2">尺寸</div>
+                          <div className="flex items-center gap-1.5">
+                            <label className="flex flex-1 items-center gap-1 h-8 px-2 bg-surface border border-edge rounded-md focus-within:border-edge-strong">
+                              <span className="text-caption-sm text-muted">W</span>
+                              <input
+                                type="text"
+                                inputMode="numeric"
+                                aria-label="宽度像素"
+                                className="w-full min-w-0 bg-transparent text-caption-sm text-primary text-right outline-none"
+                                value={pixelDraft.w}
+                                onChange={(e) =>
+                                  setPixelDraft((d) => ({
+                                    ...d,
+                                    w: e.target.value.replace(/\D/g, ''),
+                                  }))
+                                }
+                                onBlur={() => commitPixelDraft('w')}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') e.currentTarget.blur();
+                                }}
+                              />
+                            </label>
+                            <span className="text-caption-sm text-muted">×</span>
+                            <label className="flex flex-1 items-center gap-1 h-8 px-2 bg-surface border border-edge rounded-md focus-within:border-edge-strong">
+                              <span className="text-caption-sm text-muted">H</span>
+                              <input
+                                type="text"
+                                inputMode="numeric"
+                                aria-label="高度像素"
+                                className="w-full min-w-0 bg-transparent text-caption-sm text-primary text-right outline-none"
+                                value={pixelDraft.h}
+                                onChange={(e) =>
+                                  setPixelDraft((d) => ({
+                                    ...d,
+                                    h: e.target.value.replace(/\D/g, ''),
+                                  }))
+                                }
+                                onBlur={() => commitPixelDraft('h')}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') e.currentTarget.blur();
+                                }}
+                              />
+                            </label>
+                            <span className="text-caption-sm text-muted">PX</span>
                           </div>
                         </div>
                       </div>

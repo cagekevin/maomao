@@ -66,7 +66,13 @@ export function getNodePrefs(type: string, defaults: NodePrefsMap = {}): NodePre
 
 // data 键名 → 记忆键名 的映射（记忆里存的是官方口径，data 里是节点口径，如 selectedModel←model）
 const PREFS_FIELDS: PrefsFieldMap = {
-  imageGenerateNode: { selectedModel: 'model', aspectRatio: 'aspectRatio', imageSize: 'imageSize' },
+  imageGenerateNode: {
+    selectedModel: 'model',
+    aspectRatio: 'aspectRatio',
+    imageSize: 'imageSize',
+    // 手改过的像素（'WxH'）：记住后新建节点直接沿用，否则新节点只能回到「比例×档位」查表值
+    pixelSize: 'pixelSize',
+  },
   textGenerateNode: { selectedModel: 'model' },
   videoGenerateNode: {
     selectedModel: 'model',

@@ -314,6 +314,29 @@ describe('别名函数共用 generate 实现（#10，防各自实现漂移）', 
     expect(intent.size).toBe('1152x2048'); // 走 resolveImagePixel（仅 generate() 调用）
     expect(intent.images).toEqual(['http://ref/a.png']); // 走 normalizeAssetUrlsForSend（仅 generate() 调用）
   });
+  it('size 直给像素（WxH）时原样透传，不被比例查表覆盖（生图节点手改尺寸 · 像素为真源）', async () => {
+    vi.mocked(normalizeAssetUrlsForSend).mockResolvedValue([]);
+    h.mockRelayGenerate.mockResolvedValue({ ok: true, url: 'http://x/y.png' });
+    // 比例是 3:4（查表 1K 应为 768x1024），但用户手改成 888x1184 ⇒ 必须发 888x1184
+    await api.generateImage({
+      provider: { id: 'p1' },
+      prompt: 'x',
+      model: 'm',
+      aspectRatio: '3:4',
+      size: '888x1184',
+    });
+    expect(h.mockRelayGenerate.mock.calls[0][0].intent.size).toBe('888x1184');
+    // Auto + 手改像素：像素已确定，同样直给（Auto 只表示不锁比例标签）
+    h.mockRelayGenerate.mockClear();
+    await api.generateImage({
+      provider: { id: 'p1' },
+      prompt: 'x',
+      model: 'm',
+      aspectRatio: 'Auto',
+      size: '888x1184',
+    });
+    expect(h.mockRelayGenerate.mock.calls[0][0].intent.size).toBe('888x1184');
+  });
   it('generateVideo 时长转字符串只发生在 generate() 内；且**不再传 timeoutMs**（预算归后端 · S4′）', async () => {
     h.mockRelayGenerate.mockResolvedValue({ ok: true, url: 'http://x/v.mp4' });
     await api.generateVideo({ provider: { id: 'p1' }, prompt: 'x', model: 'm', seconds: 8 });

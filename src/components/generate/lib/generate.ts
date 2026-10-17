@@ -22,7 +22,11 @@ import {
   normalizeAssetUrlsForSend,
   toImageContentBlocks,
 } from '@/components/base/utils/media/assetUrl';
-import { resolveImagePixel } from '@/components/generate/lib/imagePixel';
+import {
+  parsePixelSize,
+  formatPixelSize,
+  resolveImagePixel,
+} from '@/components/generate/lib/imagePixel';
 import { relayGenerate, relayChat, relayChatStream } from '@/components/generate/lib/relayProxy';
 import { logger } from '@/components/base/core/log/logger';
 import type { RelayCapability, RelayIntent } from '@/components/generate/lib/relayProxy';
@@ -187,11 +191,17 @@ async function generate(
     images: refImages,
   };
   if (capability === 'image') {
-    const hasRatio = req.aspectRatio && req.aspectRatio !== 'Auto' && req.aspectRatio !== 'auto';
-    const pixel = hasRatio
-      ? resolveImagePixel(req.aspectRatio ?? '', req.size || '1K')
-      : req.size || '';
-    intent.size = hasRatio ? pixel : undefined;
+    // 【像素为真源】调用方直给 'WxH'（生图节点用户可改的尺寸输入框）→ 原样透传，不再查表。
+    // 档位（'1K'/'2K'/'4K'）仍走查表，兼容剧本盒子/Agent 等只传档位的老调用点。
+    const explicit = parsePixelSize(req.size);
+    if (explicit) {
+      intent.size = formatPixelSize(explicit.width, explicit.height);
+    } else {
+      const hasRatio = req.aspectRatio && req.aspectRatio !== 'Auto' && req.aspectRatio !== 'auto';
+      intent.size = hasRatio
+        ? resolveImagePixel(req.aspectRatio ?? '', req.size || '1K')
+        : undefined;
+    }
   } else {
     intent.size = req.size && req.size !== 'Auto' ? req.size : undefined;
     intent.resolution = req.resolution;
