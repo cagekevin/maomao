@@ -26,8 +26,8 @@ interface UseTimelineElementResizeProps {
   element: TimelineElement;
   track: TimelineTrack;
   zoomLevel: number;
-  onSnapPointChange?: (snapPoint: SnapPoint | null) => void;
-  onResizeStateChange?: (params: { isResizing: boolean }) => void;
+  onSnapPointChange?: ((snapPoint: SnapPoint | null) => void) | undefined;
+  onResizeStateChange?: ((params: { isResizing: boolean }) => void) | undefined;
 }
 
 export function useTimelineElementResize({

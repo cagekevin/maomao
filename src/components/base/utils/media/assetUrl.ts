@@ -153,7 +153,7 @@ function thumbnailToOriginal(u: string): string {
  * @param {{ maxDim?: number }} [opts]
  * @returns {string}
  */
-export function buildThumbnailUrl(url: string, opts: { maxDim?: number } = {}): string {
+export function buildThumbnailUrl(url: string, opts: { maxDim?: number | undefined } = {}): string {
   const rel = toRelativeFileUrl(url);
   if (!rel) return toAbsoluteFileUrl(url); // 非本地文件，出图端点无法服务，回原图绝对地址
   const q = new URLSearchParams();

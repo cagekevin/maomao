@@ -38,7 +38,7 @@ export interface FullscreenModalProps {
   /** 宽度占屏比（默认 0.94） */
   widthRatio?: number;
   /** 弹层最大宽度（px）。默认 undefined = 不设上限，宽度完全跟视口；传值可收窄 */
-  maxWidth?: number;
+  maxWidth?: number | undefined;
   /** 是否显示顶部标题栏（默认 true；false 时隐藏标题与关闭提示） */
   showHeader?: boolean;
   /** 是否高度随内容自适应（默认 false；true 时高度由 children 决定，最大 95vh） */

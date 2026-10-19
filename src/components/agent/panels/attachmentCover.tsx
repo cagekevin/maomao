@@ -20,8 +20,8 @@ const AttachmentCover = memo(function AttachmentCover({
   type,
   url,
 }: {
-  type?: string;
-  url?: string;
+  type?: string | undefined;
+  url?: string | undefined;
 }) {
   const isVideo = type === 'video';
   const isAudio = type === 'audio';

@@ -25,10 +25,10 @@ import type { PersistWriteOutcome } from '@/components/base/storage/storageAdapt
 /** 对象形态入参 */
 interface ReportDegradeArgs {
   layer: string;
-  key?: string;
-  e?: Error;
-  toast?: string;
-  throttleMs?: number;
+  key?: string | undefined;
+  e?: Error | undefined;
+  toast?: string | undefined;
+  throttleMs?: number | undefined;
 }
 
 export function reportDegrade(args: ReportDegradeArgs): void {

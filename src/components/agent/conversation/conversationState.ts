@@ -604,7 +604,11 @@ export function makePendingRef({
   conversationId,
   messageId,
   attachments,
-}: { conversationId?: string; messageId?: string; attachments?: unknown[] } = {}): PendingRefState {
+}: {
+  conversationId?: string | undefined;
+  messageId?: string | undefined;
+  attachments?: unknown[] | undefined;
+} = {}): PendingRefState {
   const p: PendingRefState = { conversationId: conversationId || '', messageId: messageId || '' };
   if (Array.isArray(attachments) && attachments.length) p.attachments = attachments.slice();
   return p;

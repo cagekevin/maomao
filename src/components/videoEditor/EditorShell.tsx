@@ -128,7 +128,13 @@ export function EditorShell({ canvasProjectId, onClose, className }: EditorShell
   );
 }
 
-function EditorLayout({ className, onExit }: { className?: string; onExit?: () => void }) {
+function EditorLayout({
+  className,
+  onExit,
+}: {
+  className?: string | undefined;
+  onExit?: (() => void) | undefined;
+}) {
   const { panels, setPanel } = usePanelStore();
   // 更新(2026-09-14)：agent 侧栏未搬入（见下方槽位说明），故移除 useAgentStore 依赖。
 

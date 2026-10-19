@@ -43,18 +43,18 @@ import {
  *    共用同一匹配源，行为无分叉；IME 组字中不判，共享 value 的其它实例经 el.contains 守卫不抢转。
  */
 interface PromptInputProps {
-  value?: string;
-  onChange?: (v: string) => void;
-  placeholder?: string;
-  refImages?: Array<{ id?: string; label?: string; url?: string }>;
-  refTexts?: Array<{ id?: string; label?: string; url?: string }>;
-  onInsert?: (item: { kind: 'image' | 'text'; url?: string; label?: string }) => void;
-  onReady?: (fn: (item: unknown) => void) => void;
-  inputWidth?: number | string;
-  inputHeight?: number | string;
-  autoFocus?: boolean;
-  portalTarget?: HTMLElement | null;
-  richText?: boolean;
+  value?: string | undefined;
+  onChange?: ((v: string) => void) | undefined;
+  placeholder?: string | undefined;
+  refImages?: Array<{ id?: string; label?: string; url?: string }> | undefined;
+  refTexts?: Array<{ id?: string; label?: string; url?: string }> | undefined;
+  onInsert?: ((item: { kind: 'image' | 'text'; url?: string; label?: string }) => void) | undefined;
+  onReady?: ((fn: (item: unknown) => void) => void) | undefined;
+  inputWidth?: number | string | undefined;
+  inputHeight?: number | string | undefined;
+  autoFocus?: boolean | undefined;
+  portalTarget?: HTMLElement | null | undefined;
+  richText?: boolean | undefined;
 }
 
 /** 素材芯片插入形态（ResourceStrip.onInsert / PromptInput.onReady 的共同契约）。 */
@@ -84,13 +84,13 @@ function PromptInput({
       ...refImages.map((i, idx): PromptAssetItem => ({
         id: i.id ?? `img-${idx}`,
         label: i.label || `图片${idx + 1}`,
-        url: i.url,
+        ...(i.url !== undefined ? { url: i.url } : {}),
         kind: 'image',
       })),
       ...refTexts.map((t, idx): PromptAssetItem => ({
         id: t.id ?? `text-${idx}`,
         label: t.label || `文本${idx + 1}`,
-        url: t.url,
+        ...(t.url !== undefined ? { url: t.url } : {}),
         kind: 'text',
       })),
     ],

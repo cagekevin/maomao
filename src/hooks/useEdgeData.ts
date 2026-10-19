@@ -27,7 +27,8 @@ type EdgeFieldPatch = Partial<Edge> & { data?: Record<string, unknown> };
 export function patchEdgeData(e: Edge, patch: EdgeFieldPatch): Edge {
   if (!e || !patch) return e;
   const { data, ...rest } = patch;
-  return { ...e, ...rest, data: data ? { ...e.data, ...data } : e.data };
+  const nextData = data ? { ...e.data, ...data } : e.data;
+  return { ...e, ...rest, ...(nextData !== undefined ? { data: nextData } : {}) };
 }
 
 /** computePatchEdgesById：批量版（predicate 命中即写回，用于「按条件」批量命令，如选中态/取消选中） */
@@ -38,7 +39,9 @@ export function computePatchEdgesById(
 ): Edge[] {
   if (!edges || !predicate || !patch) return edges;
   const { data, ...rest } = patch;
-  return edges.map((e) =>
-    predicate(e) ? { ...e, ...rest, data: data ? { ...e.data, ...data } : e.data } : e,
-  );
+  return edges.map((e) => {
+    if (!predicate(e)) return e;
+    const nextData = data ? { ...e.data, ...data } : e.data;
+    return { ...e, ...rest, ...(nextData !== undefined ? { data: nextData } : {}) };
+  });
 }

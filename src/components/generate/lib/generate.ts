@@ -43,15 +43,15 @@ export interface GenerateRequest {
   capability: GenerateCapability;
   provider: GenerationProvider;
   model: string;
-  taskId?: string;
-  prompt?: string;
-  messages?: relayChatMessage[];
-  size?: string;
-  aspectRatio?: string; // image：比例（如 '9:16'），Auto 不指定 size
-  resolution?: string; // video：清晰度
-  seconds?: number; // video：时长（秒）
-  images?: string[];
-  temperature?: number;
+  taskId?: string | undefined;
+  prompt?: string | undefined;
+  messages?: relayChatMessage[] | undefined;
+  size?: string | undefined;
+  aspectRatio?: string | undefined; // image：比例（如 '9:16'），Auto 不指定 size
+  resolution?: string | undefined; // video：清晰度
+  seconds?: number | undefined; // video：时长（秒）
+  images?: string[] | undefined;
+  temperature?: number | undefined;
 }
 
 /** generateImage 入参（对外签名不变；n/quality 保留兼容，当前由后端 preset 决定不在此拼装） */
@@ -303,15 +303,14 @@ export async function chatStream(opts: {
   provider: GenerationProvider;
   model: string;
   messages: relayChatMessage[];
-  tools?: unknown[];
-  taskId?: string;
-  stream?: boolean;
-  signal?: AbortSignal;
+  tools?: unknown[] | undefined;
+  taskId?: string | undefined;
+  stream?: boolean | undefined;
+  signal?: AbortSignal | undefined;
   /** 错误归一入口：HttpError → 统一文案（来自 agentCore）。 */
-  parseAgentError?: (
-    res: { status: number; text: () => Promise<string> },
-    fallback: string,
-  ) => Promise<string>;
+  parseAgentError?:
+    | ((res: { status: number; text: () => Promise<string> }, fallback: string) => Promise<string>)
+    | undefined;
 }): Promise<Response> {
   try {
     return await relayChatStream({

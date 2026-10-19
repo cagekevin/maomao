@@ -248,14 +248,14 @@ export interface UploadResult {
   ok: boolean;
   count: number;
   /** 手动/自动链路冲突取消（未 push）；自动链路「稍后」亦为 cancelled */
-  cancelled?: boolean;
-  error?: string;
+  cancelled?: boolean | undefined;
+  error?: string | undefined;
   /** 自动链路冲突选择「下载云端」→ 本函数未 push，交调用方转 downloadConfig */
-  action?: 'download-needed';
+  action?: 'download-needed' | undefined;
   /** 内容一致零副作用跳过（未 push、rev 未变） */
-  skipped?: boolean;
+  skipped?: boolean | undefined;
   /** [F-云A] 部分域因读取失败未纳入上传（providers/accounts 人类可读名）；调用方必须告警，不得冒充完整上传 */
-  partial?: { skipped: string[] };
+  partial?: { skipped: string[] } | undefined;
 }
 
 /** 下载配置结果（显式声明，调用方据此分支收敛成败与告警）。 */

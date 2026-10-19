@@ -226,7 +226,10 @@ const SUB_FOLDER_KEY_PREFIX = 'sub:';
  * @returns 分类清单（不含 `generated`：tasks 由独立来源承载，见 LIBRARY_BASE_KEYS 注释）
  */
 export function libraryFoldersOf(
-  folderRows: readonly { folder?: string | null; name?: string | null }[] = [],
+  folderRows: readonly {
+    folder?: string | null | undefined;
+    name?: string | null | undefined;
+  }[] = [],
 ): FolderPill[] {
   const out: FolderPill[] = [];
   const seenFolder = new Set<string>();
@@ -374,10 +377,10 @@ export function buildResourceRecord(item: NewResourceItem, folder: string, now: 
     name: item.name || '未命名',
     size: item.size || 0,
     ts: item.ts || now,
-    contentId: item.contentId,
+    ...(item.contentId !== undefined ? { contentId: item.contentId } : {}),
     // 【TD-12-5 修复】透传 projectId：调用方（sendToResourceLibrary/localizeAndStoreToResourceLibrary）
     // 都传了它，此前此处静默丢弃 → `resourcesOfProject` 恒判 legacy → 新素材跨项目可见（隔离失效）。
-    projectId: item.projectId,
+    ...(item.projectId !== undefined ? { projectId: item.projectId } : {}),
   };
 }
 
@@ -402,7 +405,7 @@ export function mergeResourcesFromBackend(items: ResourceItem[]): void {
       url: it.url || '',
       size: typeof it.size === 'number' ? it.size : 0,
       ts: typeof it.timestamp === 'number' ? it.timestamp : Date.now(),
-      contentId: it.contentId,
+      ...(it.contentId !== undefined ? { contentId: it.contentId } : {}),
       ...(it.projectId != null ? { projectId: it.projectId } : {}),
     });
   }
@@ -485,7 +488,11 @@ export async function sendToResourceLibrary(
     name,
     folder = UPLOAD_DIRS.migrated,
     type,
-  }: { name?: string; folder?: string; type?: AssetType } = {},
+  }: {
+    name?: string | undefined;
+    folder?: string | undefined;
+    type?: AssetType | undefined;
+  } = {},
 ): Promise<PersistOutcome> {
   if (!url) return { ok: false, reason: 'empty' };
   // TD-16-14：URL→文件名统一走 core/utils 唯一原语（URL 解析剥 ?# + decode 一次）
@@ -515,7 +522,17 @@ export async function sendToResourceLibrary(
   const relocated = await relocateToFolder(outcome.url, folder);
   if (!relocated.ok) return relocated;
   // 登记放在**全链路成功之后**（归位失败时不在本地留下「已进素材库」的假行）
-  addResources([{ url: outcome.url, name: resourceName, type: detectedType, projectId }], folder);
+  addResources(
+    [
+      {
+        url: outcome.url,
+        name: resourceName,
+        type: detectedType,
+        ...(projectId !== undefined ? { projectId } : {}),
+      },
+    ],
+    folder,
+  );
   emitResourceSent(folder);
   return outcome;
 }
@@ -578,7 +595,10 @@ async function rescanUploads(reason: string): Promise<void> {
  */
 export async function localizeAndStoreToResourceLibrary(
   url: string,
-  { name, folder = UPLOAD_DIRS.migrated }: { name?: string; folder?: string } = {},
+  {
+    name,
+    folder = UPLOAD_DIRS.migrated,
+  }: { name?: string | undefined; folder?: string | undefined } = {},
 ): Promise<string> {
   const src = String(url || '');
   if (!src) throw new Error('无素材可上传');
@@ -599,7 +619,14 @@ export async function localizeAndStoreToResourceLibrary(
     logger.warn('resourceStore', '素材归位失败（图已可用，仅目录归类未生效）', relocated.message);
   }
   addResources(
-    [{ url: outcome.url, name: name || '剧本资产', type: 'image', projectId: pid }],
+    [
+      {
+        url: outcome.url,
+        name: name || '剧本资产',
+        type: 'image',
+        ...(pid !== undefined ? { projectId: pid } : {}),
+      },
+    ],
     folder,
   );
   emitResourceSent(folder);

@@ -5,7 +5,7 @@ import { setCrossOriginForReadable } from '@/components/base/utils/net/asyncGuar
 
 export interface StickerNodeParams extends VisualNodeParams {
   iconName: string;
-  color?: string;
+  color?: string | undefined;
 }
 
 export class StickerNode extends VisualNode<StickerNodeParams> {
@@ -37,7 +37,7 @@ export class StickerNode extends VisualNode<StickerNodeParams> {
     });
   }
 
-  async render({ renderer, time }: { renderer: CanvasRenderer; time: number }) {
+  override async render({ renderer, time }: { renderer: CanvasRenderer; time: number }) {
     await super.render({ renderer, time });
 
     if (!this.isInRange(time)) {

@@ -34,7 +34,7 @@ import { useDismissable } from './layer/use-dismissable';
  * ══════════════════════════════════════════════════════════════════════════════
  */
 interface SelectContextValue {
-  value?: string;
+  value?: string | undefined;
   setValue: (value: string) => void;
   open: boolean;
   setOpen: (open: boolean) => void;

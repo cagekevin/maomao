@@ -29,9 +29,9 @@ export interface VisualNodeParams {
    * （命中 / 框子 / 吸附）读的是**同一个值**。若渲染改用自己的解码尺寸、而几何用元数据，
    * 两者一有差池就是"框子套不住画面、点不中自己看到的东西"。
    */
-  mediaSize?: TCanvasSize;
-  playbackRate?: number;
-  reversed?: boolean;
+  mediaSize?: TCanvasSize | undefined;
+  playbackRate?: number | undefined;
+  reversed?: boolean | undefined;
 }
 
 export abstract class VisualNode<

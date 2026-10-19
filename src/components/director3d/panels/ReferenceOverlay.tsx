@@ -4,7 +4,7 @@ import {
   cloneProjectValue,
   DEFAULT_REFERENCE,
   normalizeReference,
-  ProjectReference,
+  type ProjectReference,
 } from '../project.ts';
 
 interface ReferenceOverlayProps {

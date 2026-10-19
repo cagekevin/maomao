@@ -11,13 +11,13 @@ export class BatchCommand extends Command {
     }
   }
 
-  undo(): void {
+  override undo(): void {
     for (const command of [...this.commands].reverse()) {
       command.undo();
     }
   }
 
-  redo(): void {
+  override redo(): void {
     for (const command of this.commands) {
       command.execute();
     }

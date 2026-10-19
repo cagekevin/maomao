@@ -69,15 +69,15 @@ interface PlanOptions {
 }
 /** lockNodeSettings 入参：节点二次锁定要写回的设置项（均可选）。 */
 interface NodeSettings {
-  m?: string;
-  ratio?: string;
-  resolution?: string;
-  quality?: string;
+  m?: string | undefined;
+  ratio?: string | undefined;
+  resolution?: string | undefined;
+  quality?: string | undefined;
 }
 /** executePlan 单个步骤产出（写回 entries / byId / waves）。 */
 interface PlanEntry {
   id: string;
-  stepId?: string;
+  stepId?: string | undefined;
   nodeId: string;
   phase: string;
   status: string;
@@ -418,25 +418,27 @@ export async function executePlan({
   // 这是机制层兜底——不依赖 LLM 每次把计划给对，也不把「依赖步无前序」硬跑成错图。
   if (independent.length === 0 && dependent.length > 0) {
     const [seed, ...rest] = dependent;
-    independent = [
-      { ...seed, depends_on_previous: false, use_previous_results: false },
-      ...independent,
-    ];
     dependent = rest;
-    log(
-      'warn',
-      `计划缺少独立种子步，已将「${seed.title || seed.id}」提升为独立首步作为一致性锚点（依赖步 ${dependent.length} 将以此为前序）`,
-    );
-    logger.debug(
-      'AI助手',
-      '[执行计划] 计划补种',
-      {
-        promotedStepId: seed.id || seed.title,
-        independentNow: independent.map((s) => s.id),
-        dependentNow: dependent.map((s) => s.id),
-      },
-      { module: 'agent' },
-    );
+    if (seed) {
+      independent = [
+        { ...seed, depends_on_previous: false, use_previous_results: false },
+        ...independent,
+      ];
+      log(
+        'warn',
+        `计划缺少独立种子步，已将「${seed.title || seed.id}」提升为独立首步作为一致性锚点（依赖步 ${dependent.length} 将以此为前序）`,
+      );
+      logger.debug(
+        'AI助手',
+        '[执行计划] 计划补种',
+        {
+          promotedStepId: seed.id || seed.title,
+          independentNow: independent.map((s) => s.id),
+          dependentNow: dependent.map((s) => s.id),
+        },
+        { module: 'agent' },
+      );
+    }
   }
   log(
     'info',
@@ -497,7 +499,7 @@ export async function executePlan({
         globalContract?.unified_negative_prompt,
       ]
         .filter(Boolean)
-        .map((t, i) => ['视觉整体定位：', '统一风格提示词：', '统一负面提示词：'][i] + t)
+        .map((t, i) => (['视觉整体定位：', '统一风格提示词：', '统一负面提示词：'][i] ?? '') + t)
         .join('\n');
       const lockedPrompt = gcText
         ? `[统一风格锁定]\n${gcText}\n\n${step.prompt || ''}`
@@ -630,9 +632,13 @@ export async function executePlan({
       const wave2: WaveItem[] = [];
       independent.forEach((s, i) => {
         const nodeId = nodeMappings[String(s.id)];
-        const entry = {
+        if (!nodeId) {
+          log('warn', `补跑：独立步「${s.id}」没有已建节点，跳过`);
+          return;
+        }
+        const entry: PlanEntry = {
           id: s.id || `step_${i + 1}`,
-          stepId: s.id,
+          ...(s.id !== undefined ? { stepId: s.id } : {}),
           nodeId,
           phase: 'independent',
           status: 'ready',
@@ -645,9 +651,13 @@ export async function executePlan({
       });
       dependent.forEach((s, i) => {
         const nodeId = nodeMappings[String(s.id)];
-        const entry = {
+        if (!nodeId) {
+          log('warn', `补跑：依赖步「${s.id}」没有已建节点，跳过`);
+          return;
+        }
+        const entry: PlanEntry = {
           id: s.id || `dep_${i + 1}`,
-          stepId: s.id,
+          ...(s.id !== undefined ? { stepId: s.id } : {}),
           nodeId,
           phase: 'dependent',
           status: 'ready',
@@ -667,6 +677,7 @@ export async function executePlan({
         const results = await Promise.all(wave1.map(({ nodeId, step }) => runNode(nodeId, step)));
         wave1.forEach(({ entry }, i) => {
           const r = results[i];
+          if (!r) return;
           entry.status = r.status;
           entry.resultUrl = r.resultUrl || '';
           entry.error = r.error || '';
@@ -689,6 +700,7 @@ export async function executePlan({
           const results = await Promise.all(wave2.map(({ nodeId, step }) => runNode(nodeId, step)));
           wave2.forEach(({ entry }, i) => {
             const r = results[i];
+            if (!r) return;
             entry.status = r.status;
             entry.resultUrl = r.resultUrl || '';
             entry.error = r.error || '';
@@ -721,6 +733,7 @@ export async function executePlan({
     const wave1: WaveItem[] = [];
     for (let i = 0; i < independent.length; i++) {
       const step = independent[i];
+      if (!step) continue;
       const anchor = nextAnchor(ctx, base, entries.length);
       const nodeId = await createGenNode(step, step.index ?? i, anchor); // 建节点串行
       const entry = {
@@ -746,6 +759,7 @@ export async function executePlan({
       const results = await Promise.all(wave1.map(({ nodeId, step }) => runNode(nodeId, step)));
       wave1.forEach(({ entry }, i) => {
         const r = results[i];
+        if (!r) return;
         entry.status = r.status;
         entry.resultUrl = r.resultUrl || '';
         entry.error = r.error || '';
@@ -820,13 +834,15 @@ export async function executePlan({
 
       // resolved：step 下标 -> { status, nodeId, resultUrl }（独立批 Wave1 已全部完成，先登记）
       const resolved = new Map<number, ResolvedStep>();
-      independent.forEach((s, i) =>
+      independent.forEach((s, i) => {
+        const entry = entries[i];
+        if (!entry) return;
         resolved.set(stepsIdxOf(s), {
-          status: entries[i].status,
-          nodeId: entries[i].nodeId,
-          resultUrl: entries[i].resultUrl,
-        }),
-      );
+          status: entry.status,
+          nodeId: entry.nodeId,
+          resultUrl: entry.resultUrl,
+        });
+      });
 
       // ② setup（顺序、确定性）：改写 prompt + 资产校验 + 建节点 + 占位 entry。
       //    连线与前序判定放 DAG 阶段（前序就绪后才能决定 prevOk）；建节点在此先完成以定锚点，防并行创建撞位。
@@ -834,6 +850,7 @@ export async function executePlan({
       const depJobs: DepJob[] = []; // { di, k, step, nodeId, entry }
       for (let k = 0; k < dependent.length; k++) {
         const step0 = dependent[k];
+        if (!step0) continue;
         const di = stepsIdxOf(step0);
         let step = step0;
         // 【TASK-012 缺口 2】套图自动识别（对齐大雄 L10058/L10209）：对话含"详情页套图/系列"等但 LLM 漏标
@@ -845,7 +862,7 @@ export async function executePlan({
             ...step,
             dependency_mode: 'product_reference',
             use_attachments: false,
-            prompt: buildProductReferencePrompt(steps[0], step.prompt || '', ''),
+            prompt: buildProductReferencePrompt(steps[0] ?? step, step.prompt || '', ''),
           };
         } else if (depMode === 'fusion') {
           // 【依赖批 prompt 改写】（对齐大雄 L10218/L10277/L10284）：依赖步不是只连线，而是按 dependency_mode 重建下游 prompt，
@@ -858,7 +875,7 @@ export async function executePlan({
               : cleanFusionActionText(step.prompt || '', ''),
           };
         } else if (depMode === 'product_reference') {
-          const productStep = steps[0];
+          const productStep = steps[0] ?? step;
           step = {
             ...step,
             // 【TASK-012 缺口 1】对齐大雄 L10213：product_reference 步只挂产品定稿，禁止再叠用户上传参考图
@@ -879,9 +896,9 @@ export async function executePlan({
             step = { ...step, referenceImages: matched };
           } else if (matched.length === 0) {
             // 依赖步声明了 artifact 但资产表无对应 url → 明确报错（防 prompt 口头猜依赖），并登记为已失败供下游解析
-            const entry = {
+            const entry: PlanEntry = {
               id: step.id || `dep_${k + 1}`,
-              stepId: step.id,
+              ...(step.id !== undefined ? { stepId: step.id } : {}),
               nodeId: '',
               phase: 'dependent',
               status: 'failed',

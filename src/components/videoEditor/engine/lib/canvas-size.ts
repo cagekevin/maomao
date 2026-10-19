@@ -52,7 +52,7 @@ export function getMediaDisplaySize({
   media,
   canvasSize,
 }: {
-  media?: Pick<MediaAsset, 'width' | 'height'>;
+  media?: Pick<MediaAsset, 'width' | 'height'> | undefined;
   canvasSize: TCanvasSize;
 }): TCanvasSize {
   return {

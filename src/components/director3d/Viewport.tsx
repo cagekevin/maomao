@@ -54,18 +54,18 @@ function shouldKeepCurrentSelection(
 
 interface SceneObjectProps {
   data: ProjectObject;
-  selected?: boolean;
-  selectedId?: string | null;
-  activeJoint?: string | null;
-  transformMode?: 'select' | 'translate' | 'rotate' | 'scale';
-  transformSpace?: 'local' | 'world';
-  snapEnabled?: boolean;
-  groundRequest?: { id: string; nonce: number } | null;
-  onSelect?: (id: string) => void;
-  onUpdate?: (id: string, patch: Record<string, unknown>) => void;
-  onJointSelect?: (objectId: string, jointId: string) => void;
-  animationTime?: number;
-  preview?: boolean;
+  selected?: boolean | undefined;
+  selectedId?: string | null | undefined;
+  activeJoint?: string | null | undefined;
+  transformMode?: 'select' | 'translate' | 'rotate' | 'scale' | undefined;
+  transformSpace?: 'local' | 'world' | undefined;
+  snapEnabled?: boolean | undefined;
+  groundRequest?: { id: string; nonce: number } | null | undefined;
+  onSelect?: ((id: string) => void) | undefined;
+  onUpdate?: ((id: string, patch: Record<string, unknown>) => void) | undefined;
+  onJointSelect?: ((objectId: string, jointId: string) => void) | undefined;
+  animationTime?: number | undefined;
+  preview?: boolean | undefined;
 }
 
 function SceneObject({
@@ -229,10 +229,14 @@ function SceneObject({
       scale={data.scale as [number, number, number]}
       visible={data.visible !== false}
       userData={{ sceneObjectId: data.id }}
-      onPointerDown={preview ? undefined : beginObjectInteraction}
-      onPointerMove={preview ? undefined : rotateObjectFromSurface}
-      onPointerUp={preview ? undefined : endObjectInteraction}
-      onPointerCancel={preview ? undefined : endObjectInteraction}
+      {...(preview
+        ? {}
+        : {
+            onPointerDown: beginObjectInteraction,
+            onPointerMove: rotateObjectFromSurface,
+            onPointerUp: endObjectInteraction,
+            onPointerCancel: endObjectInteraction,
+          })}
     >
       {data.type === 'person' ? (
         <StudioPerson
@@ -307,7 +311,7 @@ function SceneObject({
       {selected && !data.locked && !preview && transformMode !== 'select' && (
         <TransformControls
           object={groupRef as unknown as React.RefObject<THREE.Object3D>}
-          mode={transformMode}
+          mode={transformMode ?? 'translate'}
           space={transformSpace}
           size={0.8}
           showX={transformMode !== 'scale' || !scaleAxisLocks[0]}
@@ -417,12 +421,12 @@ function CameraModel({
   selected: boolean;
   selectedId: string | null;
   transformMode: 'select' | 'translate' | 'rotate' | 'scale';
-  transformSpace?: 'local' | 'world';
-  snapEnabled?: boolean;
-  onSelect: (id: string) => void;
+  transformSpace?: 'local' | 'world' | undefined;
+  snapEnabled?: boolean | undefined;
+  onSelect?: ((id: string) => void) | undefined;
   // 与 SceneObject.onUpdate 统一签名 (id, patch)：全系统唯一更新入口（契约 C3.1）。
   // 摄像机 id 恒为 CAMERA_ID，由 App 的 updateObjectById 按 entity 分派到 camera state。
-  onUpdate: (id: string, patch: Record<string, unknown>) => void;
+  onUpdate?: ((id: string, patch: Record<string, unknown>) => void) | undefined;
 }) {
   const groupRef = useRef<THREE.Group>(null);
   // 相机朝向欧拉用 'YXZ'（先 yaw 后 pitch）：与 cameraRotationToward 的生成约定一致，
@@ -434,7 +438,7 @@ function CameraModel({
   );
   const syncTransform = useCallback(() => {
     if (!groupRef.current) return;
-    onUpdate(CAMERA_ID, {
+    onUpdate?.(CAMERA_ID, {
       position: groupRef.current.position.toArray(),
       rotation: [
         groupRef.current.rotation.x,
@@ -456,7 +460,7 @@ function CameraModel({
   const selectCamera = (event: ThreeEvent<PointerEvent>) => {
     if (shouldKeepCurrentSelection(event, selectedId, selected, transformMode)) return;
     event.stopPropagation();
-    onSelect(CAMERA_ID);
+    onSelect?.(CAMERA_ID);
   };
   const rig = (
     <group
@@ -607,10 +611,10 @@ function RendererExposure({ value = STUDIO_LIGHTING_DEFAULTS.exposure }): null {
 }
 
 interface GroundProps {
-  showGrid?: boolean;
-  showSurface?: boolean;
-  plain?: boolean;
-  surfaceColor?: string | null;
+  showGrid?: boolean | undefined;
+  showSurface?: boolean | undefined;
+  plain?: boolean | undefined;
+  surfaceColor?: string | null | undefined;
 }
 
 function Ground({
@@ -730,12 +734,12 @@ function ScreenConstantDot({
   onContextMenu,
 }: {
   point: { x: number; y: number; z: number };
-  radius?: number;
-  hot?: boolean;
-  onPointerDown?: (e: React.PointerEvent) => void;
-  onPointerOver?: (e: React.PointerEvent) => void;
-  onPointerOut?: (e: React.PointerEvent) => void;
-  onContextMenu?: (e: React.PointerEvent) => void;
+  radius?: number | undefined;
+  hot?: boolean | undefined;
+  onPointerDown?: ((e: React.PointerEvent) => void) | undefined;
+  onPointerOver?: ((e: React.PointerEvent) => void) | undefined;
+  onPointerOut?: ((e: React.PointerEvent) => void) | undefined;
+  onContextMenu?: ((e: React.PointerEvent) => void) | undefined;
 }) {
   const ref = useRef<THREE.Mesh>(null);
   const { camera } = useThreeTyped();
@@ -754,10 +758,10 @@ function ScreenConstantDot({
     <mesh
       ref={ref}
       position={[point.x, point.y, point.z]}
-      onPointerOver={onPointerOver}
-      onPointerOut={onPointerOut}
-      onPointerDown={onPointerDown}
-      onContextMenu={onContextMenu}
+      {...(onPointerOver !== undefined ? { onPointerOver } : {})}
+      {...(onPointerOut !== undefined ? { onPointerOut } : {})}
+      {...(onPointerDown !== undefined ? { onPointerDown } : {})}
+      {...(onContextMenu !== undefined ? { onContextMenu } : {})}
     >
       <sphereGeometry args={[radius, 16, 16]} />
       <meshBasicMaterial color={hot ? '#ffd469' : '#bf9948'} depthTest={false} />
@@ -776,12 +780,12 @@ interface PathDraft {
 }
 
 interface PathEditorProps {
-  pathDraft?: PathDraft | null;
-  anchorY?: number;
-  onPathChange?: (points: PathPoint[]) => void;
-  density?: 'dense' | 'mid' | 'sparse';
-  drawing?: boolean;
-  onContextMenuAt?: (index: number, clientX: number, clientY: number) => void;
+  pathDraft?: PathDraft | null | undefined;
+  anchorY?: number | undefined;
+  onPathChange?: ((points: PathPoint[]) => void) | undefined;
+  density?: 'dense' | 'mid' | 'sparse' | undefined;
+  drawing?: boolean | undefined;
+  onContextMenuAt?: ((index: number, clientX: number, clientY: number) => void) | undefined;
 }
 
 function PathEditor({
@@ -1046,9 +1050,13 @@ function PathEditor({
           const nearest = nearestOnCurve(event.clientX, event.clientY);
           if (nearest.dist <= CURVE_HOVER_THRESHOLD) insertPointOnCurve(event);
         }}
-        onPointerMove={drawing ? undefined : handleCurvePointerMove}
-        onDoubleClick={drawing ? undefined : addPointOnDoubleClick}
-        onContextMenu={drawing ? undefined : (event) => onRightClick(event.nativeEvent)}
+        {...(drawing
+          ? {}
+          : {
+              onPointerMove: handleCurvePointerMove,
+              onDoubleClick: addPointOnDoubleClick,
+              onContextMenu: (event: { nativeEvent: MouseEvent }) => onRightClick(event.nativeEvent),
+            })}
       >
         <planeGeometry args={[200, 200]} />
         <meshBasicMaterial visible={false} side={THREE.DoubleSide} transparent opacity={0} />
@@ -1296,15 +1304,15 @@ function CanvasBackground({ canvas }: CanvasBackgroundProps) {
 }
 
 interface PreviewSceneProps {
-  objects?: ProjectObject[];
-  cameraData?: ProjectCamera;
-  cameraAspect?: number;
-  lighting?: ProjectLighting;
-  backgroundCanvas?: HTMLCanvasElement | null;
-  animationTime?: number;
-  performanceMode?: boolean;
-  lightweight?: boolean;
-  seamlessBackground?: boolean;
+  objects?: ProjectObject[] | undefined;
+  cameraData?: ProjectCamera | undefined;
+  cameraAspect?: number | undefined;
+  lighting?: ProjectLighting | undefined;
+  backgroundCanvas?: HTMLCanvasElement | null | undefined;
+  animationTime?: number | undefined;
+  performanceMode?: boolean | undefined;
+  lightweight?: boolean | undefined;
+  seamlessBackground?: boolean | undefined;
 }
 
 function PreviewScene({
@@ -1431,7 +1439,7 @@ export function CameraPreview({
       camera={{
         position: cameraData!.position as [number, number, number],
         fov: 40,
-        aspect: cameraAspect,
+        ...(cameraAspect !== undefined ? { aspect: cameraAspect } : {}),
         near: 0.05,
         far: 200,
       }}

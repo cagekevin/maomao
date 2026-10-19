@@ -58,8 +58,8 @@ function ViewContent({
   onScrollCapture,
 }: {
   children: React.ReactNode;
-  scrollRef?: React.Ref<HTMLDivElement>;
-  onScrollCapture?: React.UIEventHandler<HTMLDivElement>;
+  scrollRef?: React.Ref<HTMLDivElement> | undefined;
+  onScrollCapture?: React.UIEventHandler<HTMLDivElement> | undefined;
 }) {
   return (
     <ScrollArea
@@ -140,10 +140,10 @@ interface PanelStateProps {
   /** 主文案（一句话说清"这里是空的 / 坏了"）。 */
   text: string;
   /** 补充说明（"放哪儿" / 错误原文 / 怎么恢复）。 */
-  hint?: string;
+  hint?: string | undefined;
   /** `error` = 失败态（主文案走危险色）；缺省 = 中性态（空 / 加载）。 */
-  tone?: 'error';
-  action?: { label: string; onClick: () => void };
+  tone?: 'error' | undefined;
+  action?: { label: string; onClick: () => void } | undefined;
 }
 
 /**

@@ -50,8 +50,8 @@ export interface MentionQuery {
 export interface MentionPlacement {
   placement: 'up' | 'down';
   left: number;
-  top?: number;
-  bottom?: number;
+  top?: number | undefined;
+  bottom?: number | undefined;
   height: number;
 }
 

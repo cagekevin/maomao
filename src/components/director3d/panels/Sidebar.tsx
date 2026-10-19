@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Box, Camera, Lock, ScanLine, Sparkles, Unlock, UserRound } from 'lucide-react';
 import { ShotsPanel } from './ShotsPanel.tsx';
-import { CAMERA_ID, ProjectObject } from '../project.ts';
+import { CAMERA_ID, type ProjectObject } from '../project.ts';
 
 /** 场景对象在渲染侧需要的字段（ProjectObject 的索引签名不强制 locked/visible，这里显式收窄） */
 interface SceneObject extends ProjectObject {

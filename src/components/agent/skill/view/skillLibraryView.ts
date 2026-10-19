@@ -59,7 +59,7 @@ export interface SkillRow {
   id: string;
   name: string;
   description: string;
-  version?: string;
+  version?: string | undefined;
   /** 分组 = 磁盘一级目录名（内置 = 官方哨兵；**数据，不是给界面分支用的**） */
   group: string;
   groupLabel: string;
@@ -87,7 +87,7 @@ export interface SkillRow {
    */
   contentHash: string;
   /** 上次修改（**索引里的本地时间**；磁盘上没这个字段 ⇒ 缺省不显示） */
-  updatedAt?: number;
+  updatedAt?: number | undefined;
   /** 正文里引用了、但包里没有的资料（模型读到会失败；行上先说了） */
   missingRefs: string[];
   /** 无描述 ⇒ **不进「可用清单」**（块① 只收有描述的）；仍可用于对话，故不是"不可用" */

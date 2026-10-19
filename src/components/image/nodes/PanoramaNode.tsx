@@ -229,16 +229,16 @@ class SphereErrorBoundary extends React.Component<
   { children: React.ReactNode },
   { failed: boolean }
 > {
-  state = { failed: false };
+  override state = { failed: false };
   static getDerivedStateFromError() {
     return { failed: true };
   }
-  componentDidCatch(error: unknown) {
+  override componentDidCatch(error: unknown) {
     // TD-04-29：崩溃须走 logger（可查 + 上报 /api/logs），与同文件他处一致；
     // 裸 console.error 只进浏览器控制台，用户侧崩溃不可追溯。
     logger.error('panoNode', '全景球体渲染失败', error);
   }
-  render() {
+  override render() {
     if (this.state.failed) {
       return (
         <div className="w-full h-full flex flex-col items-center justify-center gap-3 bg-[#0b0b0d] text-red-400/80">

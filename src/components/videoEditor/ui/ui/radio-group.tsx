@@ -22,7 +22,7 @@ import { cn } from '@/components/videoEditor/utils/ui';
  *   · 到端点**环绕**。
  */
 interface RadioGroupContextValue {
-  value?: string;
+  value?: string | undefined;
   select: (value: string) => void;
   disabled: boolean;
   name: string;

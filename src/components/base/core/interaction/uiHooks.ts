@@ -1,5 +1,5 @@
 import { useEffect, useRef, useCallback } from 'react';
-import { RefObject } from 'react';
+import type { RefObject } from 'react';
 import { useReactFlow, useUpdateNodeInternals } from '@xyflow/react';
 import { NODE_AREA_FIXED_BASE_SIZE } from '../config.ts';
 import { releaseQuietly } from '@/components/base/utils/net/asyncGuard';

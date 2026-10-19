@@ -122,9 +122,9 @@ export async function compressToSummary({
   previousSummary = '',
 }: {
   provider: Parameters<typeof chatCompletions>[0]['provider'];
-  model?: string;
-  messages?: SummaryMessage[];
-  previousSummary?: string;
+  model?: string | undefined;
+  messages?: SummaryMessage[] | undefined;
+  previousSummary?: string | undefined;
 }): Promise<string | null> {
   const input = serializeMessagesForSummary(
     previousSummary,

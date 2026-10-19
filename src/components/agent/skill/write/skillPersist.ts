@@ -39,7 +39,7 @@ import type {
 
 export interface SaveSkillInput {
   /** 既有条目的 id（新建时留空） */
-  id?: string;
+  id?: string | undefined;
   name: string;
   description: string;
   /** 正文（不含 frontmatter；由本模块负责拼装 frontmatter） */
@@ -51,7 +51,7 @@ export interface SaveSkillInput {
    *  - 改既有条目：给出的名字**与现值不同** ⇒ 视为**移动分组**（新位置写成功后才删旧包）。
    * 名字经 `slugifySkillName` 安全化（禁 `/` `\` `:` 等路径敌意字符）。
    */
-  category?: string;
+  category?: string | undefined;
   /**
    * **希望落到的目录名**（只有"恢复"这类动作会给）：
    * 索引里记的原目录名，恢复时要落回**原路径**，不能因为"索引里还有这一条"而被让位成 `-2`
@@ -59,9 +59,9 @@ export interface SaveSkillInput {
    * 不给 ⇒ 由 `name` 经 `slugifySkillName` 安全化后取名（新建的常规路径）。
    * 给的值**原样使用**：它是磁盘上曾经存在的目录名（可能与安全化结果不同），改名/换组那一套口径不适用于"恢复原位"。
    */
-  slug?: string;
+  slug?: string | undefined;
   /** 额外要保留的 frontmatter 字段（导入时原样带过：version / unknown（含已退役的 when-to-use 等声明）…） */
-  manifest?: Partial<SkillManifest>;
+  manifest?: Partial<SkillManifest> | undefined;
   /**
    * **整包导入**语义：调用方给的是完整文件集合（含 `references/**`）⇒ 它就是最终状态（覆盖写）。
    * - 不给（默认）＝「改这一份」：先读旧包，只替换 `SKILL.md`，附带文件原样保留；
@@ -69,7 +69,7 @@ export interface SaveSkillInput {
    * 两种语义必须**显式区分**，不能靠"磁盘上有没有旧文件"去猜 —— 猜的结果是"导入把旧 references 删了"
    * 或"更新把别人的 references 并进来了"，两种都不可预测。
    */
-  packageFiles?: SkillPackageFile[];
+  packageFiles?: SkillPackageFile[] | undefined;
   /**
    * **界面渲染这一行时看到的正文指纹**（`contentHash`）。
    * 给了它才做冲突检测：磁盘当前正文与它不同 ⇒ 说明**有人在别处改过这一版**（VS Code / 另一次会话）
@@ -78,9 +78,9 @@ export interface SaveSkillInput {
    * 两个写者真实存在。少了它，"保存"就变成"谁后保存谁赢"，用户的外改会被静默吞掉。
    * **不给 = 不检测**：新建 / 导入 / 云写回不在"编辑某一版"的语境里。
    */
-  baselineHash?: string;
+  baselineHash?: string | undefined;
   /** 用户已确认覆盖（冲突提示里选了"用我的覆盖"） */
-  allowOverwrite?: boolean;
+  allowOverwrite?: boolean | undefined;
 }
 
 export type SaveSkillResult =

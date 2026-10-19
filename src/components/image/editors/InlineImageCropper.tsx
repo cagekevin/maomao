@@ -177,7 +177,7 @@ export default function InlineImageCropper({ assetUrl, onSave, onClose }: Inline
           absolute inset-0（原 flex-1）：图片区占满整个节点，不再被按钮栏压掉一块高度。 */}
       <div className="absolute inset-0">
         <ReactCrop
-          crop={crop}
+          {...(crop !== undefined ? { crop } : {})}
           onChange={(_, pc) => {
             setCrop(pc);
             setPercentCrop(pc);

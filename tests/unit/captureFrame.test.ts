@@ -15,7 +15,7 @@ import {
 const nativeCreate = document.createElement.bind(document);
 let lastVideo: HTMLVideoElement | null = null;
 let lastCanvas: { width: number; height: number; drawImageArgs: unknown[][] } | null = null;
-let toBlobArgs: { mime?: string; quality?: number } | null = null;
+let toBlobArgs: { mime?: string | undefined; quality?: number | undefined } | null = null;
 let toBlobBehavior: 'ok' | 'null' = 'ok';
 let ctxBehavior: 'ok' | 'null' = 'ok';
 let ctxOptions: unknown = undefined;

@@ -40,13 +40,13 @@ export interface NodeImageWrite {
   id: string;
   dataUrl: string;
   /** 画布真实尺寸（裁剪/扩图后），回传给调用方的尺寸模型用 */
-  dims?: { width: number; height: number };
+  dims?: { width: number; height: number } | undefined;
   /**
    * 额外要合并进 `node.data` 的字段（与主图同一次不可变更新写下去）。
    * 典型场景：「上传替换节点内容」要同时把 `assetType`/`text` 置空，交回 `detectAssetType` 按 URL 判定。
    * 值写 `undefined` = **清空**该字段（JSON.stringify 落盘时自然消失）。
    */
-  dataPatch?: Record<string, unknown>;
+  dataPatch?: Record<string, unknown> | undefined;
 }
 
 /**

@@ -259,12 +259,12 @@ function AgentPanel({
   onWidthChange?: (w: number) => void;
   onEnabledChange?: (enabled: boolean) => void;
   selectedAssetNodes?: Array<{
-    type?: 'image' | 'video' | 'audio' | '';
+    type?: 'image' | 'video' | 'audio' | '' | undefined;
     url: string;
-    label?: string;
-    nodeId?: string;
-    nodeType?: string;
-    x?: number;
+    label?: string | undefined;
+    nodeId?: string | undefined;
+    nodeType?: string | undefined;
+    x?: number | undefined;
     y?: number;
   }>;
 }) {

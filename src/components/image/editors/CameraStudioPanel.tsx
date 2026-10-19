@@ -32,13 +32,13 @@ let _lastActiveControl: 'camera' | 'lighting' | null = null;
 
 interface CameraStudioPanelProps {
   isOpen: boolean;
-  assetUrl?: string;
+  assetUrl?: string | undefined;
   onClose: () => void;
   onGenerate: (result: CameraStudioResult) => void;
 }
 
 interface StudioViewportProps {
-  assetUrl?: string;
+  assetUrl?: string | undefined;
   mode: CameraStudioMode;
   activeControl: 'camera' | 'lighting';
   cameraState: CameraStudioCameraState;

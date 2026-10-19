@@ -56,14 +56,14 @@ export function getElementCanvasRect({
 }: {
   element: TimelineElement;
   transform: Transform;
-  media?: MediaAsset;
+  media?: MediaAsset | undefined;
   settings: Pick<TProjectSettings, 'canvasSize' | 'originalCanvasSize'>;
   /**
    * 文本测量上下文。缺省走 `getTextMeasureContext()`（进程内复用的离屏 canvas）。
    * **生产代码不要传** —— 这个口子只给测试用：文本几何依赖 canvas 2D，node/jsdom 拿不到，
    * 不给注入点就等于"文本几何没有任何机器判据"（实证：字幕中心算错半个字高，无测试报红）。
    */
-  measureContext?: TextMeasureContext;
+  measureContext?: TextMeasureContext | undefined;
 }): ElementCanvasRect | null {
   const canvasWidth = settings.canvasSize.width;
   const canvasHeight = settings.canvasSize.height;

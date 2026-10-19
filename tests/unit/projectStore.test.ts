@@ -27,7 +27,7 @@ import { contentGet, contentClearCache } from '../../src/components/base/core/co
 const H = vi.hoisted(() => ({
   mem: new Map<string, unknown>(),
   /** kvSet 调用记录（断言 CAS 入参用） */
-  kvSetCalls: [] as Array<{ key: string; value: unknown; ifVersion?: number }>,
+  kvSetCalls: [] as Array<{ key: string; value: unknown; ifVersion?: number | undefined }>,
   /** kvGet / kvGetVersion 读写顺序记录（断言「版本→快照→版本」用） */
   ops: [] as string[],
   /** kvGetVersion 返回队列（非空时优先弹出，用于模拟「读期间版本被改」） */

@@ -20,7 +20,7 @@ import {
   emptyMemory,
   AGENT_MSG_MAX,
 } from './conversationState.ts';
-import {
+import type {
   Conversation,
   ConversationMessage,
   WorkflowState,

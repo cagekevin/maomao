@@ -21,17 +21,17 @@ import { useImageFallbackSrc } from '@/components/base/utils/media/useImageFallb
  *  - imgClassName：img 内部类名（默认 w-full h-full object-cover）
  */
 interface LazyImageProps {
-  src?: string;
-  alt?: string;
-  className?: string;
-  onDoubleClick?: () => void;
-  imgClassName?: string;
+  src?: string | undefined;
+  alt?: string | undefined;
+  className?: string | undefined;
+  onDoubleClick?: (() => void) | undefined;
+  imgClassName?: string | undefined;
   /**
    * 立即加载（跳过 IntersectionObserver 门槛）。
    * 用于**小尺寸**缩略图：解码成本≈0，而懒加载一旦不触发（画布 `transform: scale()` 容器里
    * IO 可见性判定本就脆弱）会**永久空白**——懒加载是优化，不该成为「能否显示」的前提。
    */
-  eager?: boolean;
+  eager?: boolean | undefined;
 }
 
 function LazyImage({

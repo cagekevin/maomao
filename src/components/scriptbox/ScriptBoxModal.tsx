@@ -1,4 +1,4 @@
-import { ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import { Minimize2 } from 'lucide-react';
 
 interface ScriptBoxModalProps {

@@ -31,9 +31,9 @@ export interface ArrangePackOpts {
   gapX: number;
   gapY: number;
   /** fitView 允许的最大缩放，默认 1 */
-  maxZoom?: number;
+  maxZoom?: number | undefined;
   /** 画布视窗尺寸；缺省退化 1600×900（宽屏兜底） */
-  viewport?: { width: number; height: number };
+  viewport?: { width: number; height: number } | undefined;
 }
 
 export interface ArrangePackResult {

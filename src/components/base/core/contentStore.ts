@@ -800,14 +800,14 @@ export async function contentSetKvWithFallback(
 export interface KvFallbackReadResult {
   ok: boolean;
   value?: unknown;
-  source?: 'kv' | 'local';
-  degraded?: boolean;
+  source?: 'kv' | 'local' | undefined;
+  degraded?: boolean | undefined;
   /** KV 确认为空（"确定没有"，非"读失败"）；仅此情形允许一次性迁移写回。 */
-  vacated?: boolean;
+  vacated?: boolean | undefined;
   /** KV 真空时探测到的本地降级副本（待迁移源）；无则 undefined。 */
   fallback?: unknown;
-  error?: 'rejected';
-  status?: number;
+  error?: 'rejected' | undefined;
+  status?: number | undefined;
 }
 
 export async function contentGetKvWithFallback(key: string): Promise<KvFallbackReadResult> {
@@ -861,7 +861,7 @@ export async function contentKvGetVersion(key: string): Promise<number> {
 /** CAS 写入结果：landed 恒 'kv'（严格族不降级）；version = 服务端写入后的新版本（桩/异常态可能缺省）。 */
 export interface KvCasWriteResult {
   landed: 'kv';
-  version?: number;
+  version?: number | undefined;
 }
 
 /**
@@ -923,7 +923,7 @@ export async function contentKvReadWithVersion<T = unknown>(
 export async function contentKvSetCas(
   key: string,
   value: unknown,
-  opts: { ifVersion?: number } = {},
+  opts: { ifVersion?: number | undefined } = {},
 ): Promise<KvCasWriteResult> {
   checkRegistered(key);
   const { timeout, keepFallback } = kvOpMeta(key);

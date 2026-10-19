@@ -140,7 +140,7 @@ export class SplitElementsCommand extends Command {
     }
   }
 
-  undo(): void {
+  override undo(): void {
     if (this.savedState) {
       const editor = getEditor();
       editor.timeline.updateTracks(this.savedState);

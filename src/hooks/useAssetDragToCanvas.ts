@@ -12,11 +12,11 @@ import type {
 
 /** 素材最小形状（拖到画布建节点所需字段） */
 export interface CanvasAssetLike {
-  url?: string;
-  name?: string;
-  type?: string;
+  url?: string | undefined;
+  name?: string | undefined;
+  type?: string | undefined;
   /** docs/122 #4：素材持有的稳定 contentId（来自后端资源 sha1 列），拖到画布时一并带给 asset 节点 */
-  contentId?: string;
+  contentId?: string | undefined;
 }
 
 /**

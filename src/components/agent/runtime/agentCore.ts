@@ -176,13 +176,13 @@ export function toChatMessages(raw: ChatMessageInput[]): agentChatMessage[] {
     const msg: agentChatMessage = { role };
     // 逐字段收窄（每项都带运行时检查）：形状不符 ⇒ 该字段**缺席**，而不是把脏值透传给上游。
     if (typeof m.content === 'string' || Array.isArray(m.content)) {
-      msg.content = m.content as agentChatMessage['content'];
+      msg.content = m.content as NonNullable<agentChatMessage['content']>;
     }
     if (Array.isArray(m.tool_calls)) msg.tool_calls = m.tool_calls as ToolCall[];
     if (typeof m.tool_call_id === 'string') msg.tool_call_id = m.tool_call_id;
     if (typeof m.reasoning === 'string') msg.reasoning = m.reasoning;
     if (Array.isArray(m.attachments)) {
-      msg.attachments = m.attachments as agentChatMessage['attachments'];
+      msg.attachments = m.attachments as NonNullable<agentChatMessage['attachments']>;
     }
     if (typeof m.refCatalog === 'string') msg.refCatalog = m.refCatalog;
     out.push(msg);

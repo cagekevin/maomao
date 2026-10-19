@@ -1203,9 +1203,9 @@ export default function ImageEditor({
       >
         <div className="min-w-full min-h-full flex items-center justify-center p-4 w-fit">
           <ReactCrop
-            crop={crop}
+            {...(crop !== undefined ? { crop } : {})}
             onChange={(_, pc) => setCrop(pc)}
-            aspect={curAspect}
+            {...(curAspect !== undefined ? { aspect: curAspect } : {})}
             ruleOfThirds
             disabled={tab !== 'crop'}
             style={{ display: 'block' }}

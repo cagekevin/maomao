@@ -677,13 +677,13 @@ function ListView({
   );
 }
 
-function MediaDurationBadge({ duration }: { duration?: number }) {
+function MediaDurationBadge({ duration }: { duration?: number | undefined }) {
   if (!duration) return null;
 
   return <div className="ve-card-badge">{formatDuration(duration)}</div>;
 }
 
-function MediaDurationLabel({ duration }: { duration?: number }) {
+function MediaDurationLabel({ duration }: { duration?: number | undefined }) {
   if (!duration) return null;
 
   return <span className="text-xs opacity-70">{formatDuration(duration)}</span>;
@@ -697,7 +697,7 @@ function MediaTypePlaceholder({
 }: {
   icon: LucideIcon;
   label: string;
-  duration?: number;
+  duration?: number | undefined;
   variant: 'muted' | 'bordered';
 }) {
   const Icon = icon;

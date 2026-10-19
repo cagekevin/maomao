@@ -90,7 +90,7 @@ function AxisHead({
 }
 
 interface SceneGizmoProps {
-  onReady?: (handler: ((name: string) => void) | null) => void;
+  onReady?: ((handler: ((name: string) => void) | null) => void) | undefined;
 }
 
 export default function SceneGizmo({ onReady }: SceneGizmoProps) {

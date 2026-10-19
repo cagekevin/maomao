@@ -541,11 +541,11 @@ export interface AssistantTablePreview {
   /** 单行时为行号（1 起），整表为 null */
   rowIndex: number | null;
   /** 操作类别（update/append/replace），供预览卡文案（1.5 契约 C5 后由 result 派生） */
-  opKind?: 'update' | 'append' | 'replace';
-  updatedCount?: number;
-  appendedCount?: number;
+  opKind?: 'update' | 'append' | 'replace' | undefined;
+  updatedCount?: number | undefined;
+  appendedCount?: number | undefined;
   /** 「确认后会写回变化」的行在 rows 里的 0 基下标（折叠时展开、其余折叠）。空/缺省=不做折叠（全展开） */
-  changedIndexes?: number[];
+  changedIndexes?: number[] | undefined;
 }
 
 /** buildPreviewResult 产出：操作后最终表格（预览=确认的唯一数据源） */

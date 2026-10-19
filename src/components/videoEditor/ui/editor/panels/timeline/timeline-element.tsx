@@ -88,10 +88,10 @@ interface TimelineElementProps {
   track: TimelineTrack;
   zoomLevel: number;
   /** 轨道高度倍率（TD-21-16）——胶片条等按高度渲染的内容必须与轨道同口径。缺省 = 1。 */
-  trackHeightScale?: number;
+  trackHeightScale?: number | undefined;
   isSelected: boolean;
-  onSnapPointChange?: (snapPoint: SnapPoint | null) => void;
-  onResizeStateChange?: (params: { isResizing: boolean }) => void;
+  onSnapPointChange?: ((snapPoint: SnapPoint | null) => void) | undefined;
+  onResizeStateChange?: ((params: { isResizing: boolean }) => void) | undefined;
   onElementMouseDown: (e: React.MouseEvent, element: TimelineElementType) => void;
   onElementClick: (e: React.MouseEvent, element: TimelineElementType) => void;
   dragState: ElementDragState;
@@ -294,7 +294,7 @@ function ElementInner({
   track: TimelineTrack;
   zoomLevel: number;
   /** 轨道高度倍率（TD-21-16）——透传给 ElementContent 的胶片条，须与轨道同口径。 */
-  trackHeightScale?: number;
+  trackHeightScale?: number | undefined;
   isSelected: boolean;
   isBeingDragged: boolean;
   hasAudio: boolean;
@@ -464,7 +464,7 @@ function ElementContent({
   track: TimelineTrack;
   zoomLevel: number;
   /** 轨道高度倍率（TD-21-16）——胶片条按此渲染，与轨道同口径。缺省 = 1。 */
-  trackHeightScale?: number;
+  trackHeightScale?: number | undefined;
   mediaAssets: MediaAsset[];
 }) {
   // TD-22-52：片段缩略图走 maomao 统一图片出口（服务端按需出小图 + 尊重「显示缩略图」开关）

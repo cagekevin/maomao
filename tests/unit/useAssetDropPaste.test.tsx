@@ -60,9 +60,9 @@ function installClipboard({
   write,
   writeText,
 }: {
-  read?: (...a: unknown[]) => unknown;
-  write?: (...a: unknown[]) => unknown;
-  writeText?: (...a: unknown[]) => unknown;
+  read?: ((...a: unknown[]) => unknown) | undefined;
+  write?: ((...a: unknown[]) => unknown) | undefined;
+  writeText?: ((...a: unknown[]) => unknown) | undefined;
 } = {}) {
   const clipboard = {
     read: read || vi.fn().mockRejectedValue(new Error('not implemented')),

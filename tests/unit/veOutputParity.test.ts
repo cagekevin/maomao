@@ -74,7 +74,7 @@ function makeVideoElement({
 }: {
   id: string;
   mediaId: string;
-  hidden?: boolean;
+  hidden?: boolean | undefined;
 }): VideoElement {
   return {
     id,
@@ -101,8 +101,8 @@ function makeVideoTrack({
 }: {
   id: string;
   isMain: boolean;
-  hidden?: boolean;
-  elementHidden?: boolean;
+  hidden?: boolean | undefined;
+  elementHidden?: boolean | undefined;
   mediaId: string;
 }): TimelineTrack {
   return {
@@ -187,8 +187,8 @@ describe('hidden = 不参与输出（声音）', () => {
     hidden,
     elementHidden,
   }: {
-    hidden?: boolean;
-    elementHidden?: boolean;
+    hidden?: boolean | undefined;
+    elementHidden?: boolean | undefined;
   }): TimelineTrack {
     return makeVideoTrack({
       id: 't-video',

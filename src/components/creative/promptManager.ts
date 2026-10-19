@@ -29,9 +29,9 @@ export interface Preset {
 /** 弹窗卡片行（mapToLibraryCards 输出，供 PromptPresetView 渲染） */
 export interface LibraryCard {
   id: string;
-  title?: string;
-  content?: string;
-  category?: string;
+  title?: string | undefined;
+  content?: string | undefined;
+  category?: string | undefined;
   presetIndex: number;
   isLocal: boolean;
 }

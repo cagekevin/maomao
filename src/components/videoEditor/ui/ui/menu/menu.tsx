@@ -456,10 +456,10 @@ export const MenuTrigger = React.forwardRef<HTMLElement, MenuTriggerProps>(
 MenuTrigger.displayName = 'MenuTrigger';
 
 interface MenuItemBaseProps extends React.HTMLAttributes<HTMLElement> {
-  asChild?: boolean;
-  disabled?: boolean;
-  role?: 'menuitem' | 'menuitemcheckbox' | 'menuitemradio';
-  checked?: boolean;
+  asChild?: boolean | undefined;
+  disabled?: boolean | undefined;
+  role?: 'menuitem' | 'menuitemcheckbox' | 'menuitemradio' | undefined;
+  checked?: boolean | undefined;
   /** `true` = 选中后**不**关菜单（复选框/单选项的默认语义：连着调几项）。 */
   keepOpen?: boolean;
 }

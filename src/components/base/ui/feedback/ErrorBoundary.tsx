@@ -56,7 +56,7 @@ export default class ErrorBoundary extends React.Component<ErrorBoundaryProps, E
     return { hasError: true, error };
   }
 
-  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+  override componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
     this.setState({ errorInfo });
     this.props.onError?.(error, errorInfo);
     // 统一日志上报（TASK-056 2.1）：走 logger 而非裸 console，接 localTool /api/logs 落盘，
@@ -89,7 +89,7 @@ export default class ErrorBoundary extends React.Component<ErrorBoundaryProps, E
     window.location.reload();
   };
 
-  render() {
+  override render() {
     if (!this.state.hasError) return this.props.children;
     const err = this.state.error;
     // 节点内局部错误框（NodeShell 用）：不破坏节点尺寸/端口定位，只占内容区

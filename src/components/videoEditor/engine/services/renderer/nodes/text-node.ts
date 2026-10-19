@@ -25,7 +25,7 @@ export class TextNode extends BaseNode<TextNodeParams> {
     return isElementActiveAtTime({ element: this.params, time });
   }
 
-  async render({ renderer, time }: { renderer: CanvasRenderer; time: number }) {
+  override async render({ renderer, time }: { renderer: CanvasRenderer; time: number }) {
     if (!this.isInRange({ time })) {
       return;
     }

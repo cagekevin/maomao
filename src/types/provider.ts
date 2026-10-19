@@ -33,10 +33,10 @@ export interface GenerationProvider {
  */
 export interface GenerationResult {
   ok: boolean;
-  url?: string;
-  content?: string;
-  error?: string;
-  aborted?: boolean;
+  url?: string | undefined;
+  content?: string | undefined;
+  error?: string | undefined;
+  aborted?: boolean | undefined;
   /**
    * 【2026-09-21 · 停止等待 ≠ 失败】本次**只是前端不再等**，任务终态仍未确定（**≠ failed**）。
    *
@@ -50,5 +50,5 @@ export interface GenerationResult {
    * （`pollTask`，职责就是"重 attach 读终态"）继续读到后端写的终态为止。`error` 此时只是**排障文案**，
    * 不是结论。
    */
-  pending?: boolean;
+  pending?: boolean | undefined;
 }

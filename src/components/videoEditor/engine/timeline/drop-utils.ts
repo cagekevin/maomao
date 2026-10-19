@@ -19,8 +19,8 @@ function getTrackAtY({
 }: {
   mouseY: number;
   tracks: TimelineTrack[];
-  verticalDragDirection?: 'up' | 'down' | null;
-  scale?: number;
+  verticalDragDirection?: 'up' | 'down' | null | undefined;
+  scale?: number | undefined;
 }): { trackIndex: number; relativeY: number } | null {
   let cumulativeHeight = 0;
 
@@ -71,7 +71,7 @@ function findBestCompatibleTrack({
   tracks: TimelineTrack[];
   xPosition: number;
   elementDuration: number;
-  excludeElementId?: string;
+  excludeElementId?: string | undefined;
 }): number | null {
   // video/image → prefer main track first
   if (elementType === 'video' || elementType === 'image') {
@@ -322,7 +322,7 @@ export function getDropLineY({
   dropTarget: DropTarget;
   tracks: TimelineTrack[];
   /** 轨道高度倍率（TD-21-16）——落点线必须与渲染同口径。 */
-  scale?: number;
+  scale?: number | undefined;
 }): number {
   const safeTrackIndex = clamp(dropTarget.trackIndex, 0, tracks.length);
   let y = 0;

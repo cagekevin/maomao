@@ -130,7 +130,7 @@ export interface VideoElement extends BaseTimelineElement {
    * 在导入时由 `getVideoInfo` 探测（mediabunny `getPrimaryAudioTrack`）后随素材落到此处；
    * 存量旧工程缺该字段 → undefined = **不亮角标**（宁可不显示，不撒谎说有声音）。
    */
-  hasAudio?: boolean;
+  hasAudio?: boolean | undefined;
   transform: Transform;
   opacity: number;
   playbackRate?: number;
@@ -185,8 +185,8 @@ export interface TextElement extends BaseTimelineElement {
   hidden?: boolean;
   transform: Transform;
   opacity: number;
-  stroke?: TextStroke;
-  shadow?: TextShadow;
+  stroke?: TextStroke | undefined;
+  shadow?: TextShadow | undefined;
   boxWidth?: number;
   backgroundBorderRadius?: number;
   backgroundOpacity?: number;
@@ -258,10 +258,10 @@ export interface ComputeDropTargetParams {
    * 否则"显示按倍率、落点按基准"会错位（拖拽落到相邻轨道）。
    * 缺省 = 1（与不加此参数前行为一致）。
    */
-  trackHeightScale?: number;
-  verticalDragDirection?: 'up' | 'down' | null;
-  startTimeOverride?: number;
-  excludeElementId?: string;
+  trackHeightScale?: number | undefined;
+  verticalDragDirection?: 'up' | 'down' | null | undefined;
+  startTimeOverride?: number | undefined;
+  excludeElementId?: string | undefined;
 }
 
 export interface ClipboardItem {

@@ -69,27 +69,27 @@ export interface MediaRef {
   /** 可渲染地址（**已归一为绝对 URL**，可直接给 <img>/<video>） */
   url: string;
   /** 缩略图（可选；消费方缺省回退 url） */
-  thumbnailUrl?: string;
+  thumbnailUrl?: string | undefined;
   /**
    * 稳定内容身份（文件型才有；与后端 resources.sha1 同源，形如 `sha1:<hex>`）。
    * 用途：导入剪辑器时**避免重复上传** / 去重。
    * ⚠️ **缺失是常态**（画布上很多图没有 contentId）→ 去重必须双轨（见 docs/136 P0-3）。
    */
-  contentId?: string;
+  contentId?: string | undefined;
   /** 归属项目（legacy 无归属 = 全项目可见，沿用 resourcesOfProject 语义） */
-  projectId?: string;
+  projectId?: string | undefined;
   /**
    * 该条目的落盘目录（素材库来源才有；`/files/` 相对语境，如 `migrated`、`migrated/人物`）。
    * 用途：**文件夹卡片**的拖拽归类（落点目录由此派生）+ 移动源的真源定位。
    */
-  folder?: string;
+  folder?: string | undefined;
   /**
    * 判别位：媒体条目恒**非** `true`（缺省即可）。
    * 与 `MediaRefFolder.isFolder: true` 一起，使 `entry.isFolder` 成为可窄化的判别式。
    */
   isFolder?: false;
   /** 来源私有附加信息（尺寸/时长/目录/分页等）。**不进核心契约**，消费方不该依赖。 */
-  meta?: Record<string, unknown>;
+  meta?: Record<string, unknown> | undefined;
 }
 
 /**
@@ -108,12 +108,12 @@ export interface MediaRefFolder {
   /** 目录地址（绝对 URL；**仅供显示 / 定位 / 去重，不可当媒体渲染**） */
   url: string;
   /** 归属项目（语义同 `MediaRef.projectId`） */
-  projectId?: string;
+  projectId?: string | undefined;
   /** 该目录自身所在的父目录（`/files/` 相对语境），供移动/归位定位 */
-  folder?: string;
+  folder?: string | undefined;
   /** 判别位：`true` = 文件夹条目（本类型**没有** `type` 字段） */
   isFolder: true;
-  meta?: Record<string, unknown>;
+  meta?: Record<string, unknown> | undefined;
 }
 
 /**
@@ -128,15 +128,15 @@ export type MediaRefEntry = MediaRef | MediaRefFolder;
 /** 查询条件（各 provider 按需消费，不必全用）。 */
 export interface MediaRefQuery {
   /** 项目 id（素材库按项目隔离用） */
-  projectId?: string;
+  projectId?: string | undefined;
   /**
    * 关键词（空则不过滤）。
    * 【2026-09-17 修正】原写"按 name 模糊匹配"——那描述的是**已被删除的前端页内过滤**。
    * 现由 provider 透传为后端 `search`（多列 LIKE），搜索范围是**全量**而不是"已加载页"。
    */
-  keyword?: string;
+  keyword?: string | undefined;
   /** 只要这些类型 */
-  types?: MediaRefType[];
+  types?: MediaRefType[] | undefined;
   /**
    * 素材库目录**前缀**（`library` 与 `generated` 两来源共用：后者固定传 `tasks`；空 = 不过滤）。
    * 【为什么放这里而不是各写一个 provider】素材库与「生成」都是 `fetchResources` 的不同目录
@@ -146,12 +146,12 @@ export interface MediaRefQuery {
    * 更新(2026-09-17 注释改正)：原写「仅 `library` provider 消费」不实 —— `generatedSource.list`
    * 也把 `folder` 透传给 `librarySourceProvider.list`（TD-02-52）。
    */
-  folder?: string;
+  folder?: string | undefined;
   /**
    * 素材库目录**精确匹配**（只要该目录本身，**不含子目录**；与 `folder` 互补，勿混用）。
    * 典型用途：`migrated` 根 = 「尚未归类」的素材 + 其下子文件夹卡片（用户裁定 2026-09-17）。
    */
-  folderExact?: string;
+  folderExact?: string | undefined;
 }
 
 /**

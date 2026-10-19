@@ -14,7 +14,7 @@ export class ColorNode extends BaseNode<ColorNodeParams> {
     this.color = params.color;
   }
 
-  async render({ renderer }: { renderer: CanvasRenderer }) {
+  override async render({ renderer }: { renderer: CanvasRenderer }) {
     if (/gradient\(/i.test(this.color)) {
       drawCssBackground({
         ctx: renderer.context,

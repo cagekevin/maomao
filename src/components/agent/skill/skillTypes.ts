@@ -21,9 +21,9 @@ export type SkillOrigin = 'builtin' | 'user';
 export interface SkillManifest {
   name: string;
   description: string;
-  version?: string;
+  version?: string | undefined;
   /** 稳定 UUID（由本模块在创建时写入 frontmatter，不在用户手填） */
-  id?: string;
+  id?: string | undefined;
   /**
    * 未识别字段原样保留（往返幂等 + 外部 skill 包可直接放入）。
    *
@@ -59,7 +59,7 @@ export interface BuiltinSkillDef {
   name: string;
   description: string;
   content: string;
-  version?: string;
+  version?: string | undefined;
 }
 
 /** 用户 Skill：磁盘 `<分类>/<名称>/SKILL.md` 的镜像（`content` 是正文副本，磁盘才是真相源） */
@@ -71,28 +71,28 @@ export interface UserSkill {
   slug: string;
   name: string;
   description: string;
-  version?: string;
+  version?: string | undefined;
   content: string;
   /** 正文指纹（变更检测权威基线；持久化在索引项里，重启不失） */
   contentHash: string;
   /** 迁移期旧 id（`skill_${now}`）登记于此，运行时按 alias 命中，不改写旧键 */
-  aliases?: string[];
-  source?: SkillSource;
+  aliases?: string[] | undefined;
+  source?: SkillSource | undefined;
   /** legacy 展示字段（设置页显示创建/更新时间）。磁盘上没有，由旧缓存带入，缺失即不显示 */
-  createdAt?: number;
-  updatedAt?: number;
+  createdAt?: number | undefined;
+  updatedAt?: number | undefined;
 }
 
 /** 发送时冻结的不可变绑定（P2）：正文/版本/指纹一次性固化，之后改文件不影响已发出的对话 */
 export interface SkillBinding {
   skillId: string;
   name: string;
-  version?: string;
+  version?: string | undefined;
   contentHash: string;
   content: string;
   origin: SkillOrigin;
-  category?: string;
-  slug?: string;
+  category?: string | undefined;
+  slug?: string | undefined;
 }
 
 /** Skill 模块的可调设置（落 `agent_skill_config`，跨设备同步） */
@@ -149,4 +149,5 @@ export interface SkillLibrary {
  * 而不是去猜 message 文案 —— 猜文案是脆弱判据。
  */
 export type SkillApiResult<T> =
-  { ok: true; data: T } | { ok: false; message: string; status?: number; notFound?: boolean };
+  | { ok: true; data: T }
+  | { ok: false; message: string; status?: number | undefined; notFound?: boolean | undefined };

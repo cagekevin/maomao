@@ -66,7 +66,7 @@ export class TransitionNode extends BaseNode<TransitionNodeParams> {
     return { canvasA, canvasB };
   }
 
-  async render({ renderer, time }: { renderer: CanvasRenderer; time: number }): Promise<void> {
+  override async render({ renderer, time }: { renderer: CanvasRenderer; time: number }): Promise<void> {
     const progress = this.getProgress({ time });
 
     if (progress === null) {

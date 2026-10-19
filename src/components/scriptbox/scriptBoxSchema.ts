@@ -34,15 +34,15 @@ export interface ScriptBoxTop {
  * 这里补充引擎运行时动态写入的布尔/状态字段（Shot 未显式登记，否则经索引签名退化为 unknown）。
  */
 export interface ScriptBoxShot extends Shot {
-  promptLoading?: boolean;
-  imgGenLoading?: boolean;
-  connImg?: boolean;
-  connVid?: boolean;
-  usePrevShotVideoTail?: boolean;
-  prevShotImageRefUrls?: string[];
-  prevTailFrameVariants?: unknown[];
-  selectedTailFrameVariantId?: string;
-  tailFrameVariantsLoading?: boolean;
+  promptLoading?: boolean | undefined;
+  imgGenLoading?: boolean | undefined;
+  connImg?: boolean | undefined;
+  connVid?: boolean | undefined;
+  usePrevShotVideoTail?: boolean | undefined;
+  prevShotImageRefUrls?: string[] | undefined;
+  prevTailFrameVariants?: unknown[] | undefined;
+  selectedTailFrameVariantId?: string | undefined;
+  tailFrameVariantsLoading?: boolean | undefined;
   tailFrameVariantsError?: string | undefined;
 }
 

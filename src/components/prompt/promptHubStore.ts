@@ -38,12 +38,12 @@ export interface Prompt {
   preview: string;
   createdAt: string;
   updatedAt: string;
-  author?: string;
+  author?: string | undefined;
   sourceUrl: string;
-  imageMode?: string;
-  imageModel?: string;
-  imageSize?: string;
-  imageCount?: number;
+  imageMode?: string | undefined;
+  imageModel?: string | undefined;
+  imageSize?: string | undefined;
+  imageCount?: number | undefined;
   sourceId: string;
   category: string;
   githubUrl: string;

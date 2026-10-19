@@ -161,11 +161,11 @@ export async function searchIcons(
 }
 
 export interface IconSvgParams {
-  color?: string;
-  width?: number;
-  height?: number;
-  flip?: 'horizontal' | 'vertical' | 'horizontal,vertical';
-  rotate?: number | string;
+  color?: string | undefined;
+  width?: number | undefined;
+  height?: number | undefined;
+  flip?: 'horizontal' | 'vertical' | 'horizontal,vertical' | undefined;
+  rotate?: number | string | undefined;
 }
 
 /**

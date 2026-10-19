@@ -25,8 +25,8 @@ type ExportParams = {
   fps: number;
   format: ExportFormat;
   quality: ExportQuality;
-  shouldIncludeAudio?: boolean;
-  audioBuffer?: AudioBuffer;
+  shouldIncludeAudio?: boolean | undefined;
+  audioBuffer?: AudioBuffer | undefined;
 };
 
 const qualityMap = {
@@ -72,7 +72,7 @@ export class SceneExporter extends EventEmitter<SceneExporterEvents> {
     this.format = format;
     this.quality = quality;
     this.shouldIncludeAudio = shouldIncludeAudio ?? false;
-    this.audioBuffer = audioBuffer;
+    if (audioBuffer !== undefined) this.audioBuffer = audioBuffer;
   }
 
   cancel(): void {

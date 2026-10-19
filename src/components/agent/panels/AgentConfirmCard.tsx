@@ -18,21 +18,21 @@ import { memo, type ReactNode } from 'react';
  */
 interface AgentConfirmCardProps {
   /** 标题行图标（SVG） */
-  icon?: ReactNode;
+  icon?: ReactNode | undefined;
   /** 卡片标题 */
   title: string;
   /** 说明文案 */
-  desc?: string;
+  desc?: string | undefined;
   /** 主按钮文案（默认「确认」） */
-  confirmText?: string;
+  confirmText?: string | undefined;
   /** 副按钮文案（默认「取消」） */
-  cancelText?: string;
+  cancelText?: string | undefined;
   /** 确认回调 */
-  onConfirm?: () => void;
+  onConfirm?: (() => void) | undefined;
   /** 取消回调（不传则不显示取消按钮） */
-  onCancel?: () => void;
+  onCancel?: (() => void) | undefined;
   /** 确认按钮禁用 */
-  disabled?: boolean;
+  disabled?: boolean | undefined;
 }
 
 function AgentConfirmCard({

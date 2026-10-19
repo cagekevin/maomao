@@ -46,8 +46,8 @@ export interface GenerationOrchestrationArgs {
   taskNodeId: string;
   /** 任务类型（image/video/text…），透传给 reportGenerate 与 saveResultToTasks */
   type: string;
-  prompt?: string;
-  modelName?: string;
+  prompt?: string | undefined;
+  modelName?: string | undefined;
   /** R1：由调用方创建（它还要拿去做 stop()），本原语只负责透传 */
   signal: AbortSignal;
   /** 真执行器（调底层 API） */

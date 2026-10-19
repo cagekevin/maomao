@@ -26,13 +26,13 @@ const STORAGE_KEY = KEY_YIMAO_ACCOUNTS;
 export interface AccountCookie {
   name: string;
   value: string;
-  domain?: string;
-  path?: string;
-  secure?: boolean;
-  httpOnly?: boolean;
-  expirationDate?: number;
-  sameSite?: string;
-  storeId?: string;
+  domain?: string | undefined;
+  path?: string | undefined;
+  secure?: boolean | undefined;
+  httpOnly?: boolean | undefined;
+  expirationDate?: number | undefined;
+  sameSite?: string | undefined;
+  storeId?: string | undefined;
   [key: string]: unknown;
 }
 
@@ -45,8 +45,8 @@ export interface AccountEnv {
   avatar: string;
   cookies: AccountCookie[];
   /** 登录态 token 等 localStorage 快照（扩展端抓取；换环境时一并恢复免重登） */
-  localStorage?: Record<string, string> | null;
-  isFavorite?: boolean;
+  localStorage?: Record<string, string> | null | undefined;
+  isFavorite?: boolean | undefined;
   [key: string]: unknown;
 }
 
@@ -89,7 +89,7 @@ declare const chrome: {
   cookies?: {
     getAll: (d: { url: string } | { domain: string }) => Promise<AccountCookie[]>;
     set: (opts: Record<string, unknown>) => Promise<unknown>;
-    remove: (d: { url: string; name: string; storeId?: string }) => Promise<unknown>;
+    remove: (d: { url: string; name: string; storeId?: string | undefined }) => Promise<unknown>;
   };
   scripting?: {
     executeScript: (d: {

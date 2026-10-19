@@ -15,7 +15,7 @@ export async function generateSpeechFromText({
   voice: _voice,
 }: {
   text: string;
-  voice?: string;
+  voice?: string | undefined;
 }): Promise<TtsResult> {
   // 更新(2026-09-14)：cutia 原调 Next 服务端路由 `/api/tts/generate`
   // （转发第三方 api.milorapart.top），我们**不搬 Next 服务端** → 此处改调 localTool。
@@ -75,7 +75,7 @@ export async function generateAndInsertSpeech({
   editor: EditorCore;
   text: string;
   startTime: number;
-  voice?: string;
+  voice?: string | undefined;
 }): Promise<{ duration: number }> {
   const result = await generateSpeechFromText({ text, voice });
 

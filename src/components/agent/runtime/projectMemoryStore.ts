@@ -54,7 +54,9 @@ export interface ProjectMemory {
 }
 
 /** 保存记忆的入参（id 缺省则新建） */
-export type ProjectMemoryInput = Partial<ProjectMemory> & { content?: string };
+export type ProjectMemoryInput = {
+  [K in keyof ProjectMemory]?: ProjectMemory[K] | undefined;
+} & { content?: string | undefined };
 
 /** 记忆归属全局（不分项目），key 仅按 agentKey 区分（构造器真源见 agentKeys.ts） */
 const memoryKey = (agentKey: string) => agentProjectMemoryKey(agentKey);

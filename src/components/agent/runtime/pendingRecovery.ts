@@ -36,9 +36,9 @@ export function resolvePendingRecovery({
   messages = [],
   activeConversationId,
 }: {
-  pending?: PendingRef | null;
-  messages?: Array<Record<string, unknown>>;
-  activeConversationId?: string;
+  pending?: PendingRef | null | undefined;
+  messages?: Array<Record<string, unknown>> | undefined;
+  activeConversationId?: string | undefined;
 }): PendingRecoveryResult {
   if (!pending || pending.conversationId !== activeConversationId) return { action: 'none' };
   const byId = pending.messageId ? messages.find((m) => m && m.id === pending.messageId) : null;

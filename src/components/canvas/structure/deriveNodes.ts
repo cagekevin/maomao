@@ -36,11 +36,11 @@ export interface SpawnChildSpec {
 
 /** 边的附加选项（默认 source=父, target=子） */
 export interface SpawnEdgeOpts {
-  id?: string;
-  sourceHandle?: string;
-  targetHandle?: string;
-  type?: string;
-  animated?: boolean;
+  id?: string | undefined;
+  sourceHandle?: string | undefined;
+  targetHandle?: string | undefined;
+  type?: string | undefined;
+  animated?: boolean | undefined;
 }
 
 /** buildSpawnNodes 的产物（待提交的新节点与边，不含旧状态） */
@@ -108,8 +108,8 @@ export interface CanvasCommitHandles {
   getEdges(): Edge[];
   setNodes(fn: (ns: Node[]) => Node[]): void;
   setEdges(fn: (es: Edge[]) => Edge[]): void;
-  /** useCanvasHistory 实例（可选，缺则跳过 record） */
-  history?: { record(snapshot: { nodes: Node[]; edges: Edge[] }): void };
+  /** useCanvasHistory 实例（可选，缺则跳过 record；调用方会显式传 undefined） */
+  history?: { record(snapshot: { nodes: Node[]; edges: Edge[] }): void } | undefined;
 }
 
 /**

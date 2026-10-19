@@ -17,9 +17,9 @@
 import { showToast, dismissToast } from '@/components/base/core/event/toastStore';
 
 export interface ToastOptions {
-  description?: string;
-  id?: string;
-  duration?: number;
+  description?: string | undefined;
+  id?: string | undefined;
+  duration?: number | undefined;
 }
 
 type ToastType = 'success' | 'error' | 'warning' | 'info';

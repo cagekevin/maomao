@@ -286,7 +286,30 @@ function Canvas() {
           // 此前分散在 map 里的 `as unknown as Node` 已删（TD-24-5），转换责任只剩这一处。
           // 单次断言 `as Node[]`（非 `as unknown as`）：宽对象与 Node 的共有键（id/type/position/data）
           // 使 TS 认可该窄化可表达，无需再过 `unknown` 中转 —— 中转 = 连"有没有关系"都放弃了。
-          const nodesForCanvas = safeNodes as Node[];
+          // eop 下 Node 的可选字段不再接受显式 undefined ⇒ 单次 `as Node[]` 不再成立。
+          // 改为**运行时校验核心必填字段**（id/position/data）+ 类型谓词窄化；缺字段即 fail-loud，
+          // 不再用 `as unknown as` 放弃关系。
+          const isNodeLike = (n: unknown): n is Node => {
+            if (typeof n !== 'object' || n === null) return false;
+            const rec = n as Record<string, unknown>;
+            const pos = rec.position as { x?: unknown; y?: unknown } | undefined;
+            return (
+              typeof rec.id === 'string' &&
+              typeof pos === 'object' &&
+              pos !== null &&
+              typeof pos.x === 'number' &&
+              typeof pos.y === 'number' &&
+              typeof rec.data === 'object' &&
+              rec.data !== null
+            );
+          };
+          const nodesForCanvas: Node[] = [];
+          for (const n of safeNodes) {
+            if (!isNodeLike(n)) {
+              throw new Error('画布快照存在缺少 id/position/data 的节点，已拒绝加载');
+            }
+            nodesForCanvas.push(n);
+          }
           setNodes(nodesForCanvas);
           // 预取重依赖节点 chunk：画布里若含 3D/视频处理节点，立即预热（不阻塞渲染），
           // 让节点真正渲染时 chunk 已在模块缓存里，骨架屏一闪而过甚至不出现。
@@ -304,17 +327,19 @@ function Canvas() {
           const loadedEdges = ((saved.edges || []) as Edge[]).map((e, _i) => {
             const targetType = nodeTypeById.get(e.target) as string | undefined;
             const sourceType = nodeTypeById.get(e.source) as string | undefined;
+            const targetHandle =
+              !e.targetHandle && targetType && TARGET_HANDLE_BY_NODE_TYPE[targetType]
+                ? TARGET_HANDLE_BY_NODE_TYPE[targetType]
+                : e.targetHandle;
+            const sourceHandle =
+              !e.sourceHandle && sourceType && SOURCE_HANDLE_BY_NODE_TYPE[sourceType]
+                ? SOURCE_HANDLE_BY_NODE_TYPE[sourceType]
+                : e.sourceHandle;
             return {
               ...e,
               id: e.id || generateId('loaded-edge'),
-              targetHandle:
-                !e.targetHandle && targetType && TARGET_HANDLE_BY_NODE_TYPE[targetType]
-                  ? TARGET_HANDLE_BY_NODE_TYPE[targetType]
-                  : e.targetHandle,
-              sourceHandle:
-                !e.sourceHandle && sourceType && SOURCE_HANDLE_BY_NODE_TYPE[sourceType]
-                  ? SOURCE_HANDLE_BY_NODE_TYPE[sourceType]
-                  : e.sourceHandle,
+              ...(targetHandle !== undefined ? { targetHandle } : {}),
+              ...(sourceHandle !== undefined ? { sourceHandle } : {}),
             };
           });
           setEdges(loadedEdges);
@@ -775,7 +800,10 @@ function Canvas() {
               source: connection.source,
               sourceHandle: connection.sourceHandle || null,
               target: id,
-              targetHandle: TARGET_HANDLE_BY_NODE_TYPE[type],
+              // 表外节点没有固定 targetHandle ⇒ 不写这个键（eop 不接受显式 undefined）
+              ...(TARGET_HANDLE_BY_NODE_TYPE[type] !== undefined
+                ? { targetHandle: TARGET_HANDLE_BY_NODE_TYPE[type] }
+                : {}),
               type: 'default',
               animated: false,
             },
@@ -1204,6 +1232,12 @@ function Canvas() {
     duplicateSelected: (onlyId?) => copySelectedNodes(onlyId),
     copyNodeImage: (nodeId) => copyNodeImage(nodeId),
     deleteNode: (id) => deleteNode(id),
+    // 置于顶层 = 移到 nodes 数组末尾（React Flow 按数组顺序渲染，靠后即在上层）
+    bringNodeToFront: (id) =>
+      setNodes((ns) => {
+        const n = ns.find((x) => x.id === id);
+        return n ? [...ns.filter((x) => x.id !== id), n] : ns;
+      }),
     renameNode: (id) => openRenameDialog(id),
     applyUngroup: (groupId) => {
       const res = ungroupNodes(nodesRef.current, groupId);

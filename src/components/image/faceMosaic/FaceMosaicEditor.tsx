@@ -16,7 +16,7 @@ import {
   drawMosaicOnBox,
   MOSAIC_MODES,
   MOSAIC_PALETTE,
-  MosaicMode,
+  type MosaicMode,
 } from './faceMosaic.ts';
 import { createRafBatch, canvasToImageDataUrl } from '@/components/base/core/utils';
 import { toastError } from '@/components/base/core/event/toastStore';
@@ -251,7 +251,7 @@ export default function FaceMosaicEditor({ assetUrl, onSave, onClose }: FaceMosa
         },
       }}
       className="fixed inset-0 z-[9999] bg-black/80 flex flex-col"
-      onClick={onClose}
+      {...(onClose !== undefined ? { onClick: onClose } : {})}
     >
       {/* 顶栏 */}
       <div

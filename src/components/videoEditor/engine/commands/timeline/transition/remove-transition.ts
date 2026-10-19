@@ -39,7 +39,7 @@ export class RemoveTransitionCommand extends Command {
     );
   }
 
-  undo(): void {
+  override undo(): void {
     if (!this.savedState) return;
     const editor = getEditor();
     editor.timeline.updateTracks(this.savedState);

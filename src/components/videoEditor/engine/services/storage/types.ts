@@ -26,7 +26,7 @@ export type SerializedProjectMetadata = Omit<TProjectMetadata, 'createdAt' | 'up
 export type SerializedProject = Omit<TProject, 'metadata' | 'scenes'> & {
   metadata: SerializedProjectMetadata;
   scenes: SerializedScene[];
-  timelineViewState?: TTimelineViewState;
+  timelineViewState?: TTimelineViewState | undefined;
 };
 
 // 【2026-09-16 · TD-02-35 已删】原 `StorageConfig`（projectsDb/mediaDb/savedSoundsDb/version ——

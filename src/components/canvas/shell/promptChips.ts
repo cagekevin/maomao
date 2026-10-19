@@ -43,9 +43,9 @@ import { buildChipText, promptChipRe } from './promptChipFormat.ts';
 
 /** 芯片 token 的素材元信息（renderPromptToNodes 的 metaMap 值形态；导出供调用方标注 Map 泛型） */
 export interface ChipMeta {
-  kind?: string;
-  url?: string;
-  label?: string;
+  kind?: string | undefined;
+  url?: string | undefined;
+  label?: string | undefined;
 }
 
 /** 零宽空格：芯片前后光标落点占位 */

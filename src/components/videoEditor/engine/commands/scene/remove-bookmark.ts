@@ -50,7 +50,7 @@ export class RemoveBookmarkCommand extends Command {
     editor.scenes.setScenes({ scenes: updatedScenes });
   }
 
-  undo(): void {
+  override undo(): void {
     if (this.savedScenes) {
       const editor = getEditor();
       editor.scenes.setScenes({ scenes: this.savedScenes });

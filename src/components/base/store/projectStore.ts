@@ -14,7 +14,12 @@ import { CANVAS_SCHEMA_VERSION, CANVAS_STATE_PREFIX } from '../core/contracts.ts
 import { generateId } from '../core/idGen.ts';
 // 画布快照的「版本真源在服务端」读写口（docs/118 §四 4.2）：
 // 2026-09-12/TD-02-1 起经 contentStore 的 KV 协议原语（不再直调 transport，唯一入口红线恢复）。
-import { fetchProjects, saveProjects, ApiEnvelope, ProjectsData } from '../api/localToolApi.ts';
+import {
+  fetchProjects,
+  saveProjects,
+  type ApiEnvelope,
+  type ProjectsData,
+} from '../api/localToolApi.ts';
 // HttpError：CAS 冲突判定（409）；httpRequest 对 4xx 不重试，是现状行为。
 import { HttpError } from '../api/httpClient.ts';
 import { broadcastCanvasSaved } from '@/components/canvas/lib/canvasSyncBus';
@@ -83,8 +88,8 @@ let saveChain: Promise<SaveCanvasResult> = Promise.resolve({ success: false, ski
 interface CanvasWriteRecord {
   at: number;
   projectId: string;
-  ifVersion?: number;
-  version?: number;
+  ifVersion?: number | undefined;
+  version?: number | undefined;
   result: 'ok' | 'conflict' | 'fail';
 }
 const WRITE_LOG_MAX = 50;

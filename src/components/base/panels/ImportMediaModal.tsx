@@ -135,9 +135,9 @@ export type ImportPickOutcome =
 
 export interface ImportMediaModalProps {
   /** 关闭回调（宿主持有 open state）。 */
-  onClose?: () => void;
+  onClose?: (() => void) | undefined;
   /** 当前画布项目 id（素材库/画布按项目过滤用）。 */
-  projectId?: string;
+  projectId?: string | undefined;
   /**
    * 选中一批媒体后的落地动作（**宿主注入 = 生产端**）。
    * 画布入口：建 assetNode；剪辑器入口：`linkMediaRefsToProject`。
@@ -145,7 +145,7 @@ export interface ImportMediaModalProps {
    */
   onPick: (items: MediaRef[]) => ImportPickOutcome | Promise<ImportPickOutcome>;
   /** 本地导入：选文件后的落地动作（宿主注入；不传则隐藏本地 tab 的行为）。 */
-  onLocalFiles?: (files: FileList) => void | Promise<void>;
+  onLocalFiles?: ((files: FileList) => void | Promise<void>) | undefined;
 }
 
 export default function ImportMediaModal({

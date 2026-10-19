@@ -59,7 +59,7 @@ export class ToggleElementsVisibilityCommand extends Command {
     editor.timeline.updateTracks(updatedTracks);
   }
 
-  undo(): void {
+  override undo(): void {
     if (this.savedState) {
       const editor = getEditor();
       editor.timeline.updateTracks(this.savedState);

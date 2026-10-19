@@ -41,10 +41,10 @@ interface MixamoJointMarkerProps {
   jointId: string;
   selected: boolean;
   modelRoot: React.RefObject<THREE.Group>;
-  onSelectJoint?: (jointId: string) => void;
-  onBeginDrag?: (event: ThreeEvent<PointerEvent>, jointId: string) => boolean | void;
-  onDrag?: (event: ThreeEvent<PointerEvent>) => void;
-  onEndDrag?: (event: ThreeEvent<PointerEvent>) => void;
+  onSelectJoint?: ((jointId: string) => void) | undefined;
+  onBeginDrag?: ((event: ThreeEvent<PointerEvent>, jointId: string) => boolean | void) | undefined;
+  onDrag?: ((event: ThreeEvent<PointerEvent>) => void) | undefined;
+  onEndDrag?: ((event: ThreeEvent<PointerEvent>) => void) | undefined;
 }
 
 interface MixamoIKHandleProps {
@@ -52,30 +52,30 @@ interface MixamoIKHandleProps {
   jointId: string;
   selected: boolean;
   modelRoot: React.RefObject<THREE.Group>;
-  onBeginDrag?: (event: ThreeEvent<PointerEvent>, jointId: string) => boolean | void;
-  onDrag?: (event: ThreeEvent<PointerEvent>) => void;
-  onEndDrag?: (event: ThreeEvent<PointerEvent>) => void;
+  onBeginDrag?: ((event: ThreeEvent<PointerEvent>, jointId: string) => boolean | void) | undefined;
+  onDrag?: ((event: ThreeEvent<PointerEvent>) => void) | undefined;
+  onEndDrag?: ((event: ThreeEvent<PointerEvent>) => void) | undefined;
 }
 
 interface MixamoPersonModelProps {
-  bodyType?: string;
-  pose?: string;
-  poseTime?: number;
-  continuousMotion?: boolean;
-  animationTime?: number;
+  bodyType?: string | undefined;
+  pose?: string | undefined;
+  poseTime?: number | undefined;
+  continuousMotion?: boolean | undefined;
+  animationTime?: number | undefined;
   rigRoot?: unknown;
   joints?: unknown;
-  footLock?: boolean;
-  color?: string;
-  selected?: boolean;
-  selectedJoint?: string;
-  onSelectJoint?: (jointId: string) => void;
-  onRotateJoint?: (jointId: string, rotation: number[]) => void;
-  onRotateJoints?: (rotations: Record<string, number[]>) => void;
-  showBoneGizmo?: boolean;
-  onSurfacePointerDown?: (event: ThreeEvent<PointerEvent>) => void;
-  onSurfacePointerMove?: (event: ThreeEvent<PointerEvent>) => void;
-  onSurfacePointerUp?: (event: ThreeEvent<PointerEvent>) => void;
+  footLock?: boolean | undefined;
+  color?: string | undefined;
+  selected?: boolean | undefined;
+  selectedJoint?: string | undefined;
+  onSelectJoint?: ((jointId: string) => void) | undefined;
+  onRotateJoint?: ((jointId: string, rotation: number[]) => void) | undefined;
+  onRotateJoints?: ((rotations: Record<string, number[]>) => void) | undefined;
+  showBoneGizmo?: boolean | undefined;
+  onSurfacePointerDown?: ((event: ThreeEvent<PointerEvent>) => void) | undefined;
+  onSurfacePointerMove?: ((event: ThreeEvent<PointerEvent>) => void) | undefined;
+  onSurfacePointerUp?: ((event: ThreeEvent<PointerEvent>) => void) | undefined;
 }
 
 // 内置人物模型：使用减面版（49k→15k 三角），蒙皮/骨骼/动画全保留，降低每帧渲染成本。
@@ -192,9 +192,10 @@ function MixamoJointMarker({
         event.stopPropagation();
         onSelectJoint?.(jointId);
       }}
-      onPointerMove={onDrag}
-      onPointerUp={onEndDrag}
-      onPointerCancel={onEndDrag}
+      {...(onDrag !== undefined ? { onPointerMove: onDrag } : {})}
+      {...(onEndDrag !== undefined
+        ? { onPointerUp: onEndDrag, onPointerCancel: onEndDrag }
+        : {})}
       renderOrder={8}
     >
       <sphereGeometry args={[isFineBone ? 0.012 : 0.022, 12, 8]} />
@@ -229,9 +230,10 @@ function MixamoIKHandle({
     <group
       ref={markerRef}
       onPointerDown={(event) => onBeginDrag?.(event, jointId)}
-      onPointerMove={onDrag}
-      onPointerUp={onEndDrag}
-      onPointerCancel={onEndDrag}
+      {...(onDrag !== undefined ? { onPointerMove: onDrag } : {})}
+      {...(onEndDrag !== undefined
+        ? { onPointerUp: onEndDrag, onPointerCancel: onEndDrag }
+        : {})}
     >
       <mesh scale={selected ? 1.18 : 1} renderOrder={10}>
         <octahedronGeometry args={[0.055, 0]} />
@@ -708,7 +710,7 @@ class ModelErrorBoundary extends Component<
   }
 
   // 记录渲染异常（走统一日志层，便于排查，不阻塞回退 UI）
-  componentDidCatch(error: unknown, info: unknown) {
+  override componentDidCatch(error: unknown, info: unknown) {
     log.error(
       '模型加载/渲染异常',
       error,
@@ -716,7 +718,7 @@ class ModelErrorBoundary extends Component<
     );
   }
 
-  render() {
+  override render() {
     return this.state.failed ? this.props.fallback : this.props.children;
   }
 }
@@ -737,7 +739,7 @@ function StudioPerson(props: MixamoPersonModelProps) {
   );
 }
 
-function ImportedModel({ url, selected }: { url: string; selected?: boolean }) {
+function ImportedModel({ url, selected }: { url: string; selected?: boolean | undefined }) {
   const gltf = useGLTF(url);
   const root = (Array.isArray(gltf) ? gltf[0] : gltf) as { scene?: THREE.Group };
   const scene = useMemo(() => skeletonClone(root.scene!), [root.scene]);

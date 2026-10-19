@@ -64,7 +64,7 @@ export class RemoveMediaAssetCommand extends Command {
       });
   }
 
-  undo(): void {
+  override undo(): void {
     const editor = getEditor();
 
     if (this.savedAssets) {

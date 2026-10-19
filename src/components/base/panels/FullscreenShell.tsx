@@ -53,12 +53,12 @@ export interface FullscreenShellProps extends React.HTMLAttributes<HTMLDivElemen
    * 不传 = 不接管 Esc（层内自成键位体系时用，例如全景漫游的 1/2/3/r/f、导演台的 D/Z/Y/V/F1-4）。
    * 注意：传了它，本层仍会登记（画布照常让位），只是不吃 Esc。
    */
-  onClose?: () => void;
+  onClose?: (() => void) | undefined;
   /**
    * 本层独占的快捷键：键名（'mod+z' / 'mod+shift+z' / 'p' 等，ctrl 与 meta 统一写作 mod）
    * → 处理器。命中即 preventDefault，避免触发浏览器默认行为。
    */
-  keyMap?: Record<string, () => void>;
+  keyMap?: Record<string, () => void> | undefined;
 }
 
 export default function FullscreenShell({

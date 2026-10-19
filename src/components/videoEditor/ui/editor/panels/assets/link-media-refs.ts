@@ -93,7 +93,7 @@ async function fetchAsFile(ref: MediaRefFacts): Promise<File> {
     throw new Error(`素材超过 ${formatBytes(LINK_MAX_BYTES)} 上限（${formatBytes(blob.size)}）`);
   }
   const name = ref.name || fileNameFromUrl(ref.url) || 'media';
-  return new File([blob], name, { type: blob.type || undefined });
+  return new File([blob], name, { ...(blob.type ? { type: blob.type } : {}) });
 }
 
 /**

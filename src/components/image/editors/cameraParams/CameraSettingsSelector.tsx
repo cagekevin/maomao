@@ -566,7 +566,7 @@ function CameraFrameCorners() {
 
 interface CameraSettingsSelectorProps {
   /** 当前节点的摄影参数；缺省 = 全自动 */
-  value?: CameraGenerationSettings;
+  value?: CameraGenerationSettings | undefined;
   /** 参数变化回调；全部清空时回调 undefined（等价于从未设置） */
   onChange: (value: CameraGenerationSettings | undefined) => void;
 }

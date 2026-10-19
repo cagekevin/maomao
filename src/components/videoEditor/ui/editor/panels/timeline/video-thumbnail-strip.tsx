@@ -11,7 +11,7 @@ const RENDER_PADDING_PX = 200;
 interface VideoThumbnailStripProps {
   mediaId: string;
   file: File;
-  thumbnailUrl?: string;
+  thumbnailUrl?: string | undefined;
   trimStart: number;
   duration: number;
   elementWidth: number;

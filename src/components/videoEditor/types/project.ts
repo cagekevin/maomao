@@ -19,7 +19,7 @@ export interface TCanvasSize {
 export interface TProjectMetadata {
   id: string;
   name: string;
-  thumbnail?: string;
+  thumbnail?: string | undefined;
   duration: number;
   createdAt: Date;
   updatedAt: Date;
@@ -61,7 +61,7 @@ export interface TProject {
   currentSceneId: string;
   settings: TProjectSettings;
   version: number;
-  timelineViewState?: TTimelineViewState;
+  timelineViewState?: TTimelineViewState | undefined;
 }
 
 export type TProjectSortKey = 'createdAt' | 'updatedAt' | 'name' | 'duration';

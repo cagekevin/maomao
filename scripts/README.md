@@ -34,6 +34,8 @@
 | `m1-scan.mjs` | 测试类型错误**全貌聚合**（只读）：复制到 `tmp/unit` 副本扫描，零污染。产出每个文件 × 错误数 × 错误码 | — |
 | `m1-count.mjs` | **M1「React 重渲反模式」形态计数**（只读**度量工具 · 不是闸**）：AST 口径统计 memo 决策点（裸/React.memo/带比较器）+ JSX 内联箭头·数组·对象 prop；`--json` 落基线、`--diff` 自动算净减。**口径真源 = 脚本头**（文档只许引用，禁抄数字）。**无 pass/fail、不挂 CI**（依据 `ADR-0016` 默认不建 + M1 评审 §三「不建闸」裁定）。⚠️ 与 `m1-scan.mjs` 名字撞车但**两回事**：那个是 TS 类型错误，这个是重渲形态 | — |
 | `ts-detail.mjs` | 测试类型错误**逐条明细**（只读）：跑 1 次 tsc，按文件名片段过滤出多个目标文件的逐行错误。`check` 逐文件查太慢时用它 | — |
+| `ts-strict-detail.mjs` | **最严格开关只读明细**（真实根 tsconfig + CLI 追加开关，零副本、零写源码）：文件/错误码/根因簇（TS4111 属性名、TS18048 变量名）Top、逐条明细、`--json` 快照与 `--diff` 净减；含解析率自检。不是闸 | 手动 |
+| `ts-strict-override.mjs` | **`noImplicitOverride` 候选 dry-run**（只读、不写源码）：跑 tsc 抓 TS4114，输出 unified diff；正确处理 `async render` 的 `override async` 顺序；`--json` 落候选。**不提供 `--write`**（机械改写须人审，见计划 §4.6.5） | 手动 |
 | `ui-geometry/measure-panel.mjs` | **真实浏览器布局测量**：自起/复用 dev server，注入表格模式+消息流+AI 预览，量指定选择器几何 + 扫「真正撑破面板右缘」的元素（自动排除 `.sb-body` 等滚动容器内被正常收纳的横向滚动内容）。定位"某内容超出去"类布局问题用，别靠猜 | 手动 |
 
 内部辅助 / 一次性脚本（未挂 `package.json`，按需手动跑，勿删）：

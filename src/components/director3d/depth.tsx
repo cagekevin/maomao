@@ -34,16 +34,18 @@ function smoothDepthValues(
 
 interface DepthMeshModelProps {
   url: string;
-  settings?: {
-    invert?: boolean;
-    near?: number;
-    far?: number;
-    fov?: number;
-    density?: number;
-    smoothing?: number;
-  };
-  color?: string;
-  selected?: boolean;
+  settings?:
+    | {
+        invert?: boolean | undefined;
+        near?: number | undefined;
+        far?: number | undefined;
+        fov?: number | undefined;
+        density?: number | undefined;
+        smoothing?: number | undefined;
+      }
+    | undefined;
+  color?: string | undefined;
+  selected?: boolean | undefined;
 }
 
 function DepthMeshModel({ url, settings = {}, color, selected }: DepthMeshModelProps) {

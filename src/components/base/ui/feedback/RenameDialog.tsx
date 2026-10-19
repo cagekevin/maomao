@@ -19,8 +19,8 @@ import { Pen } from 'lucide-react';
  */
 interface RenameDialogProps {
   open: boolean;
-  initial?: string; // 预填当前名（可能为空）
-  placeholder?: string; // 默认「未命名节点」
+  initial?: string | undefined; // 预填当前名（可能为空）
+  placeholder?: string | undefined; // 默认「未命名节点」
   onCancel: () => void;
   onSubmit: (name: string) => void; // 已 trim，空值由调用方决定忽略
 }

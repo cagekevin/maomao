@@ -15,11 +15,11 @@ import { createRafBatch } from '@/components/base/core/utils';
 type CustomHandleVariant = 'large' | 'small';
 
 export interface CustomHandleProps {
-  className?: string;
-  variant?: CustomHandleVariant;
+  className?: string | undefined;
+  variant?: CustomHandleVariant | undefined;
   position: Position | 'left' | 'right';
-  handleId?: string;
-  top?: number | string;
+  handleId?: string | undefined;
+  top?: number | string | undefined;
 }
 
 function CustomHandle({
@@ -106,7 +106,7 @@ function CustomHandle({
       <Handle
         type={position === 'left' ? 'target' : 'source'}
         position={(position === 'left' ? 'left' : 'right') as Position}
-        id={handleId}
+        {...(handleId !== undefined ? { id: handleId } : {})}
         className={`!absolute !inset-0 !w-full !h-full !min-w-0 !min-h-0 !top-0 !left-0 !right-0 !bottom-0 !transform-none !bg-transparent !border-0 !rounded-none !opacity-0 ${className || ''}`}
         style={{
           position: 'absolute',

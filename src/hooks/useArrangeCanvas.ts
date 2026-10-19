@@ -17,13 +17,13 @@ export interface ArrangeOptions {
   /** 当前边快照 */
   edges: Edge[];
   /** 画布视窗尺寸（按视窗择优换行用）；缺省 packComponents 退化 1600×900 */
-  viewport?: { width: number; height: number };
+  viewport?: { width: number; height: number } | undefined;
   /** fitView 允许的最大缩放（默认 1，对齐 fitViewOptions.maxZoom） */
-  maxZoom?: number;
+  maxZoom?: number | undefined;
   /** 写回回调，入参 { nodes, edges }（调用方 setNodes） */
-  onArrange?: (result: ArrangeResult) => void;
+  onArrange?: ((result: ArrangeResult) => void) | undefined;
   /** 写回后回调（如 fitView） */
-  onComplete?: () => void;
+  onComplete?: (() => void) | undefined;
 }
 
 /**

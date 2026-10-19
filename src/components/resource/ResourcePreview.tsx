@@ -24,15 +24,21 @@ import type { ResourceItem } from '../base/api/localToolApi.ts';
 /** 拖到画布的 dragProps 工厂（各面板由 `useResourceCardDragProps` 提供）；此处只声明所需的最窄形状。 */
 type AssetDragProps = (asset: {
   url: string;
-  name?: string;
-  type?: string;
+  name?: string | undefined;
+  type?: string | undefined;
 }) => ResourceDragSourceProps;
 
 // 文字素材预览：完整展示文件内容
 // 三态显式区分（读取与三态归 `useTextAsset` 唯一实现，此处只做呈现）：加载中 / 读到（含真空）/ 读失败。
 // 旧实现 `fetchText(url).then(setText)` + `text || '（加载中...）'` 把「读失败」和「真空文件」
 // 都渲染成"加载中..." —— 永远转圈，用户无从判别（TD-18-17 · 一诚实）。
-const TextPreview = React.memo(function TextPreview({ url, name }: { url: string; name?: string }) {
+const TextPreview = React.memo(function TextPreview({
+  url,
+  name,
+}: {
+  url: string;
+  name?: string | undefined;
+}) {
   const state = useTextAsset(url);
   const body =
     state.phase === 'loading'

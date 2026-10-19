@@ -9,7 +9,7 @@ export interface VideoNodeParams extends VisualNodeParams {
 }
 
 export class VideoNode extends VisualNode<VideoNodeParams> {
-  async render({ renderer, time }: { renderer: CanvasRenderer; time: number }) {
+  override async render({ renderer, time }: { renderer: CanvasRenderer; time: number }) {
     await super.render({ renderer, time });
 
     if (!this.isInRange(time)) {

@@ -65,7 +65,13 @@ export function useTimelineDragDrop({
   );
 
   const getElementDuration = useCallback(
-    ({ elementType, mediaId }: { elementType: ElementType; mediaId?: string }): number => {
+    ({
+      elementType,
+      mediaId,
+    }: {
+      elementType: ElementType;
+      mediaId?: string | undefined;
+    }): number => {
       if (elementType === 'text' || elementType === 'sticker') {
         return TIMELINE_CONSTANTS.DEFAULT_ELEMENT_DURATION;
       }

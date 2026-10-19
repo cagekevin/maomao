@@ -133,7 +133,14 @@ export function useInlineNameEditing({
       if (d)
         setItems((list) =>
           list.map((x) =>
-            x.id === renameTarget.id ? { ...x, id: d.id, url: d.url, name: d.name } : x,
+            x.id === renameTarget.id
+              ? {
+                  ...x,
+                  id: d.id,
+                  ...(d.url !== undefined ? { url: d.url } : {}),
+                  ...(d.name !== undefined ? { name: d.name } : {}),
+                }
+              : x,
           ),
         );
       textCache.delete(renameTarget.url ?? '');

@@ -29,6 +29,7 @@ import {
   Copy,
   Upload,
   Pen,
+  BringToFront,
 } from 'lucide-react';
 import {
   getNodesByCategory,
@@ -78,6 +79,8 @@ export interface MenuActionCtx {
   copyNodeImage: (nodeId: string) => void;
   /** 删除节点（级联删子孙） */
   deleteNode: (id: string) => void;
+  /** 置于顶层（把节点移到 nodes 数组末尾 = 渲染在最上层；不碰 zIndex/编组） */
+  bringNodeToFront: (id: string) => void;
   /** 打开「重命名」输入弹窗（App 内：预填当前名 → 提交后统一写回 data + history） */
   renameNode: (id: string) => void;
   /** 取消指定 group 编组（App 内 ungroupNodes+setNodes+history） */
@@ -207,7 +210,10 @@ export function buildCanvasMenuItems(ctx: MenuActionCtx): ContextMenuItem[] {
   ];
 }
 
-/** 单选节点菜单：重命名 / 复制 / [复制图片] / [取消编组] / 删除（2026-09-07 增「重命名」，docs/108） */
+/**
+ * 单选节点菜单：置于顶层 / 重命名 / 复制 / [复制图片] / [取消编组] / 删除
+ * （2026-09-07 增「重命名」，docs/108；2026-10-19 增「置于顶层」）
+ */
 export function buildNodeMenuItems(
   ctx: MenuActionCtx,
   nodeId: string | null | undefined,
@@ -217,7 +223,17 @@ export function buildNodeMenuItems(
   if (!node) return [];
   const isImageLike = node.type === 'assetNode' || node.type === 'imageGenerateNode';
   const isGroup = node.type === 'group';
-  const items: ContextMenuItem[] = [
+  const items: ContextMenuItem[] = [];
+  // group 不给：组是容器，置顶无意义且会违反「父先于子」的数组约束
+  if (!isGroup) {
+    items.push({
+      key: 'bringToFront',
+      icon: <BringToFront size={16} className="text-body" />,
+      label: '置于顶层',
+      onClick: () => ctx.bringNodeToFront(node.id),
+    });
+  }
+  items.push(
     {
       key: 'rename',
       icon: <Pen size={16} className="text-body" />,
@@ -230,7 +246,7 @@ export function buildNodeMenuItems(
       label: '复制',
       onClick: () => ctx.duplicateSelected(node.id),
     },
-  ];
+  );
   // 「复制图片」仅图片类节点（assetNode/imageGenerateNode）有：把图片本身复制到剪贴板（对齐官方 Ei）
   if (isImageLike) {
     items.push({

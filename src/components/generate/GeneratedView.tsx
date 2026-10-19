@@ -76,7 +76,7 @@ const TextResourceCell = React.memo(function TextResourceCell({
   name,
 }: {
   url: string;
-  name?: string;
+  name?: string | undefined;
 }) {
   const state = useTextAsset(url);
   // 失败必须可见：不退回 name —— 否则"读失败"与"文件名"在界面上无从区分（TD-18-17 · 一诚实）

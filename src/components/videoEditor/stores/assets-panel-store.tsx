@@ -29,8 +29,8 @@ export const TAB_KEYS = [
 export type Tab = (typeof TAB_KEYS)[number];
 
 const createIcon =
-  (Icon: ElementType<{ className?: string }>) =>
-  ({ className }: { className?: string }) => <Icon className={className} />;
+  (Icon: ElementType<{ className?: string | undefined }>) =>
+  ({ className }: { className?: string | undefined }) => <Icon className={className} />;
 
 const TAB_LABELS: Record<Tab, string> = {
   media: '素材',

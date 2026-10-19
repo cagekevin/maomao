@@ -198,7 +198,7 @@ export function subscribeCanvasSuppressed(listener: () => void): () => void {
 }
 
 /** 调试用：列出当前所有已登记的层（含登记时长与调用栈）。控制台可直接调用排查。 */
-export function debugModalLayers(): Array<{ openSec: number; stack?: string }> {
+export function debugModalLayers(): Array<{ openSec: number; stack?: string | undefined }> {
   const now = Date.now();
   return [...layers.values()].map((l) => ({
     openSec: Math.round((now - l.at) / 1000),
@@ -232,24 +232,24 @@ export interface FullscreenEditorKeys {
    * 命中即 preventDefault（挡住浏览器默认行为，如 ⌘Z 的文本撤销）。
    * 未列在这里的键不作处理，交给画布（此时画布已因本层登记而不响应）。
    */
-  keyMap?: Record<string, () => void>;
+  keyMap?: Record<string, () => void> | undefined;
   /**
    * 是否启用 Esc 关闭。默认 true —— 全屏编辑器里用户按 Esc 的预期就是退出，
    * 而这个动作没有任何别的入口能补（只能去点"取消"）。
    * 传 false 的场景：编辑器内部正在编辑文本/输入框，Esc 应先退出那层（由调用方在 keyMap 里
    * 自行处理 'escape'，此时本钩子不再抢）。
    */
-  escapeToClose?: boolean;
+  escapeToClose?: boolean | undefined;
   /** Esc 关闭时的回调，通常就是 onClose。 */
-  onEscape?: () => void;
+  onEscape?: (() => void) | undefined;
   /** 关掉本钩子（未打开 / 数据未就绪时不该抢键）。默认 true。 */
-  enabled?: boolean;
+  enabled?: boolean | undefined;
   /**
    * 返回本层的 DOM 元素，仅供 DEV 期的「常驻误登记」告警判定可见性用。
    * 不传时告警只在时长到点时保守放行（宁可不喊，也不误喊）。
    * 业务代码不需要关心它 —— `FullscreenShell` 已经接好。
    */
-  getElement?: () => Element | null;
+  getElement?: (() => Element | null) | undefined;
 }
 
 /**

@@ -82,8 +82,8 @@ const Reasoning = memo(function Reasoning({
   text,
   streaming,
 }: {
-  text?: string;
-  streaming?: boolean;
+  text?: string | undefined;
+  streaming?: boolean | undefined;
 }) {
   // 默认折叠：仅流式进行中（streaming=true）才展开显示"思考中"；
   // 历史消息（streaming=false/undefined）默认折叠，刷新后不展开（修复：原本 useState(true) 刷新后必展开）
@@ -140,7 +140,13 @@ const Reasoning = memo(function Reasoning({
 });
 
 /** 工具调用标签（2026-09-05 去噪：中性灰小标签，参数收进 title，不再用紫色高亮抢视觉） */
-const ToolCallChip = memo(function ToolCallChip({ name, args }: { name?: string; args?: string }) {
+const ToolCallChip = memo(function ToolCallChip({
+  name,
+  args,
+}: {
+  name?: string | undefined;
+  args?: string | undefined;
+}) {
   let display = args || '';
   try {
     const obj = JSON.parse(args || '{}');
@@ -182,7 +188,7 @@ const AttachmentThumb = memo(function AttachmentThumb({
   att,
   onOpen,
 }: {
-  att: { type?: string; url?: string; [k: string]: unknown };
+  att: { type?: string | undefined; url?: string | undefined; [k: string]: unknown };
   onOpen: (url: string, kind: 'image' | 'video') => void;
 }) {
   const isVideo = att?.type === 'video';
@@ -284,10 +290,10 @@ interface AgentMessageProps {
   /** 重新生成：重发本条回复之前最近一条用户指令 */
   onRegenerate?: () => void;
   /** 隐藏正文：当本消息已被结构化预览卡（如表格预览）替代，正文 JSON 与预览重复时设 true */
-  hideContent?: boolean;
+  hideContent?: boolean | undefined;
   /** 正文覆盖文本（仅用于展示，不改 message.content）：表格消息给「剥离 JSON 后的前后自然语言」，
    *  使 AI 在表格 JSON 之外说的话也能显示；发画布/复制等仍走原始 content。缺省用 message.content。 */
-  displayContent?: string;
+  displayContent?: string | undefined;
 }
 
 function AgentMessage({

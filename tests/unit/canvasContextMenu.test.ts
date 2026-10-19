@@ -37,6 +37,7 @@ function makeCtx(over: Partial<MenuActionCtx> = {}): MenuActionCtx {
     duplicateSelected: vi.fn(),
     copyNodeImage: vi.fn(),
     deleteNode: vi.fn(),
+    bringNodeToFront: vi.fn(),
     renameNode: vi.fn(),
     applyUngroup: vi.fn(),
     applyGroup: vi.fn(),
@@ -93,6 +94,8 @@ describe('buildCanvasMenuItems（空白右键）', () => {
       duplicateSelected: vi.fn(),
       copyNodeImage: vi.fn(),
       deleteNode: vi.fn(),
+      // 补齐其余必填项，确保下面「仅漏 openImport」这一条假设仍然成立
+      bringNodeToFront: vi.fn(),
       renameNode: vi.fn(),
       applyUngroup: vi.fn(),
       applyGroup: vi.fn(),
@@ -124,7 +127,25 @@ describe('buildCanvasMenuItems（空白右键）', () => {
 });
 
 describe('buildNodeMenuItems（单选节点右键）', () => {
-  it('所有节点菜单含「重命名」首项，点击携带被右键节点 id', () => {
+  it('普通节点首项是「置于顶层」，点击携带被右键节点 id', () => {
+    const bringNodeToFront = vi.fn();
+    const items = buildNodeMenuItems(
+      makeCtx({
+        nodeById: () => ({ type: 'textGenerateNode', id: 'n1' }) as never,
+        bringNodeToFront,
+      }),
+      'n1',
+    );
+    expect(labels(items)[0]).toBe('置于顶层');
+    const item = items.find((i) => 'key' in i && i.key === 'bringToFront') as {
+      onClick?: () => void;
+    };
+    expect(item).toBeTruthy();
+    item.onClick?.();
+    expect(bringNodeToFront).toHaveBeenCalledWith('n1');
+  });
+
+  it('「重命名」仍在，点击携带被右键节点 id', () => {
     const renameNode = vi.fn();
     const items = buildNodeMenuItems(
       makeCtx({
@@ -133,13 +154,21 @@ describe('buildNodeMenuItems（单选节点右键）', () => {
       }),
       'n1',
     );
-    expect(labels(items)[0]).toBe('重命名');
+    expect(labels(items)).toContain('重命名');
     const renameItem = items.find((i) => 'key' in i && i.key === 'rename') as {
       onClick?: () => void;
     };
     expect(renameItem).toBeTruthy();
     renameItem.onClick?.();
     expect(renameNode).toHaveBeenCalledWith('n1');
+  });
+
+  it('group 节点不出「置于顶层」（组置顶无意义，且会破坏父先于子的数组约束）', () => {
+    const ls = labels(
+      buildNodeMenuItems(makeCtx({ nodeById: () => ({ type: 'group' }) as never }), 'node-id'),
+    );
+    expect(ls).not.toContain('置于顶层');
+    expect(ls).toContain('重命名');
   });
 
   it('图片类节点（imageGenerateNode）有「复制图片」', () => {

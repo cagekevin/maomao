@@ -38,9 +38,9 @@ export interface ResourceStripProps {
     text?: string;
     sourceNodeId?: string;
   }>;
-  onInsert?: (item: unknown) => void;
-  onDisconnect?: (sourceNodeId: string) => void;
-  readOnly?: boolean;
+  onInsert?: ((item: unknown) => void) | undefined;
+  onDisconnect?: ((sourceNodeId: string) => void) | undefined;
+  readOnly?: boolean | undefined;
 }
 
 function ResourceStrip({

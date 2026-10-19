@@ -58,7 +58,7 @@ export class AddMediaAssetCommand extends Command {
       });
   }
 
-  undo(): void {
+  override undo(): void {
     if (!this.createdAsset) return;
 
     const editor = getEditor();

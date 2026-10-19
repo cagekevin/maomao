@@ -14,9 +14,9 @@ export interface ToolbarButtonProps {
   /** tooltip */
   title: string;
   /** hover 时的颜色/背景 class（默认灰色→白） */
-  hoverClass?: string;
+  hoverClass?: string | undefined;
   /** 点击回调（已 stopPropagation） */
-  onClick?: (e: React.MouseEvent<HTMLButtonElement>) => void;
+  onClick?: ((e: React.MouseEvent<HTMLButtonElement>) => void) | undefined;
 }
 
 function ToolbarButton({

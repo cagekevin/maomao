@@ -95,7 +95,7 @@ type NodeLike = {
 export interface ReviewShotResult {
   ok: boolean;
   text?: string;
-  error?: string;
+  error?: string | undefined;
 }
 
 /** 引擎回调宿主注入项（引擎不依赖 UI，全部经回调交互） */
@@ -1545,11 +1545,11 @@ export function createScriptBoxEngine({
     // 本镜 loading 置位 / 复位（尾帧可中止，注册 `tailframe-${id}`）
     interface TailFrameVariant {
       id: string;
-      label?: string;
-      assetUrl?: string;
-      thumbnailUrl?: string;
-      loading?: boolean;
-      errorMsg?: string;
+      label?: string | undefined;
+      assetUrl?: string | undefined;
+      thumbnailUrl?: string | undefined;
+      loading?: boolean | undefined;
+      errorMsg?: string | undefined;
     }
     const patchShot = (apply: (s: ScriptBoxShot) => ScriptBoxShot) =>
       updateData({
@@ -1888,19 +1888,19 @@ export function buildTailComposePrompt(angleIds?: string[]): { prompt: string; l
 /** assembleShotUser 可选入参（叙事密度 / 分通道负面词） */
 export interface AssembleShotUserOpts {
   /** 0-based 镜头在整部短片中的位置（缺省取 shot.index - 1） */
-  shotIndexInStory?: number;
+  shotIndexInStory?: number | undefined;
   /** 全片总镜数（缺省取 shot.index） */
-  totalShots?: number;
+  totalShots?: number | undefined;
   /** 上一镜（读 description 作「承接」） */
-  prevShot?: Shot | null;
+  prevShot?: Shot | null | undefined;
   /** 下一镜（读 description 作「钩子」） */
-  nextShot?: Shot | null;
+  nextShot?: Shot | null | undefined;
   /** 生图负面词（仅作用于 prompt） */
-  imageNegative?: string;
+  imageNegative?: string | undefined;
   /** 生视频负面词（仅作用于 videoPrompt） */
-  videoNegative?: string;
+  videoNegative?: string | undefined;
   /** 通用负面词（prompt + videoPrompt 同时遵守） */
-  commonNegative?: string;
+  commonNegative?: string | undefined;
 }
 
 export function assembleShotUser(

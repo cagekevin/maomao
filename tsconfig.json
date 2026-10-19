@@ -28,6 +28,16 @@
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "noImplicitReturns": true,
+    // 2026-10-19 · P0：strict 之外的三项零成本收紧（实测各 0 错，见 docs/plan/150）。
+    "noFallthroughCasesInSwitch": true,
+    "allowUnreachableCode": false,
+    "allowUnusedLabels": false,
+    // 2026-10-19 · P1：47 处 override 已收口，开关写回主配置。
+    "noImplicitOverride": true,
+    // 2026-10-19 · P2：18 处 import type 已收口，开关写回主配置。
+    "verbatimModuleSyntax": true,
+    // 2026-10-19 · P3：471 处 eop 已清零，开关写回主配置。
+    "exactOptionalPropertyTypes": true,
 
     "types": ["node", "vite/client", "vitest/globals"],
     "baseUrl": ".",

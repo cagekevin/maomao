@@ -25,9 +25,9 @@ export interface AllSkill {
   content: string;
   /** 内置（代码常量）⇒ **没有磁盘包**：`category`/`slug` 天然为空，不是"漏传" */
   builtin: boolean;
-  category?: string;
-  slug?: string;
-  version?: string;
+  category?: string | undefined;
+  slug?: string | undefined;
+  version?: string | undefined;
 }
 
 /**

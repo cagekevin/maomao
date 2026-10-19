@@ -286,7 +286,7 @@ import {
   parseGenerationsFromReply,
   CANVAS_AGENT_RULES,
 } from '../../src/components/agent/runtime/useAgentChat.ts';
-import { agentChatMessage } from '../../src/components/agent/runtime/agentCore.ts';
+import type { agentChatMessage } from '../../src/components/agent/runtime/agentCore.ts';
 import type { SSEAccumulator } from '../../src/components/agent/runtime/agentCore.ts';
 // 块② 文本的生产者（agentCore 收预拼字符串 ⇒ 测试须先经它拼，见 agentCore 头注释）
 import { buildBoundSkillBlocks } from '../../src/components/agent/skill/model/skillInjectText.ts';

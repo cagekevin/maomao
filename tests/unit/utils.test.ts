@@ -70,7 +70,7 @@ describe('canvasToBlob（canvas 异步产出唯一出口 · TD-06-14）', () => 
     ({ toBlob }) as unknown as HTMLCanvasElement;
 
   it('成功 → 返回 Blob，format / quality 透传', async () => {
-    let seen: { mime?: string; q?: number } = {};
+    let seen: { mime?: string | undefined; q?: number | undefined } = {};
     const c = fakeCanvas((cb, mime, q) => {
       seen = { mime, q };
       cb(new Blob(['x'], { type: 'image/jpeg' }));

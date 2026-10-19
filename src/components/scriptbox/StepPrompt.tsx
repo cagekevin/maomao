@@ -510,9 +510,9 @@ function PromptBox({
 }: {
   label: string;
   text: string;
-  loading?: boolean;
+  loading?: boolean | undefined;
   onEdit: () => void;
-  onGen?: () => void;
+  onGen?: (() => void) | undefined;
   assetNames: string[];
 }) {
   return (

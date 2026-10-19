@@ -27,8 +27,8 @@ export interface Toast {
 }
 /** showToast 选项 */
 interface ToastOptions {
-  type?: ToastType;
-  duration?: number;
+  type?: ToastType | undefined;
+  duration?: number | undefined;
   /**
    * 同一条文案的**合并窗口**（ms）：窗口内重复的同文案 toast **只保留一条**（不追加）。
    * 缺省 = 不合并（每次调用都弹）。
@@ -38,7 +38,7 @@ interface ToastOptions {
    * `core/degrade.ts` 的**模块级全局单槽**里：一个转发原语替所有生产者决定用户可见性
    * = **消费者越权**（与已删的 `persist:failed` 全局吸收层同形态，只因粒度小未被发现）。
    */
-  coalesceMs?: number;
+  coalesceMs?: number | undefined;
 }
 /** `showToast` 返回值：该文案在合并窗口内**被合并**（未产生新 toast）。 */
 export const TOAST_COALESCED = -1;

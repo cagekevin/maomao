@@ -184,7 +184,7 @@ export function wouldElementOverlap({
   startTime: number;
   /** 待判定元素在**时间轴上**的时长（不传 `endTime`：让调用方**不需要**算结束时刻）。 */
   duration: number;
-  excludeElementId?: string;
+  excludeElementId?: string | undefined;
 }): boolean {
   const endTime = startTime + duration;
   return elements.some((el) => {
@@ -239,8 +239,8 @@ export function getVisualSourceTime({
   startTime: number;
   duration: number;
   trimStart: number;
-  playbackRate?: number;
-  reversed?: boolean;
+  playbackRate?: number | undefined;
+  reversed?: boolean | undefined;
 }): number {
   const elapsed = timelineTime - startTime;
   if (!reversed) return trimStart + elapsed * playbackRate;
@@ -368,9 +368,9 @@ export function buildVideoElement({
   name: string;
   duration: number;
   startTime: number;
-  trimStart?: number;
+  trimStart?: number | undefined;
   /** TD-21-17：源视频是否含音轨（🔊 角标数据源）；由导入探测随素材带来。 */
-  hasAudio?: boolean;
+  hasAudio?: boolean | undefined;
 }): CreateVideoElement {
   return {
     type: 'video',

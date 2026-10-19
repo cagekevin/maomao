@@ -117,11 +117,11 @@ function getDragDropTarget({
   tracks: TimelineTrack[];
   tracksContainerRef: RefObject<HTMLDivElement | null>;
   tracksScrollRef: RefObject<HTMLDivElement | null>;
-  headerRef?: RefObject<HTMLElement | null>;
+  headerRef?: RefObject<HTMLElement | null> | undefined;
   zoomLevel: number;
-  trackHeightScale?: number;
+  trackHeightScale?: number | undefined;
   snappedTime: number;
-  verticalDragDirection?: 'up' | 'down' | null;
+  verticalDragDirection?: 'up' | 'down' | null | undefined;
 }): DropTarget | null {
   const containerRect = tracksContainerRef.current?.getBoundingClientRect();
   const scrollContainer = tracksScrollRef.current;

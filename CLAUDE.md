@@ -34,7 +34,7 @@ npm run check:health  # 工程健康全量检查（= gates-run health：manifest
 npm run check:events  # 事件契约双向校验：① 裸事件名必须登记 EVENTS；② EVENTS 的 to/from 须与代码实测 subscribe/publish 自洽（防 to:[] 误判死事件）。挂 prebuild+pretest
 npm run check:node-types  # 节点类型静态校验：NODE_TYPES 裸 nodePrefs 命名空间拦截（useNodePrefs 首参必须登记）
 npm run check:api     # API 契约双向校验：contracts.ts apiRegistry ↔ localTool router.ts 互检（防白实现/镜像漂移/信封不符），挂 prebuild+pretest
-npm run type-check    # tsc --noEmit 类型检查（仅校验 .ts/.tsx，strict 暂未开启）
+npm run type-check    # tsc --noEmit 类型检查（根 tsconfig 已 strict + 六项：3 项零成本 + noImplicitOverride + verbatimModuleSyntax + exactOptionalPropertyTypes，全仓 0 错；更严格开关见 docs/plan/150）
 ```
 
 ### ⚠️ 查任务/查图/查视频铁律（改这些 bug 前必跑，不要自己造查询）
@@ -136,7 +136,7 @@ node scripts/task-inspect.mjs --canvas-health   # 画布结构体检
 
 ## 二、 前端原型架构
 
-- **技术栈**：Vite + React 19（`package.json` 实测 `react@19.2.8`、`@types/react@^19` 已对齐）+ `@xyflow/react`(React Flow) + Tailwind。开发服务器 `localhost:5180`。tsconfig 暂未开启 `strict`/`checkJs`（`strict:false`），类型检查靠 `tsc --noEmit` + 测试门禁。
+- **技术栈**：Vite + React 19（`package.json` 实测 `react@19.2.8`、`@types/react@^19` 已对齐）+ `@xyflow/react`(React Flow) + Tailwind。开发服务器 `localhost:5180`。tsconfig 已 `strict: true`（含 `noUnusedLocals`/`noUnusedParameters`/`noImplicitReturns` + `noFallthroughCasesInSwitch`/`allowUnreachableCode:false`/`allowUnusedLabels:false`/`noImplicitOverride`/`verbatimModuleSyntax`/`exactOptionalPropertyTypes`），全仓 `tsc --noEmit` 0 错；更严格开关（`noUncheckedIndexedAccess` / `noPropertyAccessFromIndexSignature`）的分期收口见 `docs/plan/150-类型检测最严格模式-根治计划-2026-10-19.md`。
 
 - **入口**：`src/main.tsx` → `src/App.tsx`。
 

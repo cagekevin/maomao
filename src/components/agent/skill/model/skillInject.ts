@@ -35,9 +35,9 @@ export interface SkillTurn {
   /** 块② 文本（按预算截断）。**与 `bindings` 同源产出** ⇒ "发出去的字"与"留的痕"永不背离 */
   docs: string;
   /** 前置失败（缓存损坏/读不到）：`bindings` 为空、一个 Skill 都不注入。**必须由调用方留痕**，不许静默 */
-  error?: string;
+  error?: string | undefined;
   /** 给了 id、却在任何来源里都找不到（技能被删 / 换过 id）：如实回报，**不静默当"没选"** */
-  missing?: string[];
+  missing?: string[] | undefined;
 }
 
 /**

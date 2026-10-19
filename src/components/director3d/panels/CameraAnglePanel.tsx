@@ -1,5 +1,5 @@
 import { ChevronUp, SlidersHorizontal } from 'lucide-react';
-import { ProjectCamera } from '../project.ts';
+import type { ProjectCamera } from '../project.ts';
 
 interface CameraAnglePanelProps {
   camera: ProjectCamera;

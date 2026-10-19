@@ -28,7 +28,7 @@ import { cn } from '@/components/videoEditor/utils/ui';
  * ══════════════════════════════════════════════════════════════════════════
  */
 interface TabsContextValue {
-  value?: string;
+  value?: string | undefined;
   setValue: (value: string) => void;
   baseId: string;
 }
@@ -39,9 +39,9 @@ interface TabsProps extends Omit<
   React.HTMLAttributes<HTMLDivElement>,
   'onChange' | 'defaultValue'
 > {
-  value?: string;
-  defaultValue?: string;
-  onValueChange?: (value: string) => void;
+  value?: string | undefined;
+  defaultValue?: string | undefined;
+  onValueChange?: ((value: string) => void) | undefined;
 }
 
 const Tabs = React.forwardRef<HTMLDivElement, TabsProps>(

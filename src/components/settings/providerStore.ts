@@ -58,7 +58,7 @@ export interface FetchedModels {
   image_models: RawModel[];
   chat_models: RawModel[];
   video_models: RawModel[];
-  warning?: string;
+  warning?: string | undefined;
 }
 
 /** providerStore 状态快照 */
@@ -401,7 +401,13 @@ export async function test(id: string): Promise<void> {
 
 export async function fetchModels(
   id: string,
-): Promise<{ ok: boolean; pending?: boolean; total?: number; warning?: string; error?: string }> {
+): Promise<{
+  ok: boolean;
+  pending?: boolean | undefined;
+  total?: number | undefined;
+  warning?: string | undefined;
+  error?: string | undefined;
+}> {
   const p = state.providers.find((x) => x.id === id);
   if (!p) return { ok: false };
   setState({ fetchingId: id });
@@ -511,7 +517,7 @@ export async function save(): Promise<{ ok: boolean; error?: string }> {
     }
     return { ok: true };
   } catch (e) {
-    return { ok: false, error: (e as { message?: string })?.message };
+    return { ok: false, error: (e as { message?: string })?.message || '保存失败' };
   } finally {
     setState({ saving: false });
   }

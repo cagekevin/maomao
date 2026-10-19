@@ -175,7 +175,10 @@ export const NODE_OUTPUTS: Record<string, NodeOutputResolver> = {
     const list: unknown[] = Array.isArray(d.images) ? (d.images as unknown[]) : [];
     for (const im of list) {
       const url = objField(im, 'url');
-      if (url) images.push({ id: objField(im, 'id'), url, label: objField(im, 'label') || '' });
+      if (url) {
+        const id = objField(im, 'id');
+        images.push({ ...(id !== undefined ? { id } : {}), url, label: objField(im, 'label') || '' });
+      }
     }
     return { images };
   },
@@ -209,7 +212,8 @@ function singleOutput(
     const at = d.assetType;
     const assetType = isMediaRefType(at) ? at : undefined;
     const kind = resolveAssetType(url, assetType);
-    const item: NodeOutputItem = { id, url, label: str(d.label) };
+    const label = str(d.label);
+    const item: NodeOutputItem = { id, url, ...(label !== undefined ? { label } : {}) };
     if (kind === 'video') return { ...empty, videos: [item] };
     if (kind === 'audio') return { ...empty, audios: [item] };
     return { ...empty, images: [item] };
@@ -227,7 +231,12 @@ function singleOutput(
   const rAt = d.assetType;
   const rAssetType = isMediaRefType(rAt) ? rAt : undefined;
   const rKind = resolveAssetType(resolved.url, rAssetType);
-  const rItem: NodeOutputItem = { id, url: resolved.url, label: str(d.label) };
+  const rLabel = str(d.label);
+  const rItem: NodeOutputItem = {
+    id,
+    url: resolved.url,
+    ...(rLabel !== undefined ? { label: rLabel } : {}),
+  };
   if (rKind === 'video') return { ...empty, videos: [rItem] };
   if (rKind === 'audio') return { ...empty, audios: [rItem] };
   return { ...empty, images: [rItem] };
@@ -335,15 +344,15 @@ export function getNodeOutput(
 /** 入边（只保留聚合需要的字段：source + sourceHandle） */
 interface IncomingEdge {
   source: string;
-  sourceHandle?: string | null;
+  sourceHandle?: string | null | undefined;
 }
 
 /** 上游引用项：node 为 nodeLookup 里的 internalNode（含 id/type/data/hidden），
  *  fromGroup=true 表示来自「编组出口展开」的子节点（聚合时不补 sourceNodeId，保持既有行为）。 */
 interface UpstreamRef {
   node: Node;
-  sourceHandle?: string | null;
-  fromGroup?: boolean;
+  sourceHandle?: string | null | undefined;
+  fromGroup?: boolean | undefined;
 }
 
 const EMPTY_IN: IncomingEdge[] = [];

@@ -14,7 +14,7 @@ import { Plus, Command, ArrowLeft, Pencil, AlertTriangle } from 'lucide-react';
 
 // 更新(2026-09-14)：agent-store 已随 AI 域删除。
 
-export function EditorHeader({ onExit }: { onExit?: () => void }) {
+export function EditorHeader({ onExit }: { onExit?: (() => void) | undefined }) {
   return (
     <header className="bg-background flex h-10 items-center justify-between px-3">
       {/* 更新(2026-09-14)：顶栏 3.4rem→h-10（40px）——「返回画布 + 导出」这一行占地太大，整体压扁。 */}
@@ -33,7 +33,7 @@ export function EditorHeader({ onExit }: { onExit?: () => void }) {
   );
 }
 
-function ProjectDropdown({ onExit }: { onExit?: () => void }) {
+function ProjectDropdown({ onExit }: { onExit?: (() => void) | undefined }) {
   const [openDialog, setOpenDialog] = useState<'delete' | 'rename' | 'shortcuts' | null>(null);
   const [isSwitching, setIsSwitching] = useState(false);
   // 受控面板开关（替代 Radix DropdownMenu，见下方注释）。

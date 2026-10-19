@@ -66,12 +66,12 @@ export interface CreativePreset {
   /** 片段正文，生成时替换胶囊 */
   prompt: string;
   /** 静帧封面路径（`/creative-presets/x.webp`），可选 */
-  preview?: string;
+  preview?: string | undefined;
   /**
    * 动态预览（运镜专有，`/creative-presets/x.mp4`），可选。
    * 【不落盘】只在面板内供悬停播放；`toDictEntry` 的白名单不含它，禁进节点快照（I4）。
    */
-  video?: string;
+  video?: string | undefined;
 }
 
 /**

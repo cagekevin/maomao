@@ -4,6 +4,15 @@ import * as THREE from 'three';
 const whiteMaterial = { roughness: 0.78, metalness: 0.02 };
 const selectedEmission = { emissive: '#4b3511', emissiveIntensity: 0.3 };
 
+/**
+ * 公共外观 props：调用方会把上游可选值原样透传（`PrimitiveModel` 的 `color/selected` 都是可选），
+ * 显式 `undefined` 与缺省等价 ⇒ 类型上明确允许，避免 eop 下逐调用点条件展开。
+ */
+type PrimitiveAppearance = {
+  color?: string | undefined;
+  selected?: boolean | undefined;
+};
+
 interface PrimitivePart {
   shape: string;
   position?: [number, number, number];
@@ -11,7 +20,7 @@ interface PrimitivePart {
   scale?: [number, number, number];
 }
 
-function ArchPrimitive({ color, selected = false }: { color?: string; selected?: boolean }) {
+function ArchPrimitive({ color, selected = false }: PrimitiveAppearance) {
   const shape = useMemo(() => {
     const outer = new THREE.Shape();
     outer.moveTo(-0.5, -0.5);
@@ -43,7 +52,7 @@ function ArchPrimitive({ color, selected = false }: { color?: string; selected?:
     <mesh position={[0, 0, -0.18]} castShadow receiveShadow>
       <extrudeGeometry args={[shape, settings]} />
       <meshStandardMaterial
-        color={color}
+        {...(color !== undefined ? { color } : {})}
         {...whiteMaterial}
         {...(selected ? selectedEmission : null)}
       />
@@ -51,7 +60,7 @@ function ArchPrimitive({ color, selected = false }: { color?: string; selected?:
   );
 }
 
-function RoofPrimitive({ color, selected = false }: { color?: string; selected?: boolean }) {
+function RoofPrimitive({ color, selected = false }: PrimitiveAppearance) {
   const shape = useMemo(() => {
     const triangle = new THREE.Shape();
     triangle.moveTo(-0.5, -0.5);
@@ -65,7 +74,7 @@ function RoofPrimitive({ color, selected = false }: { color?: string; selected?:
     <mesh position={[0, 0, -0.5]} castShadow receiveShadow>
       <extrudeGeometry args={[shape, settings]} />
       <meshStandardMaterial
-        color={color}
+        {...(color !== undefined ? { color } : {})}
         {...whiteMaterial}
         {...(selected ? selectedEmission : null)}
       />
@@ -77,17 +86,13 @@ function SimplePart({
   shape = 'box',
   color,
   selected = false,
-}: {
-  shape?: string;
-  color?: string;
-  selected?: boolean;
-}) {
+}: PrimitiveAppearance & { shape?: string }) {
   if (shape === 'sphere')
     return (
       <mesh castShadow receiveShadow>
         <sphereGeometry args={[0.5, 20, 14]} />
         <meshStandardMaterial
-          color={color}
+          {...(color !== undefined ? { color } : {})}
           {...whiteMaterial}
           {...(selected ? selectedEmission : null)}
         />
@@ -98,7 +103,7 @@ function SimplePart({
       <mesh castShadow receiveShadow>
         <cylinderGeometry args={[0.5, 0.5, 1, 20]} />
         <meshStandardMaterial
-          color={color}
+          {...(color !== undefined ? { color } : {})}
           {...whiteMaterial}
           {...(selected ? selectedEmission : null)}
         />
@@ -109,7 +114,7 @@ function SimplePart({
     <mesh castShadow receiveShadow>
       <boxGeometry args={[1, 1, 1]} />
       <meshStandardMaterial
-        color={color}
+        {...(color !== undefined ? { color } : {})}
         {...whiteMaterial}
         {...(selected ? selectedEmission : null)}
       />
@@ -121,11 +126,7 @@ function AssemblyModel({
   parts = [],
   color,
   selected = false,
-}: {
-  parts?: unknown[];
-  color?: string;
-  selected?: boolean;
-}) {
+}: PrimitiveAppearance & { parts?: unknown[] }) {
   return (
     <group>
       {parts.map((rawPart, index) => {
@@ -149,7 +150,7 @@ function AssemblyModel({
   );
 }
 
-function StairsModel({ color, selected = false }: { color?: string; selected?: boolean }) {
+function StairsModel({ color, selected = false }: PrimitiveAppearance) {
   const steps = 7;
   return (
     <group>
@@ -169,7 +170,7 @@ function StairsModel({ color, selected = false }: { color?: string; selected?: b
   );
 }
 
-function TableModel({ color, selected = false }: { color?: string; selected?: boolean }) {
+function TableModel({ color, selected = false }: PrimitiveAppearance) {
   return (
     <group>
       <group position={[0, 0.34, 0]} scale={[1, 0.14, 0.82]}>
@@ -186,7 +187,7 @@ function TableModel({ color, selected = false }: { color?: string; selected?: bo
   );
 }
 
-function ChairModel({ color, selected = false }: { color?: string; selected?: boolean }) {
+function ChairModel({ color, selected = false }: PrimitiveAppearance) {
   return (
     <group>
       <group position={[0, 0.02, 0]} scale={[0.82, 0.13, 0.78]}>
@@ -206,7 +207,7 @@ function ChairModel({ color, selected = false }: { color?: string; selected?: bo
   );
 }
 
-function SofaModel({ color, selected = false }: { color?: string; selected?: boolean }) {
+function SofaModel({ color, selected = false }: PrimitiveAppearance) {
   return (
     <group>
       <group position={[0, -0.17, 0]} scale={[1, 0.42, 0.82]}>
@@ -225,7 +226,7 @@ function SofaModel({ color, selected = false }: { color?: string; selected?: boo
   );
 }
 
-function DoorModel({ color, selected = false }: { color?: string; selected?: boolean }) {
+function DoorModel({ color, selected = false }: PrimitiveAppearance) {
   return (
     <group>
       <group position={[-0.46, 0, 0]} scale={[0.09, 1, 0.16]}>
@@ -247,7 +248,7 @@ function DoorModel({ color, selected = false }: { color?: string; selected?: boo
   );
 }
 
-function WindowModel({ color, selected = false }: { color?: string; selected?: boolean }) {
+function WindowModel({ color, selected = false }: PrimitiveAppearance) {
   return (
     <group>
       <group position={[-0.46, 0, 0]} scale={[0.08, 1, 0.14]}>
@@ -272,7 +273,7 @@ function WindowModel({ color, selected = false }: { color?: string; selected?: b
   );
 }
 
-function TreeModel({ color, selected = false }: { color?: string; selected?: boolean }) {
+function TreeModel({ color, selected = false }: PrimitiveAppearance) {
   return (
     <group>
       <group position={[0, -0.23, 0]} scale={[0.2, 0.55, 0.2]}>
@@ -291,7 +292,7 @@ function TreeModel({ color, selected = false }: { color?: string; selected?: boo
   );
 }
 
-function VehicleModel({ color, selected = false }: { color?: string; selected?: boolean }) {
+function VehicleModel({ color, selected = false }: PrimitiveAppearance) {
   return (
     <group>
       <group position={[0, -0.08, 0]} scale={[1, 0.42, 0.78]}>
@@ -321,12 +322,7 @@ function PrimitiveModel({
   color,
   selected,
   parts = [],
-}: {
-  type?: string;
-  color?: string;
-  selected?: boolean;
-  parts?: unknown[];
-}) {
+}: PrimitiveAppearance & { type?: string; parts?: unknown[] }) {
   if (type === 'sphere') return <SimplePart shape="sphere" color={color} selected={selected} />;
   if (type === 'cylinder') return <SimplePart shape="cylinder" color={color} selected={selected} />;
   if (type === 'plane')
@@ -334,7 +330,7 @@ function PrimitiveModel({
       <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
         <planeGeometry args={[1, 1]} />
         <meshStandardMaterial
-          color={color}
+          {...(color !== undefined ? { color } : {})}
           roughness={0.9}
           side={THREE.DoubleSide}
           {...(selected ? selectedEmission : null)}

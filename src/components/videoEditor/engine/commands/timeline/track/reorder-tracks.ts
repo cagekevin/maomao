@@ -27,7 +27,7 @@ export class ReorderTracksCommand extends Command {
     editor.timeline.updateTracks(reorderedTracks);
   }
 
-  undo(): void {
+  override undo(): void {
     if (this.savedState) {
       const editor = getEditor();
       editor.timeline.updateTracks(this.savedState);

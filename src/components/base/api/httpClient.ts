@@ -67,11 +67,11 @@ function isFetchNetworkTypeError(e: TypeError): boolean {
 
 /** httpRequest 选项（fetch 统一入口的参数契约） */
 export interface HttpRequestOptions {
-  method?: string;
-  headers?: Record<string, string>;
+  method?: string | undefined;
+  headers?: Record<string, string> | undefined;
   body?: string | FormData | undefined;
   /** 外部取消信号（组件生命周期） */
-  signal?: AbortSignal;
+  signal?: AbortSignal | undefined;
   /**
    * 超时毫秒 —— **必填**（ADR-0035 / ADR-0045 深模块化）。
    *
@@ -89,21 +89,21 @@ export interface HttpRequestOptions {
    */
   timeoutMs: number;
   /** 网络/超时自动重试次数，默认 3；业务错误不重试 */
-  retries?: number;
+  retries?: number | undefined;
   /** 首轮重试等待 ms，默认 500（递增） */
-  retryDelay?: number;
+  retryDelay?: number | undefined;
   /** 是否解析 JSON，默认 true */
-  parseJson?: boolean;
+  parseJson?: boolean | undefined;
   /** 每次重试前回调（打日志/更新 UI） */
-  onRetry?: (attempt: number, err: unknown) => void;
+  onRetry?: ((attempt: number, err: unknown) => void) | undefined;
   /** 错误消息上下文 */
-  label?: string;
+  label?: string | undefined;
   /**
    * 静默成功（日志降噪 80§十#3）：成功时不再记 [请求] 成功 debug（成功可还原、无排查增量），
    * 仅失败/重试仍记。适用高频低价值写请求(saveTask/kvSet 等 upsert)，避免"每轮回写成功"刷屏。
    * 失败路径不变（失败必须可见）。
    */
-  silentSuccess?: boolean;
+  silentSuccess?: boolean | undefined;
 }
 
 /** 错误信封解析结果 { code, message } */
@@ -115,7 +115,7 @@ export interface ErrorDetail {
 /** 网络错误（fetch 本身失败：断网/连接被拒/跨域），区别于 HTTP 状态错误 */
 export class NetworkError extends Error {
   isNetwork = true;
-  cause?: unknown;
+  override cause?: unknown;
   constructor(message: string, cause?: unknown) {
     super(message);
     this.name = 'NetworkError';
@@ -340,7 +340,12 @@ export async function httpRequest<_T = unknown>(
       }
       try {
         const res = await withTimeout(
-          fetch(url, { method, headers, body, signal: internalCtrl.signal }),
+          fetch(url, {
+            method,
+            ...(headers !== undefined ? { headers } : {}),
+            ...(body !== undefined ? { body } : {}),
+            signal: internalCtrl.signal,
+          }),
           timeoutMs,
           `请求超时（${timeoutMs}ms）`,
           internalCtrl.signal,

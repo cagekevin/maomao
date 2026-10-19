@@ -509,7 +509,7 @@ export const ENTITY_CHANNELS: EntityChannelMap = deriveChannels(PROPERTY_REGISTR
 export const OBJECT_STATE_FIELDS = Object.fromEntries(
   Object.entries(PROPERTY_REGISTRY).map(([type, fields]) => [
     type,
-    Object.keys(fields).filter((field) => fields[field].layer === 'objectState'),
+    Object.keys(fields).filter((field) => fields[field]?.layer === 'objectState'),
   ]),
 );
 
@@ -549,7 +549,7 @@ export function snapshotToChannelKeys(
   frame: number,
   interpolation = 'smooth',
 ): ChannelTracks {
-  const definition = ENTITY_CHANNELS[entityType] || ENTITY_CHANNELS.object;
+  const definition = ENTITY_CHANNELS[entityType] ?? ENTITY_CHANNELS.object ?? {};
   const keys: ChannelTracks = {};
   for (const [channel, fields] of Object.entries(definition)) {
     const fieldValues: Record<string, unknown> = {};
@@ -575,7 +575,7 @@ export function channelsToSnapshotKeys(
   entityType: string,
   channels: ChannelTracks = {},
 ): ChannelKey[] {
-  const definition = ENTITY_CHANNELS[entityType] || ENTITY_CHANNELS.object;
+  const definition = ENTITY_CHANNELS[entityType] ?? ENTITY_CHANNELS.object ?? {};
   const fieldList = Object.values(definition).flat();
   const merged = new Map<
     number,
@@ -584,10 +584,13 @@ export function channelsToSnapshotKeys(
   for (const list of Object.values(channels || {})) {
     for (const key of Array.isArray(list) ? list : []) {
       if (!key || key.frame === undefined) continue;
-      const entry = merged.get(key.frame) || {
+      const entry: {
+        frame: number;
+        interpolation: string;
+        fields?: Record<string, unknown>;
+      } = merged.get(key.frame) || {
         frame: key.frame,
         interpolation: normalizeInterpolation(key.interpolation ?? ''),
-        fields: undefined,
       };
       if (key.interpolation) entry.interpolation = normalizeInterpolation(key.interpolation);
       if (key.fields && typeof key.fields === 'object') {
@@ -789,7 +792,10 @@ export function clampKeyframeFrames(keys: ChannelTracks | ChannelKey[], maxFrame
   if (keys && typeof keys === 'object') {
     return Object.fromEntries(
       Object.entries(keys)
-        .map(([channel, list]) => [channel, clampList(list as ChannelKey[])])
+        .map(([channel, list]): [string, ChannelKey[]] => [
+          channel,
+          clampList(list as ChannelKey[]),
+        ])
         .filter(([, list]) => list.length),
     );
   }
@@ -807,12 +813,15 @@ export function keyframeMaxFrame(
   return Math.max(0, ...cameraFrames, ...objectFrames);
 }
 
-function finiteVector3(value: unknown, fallback: number[]): number[] {
-  return Array.isArray(value) && value.length >= 3
-    ? (value as unknown[])
-        .slice(0, 3)
-        .map((item, index) => (Number.isFinite(Number(item)) ? Number(item) : fallback[index]))
-    : [...fallback];
+function finiteVector3(value: unknown, fallback: number[]): [number, number, number] {
+  const fb: [number, number, number] = [fallback[0] ?? 0, fallback[1] ?? 0, fallback[2] ?? 0];
+  if (!Array.isArray(value) || value.length < 3) return fb;
+  const [x, y, z] = value as unknown[];
+  return [
+    Number.isFinite(Number(x)) ? Number(x) : fb[0],
+    Number.isFinite(Number(y)) ? Number(y) : fb[1],
+    Number.isFinite(Number(z)) ? Number(z) : fb[2],
+  ];
 }
 
 export function cameraRotationToward(position: number[], target: number[]): number[] {
@@ -881,7 +890,7 @@ export function normalizeCameraKeyframes(
       )
     : keys || {};
   const result: ChannelTracks = {};
-  for (const [channel, fields] of Object.entries(ENTITY_CHANNELS.camera)) {
+  for (const [channel, fields] of Object.entries(ENTITY_CHANNELS.camera ?? {})) {
     const list = (Array.isArray(channels[channel]) ? channels[channel].filter(Boolean) : [])
       .map((key) => ({
         frame: normalizeFrameNumber(key.frame),
@@ -918,7 +927,9 @@ export function normalizeReference(reference: Partial<ProjectReference> = {}): P
   };
 }
 
-export function normalizeProjectSettings(settings: Partial<ProjectSettings> = {}): ProjectSettings {
+export function normalizeProjectSettings(
+  settings: { [K in keyof ProjectSettings]?: ProjectSettings[K] | undefined } = {},
+): ProjectSettings {
   const fps = FPS_OPTIONS.includes(Number(settings.fps))
     ? Number(settings.fps)
     : DEFAULT_PROJECT_SETTINGS.fps;
@@ -979,7 +990,10 @@ function normalizePerson(object: ProjectObject): ProjectObject {
   return {
     ...object,
     pose,
-    poseTime: Number.isFinite(object.poseTime) ? object.poseTime : presetPhase(pose),
+    poseTime:
+      typeof object.poseTime === 'number' && Number.isFinite(object.poseTime)
+        ? object.poseTime
+        : presetPhase(pose),
     rigRoot: Array.isArray(object.rigRoot)
       ? (object.rigRoot as number[]).slice(0, 3).map((value) => Number(value) || 0)
       : [0, 0, 0],
@@ -1039,7 +1053,7 @@ const normalizeObjectTrack = (
   entityType: string,
   pathFrames: number[] = [],
 ): ChannelTracks => {
-  const definition = ENTITY_CHANNELS[entityType] || ENTITY_CHANNELS.object;
+  const definition = ENTITY_CHANNELS[entityType] ?? ENTITY_CHANNELS.object ?? {};
   const pathFrameSet = new Set(pathFrames.map(normalizeFrameNumber));
   const channels: ChannelTracks = Array.isArray(track)
     ? track
@@ -1183,12 +1197,15 @@ function normalizeShot(shot: RawShot, index: number, fallback: ShotFallback) {
     timing.durationSeconds = clamp(Math.ceil(maxFrame / timing.fps), 1, 60);
   const supportedMaxFrame = timing.fps * timing.durationSeconds;
   if (maxFrame > supportedMaxFrame) {
-    keyframes = clampKeyframeFrames(keyframes, supportedMaxFrame);
+    // clampKeyframeFrames 兼容旧数组形态；此处入参已是通道结构，数组分支不会发生，
+    // 若真出现则保留原值（不把结构误改成数组）。
+    const clampedCamera = clampKeyframeFrames(keyframes, supportedMaxFrame);
+    if (!Array.isArray(clampedCamera)) keyframes = clampedCamera;
     objectKeyframes = Object.fromEntries(
-      Object.entries(objectKeyframes).map(([id, track]) => [
-        id,
-        clampKeyframeFrames(track, supportedMaxFrame),
-      ]),
+      Object.entries(objectKeyframes).map(([id, track]): [string, ChannelTracks] => {
+        const clampedTrack = clampKeyframeFrames(track, supportedMaxFrame);
+        return [id, Array.isArray(clampedTrack) ? track : clampedTrack];
+      }),
     );
   }
   return {
@@ -1279,10 +1296,13 @@ export function normalizeProjectData(data: ProjectDataInput | null | undefined) 
         : shot;
     return normalizeShot(migratedShot, index, fallback);
   });
+  // rawShots 至少含一条兜底镜头 ⇒ shots 不可能为空；用显式守卫把不变量写进类型层。
+  const firstNormalizedShot = shots[0];
+  if (!firstNormalizedShot) throw new Error('项目至少需要一个镜头');
   const activeShotId = shots.some((shot) => shot.id === data.activeShotId)
     ? data.activeShotId
-    : shots[0].id;
-  const activeShot = shots.find((shot) => shot.id === activeShotId) || shots[0];
+    : firstNormalizedShot.id;
+  const activeShot = shots.find((shot) => shot.id === activeShotId) ?? firstNormalizedShot;
   return {
     ...data,
     version: PROJECT_VERSION,
@@ -1337,11 +1357,13 @@ export function projectData({
 }: ProjectDataFields) {
   const normalizedSettings = normalizeProjectSettings(settings);
   const sourceShots = shots?.length ? shots : [{ id: 'shot-01', name: '镜头 01' }];
+  const firstSourceShot = sourceShots[0];
+  if (!firstSourceShot) throw new Error('项目至少需要一个镜头');
   const resolvedActiveShotId = sourceShots.some((shot) => shot.id === activeShotId)
     ? activeShotId
-    : sourceShots[0].id;
+    : firstSourceShot.id;
   const liveShot = {
-    ...(sourceShots.find((shot) => shot.id === resolvedActiveShotId) || sourceShots[0]),
+    ...(sourceShots.find((shot) => shot.id === resolvedActiveShotId) ?? firstSourceShot),
     id: resolvedActiveShotId,
     fps: normalizedSettings.fps,
     durationSeconds: normalizedSettings.durationSeconds,
@@ -1394,22 +1416,18 @@ export function projectData({
 function locateChannelKey(keys: ChannelKey[], frame: number) {
   if (!Array.isArray(keys) || !keys.length)
     return { exact: null, left: null, right: null, t: 0, bounds: 'empty' };
+  const firstKey = keys[0];
+  if (!firstKey) return { exact: null, left: null, right: null, t: 0, bounds: 'empty' };
   const exact = keys.find((key) => key.frame === frame);
   if (exact) return { exact, left: exact, right: exact, t: 0, bounds: 'exact' };
-  if (frame <= keys[0].frame)
-    return { exact: null, left: keys[0], right: keys[0], t: 0, bounds: 'before' };
-  const lastKey = keys.at(-1);
-  if (frame >= (lastKey?.frame ?? 0))
-    return {
-      exact: null,
-      left: lastKey ?? keys[0],
-      right: lastKey ?? keys[0],
-      t: 1,
-      bounds: 'after',
-    };
+  if (frame <= firstKey.frame)
+    return { exact: null, left: firstKey, right: firstKey, t: 0, bounds: 'before' };
+  const lastKey = keys.at(-1) ?? firstKey;
+  if (frame >= lastKey.frame)
+    return { exact: null, left: lastKey, right: lastKey, t: 1, bounds: 'after' };
   const rightIndex = keys.findIndex((key) => key.frame >= frame);
-  const left = keys[rightIndex - 1];
-  const right = keys[rightIndex];
+  const left = keys[rightIndex - 1] ?? firstKey;
+  const right = keys[rightIndex] ?? lastKey;
   return {
     exact: null,
     left,
@@ -1430,16 +1448,16 @@ function evaluateNumericChannel(
   { angleFields = new Set<string>() } = {},
 ): Record<string, unknown> | null {
   const { left, right, t, bounds } = locateChannelKey(keys, frame);
-  if (bounds === 'empty') return null;
+  if (bounds === 'empty' || !left || !right) return null;
   const fields: Record<string, unknown> = {};
   if (bounds !== 'segment') {
-    for (const field of Object.keys(left!.fields || {})) {
-      fields[field] = cloneProjectValue(left!.fields?.[field]);
+    for (const field of Object.keys(left.fields || {})) {
+      fields[field] = cloneProjectValue(left.fields?.[field]);
     }
     return fields;
   }
-  const leftFields = left!.fields || {};
-  const rightFields = right!.fields || {};
+  const leftFields = left.fields || {};
+  const rightFields = right.fields || {};
   const allFields = new Set([...Object.keys(leftFields), ...Object.keys(rightFields)]);
   for (const field of allFields) {
     const a = leftFields[field];
@@ -1448,10 +1466,12 @@ function evaluateNumericChannel(
       fields[field] = cloneProjectValue(a !== undefined ? a : b);
     } else if (angleFields.has(field)) {
       fields[field] = (a as number[]).map((value, index) =>
-        lerpAngle(value, (b as number[])[index], t),
+        lerpAngle(value, (b as number[])[index] ?? value, t),
       );
     } else if (Array.isArray(a)) {
-      fields[field] = (a as number[]).map((value, index) => lerp(value, (b as number[])[index], t));
+      fields[field] = (a as number[]).map((value, index) =>
+        lerp(value, (b as number[])[index] ?? value, t),
+      );
     } else {
       fields[field] = lerp(a as number, b as number, t);
     }
@@ -1484,7 +1504,12 @@ function evaluateActionChannel(
     motionEnabled(leftKey) === motionEnabled(rightKey);
   const stateStartFrame = (key: ChannelKey) => {
     let index = keys.indexOf(key);
-    while (index > 0 && sameState(keys[index - 1], keys[index])) index -= 1;
+    while (index > 0) {
+      const prev = keys[index - 1];
+      const cur = keys[index];
+      if (!prev || !cur || !sameState(prev, cur)) break;
+      index -= 1;
+    }
     return keys[index]?.frame ?? key.frame;
   };
   const poseTimeOf = (key: ChannelKey): number => {
@@ -1493,12 +1518,13 @@ function evaluateActionChannel(
   };
   const { exact, left, right, t, bounds } = locateChannelKey(keys, frame);
   const key = exact || left;
-  const interpolateState = bounds === 'segment' ? sameState(left!, right!) : true;
+  if (!key || !left || !right) return null;
+  const interpolateState = bounds === 'segment' ? sameState(left, right) : true;
   return {
-    pose: normalizePoseId(poseOf(key!)),
-    poseTime: interpolateState ? lerp(poseTimeOf(left!), poseTimeOf(right!), t) : poseTimeOf(left!),
-    continuousMotion: motionEnabled(key!),
-    motionStartTime: stateStartFrame(key!) / fps,
+    pose: normalizePoseId(poseOf(key)),
+    poseTime: interpolateState ? lerp(poseTimeOf(left), poseTimeOf(right), t) : poseTimeOf(left),
+    continuousMotion: motionEnabled(key),
+    motionStartTime: stateStartFrame(key) / fps,
     interpolateState, // 派生上下文：骨骼通道据此决定插值 or 硬切（M2-C7）
   };
 }
@@ -1519,6 +1545,7 @@ function evaluateSkeletonChannel(
   const field = (key: ChannelKey, name: string) => key?.fields?.[name];
   const { exact, left, right, t, bounds } = locateChannelKey(keys, frame);
   const key = exact || left;
+  if (!key || !left || !right) return null;
   const jointsOf = (k: ChannelKey): unknown =>
     field(k, 'joints') ||
     poseForObject({ ...object, pose: field(k, 'pose') || object.pose }).joints;
@@ -1530,13 +1557,13 @@ function evaluateSkeletonChannel(
   };
   const interpolate = actionContext ? actionContext.interpolateState : true;
   if (bounds !== 'segment' || !interpolate) {
-    return { rigRoot: [...rootOf(key!)], joints: cloneJointPose(jointsOf(key!)) };
+    return { rigRoot: [...rootOf(key)], joints: cloneJointPose(jointsOf(key)) };
   }
   return {
-    rigRoot: rootOf(left!).map((value: number, index: number) =>
-      lerp(value, rootOf(right!)[index], t),
+    rigRoot: rootOf(left).map((value: number, index: number) =>
+      lerp(value, rootOf(right)[index] ?? value, t),
     ),
-    joints: interpolateJointPose(jointsOf(left!), jointsOf(right!), t),
+    joints: interpolateJointPose(jointsOf(left), jointsOf(right), t),
   };
 }
 
@@ -1653,14 +1680,15 @@ export function cameraAtFrameWithPath(
       const u = clamp((frame - start) / Math.max(1, end - start), 0, 1);
       const pos = pathPositionAtFraction(path, u);
       if (pos) {
-        const tangent = pathTangentAtFraction(path, u) || [0, 0, -1];
+        const tangent = pathTangentAtFraction(path, u) ?? [0, 0, -1];
+        const [tx = 0, ty = 0, tz = -1] = tangent;
         const position = [pos.x, pos.y, pos.z];
         const snapshot: { position: number[]; rotation?: number[] } = { position };
         if (camera.targetMode !== 'object') {
           snapshot.rotation = cameraRotationToward(position, [
-            pos.x + tangent[0],
-            pos.y + tangent[1],
-            pos.z + tangent[2],
+            pos.x + tx,
+            pos.y + ty,
+            pos.z + tz,
           ]);
         }
         return { ...camera, ...snapshot };
@@ -1823,8 +1851,11 @@ export function createEmptyPath(timing: Partial<ProjectSettings> = DEFAULT_PROJE
   };
 }
 
-const clampSegmentIndex = <T>(array: T[], index: number): T =>
-  array[Math.max(0, Math.min(array.length - 1, index))];
+const clampSegmentIndex = <T>(array: T[], index: number): T => {
+  const item = array[Math.max(0, Math.min(array.length - 1, index))];
+  if (item === undefined) throw new Error('clampSegmentIndex: 空数组');
+  return item;
+};
 
 // M3 路径来源判定：路径「存在且启用」= 有 ≥2 个可归一化控制点（M3-C1/C3 的唯一判定入口）。
 // 与旧 UI 层 `path && Array.isArray(path.points) && path.points.length >= 2` 语义一致。
@@ -1886,8 +1917,8 @@ export function pathSamplePoints(
       pts,
       closed ? (segment - 1 + pts.length) % pts.length : segment - 1,
     );
-    const i1 = pts[segment % pts.length];
-    const i2 = pts[(segment + 1) % pts.length];
+    const i1 = clampSegmentIndex(pts, segment % pts.length);
+    const i2 = clampSegmentIndex(pts, (segment + 1) % pts.length);
     const i3 = clampSegmentIndex(pts, closed ? (segment + 2) % pts.length : segment + 2);
     for (let t = 0; t <= 1; t += sampleStep) {
       samples.push(catmullRomPoint(i0, i1, i2, i3, t));
@@ -1911,12 +1942,13 @@ export function pathTangentAtFraction(path: unknown, u: number = 0): number[] | 
   const index = clamp(Math.round(clamp(u, 0, 1) * (samples.length - 1)), 0, samples.length - 2);
   const a = samples[index];
   const b = samples[index + 1];
-  const tangent = [b.x - a.x, b.y - a.y, b.z - a.z];
-  const length = Math.sqrt(
-    tangent[0] * tangent[0] + tangent[1] * tangent[1] + tangent[2] * tangent[2],
-  );
+  if (!a || !b) return null;
+  const tx = b.x - a.x;
+  const ty = b.y - a.y;
+  const tz = b.z - a.z;
+  const length = Math.sqrt(tx * tx + ty * ty + tz * tz);
   if (length < 1e-8) return [0, 0, -1];
-  return [tangent[0] / length, tangent[1] / length, tangent[2] / length];
+  return [tx / length, ty / length, tz / length];
 }
 
 // 按弧长把路径均匀切出 `count` 个关键帧（覆盖 [startFrame, endFrame]）。
@@ -1951,9 +1983,10 @@ export function bakePathKeyframes(
   // 累加弧长
   const cumulative = [0];
   for (let index = 1; index < samples.length; index += 1) {
-    cumulative.push(
-      cumulative[index - 1] + Math.sqrt(pathPointDistanceSq(samples[index - 1], samples[index])),
-    );
+    const prev = samples[index - 1];
+    const cur = samples[index];
+    if (!prev || !cur) continue;
+    cumulative.push((cumulative[index - 1] ?? 0) + Math.sqrt(pathPointDistanceSq(prev, cur)));
   }
   const totalLength = cumulative[cumulative.length - 1] || 0;
   const frames: { frame: number; position: [number, number, number] }[] = [];
@@ -1963,7 +1996,8 @@ export function bakePathKeyframes(
     const targetLength = u * totalLength;
     let index = cumulative.findIndex((value) => value >= targetLength);
     if (index < 0) index = cumulative.length - 1;
-    const point = samples[index];
+    const point = samples[index] ?? samples[samples.length - 1];
+    if (!point) continue;
     frames.push({
       frame: start + Math.round(u * totalFrames),
       position: [point.x, point.y, point.z],
@@ -1982,18 +2016,20 @@ export function pathPositionAtFraction(path: unknown, u: number = 0): PathPoint 
   if (samples.length < 2) return null;
   const cumulative = [0];
   for (let index = 1; index < samples.length; index += 1) {
-    cumulative.push(
-      cumulative[index - 1] + Math.sqrt(pathPointDistanceSq(samples[index - 1], samples[index])),
-    );
+    const prev = samples[index - 1];
+    const cur = samples[index];
+    if (!prev || !cur) continue;
+    cumulative.push((cumulative[index - 1] ?? 0) + Math.sqrt(pathPointDistanceSq(prev, cur)));
   }
   const total = cumulative[cumulative.length - 1] || 0;
   const target = clamp(u, 0, 1) * total;
   let index = cumulative.findIndex((value) => value >= target);
   if (index < 0) index = cumulative.length - 1;
-  const prev = samples[index - 1] || samples[index];
-  const next = samples[index];
-  const segStart = cumulative[index - 1] || 0;
-  const segLen = cumulative[index] - segStart;
+  const next = samples[index] ?? samples[samples.length - 1];
+  const prev = samples[index - 1] ?? next;
+  if (!prev || !next) return null;
+  const segStart = cumulative[index - 1] ?? 0;
+  const segLen = (cumulative[index] ?? 0) - segStart;
   const t = clamp((target - segStart) / Math.max(1e-6, segLen), 0, 1);
   return {
     x: lerp(prev.x, next.x, t),
@@ -2003,8 +2039,8 @@ export function pathPositionAtFraction(path: unknown, u: number = 0): PathPoint 
 }
 
 function rotateVectorXYZ(vector: number[], rotation: number[] = [0, 0, 0]): number[] {
-  let [x, y, z] = vector;
-  const [rx, ry, rz] = rotation;
+  let [x = 0, y = 0, z = 0] = vector;
+  const [rx = 0, ry = 0, rz = 0] = rotation;
   const cosX = Math.cos(rx);
   const sinX = Math.sin(rx);
   const cosY = Math.cos(ry);
@@ -2026,12 +2062,14 @@ export function visualCenterForObject(object: ProjectObject): number[] {
   const bodyHeight = bodyScaleHeight(String(object.bodyType));
   const root = (object.rigRoot as number[] | undefined) ?? [0, 0, 0];
   const scale = (object.scale as number[] | undefined) ?? [1, 1, 1];
-  const localCenter = [root[0] * scale[0], (root[1] + bodyHeight) * scale[1], root[2] * scale[2]];
+  const [r0 = 0, r1 = 0, r2 = 0] = root;
+  const [s0 = 1, s1 = 1, s2 = 1] = scale;
+  const localCenter = [r0 * s0, (r1 + bodyHeight) * s1, r2 * s2];
   const offset = rotateVectorXYZ(
     localCenter,
     (object.rotation as number[] | undefined) ?? [0, 0, 0],
   );
-  return position.map((value, index) => value + offset[index]);
+  return position.map((value, index) => value + (offset[index] ?? 0));
 }
 
 export function referenceImageFromFile(file: File): Promise<string> {

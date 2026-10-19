@@ -40,19 +40,19 @@ export interface RelayIntent {
   /** 前端自造任务 id（taskStore task_id，贯穿链路主键） */
   frontTaskId: string;
   /** 归属节点 id（任务行 node_id 由 taskStore.reportGenerate 写；此字段可省略） */
-  nodeId?: string;
+  nodeId?: string | undefined;
   type: string;
   providerId: string;
   capability: RelayCapability;
   model: string;
-  prompt?: string;
-  size?: string;
-  images?: string[];
-  messages?: unknown[];
+  prompt?: string | undefined;
+  size?: string | undefined;
+  images?: string[] | undefined;
+  messages?: unknown[] | undefined;
   /** video：清晰度（如 '1080p'） */
-  resolution?: string;
+  resolution?: string | undefined;
   /** video：时长（秒） */
-  duration?: number | string;
+  duration?: number | string | undefined;
 }
 
 /**
@@ -66,11 +66,11 @@ export type RelayTaskStatusValue = 'running' | 'completed' | 'failed' | 'unknown
 export interface RelayPollData {
   /** 【TD-08-24】`unknown` = 提交结果未知（**可能已在跑**），与 `failed`（确定没跑）区分 —— 勿合并。 */
   status: RelayTaskStatusValue;
-  progress?: number;
-  url?: string;
-  error?: string;
+  progress?: number | undefined;
+  url?: string | undefined;
+  error?: string | undefined;
   /** 【143 · S3′】后端实际生效的任务预算（ms）。前端据此设等待上限，**不自持数值**。 */
-  budgetMs?: number;
+  budgetMs?: number | undefined;
 }
 
 /** 信封解析：localTool 端点 { code, data } */
@@ -170,8 +170,8 @@ export async function relayPoll(frontTaskId: string): Promise<RelayPollData> {
 
 export interface RelayGenerateOptions {
   intent: RelayIntent;
-  signal?: AbortSignal;
-  onProgress?: (percent: number, message?: string) => void;
+  signal?: AbortSignal | undefined;
+  onProgress?: ((percent: number, message?: string) => void) | undefined;
 }
 
 export interface RelayAttachOptions {
@@ -185,11 +185,11 @@ export interface RelayAttachOptions {
    *   而"后端真死了"这一情形由 `MAX_CONSECUTIVE_POLL_ERRORS`（连续查询失败）负责 fail-loud，
    *   不该再编一个数字来假装它是业务预算（ADR-0035：不掐点 ≠ 无风险，但风险要有**对的那道**防线）。
    */
-  timeoutMs?: number;
-  signal?: AbortSignal;
-  onProgress?: (percent: number, message?: string) => void;
+  timeoutMs?: number | undefined;
+  signal?: AbortSignal | undefined;
+  onProgress?: ((percent: number, message?: string) => void) | undefined;
   /** 起始进度（放弃初始 submit 后的 20；恢复时直接开始映射后端 progress） */
-  startProgress?: number;
+  startProgress?: number | undefined;
 }
 
 /**
@@ -334,9 +334,9 @@ export async function relayGenerate(opts: RelayGenerateOptions): Promise<RelayGe
 export async function relayChat(
   intent: RelayIntent,
   opts: {
-    signal?: AbortSignal;
-    timeoutMs?: number;
-    temperature?: number;
+    signal?: AbortSignal | undefined;
+    timeoutMs?: number | undefined;
+    temperature?: number | undefined;
   } = {},
 ): Promise<RelayGenerationResult> {
   const { signal } = opts;
@@ -427,14 +427,14 @@ export async function relayChat(
  */
 export async function relayChatStream(opts: {
   intent: Pick<RelayIntent, 'frontTaskId' | 'providerId' | 'model'> & {
-    messages?: unknown[];
-    prompt?: string;
-    images?: string[];
+    messages?: unknown[] | undefined;
+    prompt?: string | undefined;
+    images?: string[] | undefined;
   };
-  tools?: unknown[];
-  stream?: boolean;
-  signal?: AbortSignal;
-  label?: string;
+  tools?: unknown[] | undefined;
+  stream?: boolean | undefined;
+  signal?: AbortSignal | undefined;
+  label?: string | undefined;
 }): Promise<Response> {
   const { intent, tools, signal, label } = opts;
   const stream = opts.stream !== false;

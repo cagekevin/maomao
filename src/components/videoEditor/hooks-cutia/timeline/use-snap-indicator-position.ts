@@ -7,7 +7,7 @@ interface UseSnapIndicatorPositionParams {
   zoomLevel: number;
   tracks: TimelineTrack[];
   timelineRef: React.RefObject<HTMLDivElement | null>;
-  trackLabelsRef?: React.RefObject<HTMLDivElement | null>;
+  trackLabelsRef?: React.RefObject<HTMLDivElement | null> | undefined;
   tracksScrollRef: React.RefObject<HTMLDivElement | null>;
 }
 

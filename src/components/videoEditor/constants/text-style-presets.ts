@@ -1,11 +1,20 @@
 import type { TextElement, TextStroke, TextShadow } from '@/components/videoEditor/types/timeline';
 
+/**
+ * 预设 patch：允许**显式 undefined**（表示「清空该样式」）。
+ * `Partial<T>` 在 `exactOptionalPropertyTypes` 下不接受显式 undefined，而 `clear-all` 预设正是靠
+ * `stroke: undefined` / `shadow: undefined` 清空，故用映射类型把 undefined 显式写进值域。
+ */
+type TextStylePatch = {
+  [K in 'color' | 'backgroundColor' | 'stroke' | 'shadow' | 'fontWeight']?:
+    | TextElement[K]
+    | undefined;
+};
+
 export interface TextStylePreset {
   id: string;
   name: string;
-  styles: Partial<
-    Pick<TextElement, 'color' | 'backgroundColor' | 'stroke' | 'shadow' | 'fontWeight'>
-  >;
+  styles: TextStylePatch;
   preview: {
     color: string;
     backgroundColor?: string;

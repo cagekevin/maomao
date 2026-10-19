@@ -171,16 +171,13 @@ export function ungroupNodes(
   const gy = group.position.y;
   const next: Node[] = nodes
     .filter((n) => n.id !== groupId)
-    .map((n) =>
-      n.parentId === groupId
-        ? {
-            ...n,
-            parentId: undefined,
-            extent: undefined,
-            position: { x: n.position.x + gx, y: n.position.y + gy },
-          }
-        : n,
-    );
+    .map((n) => {
+      if (n.parentId !== groupId) return n;
+      // 取消编组 = 移除 parentId/extent 两个键（eop 下不能显式赋 undefined）；
+      // 解构剔除后重建，避免旧 parentId/extent 随展开残留。
+      const { parentId: _parentId, extent: _extent, ...rest } = n;
+      return { ...rest, position: { x: n.position.x + gx, y: n.position.y + gy } };
+    });
   return { ok: true, nodes: next };
 }
 
@@ -314,16 +311,11 @@ export function resolveDragGrouping(draggedNode: Node, nodes: Node[]): Node[] | 
     const parent = cur.find((n) => n.id === draggedNode.parentId);
     if (parent) {
       absPosOf(parent.id);
-      cur = cur.map((n) =>
-        n.id === draggedNode.id
-          ? {
-              ...n,
-              parentId: undefined,
-              extent: undefined,
-              position: { x: draggedAbs.x, y: draggedAbs.y },
-            }
-          : n,
-      );
+      cur = cur.map((n) => {
+        if (n.id !== draggedNode.id) return n;
+        const { parentId: _parentId, extent: _extent, ...rest } = n;
+        return { ...rest, position: { x: draggedAbs.x, y: draggedAbs.y } };
+      });
       changed = true;
     }
   }
@@ -376,16 +368,20 @@ export function duplicateSelectedWithEdges(
       //   若后续发现 data 内「会被写者原地改的集合字段」（images[]/texts[]/outputs[]等）
       //   仍串扰，再对这类字段逐一浅拷成新数组（非无脑递归深拷，避免无谓体积）。
       const clonedData = n.data ? { ...n.data } : n.data;
+      // 先剔除原 parentId，再按映射结果决定是否写回：
+      // 父节点未被克隆时必须**不写这个键**（eop 下不能显式赋 undefined）；
+      // 若只是从展开里省略，`...rest` 会残留原 parentId（指向旧组），故必须解构剔除。
+      const { parentId: _parentId, ...rest } = n;
+      const mappedParentId =
+        n.parentId && idMap.has(String(n.parentId)) ? idMap.get(String(n.parentId)) : undefined;
       return {
-        ...n,
+        ...rest,
         id: newId!,
         data: clonedData,
-        ...(n.parentId && idMap.has(String(n.parentId))
-          ? { parentId: idMap.get(String(n.parentId)) }
-          : { parentId: undefined }),
+        ...(mappedParentId !== undefined ? { parentId: mappedParentId } : {}),
         position: {
-          x: n.position?.x || 0,
-          y: (n.position?.y || 0) + (n.parentId ? 0 : DUPLICATE_OFFSET_Y),
+          x: n.position?.x ?? 0,
+          y: (n.position?.y ?? 0) + (n.parentId ? 0 : DUPLICATE_OFFSET_Y),
         },
         selected: true,
       };

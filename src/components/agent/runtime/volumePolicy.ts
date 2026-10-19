@@ -183,7 +183,8 @@ function downgradeConversation(
     });
   }
   // 3) memory 限容
-  next.memory = capConversationMemory(next.memory);
+  const cappedMemory = capConversationMemory(next.memory);
+  if (cappedMemory !== undefined) next.memory = cappedMemory;
   return next;
 }
 

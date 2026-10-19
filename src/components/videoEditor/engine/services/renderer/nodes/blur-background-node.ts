@@ -16,7 +16,7 @@ export class BlurBackgroundNode extends BaseNode<BlurBackgroundNodeParams> {
     this.contentNodes = params.contentNodes;
   }
 
-  async render({ renderer, time }: { renderer: CanvasRenderer; time: number }): Promise<void> {
+  override async render({ renderer, time }: { renderer: CanvasRenderer; time: number }): Promise<void> {
     let offscreen: OffscreenCanvas | HTMLCanvasElement;
     let offscreenCtx: OffscreenCanvasRenderingContext2D | CanvasRenderingContext2D;
 

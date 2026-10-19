@@ -58,12 +58,12 @@ const FETCH_PAGE_SIZE = 100;
 
 /** 素材库 / 生成列表的读取条件（与 `fetchResources` 参数同形，便于直接透传）。 */
 export interface ResourceQuery {
-  folder?: string;
-  folderExact?: string;
-  type?: string;
-  projectId?: string;
+  folder?: string | undefined;
+  folderExact?: string | undefined;
+  type?: string | undefined;
+  projectId?: string | undefined;
   /** 关键词（走后端多列 LIKE；**不再**由前端"在已加载页内过滤"） */
-  search?: string;
+  search?: string | undefined;
 }
 
 /** 任务列表的读取条件。 */

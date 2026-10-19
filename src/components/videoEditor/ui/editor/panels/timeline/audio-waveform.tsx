@@ -5,13 +5,13 @@ import WaveSurfer from 'wavesurfer.js';
 import { MissingMediaIndicator } from './missing-media-indicator';
 
 interface AudioWaveformProps {
-  audioUrl?: string;
-  audioBlob?: Blob;
-  audioBuffer?: AudioBuffer;
-  duration?: number;
-  height?: number;
-  volume?: number;
-  className?: string;
+  audioUrl?: string | undefined;
+  audioBlob?: Blob | undefined;
+  audioBuffer?: AudioBuffer | undefined;
+  duration?: number | undefined;
+  height?: number | undefined;
+  volume?: number | undefined;
+  className?: string | undefined;
 }
 
 function extractPeaks({

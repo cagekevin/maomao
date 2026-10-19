@@ -143,7 +143,13 @@ export function getTrackClasses({ type }: { type: TrackType }) {
  * 倍率由 `TTimelineViewState.trackHeightScale` 提供（用户可调），夹取经 `clampTrackHeightScale`。
  * 缓存的**只有倍率**，基准高度仍是 `TRACK_HEIGHTS` 单一真源。
  */
-export function getTrackHeight({ type, scale }: { type: TrackType; scale?: number }): number {
+export function getTrackHeight({
+  type,
+  scale,
+}: {
+  type: TrackType;
+  scale?: number | undefined;
+}): number {
   return Math.round(TRACK_HEIGHTS[type] * clampTrackHeightScale(scale));
 }
 
@@ -154,7 +160,7 @@ export function getCumulativeHeightBefore({
 }: {
   tracks: Array<{ type: TrackType }>;
   trackIndex: number;
-  scale?: number;
+  scale?: number | undefined;
 }): number {
   return tracks
     .slice(0, trackIndex)
@@ -166,7 +172,7 @@ export function getTotalTracksHeight({
   scale,
 }: {
   tracks: Array<{ type: TrackType }>;
-  scale?: number;
+  scale?: number | undefined;
 }): number {
   const tracksHeight = tracks.reduce(
     (sum, track) => sum + getTrackHeight({ type: track.type, scale }),
@@ -350,7 +356,7 @@ export function getEarliestMainTrackElement({
   excludeElementId,
 }: {
   tracks: TimelineTrack[];
-  excludeElementId?: string;
+  excludeElementId?: string | undefined;
 }): TimelineElement | null {
   const mainTrack = getMainTrack({ tracks });
   if (!mainTrack) {
@@ -379,7 +385,7 @@ export function enforceMainTrackStart({
   tracks: TimelineTrack[];
   targetTrackId: string;
   requestedStartTime: number;
-  excludeElementId?: string;
+  excludeElementId?: string | undefined;
 }): number {
   const mainTrack = getMainTrack({ tracks });
   if (!mainTrack || mainTrack.id !== targetTrackId) {

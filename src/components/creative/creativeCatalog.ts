@@ -57,13 +57,13 @@ interface RawMj {
 export interface MjPreset extends CreativePreset {
   /** 素材类型组：char（角色人像）/ scene（场景环境）/ juwu（巨物怪兽）。两轴交叉过滤的「素材类型」轴 */
   group: string;
-  mixed?: boolean;
-  medium?: string;
-  codes?: string;
-  parameters?: string;
-  vibe?: string;
+  mixed?: boolean | undefined;
+  medium?: string | undefined;
+  codes?: string | undefined;
+  parameters?: string | undefined;
+  vibe?: string | undefined;
   /** 详情大图（原始 preview，比网格缩略图大） */
-  bigPreview?: string;
+  bigPreview?: string | undefined;
 }
 
 /** catalog 活类型：风格/滤镜/运镜 = CreativePreset；MJ = MjPreset（带面板详情用的不落盘字段）。 */

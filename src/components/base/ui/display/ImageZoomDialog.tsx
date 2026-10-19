@@ -28,9 +28,9 @@ import { setCrossOriginForReadable } from '@/components/base/utils/net/asyncGuar
 import { useFullscreenEditorKeys } from '@/components/base/core/interaction/modalLayer';
 
 interface ImageZoomDialogProps {
-  url?: string;
-  kind?: 'image' | 'video';
-  onClose?: () => void;
+  url?: string | undefined;
+  kind?: 'image' | 'video' | undefined;
+  onClose?: (() => void) | undefined;
 }
 
 /** React 19：ref 作普通 prop 直接解构（替代已废弃的 forwardRef）。 */

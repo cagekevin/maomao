@@ -210,7 +210,7 @@ export async function fetchResources({
   projectId,
   search,
 }: {
-  folder?: string;
+  folder?: string | undefined;
   /**
    * 文件夹**精确匹配**（`folder = ?`，不含子目录）。
    *
@@ -220,13 +220,13 @@ export async function fetchResources({
    *    **只看该目录本身**（`migrated` 根 = 尚未归类的素材 + 其下子文件夹卡片）。
    * 二者是**不同的查询语义，不是同义的两种写法**，故并存（勿合并）。
    */
-  folderExact?: string;
-  page?: number;
-  pageSize?: number;
-  type?: string;
-  projectId?: string;
+  folderExact?: string | undefined;
+  page?: number | undefined;
+  pageSize?: number | undefined;
+  type?: string | undefined;
+  projectId?: string | undefined;
   /** 关键词（后端多列 LIKE；空 = 不过滤） */
-  search?: string;
+  search?: string | undefined;
 } = {}): Promise<ApiEnvelope<PagedResult<ResourceItem>>> {
   const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
   // folder 默认用 `{eqOrPrefix}`（精确 + 前缀）而不是等值：原 pill「全部」以 `migrated` 为根，
@@ -440,7 +440,7 @@ export interface KvSetResult {
 export async function kvSet(
   key: string,
   value: unknown,
-  opts: { ifVersion?: number } = {},
+  opts: { ifVersion?: number | undefined } = {},
 ): Promise<KvSetResult> {
   return httpRequest(`${API_BASE}/api/kv/set`, {
     timeoutMs: T,

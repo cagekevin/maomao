@@ -70,30 +70,32 @@ export type AudioFormat = 'm4a' | 'wav' | 'mp3';
 /** processVideo 选项（对齐官方 Dc 的 t） */
 export interface ProcessVideoOptions extends ProgressOptions {
   mode: 'trim' | 'extractAudio' | 'sizeFrameRate';
-  start?: number;
-  end?: number;
-  format?: AudioFormat;
-  width?: number;
-  height?: number;
-  fps?: number;
+  start?: number | undefined;
+  end?: number | undefined;
+  format?: AudioFormat | undefined;
+  width?: number | undefined;
+  height?: number | undefined;
+  fps?: number | undefined;
 }
 /** concatVideos 选项（对齐官方 Oc 的 t） */
 interface ConcatOptions extends ProgressOptions {
-  segments?: { start?: number; end?: number; muted?: boolean }[];
-  width?: number;
-  height?: number;
-  fps?: number;
+  segments?:
+    | { start?: number | undefined; end?: number | undefined; muted?: boolean | undefined }[]
+    | undefined;
+  width?: number | undefined;
+  height?: number | undefined;
+  fps?: number | undefined;
 }
 /** videoToGif 选项（对齐官方 ic） */
 interface GifOptions {
-  fps?: number;
-  maxSize?: number;
-  colors?: number;
-  startTime?: number;
-  endTime?: number;
-  speed?: number;
-  timeoutMs?: number;
-  onProgress?: (p: number) => void;
+  fps?: number | undefined;
+  maxSize?: number | undefined;
+  colors?: number | undefined;
+  startTime?: number | undefined;
+  endTime?: number | undefined;
+  speed?: number | undefined;
+  timeoutMs?: number | undefined;
+  onProgress?: ((p: number) => void) | undefined;
 }
 /** 视频元数据形状 */
 interface VideoMetadata {

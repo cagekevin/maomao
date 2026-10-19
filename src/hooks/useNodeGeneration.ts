@@ -23,8 +23,8 @@ export type { TaskController } from '../components/base/store/taskStore.ts';
 /** 任务上报信息（节点类型 / 提示词 / 模型名） */
 export interface GenerationTypeInfo {
   type: string;
-  prompt?: string;
-  modelName?: string;
+  prompt?: string | undefined;
+  modelName?: string | undefined;
 }
 
 /** 传给 run 执行器的参数 */
@@ -78,17 +78,17 @@ export interface UseNodeGenerationOptions {
   nodeId: string;
   /** 任务上报信息 */
   type: GenerationTypeInfo;
-  validate?: GenerationValidate;
+  validate?: GenerationValidate | undefined;
   /** 真执行器。必填：本契约的价值建立在「有生成可跑」之上，缺它是调用方漏传，编译期即拒（不再用 `!` 掩盖） */
   run: GenerationRunner;
-  onSuccess?: GenerationOnSuccess;
-  onRecover?: GenerationOnRecover;
+  onSuccess?: GenerationOnSuccess | undefined;
+  onRecover?: GenerationOnRecover | undefined;
   /**
    * 【唯一写回路径】声明后由本 hook 自动写回 `node.data[resultKey]`：
    * 成功首写 → 落盘后持久 URL 覆盖 → 收到 task-completed 广播恢复，**三个时点共用这一条**。
    * 声明它即表示「本节点的结果可随任务中心恢复」，**不再另设开关**（TD-01-21）。
    */
-  resultKey?: string;
+  resultKey?: string | undefined;
 }
 
 export interface NodeGenerationApi {

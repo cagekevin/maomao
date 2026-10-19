@@ -12,7 +12,7 @@ import type { ImageGenTemplate, ScriptBoxConstraints, ScriptBoxNegatives } from 
 
 /** 单个 playbook 的规范形状（导出/导入/存储共用）。 */
 export interface Playbook {
-  id?: string;
+  id?: string | undefined;
   label: string;
   builtin: boolean;
   script: string;

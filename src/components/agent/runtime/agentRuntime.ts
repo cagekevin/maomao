@@ -112,8 +112,8 @@ interface ResolveBodyOpts {
   model: string;
   logger: AgentLogger;
   parseSSEChunk: (line: string, acc: SSEAccumulator) => SSEChunkOutcome;
-  ENABLE_TOOLS_ON_NON_STREAM?: boolean;
-  onStream?: (delta: StreamDelta) => void;
+  ENABLE_TOOLS_ON_NON_STREAM?: boolean | undefined;
+  onStream?: ((delta: StreamDelta) => void) | undefined;
 }
 
 /** 非流式 / 兜底解析的 LLM 响应信封（OpenAI choices 或 relay {code,data} 两种形态）。 */

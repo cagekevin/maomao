@@ -40,7 +40,7 @@ const LAZY_NODE_HANDLE_CONTRACT: Record<
 > = NODE_HANDLE_CONTRACT;
 
 /** 骨架内容（纯视觉：转圈 + 文案） */
-function LoadingContent({ label }: { label?: string }) {
+function LoadingContent({ label }: { label?: string | undefined }) {
   return (
     <div className="w-full h-full min-h-[120px] flex flex-col items-center justify-center gap-2 text-center">
       <div className="w-5 h-5 rounded-full border-2 border-edge border-t-transparent animate-spin" />
@@ -60,9 +60,9 @@ function NodeLoading({
   label,
   handleContract,
 }: {
-  id?: string;
-  label?: string;
-  handleContract?: { targetHandleId?: string; sourceHandleId?: string };
+  id?: string | undefined;
+  label?: string | undefined;
+  handleContract?: { targetHandleId?: string; sourceHandleId?: string } | undefined;
 }) {
   if (!id) return <LoadingContent label={label} />;
   return (
@@ -86,7 +86,7 @@ function NodeLoading({
  */
 export function lazyNode(
   loader: () => Promise<{ default: React.ComponentType<any> }>,
-  { label, type }: { label?: string; type?: string } = {},
+  { label, type }: { label?: string | undefined; type?: string | undefined } = {},
 ) {
   const Lazy = React.lazy(() =>
     loader().catch((e) => {

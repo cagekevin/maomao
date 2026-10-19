@@ -157,7 +157,7 @@ const DialogContent = React.forwardRef<
   HTMLDivElement,
   React.HTMLAttributes<HTMLDivElement> & {
     /** Radix 同名的开层前钩子；`preventDefault()` = 不要自动聚焦（本项目删除确认框在用）。 */
-    onOpenAutoFocus?: (event: Event) => void;
+    onOpenAutoFocus?: ((event: Event) => void) | undefined;
   }
 >(function DialogContent({ className, children, onOpenAutoFocus, onKeyDown, ...props }, ref) {
   const context = useDialogContext('DialogContent');
@@ -186,7 +186,7 @@ function DialogContentImpl({
   context,
   ...props
 }: React.HTMLAttributes<HTMLDivElement> & {
-  onOpenAutoFocus?: (event: Event) => void;
+  onOpenAutoFocus?: ((event: Event) => void) | undefined;
   forwardedRef: React.Ref<HTMLDivElement>;
   context: DialogContextValue;
 }) {

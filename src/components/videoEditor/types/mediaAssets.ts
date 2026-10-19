@@ -18,16 +18,16 @@ export interface MediaAssetData {
   type: MediaType;
   size: number;
   lastModified: number;
-  width?: number;
-  height?: number;
-  duration?: number;
-  fps?: number;
+  width?: number | undefined;
+  height?: number | undefined;
+  duration?: number | undefined;
+  fps?: number | undefined;
   /** 视频文件是否含音轨（TD-21-17：贴「带原声视频」🔊 角标用；非视频/未探测到 → undefined）。 */
-  hasAudio?: boolean;
-  ephemeral?: boolean;
-  thumbnailUrl?: string;
+  hasAudio?: boolean | undefined;
+  ephemeral?: boolean | undefined;
+  thumbnailUrl?: string | undefined;
   /** T4（docs/134）：素材二进制落 localTool /files/ 后的可访问 URL（替代 OPFS 二进制存储）。 */
-  url?: string;
+  url?: string | undefined;
   /**
    * 稳定内容身份（`sha1:<hex>`，与后端 `resources.sha1` 同源）。
    *
@@ -37,7 +37,7 @@ export interface MediaAssetData {
    * ⚠️ 它**缺失是常态**（画布图往往没有）→ 去重必须**双轨**（contentId + 归一化 url），
    * 不能只按 contentId（否则多数情况静默重复登记）。
    */
-  contentId?: string;
+  contentId?: string | undefined;
 }
 
 export interface MediaAsset extends Omit<MediaAssetData, 'size' | 'lastModified'> {

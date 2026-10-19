@@ -274,7 +274,8 @@ interface VClip {
   sourceUrl?: string;
   url?: string;
   name?: string;
-  duration?: number;
+  /** 归一化后恒有值（map/push 两处都算 `clipDur`/`dur`）⇒ 类型层不再允许缺失。 */
+  duration: number;
   sourceStart?: number;
   sourceEnd?: number;
   // 【2026-09-19 · TD-21-24】**必填**：`VClip` 只由 `tracks` 这个 useMemo 产出，而它**恒赋值**
@@ -426,7 +427,7 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
       const kind = tr.kind || tr.type || 'video';
       const trackId = tr.id != null ? String(tr.id) : `${kind}-track-${idx + 1}`;
       let cursor = 0;
-      const clips = (tr.clips || tr.segments || []).map((cl, ci) => {
+      const clips = (tr.clips || tr.segments || []).map((cl, ci): VClip => {
         const src = sourceMap.get(cl.sourceId);
         const dur =
           sourceMetadata[cl.sourceId ?? '']?.duration || cl.duration || cl.sourceEnd || cl.end || 0;
@@ -443,7 +444,7 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
           // 【TD-21-23】持久片段缺 id 时的回退必须**确定性**（按"轨道序号+片段序号"派生）：
           // 本 useMemo 每次重算都会走到这里，随机 id 会让同一份 timelineTracks 每次换身份。
           id: cl.id != null ? String(cl.id) : `clip-${idx}-${ci}`,
-          sourceId: cl.sourceId,
+          ...(cl.sourceId !== undefined ? { sourceId: cl.sourceId } : {}),
           url: src?.url || cl.url || cl.sourceUrl || '',
           name: src?.name || cl.name || cl.sourceName || '视频片段',
           sourceStart: start,
@@ -482,7 +483,7 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
         // 原为 `makeId('clip')`（随机）⇒ 本 useMemo 一旦重算就换一批新 id ⇒ `:628` 的选中态 effect
         // 认不出 selectedClipId ⇒ setSelectedClipId ⇒ 渲染 ⇒ 重算……（引用持续不稳时即无限循环）。
         id: `clip-auto-${s.sourceId}`,
-        sourceId: s.sourceId,
+        ...(s.sourceId !== undefined ? { sourceId: s.sourceId } : {}),
         url: s.url,
         name: s.name,
         sourceStart: 0,

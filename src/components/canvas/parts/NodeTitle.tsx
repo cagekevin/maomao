@@ -12,19 +12,19 @@ import type { LucideIcon } from 'lucide-react';
  */
 interface NodeTitleProps {
   /** 当前标题（受控：外部 label 变化时同步回显） */
-  label?: string;
+  label?: string | undefined;
   /** label 为空时的兜底标题 */
-  defaultTitle?: string;
+  defaultTitle?: string | undefined;
   /** 标题前的小图标**组件**（不是 element）。
       收组件引用而非 JSX 有两个硬理由：
       ① 组件引用是模块级常量 ⇒ 引用天然稳定 ⇒ 不会击穿 memo(NodeTitle)；
       ② 图标尺寸/颜色属**本组件**的呈现决定，不该由 16 个调用方各写一遍（本仓 PanelBar/LeftPanel 同形）。 */
-  icon?: LucideIcon;
-  className?: string;
+  icon?: LucideIcon | undefined;
+  className?: string | undefined;
   /** 浮层模式：绝对定位到节点上方（默认内联在标题栏） */
-  floating?: boolean;
+  floating?: boolean | undefined;
   /** 改名提交回调；不传则只改本地显示（保持原行为） */
-  onRename?: (next: string) => void;
+  onRename?: ((next: string) => void) | undefined;
 }
 
 function NodeTitle({

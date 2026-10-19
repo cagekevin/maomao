@@ -27,8 +27,8 @@ class TranscriptionService {
     audioData: Float32Array;
     language?: TranscriptionLanguage;
     subtask?: TranscriptionSubtask;
-    onProgress?: ProgressCallback;
-    onStreamingUpdate?: StreamingCallback;
+    onProgress?: ProgressCallback | undefined;
+    onStreamingUpdate?: StreamingCallback | undefined;
   }): Promise<TranscriptionResult> {
     await this.ensureWorker({ onProgress });
 
@@ -96,7 +96,11 @@ class TranscriptionService {
     this.worker?.postMessage({ type: 'cancel' } satisfies WorkerMessage);
   }
 
-  private async ensureWorker({ onProgress }: { onProgress?: ProgressCallback }): Promise<void> {
+  private async ensureWorker({
+    onProgress,
+  }: {
+    onProgress?: ProgressCallback | undefined;
+  }): Promise<void> {
     // 单模型（见 transcription-constants.ts）：已初始化即复用。
     // 原「换模型 ⇒ needsNewModel ⇒ 重建 worker」分支随可选清单一起删掉，不再保留。
     if (this.worker && this.isInitialized) return;

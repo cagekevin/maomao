@@ -414,7 +414,7 @@ const resolveRadialCenter = ({
 }: {
   width: number;
   height: number;
-  position?: Position;
+  position?: Position | undefined;
 }): { cx: number; cy: number } => {
   if (!position) {
     return { cx: width / 2, cy: height / 2 };
@@ -513,6 +513,7 @@ const resolveRadialExtents = ({
   ];
   const sorted = corners.slice().sort((a, b) => Math.hypot(a.dx, a.dy) - Math.hypot(b.dx, b.dy));
   const chosen = extent === 'closest-corner' ? sorted[0] : sorted[sorted.length - 1];
+  if (!chosen) return { rx: 0, ry: 0 };
   return { rx: Math.abs(chosen.dx), ry: Math.abs(chosen.dy) };
 };
 
@@ -521,7 +522,7 @@ const resolvePositionValue = ({
   axisSize,
   axis,
 }: {
-  distance?: Distance;
+  distance?: Distance | undefined;
   axisSize: number;
   axis: 'x' | 'y';
 }): number => {
@@ -638,7 +639,7 @@ const isTransparent = ({ color }: { color: string }): boolean => {
     return true;
   }
   const rgbaMatch = lower.match(/^rgba\(\s*[\d.]+\s*,\s*[\d.]+\s*,\s*[\d.]+\s*,\s*([\d.]+)\s*\)$/);
-  if (rgbaMatch && Number.parseFloat(rgbaMatch[1]) === 0) {
+  if (rgbaMatch?.[1] !== undefined && Number.parseFloat(rgbaMatch[1]) === 0) {
     return true;
   }
   return false;
@@ -654,11 +655,12 @@ const parseColorToRgb = ({
   const hexMatch = lower.match(/^#([0-9a-f]{3,8})$/);
   if (hexMatch) {
     const hex = hexMatch[1];
+    if (!hex) return null;
     if (hex.length === 3) {
       return {
-        r: Number.parseInt(hex[0] + hex[0], 16),
-        g: Number.parseInt(hex[1] + hex[1], 16),
-        b: Number.parseInt(hex[2] + hex[2], 16),
+        r: Number.parseInt(hex.charAt(0) + hex.charAt(0), 16),
+        g: Number.parseInt(hex.charAt(1) + hex.charAt(1), 16),
+        b: Number.parseInt(hex.charAt(2) + hex.charAt(2), 16),
         a: 1,
       };
     }
@@ -682,24 +684,25 @@ const parseColorToRgb = ({
 
   const rgbMatch = lower.match(/^rgb\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)\s*\)$/);
   if (rgbMatch) {
-    return {
-      r: Number.parseFloat(rgbMatch[1]),
-      g: Number.parseFloat(rgbMatch[2]),
-      b: Number.parseFloat(rgbMatch[3]),
-      a: 1,
-    };
+    const [, r, g, b] = rgbMatch;
+    if (r !== undefined && g !== undefined && b !== undefined) {
+      return { r: Number.parseFloat(r), g: Number.parseFloat(g), b: Number.parseFloat(b), a: 1 };
+    }
   }
 
   const rgbaMatch = lower.match(
     /^rgba\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)\s*\)$/,
   );
   if (rgbaMatch) {
-    return {
-      r: Number.parseFloat(rgbaMatch[1]),
-      g: Number.parseFloat(rgbaMatch[2]),
-      b: Number.parseFloat(rgbaMatch[3]),
-      a: Number.parseFloat(rgbaMatch[4]),
-    };
+    const [, r, g, b, a] = rgbaMatch;
+    if (r !== undefined && g !== undefined && b !== undefined && a !== undefined) {
+      return {
+        r: Number.parseFloat(r),
+        g: Number.parseFloat(g),
+        b: Number.parseFloat(b),
+        a: Number.parseFloat(a),
+      };
+    }
   }
 
   return null;
@@ -717,15 +720,17 @@ const fixTransparentStops = ({
   const result = stops.map((stop) => ({ ...stop }));
 
   for (let i = 0; i < result.length; i++) {
-    if (!isTransparent({ color: result[i].color })) {
+    const target = result[i];
+    if (!target || !isTransparent({ color: target.color })) {
       continue;
     }
 
     let donorColor: { r: number; g: number; b: number } | null = null;
 
     for (let j = i - 1; j >= 0; j--) {
-      if (!isTransparent({ color: result[j].color })) {
-        const parsed = parseColorToRgb({ color: result[j].color });
+      const candidate = result[j];
+      if (candidate && !isTransparent({ color: candidate.color })) {
+        const parsed = parseColorToRgb({ color: candidate.color });
         if (parsed) {
           donorColor = parsed;
           break;
@@ -735,8 +740,9 @@ const fixTransparentStops = ({
 
     if (!donorColor) {
       for (let j = i + 1; j < result.length; j++) {
-        if (!isTransparent({ color: result[j].color })) {
-          const parsed = parseColorToRgb({ color: result[j].color });
+        const candidate = result[j];
+        if (candidate && !isTransparent({ color: candidate.color })) {
+          const parsed = parseColorToRgb({ color: candidate.color });
           if (parsed) {
             donorColor = parsed;
             break;
@@ -746,7 +752,7 @@ const fixTransparentStops = ({
     }
 
     if (donorColor) {
-      result[i].color = `rgba(${donorColor.r},${donorColor.g},${donorColor.b},0)`;
+      target.color = `rgba(${donorColor.r},${donorColor.g},${donorColor.b},0)`;
     }
   }
 
@@ -774,26 +780,32 @@ const normalizeColorStops = ({
   if (knownIndices.length === 0) {
     const step = resolvedStops.length > 1 ? 1 / (resolvedStops.length - 1) : 1;
     for (let index = 0; index < resolvedStops.length; index += 1) {
-      resolvedStops[index].offset = step * index;
+      const stop = resolvedStops[index];
+      if (stop) stop.offset = step * index;
     }
     return clampStops({ stops: resolvedStops });
   }
 
   const firstKnown = knownIndices[0];
-  if (resolvedStops[firstKnown].offset === null) {
-    resolvedStops[firstKnown].offset = 0;
-  }
+  const firstStop = firstKnown !== undefined ? resolvedStops[firstKnown] : undefined;
+  if (!firstStop || firstKnown === undefined) return clampStops({ stops: resolvedStops });
+  if (firstStop.offset === null) firstStop.offset = 0;
 
   for (let index = 0; index < firstKnown; index += 1) {
-    const nextOffset = resolvedStops[firstKnown].offset ?? 0;
-    resolvedStops[index].offset = (nextOffset * index) / firstKnown;
+    const stop = resolvedStops[index];
+    if (!stop) continue;
+    stop.offset = ((firstStop.offset ?? 0) * index) / firstKnown;
   }
 
   for (let i = 0; i < knownIndices.length - 1; i += 1) {
     const startIndex = knownIndices[i];
     const endIndex = knownIndices[i + 1];
-    const startOffset = resolvedStops[startIndex].offset ?? 0;
-    const endOffset = resolvedStops[endIndex].offset ?? startOffset;
+    if (startIndex === undefined || endIndex === undefined) continue;
+    const startStop = resolvedStops[startIndex];
+    const endStop = resolvedStops[endIndex];
+    if (!startStop || !endStop) continue;
+    const startOffset = startStop.offset ?? 0;
+    const endOffset = endStop.offset ?? startOffset;
     const gap = endIndex - startIndex;
 
     if (gap <= 1) {
@@ -802,17 +814,22 @@ const normalizeColorStops = ({
 
     const step = (endOffset - startOffset) / gap;
     for (let index = 1; index < gap; index += 1) {
-      resolvedStops[startIndex + index].offset = startOffset + step * index;
+      const stop = resolvedStops[startIndex + index];
+      if (stop) stop.offset = startOffset + step * index;
     }
   }
 
   const lastKnown = knownIndices[knownIndices.length - 1];
-  const lastOffset = resolvedStops[lastKnown].offset ?? 1;
-  if (lastKnown < resolvedStops.length - 1) {
-    const gap = resolvedStops.length - 1 - lastKnown;
-    const step = (1 - lastOffset) / gap;
-    for (let index = 1; index <= gap; index += 1) {
-      resolvedStops[lastKnown + index].offset = lastOffset + step * index;
+  const lastStop = lastKnown !== undefined ? resolvedStops[lastKnown] : undefined;
+  if (lastKnown !== undefined && lastStop) {
+    const lastOffset = lastStop.offset ?? 1;
+    if (lastKnown < resolvedStops.length - 1) {
+      const gap = resolvedStops.length - 1 - lastKnown;
+      const step = (1 - lastOffset) / gap;
+      for (let index = 1; index <= gap; index += 1) {
+        const stop = resolvedStops[lastKnown + index];
+        if (stop) stop.offset = lastOffset + step * index;
+      }
     }
   }
 

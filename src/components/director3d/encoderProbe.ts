@@ -75,14 +75,16 @@ async function runProbe(
 ): Promise<EncoderProbeResult> {
   if (typeof VideoEncoder === 'undefined') return { ok: false, missing: 'webcodecs' };
   const videoCodec = await query.video(request.videoCodecs, {
-    width: request.width,
-    height: request.height,
-    quality: request.quality,
+    ...(request.width !== undefined ? { width: request.width } : {}),
+    ...(request.height !== undefined ? { height: request.height } : {}),
+    ...(request.quality !== undefined ? { quality: request.quality } : {}),
   });
   if (!videoCodec) return { ok: false, missing: 'video' };
   if (!request.audioCodecs || request.audioCodecs.length === 0)
     return { ok: true, videoCodec, audioCodec: null };
-  const audioCodec = await query.audio(request.audioCodecs, { quality: request.quality });
+  const audioCodec = await query.audio(request.audioCodecs, {
+    ...(request.quality !== undefined ? { quality: request.quality } : {}),
+  });
   if (!audioCodec) return { ok: false, missing: 'audio' };
   return { ok: true, videoCodec, audioCodec };
 }

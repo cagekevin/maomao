@@ -35,7 +35,7 @@ export function useTimelineSnapping({
     }: {
       tracks: Array<TimelineTrack>;
       playheadTime: number;
-      excludeElementId?: string;
+      excludeElementId?: string | undefined;
     }): SnapPoint[] => {
       const snapPoints: SnapPoint[] = [];
 
@@ -125,7 +125,7 @@ export function useTimelineSnapping({
       tracks: Array<TimelineTrack>;
       playheadTime: number;
       zoomLevel: number;
-      excludeElementId?: string;
+      excludeElementId?: string | undefined;
       snapToStart?: boolean;
     }): SnapResult => {
       const snapPoints = findSnapPoints({

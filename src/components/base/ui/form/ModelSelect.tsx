@@ -13,11 +13,11 @@ import DropdownRow from './DropdownRow.tsx';
 /** 单个模型项形状。跨厂商聚合时由 buildAllModels 产出：id=`providerId::modelId`、badge=厂商名。 */
 interface ModelItem {
   id: string;
-  label?: string;
+  label?: string | undefined;
   /** 'builtin' | 'third' | 'scheduled' | 其它字符串直接作标签；多 provider 聚合时为 provider 名 */
-  badge?: string;
-  cost?: number;
-  providerId?: string;
+  badge?: string | undefined;
+  cost?: number | undefined;
+  providerId?: string | undefined;
 }
 
 /**

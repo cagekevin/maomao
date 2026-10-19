@@ -3,8 +3,8 @@ export interface SoundEffect {
   name: string;
   description: string;
   url: string;
-  previewUrl?: string;
-  downloadUrl?: string;
+  previewUrl?: string | undefined;
+  downloadUrl?: string | undefined;
   duration: number;
   filesize: number;
   type: string;
@@ -25,8 +25,8 @@ export interface SavedSound {
   id: number; // freesound id
   name: string;
   username: string;
-  previewUrl?: string;
-  downloadUrl?: string;
+  previewUrl?: string | undefined;
+  downloadUrl?: string | undefined;
   duration: number;
   tags: string[];
   license: string;

@@ -29,12 +29,12 @@ const AVATAR_FALLBACK = 'https://api.dicebear.com/9.x/thumbs/svg?seed=maomao';
 /** 云端同步结果（push/pull 回调的返回） */
 export interface SyncResult {
   ok: boolean;
-  count?: number;
-  error?: string;
+  count?: number | undefined;
+  error?: string | undefined;
   /** 用户在「是否覆盖」确认里选了取消 → 非错误，调用方应静默返回、不弹失败提示 */
-  cancelled?: boolean;
+  cancelled?: boolean | undefined;
   /** [F-云A] 部分域失败：上传=读取失败未纳入（skipped）；下载=写回失败（failed）。调用方必须告警 */
-  partial?: { skipped?: string[]; failed?: string[] };
+  partial?: { skipped?: string[] | undefined; failed?: string[] | undefined } | undefined;
 }
 
 export interface TopNavProps {

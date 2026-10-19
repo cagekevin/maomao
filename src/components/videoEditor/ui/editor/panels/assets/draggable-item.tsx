@@ -294,9 +294,9 @@ function ActionButton({
   tooltipText,
   children,
 }: {
-  className?: string;
-  onClick?: ({ event }: { event: React.MouseEvent }) => void;
-  tooltipText?: string;
+  className?: string | undefined;
+  onClick?: (({ event }: { event: React.MouseEvent }) => void) | undefined;
+  tooltipText?: string | undefined;
   children: ReactNode;
 }) {
   const button = (
@@ -361,9 +361,9 @@ function MinusButton({
   tooltipText,
 }: {
   variant: 'card' | 'inline';
-  className?: string;
-  onClick?: ({ event }: { event: React.MouseEvent }) => void;
-  tooltipText?: string;
+  className?: string | undefined;
+  onClick?: (({ event }: { event: React.MouseEvent }) => void) | undefined;
+  tooltipText?: string | undefined;
 }) {
   return (
     <ActionButton

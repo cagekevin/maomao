@@ -13,45 +13,45 @@ type HandleVariant = 'large' | 'small';
 
 interface NodeShellProps {
   id: string;
-  label?: string;
-  defaultTitle?: string;
+  label?: string | undefined;
+  defaultTitle?: string | undefined;
   /** 标题栏图标：传**图标组件本身**（如 `icon={Orbit}`），不传 element。
       【TD-04-37】此前是 `ReactNode`，16 个调用方各写一份 `<Xxx size={11} className="text-muted" />`
       —— 每次渲染新建 element ⇒ 经本组件透传后击穿 memo(NodeTitle)（memo 只比 props 引用）。
       收组件引用后：引用是模块级常量（天然稳定）+ 尺寸/颜色收口到 NodeTitle 一处，
       且**类型层禁止再写内联 element** ⇒ 结构上不可能回潮（无需机器闸）。 */
-  icon?: LucideIcon;
-  selected?: boolean;
-  resizable?: boolean;
-  minWidth?: number;
-  minHeight?: number;
-  keepAspect?: boolean;
-  aspectRatio?: string;
-  defaultHeight?: number;
-  sizeMode?: SizeMode;
-  baseSize?: number;
-  handleVariant?: HandleVariant;
-  showHandles?: boolean;
+  icon?: LucideIcon | undefined;
+  selected?: boolean | undefined;
+  resizable?: boolean | undefined;
+  minWidth?: number | undefined;
+  minHeight?: number | undefined;
+  keepAspect?: boolean | undefined;
+  aspectRatio?: string | undefined;
+  defaultHeight?: number | undefined;
+  sizeMode?: SizeMode | undefined;
+  baseSize?: number | undefined;
+  handleVariant?: HandleVariant | undefined;
+  showHandles?: boolean | undefined;
   /** 右侧 source 端口的 handleId。
       默认留空（React Flow 视为 null handle），关闭时不影响既有无 id 连边；
       传 'main-output' 等值可让该节点作为固定契约的连线源头（如「转深度」spawn 写死 sourceHandle 的场景）。 */
-  sourceHandleId?: string;
+  sourceHandleId?: string | undefined;
   /** 左侧 target 端口的 handleId。
       默认留空（React Flow 视为 null handle）；
       传 'default' / 'in' 等值可让该节点接收写死 targetHandle 的上游连线。
       ⚠️ 与 sourceHandleId 成对：凡是作为「成品节点」被下游 spawn 引用的节点，
       两侧端口都必须通过本组 prop 声明（禁止在 children 里手写 CustomHandle），
       否则端口进不了 NodeShell 的端口渲染路径 → 位置基准错乱 + 句柄契约漂移 → 连线不渲染。 */
-  targetHandleId?: string;
-  showTitle?: boolean;
-  titleRight?: ReactNode;
-  onRename?: (label: string) => void;
-  className?: string;
-  style?: CSSProperties;
-  wrapperRef?: Ref<HTMLDivElement>;
-  overlayHandles?: ReactNode;
-  syncSize?: boolean;
-  children?: ReactNode;
+  targetHandleId?: string | undefined;
+  showTitle?: boolean | undefined;
+  titleRight?: ReactNode | undefined;
+  onRename?: ((label: string) => void) | undefined;
+  className?: string | undefined;
+  style?: CSSProperties | undefined;
+  wrapperRef?: Ref<HTMLDivElement> | undefined;
+  overlayHandles?: ReactNode | undefined;
+  syncSize?: boolean | undefined;
+  children?: ReactNode | undefined;
 }
 
 // ReactFlow store 选择器：订阅单个节点的当前 width / height。
@@ -316,7 +316,7 @@ function NodeShell({
           minWidth={minWidth}
           minHeight={minHeight}
           keepAspectRatio={effectiveKeepAspect}
-          isVisible={selected}
+          {...(selected !== undefined ? { isVisible: selected } : {})}
           color="#ffffff80"
           lineClassName="opacity-0"
           handleClassName="!text-white/60 hover:!text-blue-400"

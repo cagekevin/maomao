@@ -36,7 +36,7 @@ const INLINE_PATTERN = new RegExp(
 interface ChatMarkdownProps {
   value: string;
   /** 点击图片放大（复用 AgentMessage 的原生 dialog 查看大图） */
-  onOpenImage?: (url: string) => void;
+  onOpenImage?: ((url: string) => void) | undefined;
 }
 
 function resolveSafeHref(value: string): string | null {
@@ -134,7 +134,7 @@ const MarkdownImage = memo(function MarkdownImage({
   onOpen,
 }: {
   url: string;
-  onOpen?: (url: string) => void;
+  onOpen?: ((url: string) => void) | undefined;
 }) {
   const { src, failed, onError } = useImageFallbackSrc(url);
   if (failed) {
@@ -167,7 +167,7 @@ function InlineWithImages({
   onOpenImage,
 }: {
   value: string;
-  onOpenImage?: (url: string) => void;
+  onOpenImage?: ((url: string) => void) | undefined;
 }) {
   const spans = extractImageSpans(value);
   if (spans.length === 0) return <InlineContent value={value} />;

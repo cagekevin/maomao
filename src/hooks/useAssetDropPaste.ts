@@ -203,9 +203,10 @@ export function useAssetDropPaste({
         // 传 `filename` = URL 原名 → 后端登记为 resource 行**显示名**（context 维度）。
         // 物理名自 2026-09-17 起是内容寻址（sha1(字节)，不含原名），显示名必须由发起方显式声明，
         // 否则素材库/下载看到的是哈希名。
+        const filename = fileNameFromUrl(url);
         downloadRemoteToLocal(url, {
           folder: WEB_DROP_SUBFOLDER,
-          filename: fileNameFromUrl(url) || undefined,
+          ...(filename ? { filename } : {}),
         })
           .then(async (r) => {
             // 【2026-09-17 消费者只转发】`downloadRemoteToLocal` 现返回判别联合：

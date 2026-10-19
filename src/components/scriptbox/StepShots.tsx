@@ -416,7 +416,7 @@ export default function StepShots({ data, updateData, callbacks }: StepShotsProp
                 if (typeof rec.id === 'string')
                   variants.push({
                     id: rec.id,
-                    assetUrl: typeof rec.assetUrl === 'string' ? rec.assetUrl : undefined,
+                    ...(typeof rec.assetUrl === 'string' ? { assetUrl: rec.assetUrl } : {}),
                   });
               }
             }

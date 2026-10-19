@@ -7,13 +7,13 @@ import { logger } from '../components/base/core/log/logger.ts';
 
 /** 资源项（素材/生成/文件夹卡片共用的最小形状） */
 export interface ResourceMoveItem {
-  folder?: string;
-  name?: string;
-  source?: string;
-  type?: string;
-  url?: string;
+  folder?: string | undefined;
+  name?: string | undefined;
+  source?: string | undefined;
+  type?: string | undefined;
+  url?: string | undefined;
   /** docs/122 #4：素材稳定 contentId（由资源项携带，拖到画布建 asset 时写入节点） */
-  contentId?: string;
+  contentId?: string | undefined;
 }
 
 /**

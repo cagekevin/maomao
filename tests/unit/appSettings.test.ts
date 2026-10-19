@@ -19,9 +19,10 @@ describe('appSettings 读写（key 受 SettingKey 约束，值类型随 key 收�
     vi.resetModules();
   });
 
-  it('默认设置：性能模式开 / 小地图关 / AI 助手关 / 调试关', async () => {
+  it('默认设置：性能模式关 / 小地图关 / AI 助手关 / 调试关', async () => {
     const { getSetting } = await import('../../src/components/base/store/appSettings.ts');
-    expect(getSetting('performanceMode')).toBe(true);
+    // 2026-09-30（docs/plan/139）：默认由 true 改 false，避免默认就隐藏连线/特效。
+    expect(getSetting('performanceMode')).toBe(false);
     expect(getSetting('minimapOn')).toBe(false);
     expect(getSetting('agentOpen')).toBe(false);
     expect(getSetting('debugOn')).toBe(false);
@@ -51,8 +52,8 @@ describe('appSettings 读写（key 受 SettingKey 约束，值类型随 key 收�
     const { getSetting, setSetting } =
       await import('../../src/components/base/store/appSettings.ts');
     setSetting('agentOpen', true);
-    // 其余默认值保持不变
-    expect(getSetting('performanceMode')).toBe(true);
+    // 其余默认值保持不变（性能模式默认 false，见 docs/plan/139）
+    expect(getSetting('performanceMode')).toBe(false);
     expect(getSetting('minimapOn')).toBe(false);
   });
 

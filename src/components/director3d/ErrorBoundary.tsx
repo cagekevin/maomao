@@ -25,14 +25,14 @@ interface ErrorBoundaryState {
 }
 
 export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
-  state: ErrorBoundaryState = { hasError: false, message: '' };
+  override state: ErrorBoundaryState = { hasError: false, message: '' };
 
   static getDerivedStateFromError(error: unknown) {
     const rawMessage = (error as { message?: unknown })?.message;
     return { hasError: true, message: rawMessage ? String(rawMessage) : String(error) };
   }
 
-  componentDidCatch(error: Error, info: ErrorInfo) {
+  override componentDidCatch(error: Error, info: ErrorInfo) {
     log.error('ErrorBoundary 捕获到渲染异常', error, info?.componentStack);
   }
 
@@ -45,7 +45,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
     window.location.reload();
   };
 
-  render() {
+  override render() {
     if (!this.state.hasError) return this.props.children;
     const label = this.props.label || 'Director3D';
     return (

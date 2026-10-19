@@ -9,8 +9,8 @@ import {
   customAspectParts,
   customAspectValue,
   normalizeLighting,
-  ProjectSettings,
-  ProjectLighting,
+  type ProjectSettings,
+  type ProjectLighting,
 } from '../project.ts';
 
 interface GlobalSettingsPanelProps {

@@ -42,10 +42,10 @@ interface AxisSliderProps {
   min: number;
   max: number;
   step: number;
-  unit?: string;
-  disabled?: boolean;
-  locked?: boolean;
-  onToggleLock?: () => void;
+  unit?: string | undefined;
+  disabled?: boolean | undefined;
+  locked?: boolean | undefined;
+  onToggleLock?: (() => void) | undefined;
 }
 
 function AxisSlider({
@@ -106,13 +106,13 @@ export interface VectorFieldsProps {
   title: string;
   value: number[];
   onChange: (value: number[]) => void;
-  degrees?: boolean;
-  kind?: 'position' | 'rotation' | 'scale';
-  disabled?: boolean;
-  proportionalScale?: boolean;
-  scaleAxisLocks?: boolean[];
-  onToggleProportionalScale?: () => void;
-  onToggleScaleAxis?: (axis: number) => void;
+  degrees?: boolean | undefined;
+  kind?: 'position' | 'rotation' | 'scale' | undefined;
+  disabled?: boolean | undefined;
+  proportionalScale?: boolean | undefined;
+  scaleAxisLocks?: boolean[] | undefined;
+  onToggleProportionalScale?: (() => void) | undefined;
+  onToggleScaleAxis?: ((axis: number) => void) | undefined;
 }
 
 export function VectorFields({

@@ -294,7 +294,7 @@ const BackgroundPreviews = memo(
     currentBackgroundColor: string;
     isColorBackground: boolean;
     handleColorSelect: ({ bg }: { bg: string }) => void;
-    useBackgroundColor?: boolean;
+    useBackgroundColor?: boolean | undefined;
   }) => {
     return useMemo(
       () =>

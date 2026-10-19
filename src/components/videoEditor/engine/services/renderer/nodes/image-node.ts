@@ -29,7 +29,7 @@ export class ImageNode extends VisualNode<ImageNodeParams> {
     });
   }
 
-  async render({ renderer, time }: { renderer: CanvasRenderer; time: number }) {
+  override async render({ renderer, time }: { renderer: CanvasRenderer; time: number }) {
     await super.render({ renderer, time });
 
     if (!this.isInRange(time)) {

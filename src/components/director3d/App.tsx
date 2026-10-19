@@ -250,10 +250,10 @@ const nextPaint = () =>
 
 // ---- 本地类型（project.ts 未导出的形状，仅在本文件内用于类型标注）----
 interface Director3DAppProps {
-  storageKey?: string;
-  onExport?: (payload: { type: 'image' | 'video'; blob: Blob; fileName: string }) => void;
-  onExit?: () => void;
-  onThumbnail?: (url: string) => void;
+  storageKey?: string | undefined;
+  onExport?: ((payload: { type: 'image' | 'video'; blob: Blob; fileName: string }) => void) | undefined;
+  onExit?: (() => void) | undefined;
+  onThumbnail?: ((url: string) => void) | undefined;
 }
 
 interface MotionPathPoint {

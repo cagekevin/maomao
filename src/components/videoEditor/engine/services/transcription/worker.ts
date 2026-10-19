@@ -264,7 +264,7 @@ async function handleTranscribe({
       do_sample: false,
       chunk_length_s: chunkLengthS,
       stride_length_s: strideLengthS,
-      language: language === 'auto' ? undefined : language,
+      ...(language !== 'auto' ? { language } : {}),
       task: subtask ?? 'transcribe',
       return_timestamps: true,
       force_full_sequences: false,

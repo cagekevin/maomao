@@ -125,7 +125,7 @@ export async function moveFile(src: string, dst: string): Promise<FileOpResult> 
 
 // 是否可移动到文件夹：仅本地文件型资源（local-tool）可移动；文件夹 / 远程 / 收藏类不提供移动入口。
 // 纯函数，供拖拽移动到文件夹（useResourceMoveToFolder）+ 单测。禁止在组件里手写 source/type 判断。
-export function canMoveAsset(item: { source?: string; type?: string } = {}): boolean {
+export function canMoveAsset(item: { source?: string | undefined; type?: string | undefined } = {}): boolean {
   return item.source === 'local-tool' && item.type !== 'folder';
 }
 
@@ -590,7 +590,7 @@ export type PersistOutcome =
        *  · `inline` → 后端 base64 分支**暂不回传** ⇒ undefined（如实；前端不补算，TD-08-28）；
        *  · `already-local` → 未发生上传，本层无从得知 ⇒ undefined（需稳定身份的调用方按 url 查资源行）。
        */
-      contentId?: string;
+      contentId?: string | undefined;
       reason?: undefined;
       message?: undefined;
     }
@@ -600,7 +600,7 @@ export type PersistOutcome =
       source?: undefined;
       contentId?: undefined;
       reason: PersistFailReason;
-      message?: string;
+      message?: string | undefined;
     };
 
 /**
@@ -622,7 +622,7 @@ export type SaveTasksOutcome =
       url?: undefined;
       skipped?: undefined;
       reason: PersistFailReason;
-      message?: string;
+      message?: string | undefined;
     };
 
 /** 落盘文件名的扩展名（按调用方声明类型优先，其次由 mime / URL 推断；未知按 png）。 */
@@ -655,7 +655,12 @@ export async function persistUrlToUploads(
     name,
     type,
     projectId,
-  }: { folder?: string; name?: string; type?: AssetType; projectId?: string } = {},
+  }: {
+    folder?: string | undefined;
+    name?: string | undefined;
+    type?: AssetType | undefined;
+    projectId?: string | undefined;
+  } = {},
 ): Promise<PersistOutcome> {
   const src = String(url || '');
   if (!src) return { ok: false, reason: 'empty' };

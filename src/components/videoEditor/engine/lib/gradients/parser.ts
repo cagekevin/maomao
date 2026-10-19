@@ -16,7 +16,7 @@ type Distance =
   | { type: 'px'; value: string }
   | { type: 'em'; value: string };
 
-type PositionValue = { x?: Distance; y?: Distance };
+type PositionValue = { x?: Distance | undefined; y?: Distance | undefined };
 type Position = { type: 'position'; value: PositionValue };
 
 type ExtentKeyword = { type: 'extent-keyword'; value: string };
@@ -25,13 +25,16 @@ type ShapeValue = 'circle' | 'ellipse';
 type Shape = {
   type: 'shape';
   value: ShapeValue;
-  style?: Distance | ExtentKeyword | Position;
-  at?: Position;
+  style?: Distance | ExtentKeyword | Position | undefined;
+  at?: Position | undefined;
 };
 
 type DefaultRadial = { type: 'default-radial'; at: Position };
 
-type RadialOrientation = Shape | (ExtentKeyword & { at?: Position }) | DefaultRadial;
+type RadialOrientation =
+  | Shape
+  | (ExtentKeyword & { at?: Position | undefined })
+  | DefaultRadial;
 
 export type GradientOrientation = LinearOrientation | Array<RadialOrientation>;
 
@@ -44,7 +47,7 @@ export type Color =
   | { type: 'hsla'; value: [string, string, string, string] }
   | { type: 'var'; value: string };
 
-export type ColorStop = Color & { length?: Distance };
+export type ColorStop = Color & { length?: Distance | undefined };
 
 export type GradientAst = {
   type: GradientType;

@@ -11,12 +11,12 @@ type MenuIcon = React.ComponentType<{ size?: number; className?: string }> | Rea
 /** 工具面板叶子节点项（renderToolLeaf 用）：支持 badge / trailing 尾随槽 */
 interface ToolLeafItem {
   key: string;
-  icon?: MenuIcon;
+  icon?: MenuIcon | undefined;
   label: string;
-  badge?: { tone: 'new' | 'hot'; text: string };
-  onClick?: (e: React.MouseEvent) => void;
+  badge?: { tone: 'new' | 'hot'; text: string } | undefined;
+  onClick?: ((e: React.MouseEvent) => void) | undefined;
   /** 尾随插槽：函数则实例化，否则原样渲染 */
-  trailing?: (() => React.ReactNode) | React.ReactNode;
+  trailing?: (() => React.ReactNode) | React.ReactNode | undefined;
 }
 
 /** 分组工具面板的分类块（child 带 items） */
@@ -27,14 +27,14 @@ interface ToolCategoryItem extends ToolLeafItem {
 /** 普通菜单项（type 为可选判别字段：调用方可不传，默认 undefined = 普通项） */
 interface MenuLeafItem {
   key: string;
-  icon?: MenuIcon;
+  icon?: MenuIcon | undefined;
   label: string;
-  shortcut?: string;
-  danger?: boolean;
-  disabled?: boolean;
-  badge?: { tone: 'new' | 'hot'; text: string };
-  onClick?: (e: React.MouseEvent) => void;
-  onMouseEnter?: () => void;
+  shortcut?: string | undefined;
+  danger?: boolean | undefined;
+  disabled?: boolean | undefined;
+  badge?: { tone: 'new' | 'hot'; text: string } | undefined;
+  onClick?: ((e: React.MouseEvent) => void) | undefined;
+  onMouseEnter?: (() => void) | undefined;
   /** 判别字段：普通项不传（undefined）或 'item'；与 divider 区分用 */
   type?: 'item';
 }

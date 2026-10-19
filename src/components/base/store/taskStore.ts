@@ -74,16 +74,16 @@ export interface Task {
   /** 归属节点 id；空则视为网关占位垃圾行，不进任务中心展示 */
   nodeId: string;
   type: string;
-  prompt?: string;
-  modelName?: string;
-  channelName?: string;
+  prompt?: string | undefined;
+  modelName?: string | undefined;
+  channelName?: string | undefined;
   status: TaskStatus;
-  progress?: number;
-  errorMsg?: string;
-  resultUrl?: string;
-  createdAt?: number;
+  progress?: number | undefined;
+  errorMsg?: string | undefined;
+  resultUrl?: string | undefined;
+  createdAt?: number | undefined;
   /** 当前进行到哪一步的文案（如「已转发到生成网关…」） */
-  stageLabel?: string;
+  stageLabel?: string | undefined;
   [key: string]: unknown;
 }
 
@@ -338,7 +338,7 @@ export function reportGenerate(
   nodeId: string,
   type: string,
   prompt?: string,
-  meta: { modelName?: string; channelName?: string } = {},
+  meta: { modelName?: string | undefined; channelName?: string | undefined } = {},
 ): TaskController {
   // 对齐官方：提交生成任务时自动弹出任务中心
   openTaskCenter();
