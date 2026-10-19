@@ -277,9 +277,9 @@ function VideoExtractNode({ id, data, selected }: VideoExtractNodeProps) {
       if (!times.smart) {
         // 固定数量 / 等距 / 首尾帧：按时间点列表逐帧截取
         const list = times.times;
-        for (let i = 0; i < list.length; i++) {
+        for (const [i, time] of list.entries()) {
           setProgress(50 + Math.round((i / list.length) * 50));
-          frames.push(await seekTo(video, list[i]));
+          frames.push(await seekTo(video, time));
           setExtractedImages([...frames]);
         }
       } else {
@@ -293,9 +293,25 @@ function VideoExtractNode({ id, data, selected }: VideoExtractNodeProps) {
           if (prev) {
             let diff = 0;
             for (let i = 0; i < data.length; i += 4) {
-              diff += Math.abs(data[i] - prev[i]);
-              diff += Math.abs(data[i + 1] - prev[i + 1]);
-              diff += Math.abs(data[i + 2] - prev[i + 2]);
+              const dr = data[i];
+              const dg = data[i + 1];
+              const db = data[i + 2];
+              const pr = prev[i];
+              const pg = prev[i + 1];
+              const pb = prev[i + 2];
+              // 两帧同尺寸 RGBA；缺项 = 不可达，跳过该像素
+              if (
+                dr === undefined ||
+                dg === undefined ||
+                db === undefined ||
+                pr === undefined ||
+                pg === undefined ||
+                pb === undefined
+              )
+                continue;
+              diff += Math.abs(dr - pr);
+              diff += Math.abs(dg - pg);
+              diff += Math.abs(db - pb);
             }
             if (diff > threshold) {
               allTimes.push(t);
@@ -307,9 +323,9 @@ function VideoExtractNode({ id, data, selected }: VideoExtractNodeProps) {
           prev = data;
         }
         if (allTimes.length === 0) allTimes.push(times.duration / 2);
-        for (let i = 0; i < allTimes.length; i++) {
+        for (const [i, time] of allTimes.entries()) {
           setProgress(50 + Math.round((i / allTimes.length) * 50));
-          frames.push(await seekTo(video, allTimes[i]));
+          frames.push(await seekTo(video, time));
           setExtractedImages([...frames]);
         }
       }

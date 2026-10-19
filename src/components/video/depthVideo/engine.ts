@@ -28,8 +28,8 @@ export function adjustDepthValue(
 /** 单个像素 → 灰度值（RGB 三通道平均；通道不足则复用首通道） */
 function grayOfPixel(data: ArrayLike<number>, i: number, channels: number): number {
   const r = data[i] ?? 0;
-  const g = channels > 1 ? data[i + 1] : r;
-  const b = channels > 2 ? data[i + 2] : r;
+  const g = channels > 1 ? (data[i + 1] ?? 0) : r;
+  const b = channels > 2 ? (data[i + 2] ?? 0) : r;
   return (r + g + b) / 3;
 }
 
@@ -43,7 +43,7 @@ export function grayFromTensor(
   let max = -Infinity;
   for (let i = 0; i < data.length; i += 1) {
     const v = data[i];
-    if (Number.isFinite(v)) {
+    if (v !== undefined && Number.isFinite(v)) {
       if (v < min) min = v;
       if (v > max) max = v;
     }
@@ -51,7 +51,8 @@ export function grayFromTensor(
   const scale = max > min ? 255 / (max - min) : 1;
   const out = new Float32Array(data.length);
   for (let i = 0; i < data.length; i += 1) {
-    const normalized = ((data[i] as number) - (Number.isFinite(min) ? min : 0)) * scale;
+    // data 与 out 同长；越界缺项按 0（黑）兜底（不可达）
+    const normalized = ((data[i] ?? 0) - (Number.isFinite(min) ? min : 0)) * scale;
     out[i] = adjustDepthValue(normalized, options);
   }
   return out;
@@ -86,19 +87,23 @@ export function fastDepthFromSource(
   const n = width * height;
   const lum = new Float32Array(n);
   for (let i = 0, p = 0; i < rgba.length; i += 4, p += 1) {
-    lum[p] = rgba[i] * 0.299 + rgba[i + 1] * 0.587 + rgba[i + 2] * 0.114;
+    const r = rgba[i] ?? 0;
+    const g = rgba[i + 1] ?? 0;
+    const b = rgba[i + 2] ?? 0;
+    lum[p] = r * 0.299 + g * 0.587 + b * 0.114;
   }
   const out = new Float32Array(n);
   for (let y = 0; y < height; y += 1) {
     const yBias = y / Math.max(1, height - 1);
     for (let x = 0; x < width; x += 1) {
       const idx = y * width + x;
-      const left = lum[y * width + Math.max(0, x - 1)];
-      const right = lum[y * width + Math.min(width - 1, x + 1)];
-      const up = lum[Math.max(0, y - 1) * width + x];
-      const down = lum[Math.min(height - 1, y + 1) * width + x];
+      // 四个邻域与自身都在 0..n-1 内（Math.min/max 已夹取）；缺项按 0（不可达）
+      const left = lum[y * width + Math.max(0, x - 1)] ?? 0;
+      const right = lum[y * width + Math.min(width - 1, x + 1)] ?? 0;
+      const up = lum[Math.max(0, y - 1) * width + x] ?? 0;
+      const down = lum[Math.min(height - 1, y + 1) * width + x] ?? 0;
       const edge = Math.min(255, Math.abs(right - left) + Math.abs(down - up));
-      const lumaDepth = 255 - lum[idx];
+      const lumaDepth = 255 - (lum[idx] ?? 0);
       out[idx] = adjustDepthValue(lumaDepth * 0.45 + yBias * 120 + edge * 0.35, options);
     }
   }

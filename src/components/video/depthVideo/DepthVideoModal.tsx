@@ -263,7 +263,9 @@ export function DepthVideoModal({ videoUrl, name, onClose, onSave }: DepthVideoM
       const gray = grayFromTensor(dep.data, dep.dims, { contrast, invert });
       const tmp = ctx.createImageData(w, h);
       for (let i = 0; i < w * h; i += 1) {
-        const v = Math.round(gray[i]);
+        const grayValue = gray[i];
+        if (grayValue === undefined) break; // gray 长度 = w*h（不可达兜底）
+        const v = Math.round(grayValue);
         tmp.data[i * 4] = v;
         tmp.data[i * 4 + 1] = v;
         tmp.data[i * 4 + 2] = v;
@@ -285,6 +287,8 @@ export function DepthVideoModal({ videoUrl, name, onClose, onSave }: DepthVideoM
     );
     const stream = depth.captureStream(0);
     const track = stream.getVideoTracks()[0];
+    // captureStream(0) 必产出 1 条视频轨；缺失 = 画布状态异常（编程错误）
+    if (track === undefined) throw new Error('深度画布未产出视频轨道');
     const chunks: BlobPart[] = [];
     const recorder = new MediaRecorder(stream, { mimeType: format.mimeType });
     recorder.ondataavailable = (event) => {

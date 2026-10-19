@@ -644,7 +644,7 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
           try {
             const blob = await captureFrame(
               s.url,
-              Math.max(0.05, ((meta.duration ?? 0) * (i + 0.5)) / 6),
+              Math.max(0.05, ((meta?.duration ?? 0) * (i + 0.5)) / 6), // 缺元数据 → 取首帧附近
               0.55,
             );
             if (cancelled) return;
@@ -749,6 +749,7 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
       if (!track) return;
       const idx = track.clips.findIndex((c) => c.id === currentClip.id);
       const original = track.clips[idx];
+      if (original === undefined) return; // idx 来自上面的 findIndex 命中（不可达兜底）
       const a = { ...original, sourceEnd: v, duration: v - (original.sourceStart ?? 0) };
       const b = {
         ...original,
@@ -1142,8 +1143,7 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
         return;
       } else if (mode === 'concat') {
         const blobs = [];
-        for (let i = 0; i < clips.length; i++) {
-          const clip = clips[i];
+        for (const [i, clip] of clips.entries()) {
           const blob = await httpRequest(clip.url!, {
             parseJson: false,
             retries: 0,

@@ -385,8 +385,7 @@ export async function concatVideos(
   try {
     for (const b of blobs) inputs.push(await xc(b));
     const items: ConcatSegment[] = [];
-    for (let i = 0; i < inputs.length; i++) {
-      const input = inputs[i];
+    for (const [i, input] of inputs.entries()) {
       if (!(await input.canRead())) throw new Error(`第 ${i + 1} 个视频格式无法识别`);
       const v = await input.getPrimaryVideoTrack();
       if (!v) throw new Error(`第 ${i + 1} 个输入不包含视频轨道`);
@@ -410,7 +409,9 @@ export async function concatVideos(
     }
     if (t.controller?.isCanceled) throw new ConversionCanceled();
 
-    const packetRate = await probeAveragePacketRate(items[0].video);
+    const firstItem = items[0];
+    if (firstItem === undefined) throw new Error('视频拼接：无有效输入片段'); // blobs >= 2 已判
+    const packetRate = await probeAveragePacketRate(firstItem.video);
     let maxW = 0;
     let maxH = 0;
     for (const it of items) {
@@ -457,9 +458,8 @@ export async function concatVideos(
       t.onProgress?.(p);
     };
     let timeline = 0;
-    for (let i = 0; i < items.length; i++) {
+    for (const it of items) {
       if (t.controller?.isCanceled) throw new ConversionCanceled();
-      const it = items[i];
       // 解码用 VideoSampleSink（构造参数 InputVideoTrack，.samples(start,end) 读样本流）；输出编码走 videoSource（见上）
       const source = new VideoSampleSink(it.video);
       for await (const sample of source.samples(it.start, it.end)) {
