@@ -206,13 +206,19 @@ export function usePreviewInteraction({
         };
       }
 
+      const primaryElement = dragStateRef.current.elements[0];
+      if (primaryElement === undefined) {
+        dragStateRef.current = null; // 无可拖拽主元素 ⇒ 本次拖拽作废
+        return;
+      }
+
       dragStateRef.current.snapContext = buildSnapContext({
         tracks,
         mediaAssets,
         currentTime,
         settings,
         draggedElementIds,
-        primaryElement: dragStateRef.current.elements[0],
+        primaryElement,
       });
 
       setIsDragging(true);
@@ -400,6 +406,7 @@ export function usePreviewInteraction({
       const deltaY = currentPos.y - dragStateRef.current.startY;
 
       const primaryElement = dragStateRef.current.elements[0];
+      if (primaryElement === undefined) return; // 拖拽态必有主元素（不可达兜底）
       const primaryRawPosition = {
         x: primaryElement.initialTransform.position.x + deltaX,
         y: primaryElement.initialTransform.position.y + deltaY,
@@ -567,6 +574,7 @@ export function usePreviewInteraction({
       }
 
       const primaryElement = dragStateRef.current.elements[0];
+      if (primaryElement === undefined) return; // 拖拽态必有主元素（不可达兜底）
       const primaryRawPosition = {
         x: primaryElement.initialTransform.position.x + deltaX,
         y: primaryElement.initialTransform.position.y + deltaY,

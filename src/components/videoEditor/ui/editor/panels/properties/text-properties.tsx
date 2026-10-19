@@ -50,9 +50,32 @@ interface TextElementRef {
   trackId: string;
 }
 
-export function TextProperties({ elements: elementRefs }: { elements: TextElementRef[] }) {
-  const element = elementRefs[0].element;
+/**
+ * Slider 单值回调适配器：Radix Slider 恒至少给 1 个值，
+ * 解构 `([v]) => ...` 在 `noUncheckedIndexedAccess` 下是 `number | undefined` —— 缺值跳过即可。
+ */
+function onSliderValue(handle: (value: number) => void) {
+  return (values: number[]): void => {
+    const value = values[0];
+    if (value !== undefined) handle(value);
+  };
+}
 
+export function TextProperties({ elements: elementRefs }: { elements: TextElementRef[] }) {
+  const firstRef = elementRefs[0];
+  // 守卫层**不调用任何 hook**：空数组属不变量破裂（父组件仅在非空时挂载）⇒ 渲染空态而非崩
+  if (firstRef === undefined) return null;
+  return <TextPropertiesContent elementRefs={elementRefs} element={firstRef.element} />;
+}
+
+/** 真正的面板实现：hooks 全部在这一层，顺序恒定（守卫层的 early return 不影响它）。 */
+function TextPropertiesContent({
+  elementRefs,
+  element,
+}: {
+  elementRefs: TextElementRef[];
+  element: TextElement;
+}) {
   const editor = useEditor('timeline');
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -596,8 +619,12 @@ export function TextProperties({ elements: elementRefs }: { elements: TextElemen
                             min={0}
                             max={100}
                             step={1}
-                            onValueChange={([value]) => bgOpacityField.onSliderChange(value / 100)}
-                            onValueCommit={([value]) => bgOpacityField.onSliderCommit(value / 100)}
+                            onValueChange={onSliderValue((value) =>
+                              bgOpacityField.onSliderChange(value / 100),
+                            )}
+                            onValueCommit={onSliderValue((value) =>
+                              bgOpacityField.onSliderCommit(value / 100),
+                            )}
                             className="w-full"
                           />
                           <span className="text-muted-foreground w-8 text-center text-xs">
@@ -708,12 +735,12 @@ export function TextProperties({ elements: elementRefs }: { elements: TextElemen
                           min={1}
                           max={MAX_STROKE_WIDTH}
                           step={1}
-                          onValueChange={([value]) =>
-                            strokeField.onSliderChange({ ...currentStroke, width: value })
-                          }
-                          onValueCommit={([value]) =>
-                            strokeField.onSliderCommit({ ...currentStroke, width: value })
-                          }
+                          onValueChange={onSliderValue((value) =>
+                            strokeField.onSliderChange({ ...currentStroke, width: value }),
+                          )}
+                          onValueCommit={onSliderValue((value) =>
+                            strokeField.onSliderCommit({ ...currentStroke, width: value }),
+                          )}
                           className="w-full"
                         />
                         <span className="text-muted-foreground w-8 text-center text-xs">
@@ -765,12 +792,12 @@ export function TextProperties({ elements: elementRefs }: { elements: TextElemen
                             min={-20}
                             max={20}
                             step={1}
-                            onValueChange={([value]) =>
-                              shadowField.onSliderChange({ ...currentShadow, offsetX: value })
-                            }
-                            onValueCommit={([value]) =>
-                              shadowField.onSliderCommit({ ...currentShadow, offsetX: value })
-                            }
+                            onValueChange={onSliderValue((value) =>
+                              shadowField.onSliderChange({ ...currentShadow, offsetX: value }),
+                            )}
+                            onValueCommit={onSliderValue((value) =>
+                              shadowField.onSliderCommit({ ...currentShadow, offsetX: value }),
+                            )}
                             className="w-full"
                           />
                           <span className="text-muted-foreground w-8 text-center text-xs">
@@ -788,12 +815,12 @@ export function TextProperties({ elements: elementRefs }: { elements: TextElemen
                             min={-20}
                             max={20}
                             step={1}
-                            onValueChange={([value]) =>
-                              shadowField.onSliderChange({ ...currentShadow, offsetY: value })
-                            }
-                            onValueCommit={([value]) =>
-                              shadowField.onSliderCommit({ ...currentShadow, offsetY: value })
-                            }
+                            onValueChange={onSliderValue((value) =>
+                              shadowField.onSliderChange({ ...currentShadow, offsetY: value }),
+                            )}
+                            onValueCommit={onSliderValue((value) =>
+                              shadowField.onSliderCommit({ ...currentShadow, offsetY: value }),
+                            )}
                             className="w-full"
                           />
                           <span className="text-muted-foreground w-8 text-center text-xs">
@@ -811,12 +838,12 @@ export function TextProperties({ elements: elementRefs }: { elements: TextElemen
                             min={0}
                             max={30}
                             step={1}
-                            onValueChange={([value]) =>
-                              shadowField.onSliderChange({ ...currentShadow, blur: value })
-                            }
-                            onValueCommit={([value]) =>
-                              shadowField.onSliderCommit({ ...currentShadow, blur: value })
-                            }
+                            onValueChange={onSliderValue((value) =>
+                              shadowField.onSliderChange({ ...currentShadow, blur: value }),
+                            )}
+                            onValueCommit={onSliderValue((value) =>
+                              shadowField.onSliderCommit({ ...currentShadow, blur: value }),
+                            )}
                             className="w-full"
                           />
                           <span className="text-muted-foreground w-8 text-center text-xs">

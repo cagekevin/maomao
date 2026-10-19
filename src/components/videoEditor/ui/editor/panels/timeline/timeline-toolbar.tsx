@@ -209,9 +209,11 @@ function ToolbarRightSection({
         <Slider
           className="w-28"
           value={[zoomToSlider({ zoomLevel, minZoom })]}
-          onValueChange={(values) =>
-            onZoomChange(sliderToZoom({ sliderPosition: values[0], minZoom }))
-          }
+          onValueChange={(values) => {
+            const sliderPosition = values[0];
+            if (sliderPosition === undefined) return; // Slider 至少给 1 个值（不可达兜底）
+            onZoomChange(sliderToZoom({ sliderPosition, minZoom }));
+          }}
           min={0}
           max={1}
           step={0.005}

@@ -34,6 +34,11 @@ export function PropertiesPanel() {
   });
 
   const grouped = useMemo(() => groupByType(elementsWithTracks), [elementsWithTracks]);
+  // 各类型首个条目：面板只渲染「同类型首元素」的属性，先取好避免每处 `grouped.x[0]` 再判空
+  const firstVideo = grouped.video?.[0];
+  const firstImage = grouped.image?.[0];
+  const firstAudio = grouped.audio?.[0];
+  const firstSticker = grouped.sticker?.[0];
 
   return (
     // 【不再外包 ScrollArea】（2026-09-15）里层每个面板（`PanelBaseView`）**自己就有**
@@ -50,40 +55,36 @@ export function PropertiesPanel() {
               }))}
             />
           )}
-          {grouped.video && grouped.video.length > 0 && (
+          {firstVideo && (
             <VideoProperties
               _element={
-                grouped.video[0]
-                  .element as import('@/components/videoEditor/types/timeline').VideoElement
+                firstVideo.element as import('@/components/videoEditor/types/timeline').VideoElement
               }
-              trackId={grouped.video[0].track.id}
+              trackId={firstVideo.track.id}
             />
           )}
-          {grouped.image && grouped.image.length > 0 && (
+          {firstImage && (
             <VideoProperties
               _element={
-                grouped.image[0]
-                  .element as import('@/components/videoEditor/types/timeline').ImageElement
+                firstImage.element as import('@/components/videoEditor/types/timeline').ImageElement
               }
-              trackId={grouped.image[0].track.id}
+              trackId={firstImage.track.id}
             />
           )}
-          {grouped.audio && grouped.audio.length > 0 && (
+          {firstAudio && (
             <AudioProperties
               _element={
-                grouped.audio[0]
-                  .element as import('@/components/videoEditor/types/timeline').AudioElement
+                firstAudio.element as import('@/components/videoEditor/types/timeline').AudioElement
               }
-              trackId={grouped.audio[0].track.id}
+              trackId={firstAudio.track.id}
             />
           )}
-          {grouped.sticker && grouped.sticker.length > 0 && (
+          {firstSticker && (
             <StickerProperties
               _element={
-                grouped.sticker[0]
-                  .element as import('@/components/videoEditor/types/timeline').StickerElement
+                firstSticker.element as import('@/components/videoEditor/types/timeline').StickerElement
               }
-              trackId={grouped.sticker[0].track.id}
+              trackId={firstSticker.track.id}
             />
           )}
         </>

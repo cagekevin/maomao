@@ -51,7 +51,9 @@ export function normalizeFileUrl(url: string | null | undefined): string {
   if (!url || typeof url !== 'string') return '';
   let u = url.trim();
   // 去 query / hash
-  u = u.split('?')[0].split('#')[0];
+  const withoutQuery = u.split('?')[0];
+  const withoutHash = withoutQuery?.split('#')[0];
+  u = withoutHash ?? ''; // split 恒至少 1 段（不可达兜底）
   // 去协议+主机（只保留 path）
   u = u.replace(/^https?:\/\/[^/]+/i, '');
   // 相对路径统一以 / 开头
@@ -130,9 +132,9 @@ export async function linkMediaRefsToProject({
   const seen = [...media.getAssets()];
 
   // 逐条配对（判据是 items 的逐条映射：同长同序）：**落盘字段取契约事实**，失败身份取 `ref.ref`。
-  for (let i = 0; i < facts.length; i++) {
+  for (const [i, fact] of facts.entries()) {
     const ref = items[i];
-    const fact = facts[i];
+    if (ref === undefined) continue; // items 与 facts 同长同序（契约）；缺项跳过而非崩
     // 双轨去重：已存在 → 跳过（不重复登记）
     const dup = findDuplicate(fact, seen);
     if (dup) {

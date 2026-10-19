@@ -78,9 +78,9 @@ function getDisplayShortcut(action: TAction) {
     return '';
   }
 
-  return uppercase({
-    string: defaultShortcuts[0].replace('+', ' '),
-  });
+  const firstShortcut = defaultShortcuts[0];
+  if (firstShortcut === undefined) return ''; // 上方已判非空（不可达兜底）
+  return uppercase({ string: firstShortcut.replace('+', ' ') });
 }
 
 interface TimelineElementProps {

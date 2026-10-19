@@ -57,10 +57,15 @@ export interface DraftCommitField<T> {
   onChange: (raw: string) => void;
   /** Input 的 `onBlur`。 */
   onBlur: () => void;
-  /** Slider 的 `onValueChange`（值已在字段域，如 percent→实际值的换算由调用方在 Slider 侧完成）。 */
-  onSliderChange: (value: T) => void;
-  /** Slider 的 `onValueCommit`。 */
-  onSliderCommit: (value: T) => void;
+  /**
+   * Slider 的 `onValueChange`（值已在字段域，如 percent→实际值的换算由调用方在 Slider 侧完成）。
+   * 参数可为 `undefined`：`onValueChange={([v]) => ...}` 的解构在 `noUncheckedIndexedAccess`
+   * 下是 `T | undefined`。Slider（Radix）恒至少给 1 个值，缺值 = 不可达 ⇒ 本 hook 统一跳过，
+   * 避免每个面板各自写一遍守卫。
+   */
+  onSliderChange: (value: T | undefined) => void;
+  /** Slider 的 `onValueCommit`（同上，缺值跳过）。 */
+  onSliderCommit: (value: T | undefined) => void;
 }
 
 export function useDraftCommit<T>({
@@ -136,11 +141,13 @@ export function useDraftCommit<T>({
     },
 
     onSliderChange: (v) => {
+      if (v === undefined) return; // Slider 未给值（不可达）
       seedInitial();
       commit(v, false);
     },
 
     onSliderCommit: (v) => {
+      if (v === undefined) return; // Slider 未给值（不可达）
       settle(v);
     },
   };

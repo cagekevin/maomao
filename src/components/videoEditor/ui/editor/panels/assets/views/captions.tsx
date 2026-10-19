@@ -113,8 +113,7 @@ export function Captions() {
         startTime: 0,
       });
 
-      for (let i = 0; i < captionChunks.length; i++) {
-        const caption = captionChunks[i];
+      for (const [i, caption] of captionChunks.entries()) {
         editor.timeline.insertElement({
           placement: { mode: 'explicit', trackId: captionTrackId },
           element: {

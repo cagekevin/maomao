@@ -28,7 +28,8 @@ export interface SubtitleTemplate {
 const SUBTITLE_DEFAULT_NAME = 'Subtitle';
 const SUBTITLE_DEFAULT_CONTENT = 'Your subtitle here';
 
-export const SUBTITLE_TEMPLATES: SubtitleTemplate[] = [
+/** 非空元组类型：`[0]` 恒存在（默认模板），下游无需再写「取不到」的兜底分支 */
+export const SUBTITLE_TEMPLATES: readonly [SubtitleTemplate, ...SubtitleTemplate[]] = [
   {
     templateId: 'classic',
     templateName: 'Classic',

@@ -73,8 +73,10 @@ export function useFileUpload({ accept, multiple, onFilesSelected }: UseFileUplo
       if (shouldUseMultiple) {
         onFilesSelected(files);
       } else if (files.length > 0) {
+        const first = files[0];
+        if (first === undefined) return; // length > 0 已判（不可达兜底）
         const dataTransfer = new DataTransfer();
-        dataTransfer.items.add(files[0]);
+        dataTransfer.items.add(first);
         onFilesSelected(dataTransfer.files);
       }
     }

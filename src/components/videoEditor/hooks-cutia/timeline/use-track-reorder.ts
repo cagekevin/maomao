@@ -30,9 +30,9 @@ export function useTrackReorder({ trackHeightScale }: { trackHeightScale?: numbe
       const relativeY = mouseY - containerRect.top + container.scrollTop;
 
       let accumulatedHeight = 0;
-      for (let i = 0; i < tracks.length; i++) {
+      for (const [i, track] of tracks.entries()) {
         // 倍率与渲染同口径（TD-21-16），否则轨道拖拽的落位判定会错行。
-        const trackHeight = getTrackHeight({ type: tracks[i].type, scale: trackHeightScale }) + 4;
+        const trackHeight = getTrackHeight({ type: track.type, scale: trackHeightScale }) + 4;
         const trackMid = accumulatedHeight + trackHeight / 2;
         if (relativeY < trackMid) {
           return i;
@@ -93,7 +93,8 @@ export function useTrackReorder({ trackHeightScale }: { trackHeightScale?: numbe
           }
 
           const newOrder = [...tracks.map((track) => track.id)];
-          const [moved] = newOrder.splice(fromIndex, 1);
+          const moved = newOrder.splice(fromIndex, 1)[0];
+          if (moved === undefined) return INITIAL_STATE; // fromIndex 已校验（不可达兜底）
           newOrder.splice(dragOverIndex, 0, moved);
 
           editor.timeline.reorderTracks({ trackIds: newOrder });

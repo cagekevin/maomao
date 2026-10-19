@@ -34,7 +34,9 @@ function extractPeaks({
       const end = Math.min(start + step, data.length);
       let max = 0;
       for (let j = start; j < end; j++) {
-        const abs = Math.abs(data[j]);
+        const sample = data[j];
+        if (sample === undefined) continue; // j < end ≤ data.length（不可达兜底）
+        const abs = Math.abs(sample);
         if (abs > max) max = abs;
       }
       channelPeaks.push(max);

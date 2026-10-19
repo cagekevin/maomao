@@ -332,6 +332,8 @@ export function useEditorActions() {
     'export-selected-clip',
     () => {
       if (selectedElements.length !== 1) return;
+      const selection = selectedElements[0];
+      if (selection === undefined) return; // length === 1 已判（不可达兜底）
 
       const [{ element } = { element: null }] = editor.timeline.getElementsWithTracks({
         elements: selectedElements,
@@ -343,7 +345,7 @@ export function useEditorActions() {
 
       (async () => {
         const result = await editor.renderer.exportSelectedClip({
-          selection: selectedElements[0],
+          selection,
           options: DEFAULT_EXPORT_OPTIONS,
         });
 

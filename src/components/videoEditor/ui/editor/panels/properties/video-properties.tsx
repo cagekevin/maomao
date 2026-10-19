@@ -334,12 +334,16 @@ export function VideoProperties({
                     min={MIN_PLAYBACK_RATE}
                     max={MAX_PLAYBACK_RATE}
                     step={PLAYBACK_RATE_STEP}
-                    onValueChange={([value]) =>
-                      speedField.onSliderChange(clampPlaybackRate({ value }))
-                    }
-                    onValueCommit={([value]) =>
-                      speedField.onSliderCommit(clampPlaybackRate({ value }))
-                    }
+                    onValueChange={(values) => {
+                      const value = values[0];
+                      if (value === undefined) return; // Slider 恒给 ≥1 个值（不可达）
+                      speedField.onSliderChange(clampPlaybackRate({ value }));
+                    }}
+                    onValueCommit={(values) => {
+                      const value = values[0];
+                      if (value === undefined) return; // Slider 恒给 ≥1 个值（不可达）
+                      speedField.onSliderCommit(clampPlaybackRate({ value }));
+                    }}
                     className="w-full"
                   />
                   <Button
