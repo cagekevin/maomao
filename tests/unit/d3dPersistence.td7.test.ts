@@ -180,11 +180,17 @@ describe('TD-02-3 — 跨窗口广播通道（首调建立 / 次调复用，修�
 
 describe('TD-7 方案A — STORAGE_KEYS 登记表兜底双通道选项', () => {
   it('director3d-project* 登记 backend=kv + fallback=true + timeout>0', () => {
-    expect(STORAGE_KEYS['director3d-project'].backend).toBe('kv');
-    expect(STORAGE_KEYS['director3d-project'].fallback).toBe(true);
-    expect(STORAGE_KEYS['director3d-project'].timeout).toBeGreaterThan(0);
-    expect(STORAGE_KEYS['director3d-project-{nodeId}'].backend).toBe('kv');
-    expect(STORAGE_KEYS['director3d-project-{nodeId}'].fallback).toBe(true);
-    expect(STORAGE_KEYS['director3d-project-{nodeId}'].timeout).toBeGreaterThan(0);
+    // 登记表是常量：缺项 = 登记被删，属编程错误 ⇒ 直接抛，不做静默跳过
+    const projectEntry = STORAGE_KEYS['director3d-project'];
+    const nodeEntry = STORAGE_KEYS['director3d-project-{nodeId}'];
+    if (projectEntry === undefined || nodeEntry === undefined) {
+      throw new Error('STORAGE_KEYS 缺 director3d 项目登记项');
+    }
+    expect(projectEntry.backend).toBe('kv');
+    expect(projectEntry.fallback).toBe(true);
+    expect(projectEntry.timeout).toBeGreaterThan(0);
+    expect(nodeEntry.backend).toBe('kv');
+    expect(nodeEntry.fallback).toBe(true);
+    expect(nodeEntry.timeout).toBeGreaterThan(0);
   });
 });

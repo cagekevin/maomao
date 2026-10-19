@@ -4,6 +4,7 @@
  * 上游有文本但本地 prompt 为空时校验通过。
  */
 import 'react';
+import { at } from '../helpers/at';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 
@@ -141,7 +142,7 @@ describe('VideoGenerate 上游文本/图片合并（修复点）', () => {
     fireEvent.click(screen.getByText('生成'));
 
     await waitFor(() => expect(mockGenerateVideo).toHaveBeenCalled());
-    const call = mockGenerateVideo.mock.calls[0][0] as unknown as {
+    const call = at(mockGenerateVideo.mock.calls, 0)[0] as unknown as {
       prompt: string;
       images?: unknown;
     };
@@ -155,9 +156,9 @@ describe('VideoGenerate 上游文本/图片合并（修复点）', () => {
     expect(genConfig.validate()).toBe('');
     fireEvent.click(screen.getByText('生成'));
     await waitFor(() => expect(mockGenerateVideo).toHaveBeenCalled());
-    expect((mockGenerateVideo.mock.calls[0][0] as unknown as { prompt: string }).prompt).toContain(
-      '夏日促销',
-    );
+    expect(
+      (at(mockGenerateVideo.mock.calls, 0)[0] as unknown as { prompt: string }).prompt,
+    ).toContain('夏日促销');
   });
 
   it('多个上游文本节点合并', async () => {
@@ -171,7 +172,7 @@ describe('VideoGenerate 上游文本/图片合并（修复点）', () => {
     setup({ prompt: 'vlog' });
     fireEvent.click(screen.getByText('生成'));
     await waitFor(() => expect(mockGenerateVideo).toHaveBeenCalled());
-    const p = (mockGenerateVideo.mock.calls[0][0] as unknown as { prompt: string }).prompt;
+    const p = (at(mockGenerateVideo.mock.calls, 0)[0] as unknown as { prompt: string }).prompt;
     expect(p).toContain('vlog');
     expect(p).toContain('镜头一：城市');
     expect(p).toContain('镜头二：海边');
@@ -185,7 +186,7 @@ describe('VideoGenerate 上游文本/图片合并（修复点）', () => {
     setup({ prompt: '模仿' });
     fireEvent.click(screen.getByText('生成'));
     await waitFor(() => expect(mockGenerateVideo).toHaveBeenCalled());
-    const call = mockGenerateVideo.mock.calls[0][0] as unknown as {
+    const call = at(mockGenerateVideo.mock.calls, 0)[0] as unknown as {
       prompt: string;
       images?: unknown;
     };

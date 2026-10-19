@@ -6,6 +6,7 @@
  * 策略：node 环境；mock fetch 让 callGateway 走通；providerApi/projectsApi 用 stub。
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { at } from '../helpers/at';
 import { jsonResp, createKvMem } from './_testUtils.mjs';
 import { contentClearCache } from '../../src/components/base/core/contentStore.ts';
 
@@ -95,7 +96,7 @@ function gasCalls(action: any) {
 function pushLs() {
   const calls = gasCalls('push_data');
   expect(calls.length, '应存在发往 GAS 的 push 请求').toBeGreaterThan(0);
-  return JSON.parse(calls[0][1].body).data.data;
+  return JSON.parse(at(calls, 0)[1].body).data.data;
 }
 
 beforeEach(() => {
@@ -580,7 +581,7 @@ describe('cloudSync — 防覆盖保护：端到端（用户取消 / 用户确�
     expect(res.ok).toBe(true);
     const pushed = gasCalls('push_data');
     expect(pushed.length).toBe(1);
-    const body = JSON.parse(pushed[0][1].body).data;
+    const body = JSON.parse(at(pushed, 0)[1].body).data;
     expect(body.rev).toBe(5); // 云端 4 → 本次 5
     expect(body.data.__meta.rev).toBe(5); // 形态B 兜底元字段同步写入
   });
@@ -692,7 +693,7 @@ describe('cloudSync — autoSync 链路（uploadConfig 三态 onAutoConflict + i
     expect(gasCalls('push_data').length, '转下载后不应发起 push').toBe(0);
     expect(handler).toHaveBeenCalledTimes(1);
     // 自动文案：三态标题精炼且 confirmText 语义为「下载云端」
-    const copy = handler.mock.calls[0][0];
+    const copy = at(handler.mock.calls, 0)[0];
     expect(copy.title).toContain('云端和本地都有更新');
     expect(copy.danger).toBe(true);
   });
@@ -715,7 +716,7 @@ describe('cloudSync — autoSync 链路（uploadConfig 三态 onAutoConflict + i
     expect(res.ok).toBe(true);
     const pushed = gasCalls('push_data');
     expect(pushed.length).toBe(1);
-    expect(JSON.parse(pushed[0][1].body).data.rev).toBe(10); // 云端 9 → 本次 10
+    expect(JSON.parse(at(pushed, 0)[1].body).data.rev).toBe(10); // 云端 9 → 本次 10
   });
 
   it('decision.inSync → ok:true + skipped:true 且未发起 push（内容一致零副作用）', async () => {

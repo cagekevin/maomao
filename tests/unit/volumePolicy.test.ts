@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { at } from '../helpers/at';
 import type { LastResultItem } from '../../src/components/agent/runtime/volumePolicy.ts';
 import {
   truncateTo,
@@ -132,8 +133,8 @@ describe('volumePolicy · 整包预算', () => {
     ];
     applyConversationBudget(convs, 100);
     // 原对象内容与 streaming 均保持不变
-    expect(convs[0].messages[0].content).toBe(huge);
-    expect(convs[0].messages[0].streaming).toBe(true);
+    expect(at(at(convs, 0).messages, 0).content).toBe(huge);
+    expect(at(at(convs, 0).messages, 0).streaming).toBe(true);
   });
   it('超预算时正文截到 MSG_CONTENT_MAX（目标可预测，非盲砍半）', () => {
     const content = 'x'.repeat(MSG_CONTENT_MAX + 5000);

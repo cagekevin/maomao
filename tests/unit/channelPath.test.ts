@@ -8,6 +8,7 @@
 //   M3-C6 仅路径、无手动 pose 帧时，动作/骨骼通道仍按状态段规则插值，不锁死 source 当前值
 // 依赖均为纯函数，node 环境可跑（npm run test:unit:logic）。
 import { describe, it, expect } from 'vitest';
+import { at } from '../helpers/at';
 import { cloneJointPose } from '../../src/components/director3d/rig.ts';
 import {
   objectAtFrame,
@@ -158,7 +159,9 @@ describe('M3-C2/C5 路径烘焙只产出 position，绝不写姿态快照 / 不�
   it('transform 每个 key 的 fields 只有 position，无 pose/joints/rigRoot/rotation/scale（M3-C2）', () => {
     const track = bakeTrackFromPath(straightPath);
     expect(track.transform).toHaveLength(5);
-    for (const key of track.transform) {
+    const transform = track.transform;
+    if (transform === undefined) throw new Error('bakeTrackFromPath 未产出 transform 通道');
+    for (const key of transform) {
       expect(Object.keys(key.fields!)).toEqual(['position']);
       expect(key.fields!.position).toHaveLength(3);
       expect(key.interpolation).toBe('linear');
@@ -168,7 +171,7 @@ describe('M3-C2/C5 路径烘焙只产出 position，绝不写姿态快照 / 不�
   it('普通物体（box）烘焙同样只产出 position', () => {
     const track = bakeTrackFromPath(straightPath, 'box');
     expect(Object.keys(track)).toEqual(['transform']);
-    expect(Object.keys(track.transform[0].fields!)).toEqual(['position']);
+    expect(Object.keys(at(track.transform ?? [], 0).fields!)).toEqual(['position']);
   });
 });
 
@@ -223,6 +226,6 @@ describe('M3-C6 仅路径、无手动 pose 帧 → 动作/骨骼仍按状态段�
     expect(withPath!.pose).toBe(withoutPath!.pose);
     expect(withPath!.poseTime!).toBeCloseTo(withoutPath!.poseTime!, 5);
     expect(withPath!.joints).toEqual(withoutPath!.joints);
-    expect(withPath!.position![0]).not.toBeCloseTo(withoutPath!.position![0], 3);
+    expect(at(withPath!.position!, 0)).not.toBeCloseTo(at(withoutPath!.position!, 0), 3);
   });
 });

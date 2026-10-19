@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { at } from '../helpers/at';
 import {
   modelKey,
   buildAllModels,
@@ -39,17 +40,17 @@ describe('providerModels §2.17/2.20', () => {
       badge: 'Lovart',
     });
     // modelId 含 / 也能正确解析
-    const m2 = imgs[1];
+    const m2 = at(imgs, 1);
     expect(m2.id).toBe('modelscope::Qwen/Qwen3-14B');
     expect(m2.modelId).toBe('Qwen/Qwen3-14B');
 
     const vids = buildAllModels(providers, 'video');
     expect(vids).toHaveLength(1);
-    expect(vids[0].modelId).toBe('v1');
+    expect(at(vids, 0).modelId).toBe('v1');
 
     const chats = buildAllModels(providers, 'chat');
     expect(chats).toHaveLength(1);
-    expect(chats[0].modelId).toBe('chat-1');
+    expect(at(chats, 0).modelId).toBe('chat-1');
   });
 
   it('buildAllModels 空 providers 返回空', () => {

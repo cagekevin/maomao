@@ -18,6 +18,7 @@
 //   4. 无路径无关键帧 → 原样返回基线 camera
 //   5. 关键帧与路径同时存在 → **路径优先**（来源优先级）
 import { describe, it, expect } from 'vitest';
+import { at } from '../helpers/at';
 import {
   cameraAtFrame,
   cameraAtFrameWithPath,
@@ -109,9 +110,9 @@ function legacyCameraAtFrame(camera: any, keyframes: any, path: any, frame: any,
       const snapshot: { position: number[]; rotation?: number[] } = { position };
       if (camera.targetMode !== 'object') {
         snapshot.rotation = cameraRotationToward(position, [
-          pos.x + tangent[0],
-          pos.y + tangent[1],
-          pos.z + tangent[2],
+          pos.x + at(tangent, 0),
+          pos.y + at(tangent, 1),
+          pos.z + at(tangent, 2),
         ]);
       }
       return { ...camera, ...snapshot };
@@ -200,9 +201,9 @@ describe('cameraAtFrameWithPath · 摄像机单入口求值护栏', () => {
       const track = buildCameraTrack();
       const result = cameraAtFrameWithPath(baseCamera, track, null, 25, TOTAL);
       const viaLegacy = cameraAtFrame(track, 25, baseCamera.aspectRatio);
-      expect(result.position[0]).toBeCloseTo(viaLegacy.position[0], 10);
-      expect(result.position[0]).toBeGreaterThan(0);
-      expect(result.position[0]).toBeLessThan(5);
+      expect(at(result.position, 0)).toBeCloseTo(at(viaLegacy.position, 0), 10);
+      expect(at(result.position, 0)).toBeGreaterThan(0);
+      expect(at(result.position, 0)).toBeLessThan(5);
     });
   });
 

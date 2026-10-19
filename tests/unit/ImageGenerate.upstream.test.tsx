@@ -4,6 +4,7 @@
  * 本地 prompt 与上游文本结合；多上游节点合并；上游有内容时校验通过。
  */
 import 'react';
+import { at } from '../helpers/at';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 
@@ -164,7 +165,7 @@ describe('ImageGenerate 上游文本/图片合并（修复点）', () => {
     fireEvent.click(screen.getByText('生成'));
 
     await waitFor(() => expect(mockGenerateImage).toHaveBeenCalled());
-    const call = mockGenerateImage.mock.calls[0][0] as unknown as {
+    const call = at(mockGenerateImage.mock.calls, 0)[0] as unknown as {
       prompt: string;
       images?: unknown;
     };
@@ -182,9 +183,9 @@ describe('ImageGenerate 上游文本/图片合并（修复点）', () => {
     fireEvent.click(screen.getByText('生成'));
     expect(genConfig.validate()).toBe(''); // 空串 = 通过
     await waitFor(() => expect(mockGenerateImage).toHaveBeenCalled());
-    expect((mockGenerateImage.mock.calls[0][0] as unknown as { prompt: string }).prompt).toContain(
-      '红色跑车',
-    );
+    expect(
+      (at(mockGenerateImage.mock.calls, 0)[0] as unknown as { prompt: string }).prompt,
+    ).toContain('红色跑车');
   });
 
   it('多个上游文本节点合并（全部拼入）', async () => {
@@ -200,7 +201,7 @@ describe('ImageGenerate 上游文本/图片合并（修复点）', () => {
     fireEvent.click(screen.getByText('生成'));
 
     await waitFor(() => expect(mockGenerateImage).toHaveBeenCalled());
-    const p = (mockGenerateImage.mock.calls[0][0] as unknown as { prompt: string }).prompt;
+    const p = (at(mockGenerateImage.mock.calls, 0)[0] as unknown as { prompt: string }).prompt;
     expect(p).toContain('风景照');
     expect(p).toContain('白天');
     expect(p).toContain('雪山');
@@ -219,7 +220,7 @@ describe('ImageGenerate 上游文本/图片合并（修复点）', () => {
     fireEvent.click(screen.getByText('生成'));
 
     await waitFor(() => expect(mockGenerateImage).toHaveBeenCalled());
-    const call = mockGenerateImage.mock.calls[0][0] as unknown as {
+    const call = at(mockGenerateImage.mock.calls, 0)[0] as unknown as {
       prompt: string;
       images?: unknown;
     };

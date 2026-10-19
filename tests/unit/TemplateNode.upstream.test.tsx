@@ -4,6 +4,7 @@
  * 多上游节点合并；上游有文本但本地 prompt 为空时校验通过。
  */
 import 'react';
+import { at } from '../helpers/at';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
@@ -169,7 +170,7 @@ describe('TemplateNode 上游文本/图片合并（修复点）', () => {
     fireEvent.click(screen.getByText('生成'));
 
     await waitFor(() => expect(mockGenerateImage).toHaveBeenCalled());
-    const call = mockGenerateImage.mock.calls[0][0] as unknown as {
+    const call = at(mockGenerateImage.mock.calls, 0)[0] as unknown as {
       prompt: string;
       images?: unknown;
     };
@@ -183,9 +184,9 @@ describe('TemplateNode 上游文本/图片合并（修复点）', () => {
     expect(genConfig!.validate()).toBe('');
     fireEvent.click(screen.getByText('生成'));
     await waitFor(() => expect(mockGenerateImage).toHaveBeenCalled());
-    expect((mockGenerateImage.mock.calls[0][0] as unknown as { prompt: string }).prompt).toContain(
-      '电商主图',
-    );
+    expect(
+      (at(mockGenerateImage.mock.calls, 0)[0] as unknown as { prompt: string }).prompt,
+    ).toContain('电商主图');
   });
 
   it('多个上游文本节点合并', async () => {
@@ -200,7 +201,7 @@ describe('TemplateNode 上游文本/图片合并（修复点）', () => {
     fireEvent.click(screen.getByText('生成'));
     await waitFor(() => expect(mockGenerateImage).toHaveBeenCalled());
     const p = (
-      mockGenerateImage.mock.calls[0][0] as unknown as { prompt: string; images?: unknown }
+      at(mockGenerateImage.mock.calls, 0)[0] as unknown as { prompt: string; images?: unknown }
     ).prompt;
     expect(p).toContain('模板');
     expect(p).toContain('标题文案');
@@ -218,7 +219,7 @@ describe('TemplateNode 上游文本/图片合并（修复点）', () => {
     setup({ prompt: '合成' });
     fireEvent.click(screen.getByText('生成'));
     await waitFor(() => expect(mockGenerateImage).toHaveBeenCalled());
-    const call = mockGenerateImage.mock.calls[0][0] as unknown as {
+    const call = at(mockGenerateImage.mock.calls, 0)[0] as unknown as {
       prompt: string;
       images?: unknown;
     };

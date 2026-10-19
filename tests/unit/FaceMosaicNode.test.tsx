@@ -15,6 +15,7 @@
  *    落盘失败退回 blob: 预览 → 不写回（blob 刷新即死链，不进快照）
  */
 import React from 'react';
+import { at } from '../helpers/at';
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { mocks } from './_nodeMocks.mjs';
@@ -179,7 +180,7 @@ describe('FaceMosaicNode — 模式/强度/颜色写回 data', () => {
     fireEvent.click(screen.getByText('网格'));
     const swatches = document.querySelectorAll('button[style*="background"]');
     // 色板第二个是 #ffffff
-    fireEvent.click(swatches[1]);
+    fireEvent.click(at(Array.from(swatches), 1));
     expect(lastData().color).toBe('#ffffff');
   });
 });
@@ -197,7 +198,7 @@ describe('FaceMosaicNode — AI打码', () => {
         color: '#000000',
       });
       expect(spawnedNodes()).toHaveLength(1);
-      const spawned = spawnedNodes()[0];
+      const spawned = at(spawnedNodes(), 0);
       expect(spawned.data.assetUrl).toBe('http://local/mosaic.png');
       expect(spawned.data.label).toBe('马赛克 1');
       // 结果信息（「共 <span>2</span> 张人脸」被拆分，跨元素匹配）
@@ -259,7 +260,7 @@ describe('FaceMosaicNode — 手动打码', () => {
     await waitFor(() => {
       expect(h.uploadMock).toHaveBeenCalled();
       expect(spawnedNodes()).toHaveLength(1);
-      expect(spawnedNodes()[0].data.label).toBe('手动打码');
+      expect(at(spawnedNodes(), 0).data.label).toBe('手动打码');
       expect(screen.getByText('1 张')).toBeTruthy();
     });
   });

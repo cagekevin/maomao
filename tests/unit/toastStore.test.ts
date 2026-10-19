@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { at } from '../helpers/at';
 
 const { showToast, dismissToast, clearToasts, subscribeToasts, getToasts, TOAST_COALESCED } =
   await import('../../src/components/base/core/event/toastStore.ts');
@@ -20,13 +21,13 @@ describe('toastStore §基础设施 提示', () => {
     showToast('ok', { type: 'success' });
     showToast('err', { type: 'error' });
     const list = getToasts();
-    expect(list[0].type).toBe('success');
-    expect(list[1].type).toBe('error');
+    expect(at(list, 0).type).toBe('success');
+    expect(at(list, 1).type).toBe('error');
   });
 
   it('message 非字符串被转成字符串（防御 null/undefined）', () => {
     showToast(null as never);
-    expect(getToasts()[0].message).toBe('');
+    expect(at(getToasts(), 0).message).toBe('');
   });
 
   it('dismissToast 按 id 删除', () => {
@@ -35,7 +36,7 @@ describe('toastStore §基础设施 提示', () => {
     dismissToast(id1);
     const list = getToasts();
     expect(list).toHaveLength(1);
-    expect(list[0].id).toBe(id2);
+    expect(at(list, 0).id).toBe(id2);
   });
 
   it('clearToasts 清空全部', () => {
