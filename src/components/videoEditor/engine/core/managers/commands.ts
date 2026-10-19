@@ -51,7 +51,9 @@ export class CommandManager {
   }): Command | null {
     if (commands.length === 0) return null;
 
-    const command = commands.length === 1 ? commands[0] : new BatchCommand(commands);
+    const single = commands[0];
+    const command =
+      commands.length === 1 && single !== undefined ? single : new BatchCommand(commands);
     if (pushHistory) {
       this.execute({ command });
     } else {

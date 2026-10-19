@@ -342,8 +342,10 @@ export class ProjectManager {
     try {
       const getDuplicateBaseName = ({ name }: { name: string }) => {
         const match = name.match(/^\((\d+)\)\s+(.+)$/);
-        const number = match ? Number.parseInt(match[1], 10) : null;
-        const baseName = match ? match[2] : name;
+        const digits = match?.[1];
+        const captured = match?.[2];
+        const number = digits !== undefined ? Number.parseInt(digits, 10) : null;
+        const baseName = captured !== undefined ? captured : name;
         return { baseName, number };
       };
 

@@ -52,7 +52,9 @@ export class PasteCommand extends Command {
         continue;
       }
 
-      const trackType = items[0].trackType;
+      const firstItem = items[0];
+      if (firstItem === undefined) continue; // elementsToAdd 非空 ⇒ items 非空（不可达兜底）
+      const trackType = firstItem.trackType;
       const sourceTrackIndex = updatedTracks.findIndex((track) => track.id === trackId);
       const resolvedTargetIndex = resolveTargetTrackIndex({
         tracks: updatedTracks,
@@ -63,6 +65,7 @@ export class PasteCommand extends Command {
 
       if (resolvedTargetIndex >= 0) {
         const targetTrack = updatedTracks[resolvedTargetIndex];
+        if (targetTrack === undefined) continue; // 下标已判 >= 0（不可达兜底）
         let adjustedElements = elementsToAdd;
 
         if (isMainTrack(targetTrack)) {
@@ -194,7 +197,7 @@ function resolveTargetTrackIndex({
     }
 
     const aboveTrack = tracks[aboveIndex];
-    if (aboveTrack.type !== trackType) {
+    if (aboveTrack === undefined || aboveTrack.type !== trackType) {
       return -1;
     }
 
@@ -211,6 +214,7 @@ function resolveTargetTrackIndex({
   }
 
   const highestCompatibleTrack = tracks[highestCompatibleIndex];
+  if (highestCompatibleTrack === undefined) return -1; // findIndex >= 0 已判（不可达兜底）
   const canPlaceOnHighest = canPlaceElementsOnTrack({
     track: highestCompatibleTrack,
     elements,

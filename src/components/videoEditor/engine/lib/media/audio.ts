@@ -44,7 +44,10 @@ export function toMonoSamples({ buffer }: { buffer: AudioBuffer }): Float32Array
     const left = buffer.getChannelData(0);
     const right = buffer.getChannelData(1);
     for (let i = 0; i < length; i++) {
-      samples[i] = (SCALING_FACTOR * (left[i] + right[i])) / 2;
+      const l = left[i];
+      const r = right[i];
+      if (l === undefined || r === undefined) break; // 两声道等长（不可达兜底）
+      samples[i] = (SCALING_FACTOR * (l + r)) / 2;
     }
     return samples;
   }
@@ -78,7 +81,9 @@ export function reverseAudioBuffer({
     const source = buffer.getChannelData(channel);
     const target = reversed.getChannelData(channel);
     for (let i = 0; i < length; i++) {
-      target[i] = source[length - 1 - i];
+      const v = source[length - 1 - i];
+      if (v === undefined) break; // source/target 同长（不可达兜底）
+      target[i] = v;
     }
   }
 
@@ -378,10 +383,14 @@ function mixAudioChannels({
 
       const fraction = sourcePos - sourceIndex;
       const sample0 = sourceData[sourceIndex];
-      const sample1 = sourceIndex + 1 < sourceData.length ? sourceData[sourceIndex + 1] : sample0;
+      if (sample0 === undefined) continue; // 上方已判界（不可达兜底）
+      const nextSample = sourceData[sourceIndex + 1];
+      const sample1 = nextSample !== undefined ? nextSample : sample0;
       const interpolated = sample0 + fraction * (sample1 - sample0);
 
-      outputData[outputIndex] += interpolated * volume;
+      // 混音是累加：目标通道首帧为 0（TypedArray 初始值），越界不可达
+      const mixed = outputData[outputIndex] ?? 0;
+      outputData[outputIndex] = mixed + interpolated * volume;
     }
   }
 }

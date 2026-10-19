@@ -24,10 +24,10 @@ function getTrackAtY({
 }): { trackIndex: number; relativeY: number } | null {
   let cumulativeHeight = 0;
 
-  for (let i = 0; i < tracks.length; i++) {
+  for (const [i, track] of tracks.entries()) {
     // 走 getTrackHeight（唯一高度入口）——不得直连 TRACK_HEIGHTS，
     // 否则轨道高度可调后"命中区按基准、显示按倍率"会错位。
-    const trackHeight = getTrackHeight({ type: tracks[i].type, scale });
+    const trackHeight = getTrackHeight({ type: track.type, scale });
     const trackTop = cumulativeHeight;
     const trackBottom = trackTop + trackHeight;
 
@@ -76,9 +76,10 @@ function findBestCompatibleTrack({
   // video/image → prefer main track first
   if (elementType === 'video' || elementType === 'image') {
     const mainIdx = getMainTrackIndex({ tracks });
-    if (mainIdx >= 0) {
+    const mainTrack = mainIdx >= 0 ? tracks[mainIdx] : undefined;
+    if (mainTrack !== undefined) {
       const hasOverlap = wouldElementOverlap({
-        elements: tracks[mainIdx].elements,
+        elements: mainTrack.elements,
         startTime: xPosition,
         duration: elementDuration,
         excludeElementId,
@@ -87,10 +88,10 @@ function findBestCompatibleTrack({
     }
   }
 
-  for (let i = 0; i < tracks.length; i++) {
-    if (!canElementGoOnTrack({ elementType, trackType: tracks[i].type })) continue;
+  for (const [i, track] of tracks.entries()) {
+    if (!canElementGoOnTrack({ elementType, trackType: track.type })) continue;
     const hasOverlap = wouldElementOverlap({
-      elements: tracks[i].elements,
+      elements: track.elements,
       startTime: xPosition,
       duration: elementDuration,
       excludeElementId,
@@ -188,8 +189,8 @@ export function computeDropTarget({
       excludeElementId,
     });
 
-    if (compatibleIndex !== null) {
-      const targetTrack = tracks[compatibleIndex];
+    const targetTrack = compatibleIndex !== null ? tracks[compatibleIndex] : undefined;
+    if (compatibleIndex !== null && targetTrack !== undefined) {
       const adjustedXPosition = enforceMainTrackStart({
         tracks,
         targetTrackId: targetTrack.id,
@@ -235,6 +236,8 @@ export function computeDropTarget({
 
   const { trackIndex, relativeY } = trackAtMouse;
   const track = tracks[trackIndex];
+  // findTrackAtMouse 只返回有效下标；缺项 = 不变量被破坏，必须 fail-loud
+  if (track === undefined) throw new Error(`findDropTarget: trackIndex ${trackIndex} 越界`);
   const trackHeight = getTrackHeight({ type: track.type, scale: trackHeightScale });
   const isInUpperHalf = relativeY < trackHeight / 2;
 
@@ -251,12 +254,11 @@ export function computeDropTarget({
   });
 
   if (isTrackCompatible && !hasOverlap) {
-    const targetTrack = tracks[trackIndex];
     // safe: snap to 0 only happens when element becomes the new earliest,
     // meaning the space before the current earliest is empty
     const adjustedXPosition = enforceMainTrackStart({
       tracks,
-      targetTrackId: targetTrack.id,
+      targetTrackId: track.id,
       requestedStartTime: xPosition,
       excludeElementId,
     });
@@ -277,8 +279,8 @@ export function computeDropTarget({
     excludeElementId,
   });
 
-  if (fallbackIndex !== null) {
-    const fallbackTrack = tracks[fallbackIndex];
+  const fallbackTrack = fallbackIndex !== null ? tracks[fallbackIndex] : undefined;
+  if (fallbackIndex !== null && fallbackTrack !== undefined) {
     const adjustedXPosition = enforceMainTrackStart({
       tracks,
       targetTrackId: fallbackTrack.id,
@@ -327,8 +329,8 @@ export function getDropLineY({
   const safeTrackIndex = clamp(dropTarget.trackIndex, 0, tracks.length);
   let y = 0;
 
-  for (let i = 0; i < safeTrackIndex; i++) {
-    y += getTrackHeight({ type: tracks[i].type, scale }) + TRACK_GAP;
+  for (const track of tracks.slice(0, safeTrackIndex)) {
+    y += getTrackHeight({ type: track.type, scale }) + TRACK_GAP;
   }
 
   return y;

@@ -190,7 +190,7 @@ export class TextNode extends BaseNode<TextNodeParams> {
       context.fillStyle = this.params.color;
     }
 
-    for (let i = 0; i < lines.length; i++) {
+    for (const [i, line] of lines.entries()) {
       const lineY = startY + i * lineHeight;
 
       if (hasTextShadow(this.params.shadow)) {
@@ -204,7 +204,7 @@ export class TextNode extends BaseNode<TextNodeParams> {
         context.strokeStyle = this.params.stroke.color;
         context.lineWidth = this.params.stroke.width * 2;
         context.lineJoin = 'round';
-        context.strokeText(lines[i], textX, lineY);
+        context.strokeText(line, textX, lineY);
       }
 
       if (hasTextShadow(this.params.shadow)) {
@@ -214,7 +214,7 @@ export class TextNode extends BaseNode<TextNodeParams> {
         context.shadowOffsetY = 0;
       }
 
-      context.fillText(lines[i], textX, lineY);
+      context.fillText(line, textX, lineY);
     }
   }
 }

@@ -89,8 +89,7 @@ export function hitTestElements({
   }
 
   // test from top to bottom (last rendered = topmost)
-  for (let i = candidates.length - 1; i >= 0; i--) {
-    const candidate = candidates[i];
+  for (const candidate of candidates.slice().reverse()) {
     const { element, transform } = candidate;
 
     // 矩形走**唯一几何原语**（与画面 / 框子同一份算式与尺寸来源）。

@@ -209,6 +209,7 @@ export function findAvailableVideoTrackAbove({
 
   for (let index = sourceIndex - 1; index >= 0; index--) {
     const track = tracks[index];
+    if (track === undefined) continue; // index ∈ [0, sourceIndex)（不可达兜底）
     if (
       // 此处**读字段本身**而非 `isMainTrack`：类型已收窄到 video ⇒ `isMainTrack` 的
       // `type === 'video'` 检查是冗余的；而它作为**类型谓词**，在否定位置会让 TS 把

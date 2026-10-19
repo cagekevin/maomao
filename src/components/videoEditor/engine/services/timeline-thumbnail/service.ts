@@ -30,13 +30,17 @@ function binarySearchNearest({
 
   while (lo < hi) {
     const mid = (lo + hi) >>> 1;
-    if (sortedTimes[mid] < target) lo = mid + 1;
+    const midValue = sortedTimes[mid];
+    if (midValue === undefined) break; // mid ∈ [0, hi]（不可达兜底）
+    if (midValue < target) lo = mid + 1;
     else hi = mid;
   }
 
-  if (lo > 0) {
-    const distLo = Math.abs(sortedTimes[lo] - target);
-    const distPrev = Math.abs(sortedTimes[lo - 1] - target);
+  const loValue = sortedTimes[lo];
+  const prevValue = sortedTimes[lo - 1];
+  if (lo > 0 && loValue !== undefined && prevValue !== undefined) {
+    const distLo = Math.abs(loValue - target);
+    const distPrev = Math.abs(prevValue - target);
     if (distPrev < distLo) return lo - 1;
   }
 
@@ -79,7 +83,9 @@ class TimelineThumbnailCache {
     const idx = binarySearchNearest({ sortedTimes: times, target: time });
     if (idx === -1) return null;
 
-    const key = makeKey({ mediaId, snappedTime: times[idx] });
+    const snappedTime = times[idx];
+    if (snappedTime === undefined) return null; // idx 已校验（不可达兜底）
+    const key = makeKey({ mediaId, snappedTime });
     return this.thumbnails.get(key) ?? null;
   }
 
@@ -160,6 +166,7 @@ class TimelineThumbnailCache {
       for await (const sample of iterator) {
         if (j >= uniqueTimes.length) break;
         const snappedTime = uniqueTimes[j];
+        if (snappedTime === undefined) break; // j < length 已判（不可达兜底）
         j++;
 
         if (!sample) continue;
@@ -285,10 +292,13 @@ class TimelineThumbnailCache {
     let hi = times.length;
     while (lo < hi) {
       const mid = (lo + hi) >>> 1;
-      if (times[mid] < time) lo = mid + 1;
+      const midTime = times[mid];
+      if (midTime === undefined) break; // mid ∈ [0, hi)（不可达兜底）
+      if (midTime < time) lo = mid + 1;
       else hi = mid;
     }
-    if (lo >= times.length || times[lo] !== time) {
+    const existing = times[lo];
+    if (lo >= times.length || existing !== time) {
       times.splice(lo, 0, time);
     }
   }

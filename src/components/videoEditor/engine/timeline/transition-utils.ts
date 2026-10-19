@@ -46,9 +46,9 @@ export function findAdjacentPairs({
   const sorted = [...track.elements].sort((a, b) => a.startTime - b.startTime);
   const pairs: Array<{ from: VisualElement; to: VisualElement }> = [];
 
-  for (let i = 0; i < sorted.length - 1; i++) {
-    const current = sorted[i];
+  for (const [i, current] of sorted.entries()) {
     const next = sorted[i + 1];
+    if (next === undefined) break; // 末尾元素没有后继
     if (areElementsAdjacent({ elementA: current, elementB: next })) {
       pairs.push({ from: current, to: next });
     }

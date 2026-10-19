@@ -31,10 +31,7 @@ type Shape = {
 
 type DefaultRadial = { type: 'default-radial'; at: Position };
 
-type RadialOrientation =
-  | Shape
-  | (ExtentKeyword & { at?: Position | undefined })
-  | DefaultRadial;
+type RadialOrientation = Shape | (ExtentKeyword & { at?: Position | undefined }) | DefaultRadial;
 
 export type GradientOrientation = LinearOrientation | Array<RadialOrientation>;
 
@@ -522,12 +519,17 @@ const matchHSLAColor = (): Color | undefined =>
 const matchVariableName = (): string => {
   const captures =
     scan({ regexp: tokens.variableName }) ?? error({ message: 'Expected CSS variable name' });
-  return captures[1];
+  const name = captures[1];
+  // tokens.variableName 自带捕获组；走到 undefined = Tokenizer 正则被改坏
+  if (name === undefined) return error({ message: 'Expected CSS variable name' });
+  return name;
 };
 
 const matchNumber = (): string => {
   const captures = scan({ regexp: tokens.number }) ?? error({ message: 'Expected number' });
-  return captures[1];
+  const value = captures[1];
+  if (value === undefined) return error({ message: 'Expected number' });
+  return value;
 };
 
 const matchDistance = (): Distance | undefined =>
@@ -592,10 +594,9 @@ const match = <TType extends string>({
     return undefined;
   }
 
-  return {
-    type,
-    value: captures[captureIndex],
-  };
+  const value = captures[captureIndex];
+  if (value === undefined) return undefined; // 捕获索引越界 = 该形态未匹配，按未命中处理
+  return { type, value };
 };
 
 const scan = ({ regexp }: { regexp: RegExp }): RegExpExecArray | null => {

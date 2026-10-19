@@ -5,9 +5,11 @@ type ElementRef = { trackId: string; elementId: string };
 /** 两个选择集合是否指向同一批元素（按内容比较，不看引用）。 */
 function isSameRefs(a: ElementRef[], b: ElementRef[]): boolean {
   if (a.length !== b.length) return false;
-  return a.every(
-    (ref, index) => ref.trackId === b[index].trackId && ref.elementId === b[index].elementId,
-  );
+  return a.every((ref, index) => {
+    const other = b[index];
+    if (other === undefined) return false; // 长度已在上方对齐（不可达兜底）
+    return ref.trackId === other.trackId && ref.elementId === other.elementId;
+  });
 }
 
 /**

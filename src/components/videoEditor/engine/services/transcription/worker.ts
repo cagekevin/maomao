@@ -229,6 +229,7 @@ async function handleTranscribe({
       callback_function: (x: string) => {
         if (chunks.length === 0) return;
         const last = chunks[chunks.length - 1];
+        if (last === undefined) return; // 上方已判空（不可达兜底）
         last.text += x;
 
         const now = performance.now();
@@ -243,6 +244,7 @@ async function handleTranscribe({
       },
       on_chunk_end: (x: number) => {
         const current = chunks[chunks.length - 1];
+        if (current === undefined) return; // 无进行中的 chunk（事件乱序），忽略
         current.timestamp[1] = x + current.offset;
         current.finalised = true;
       },

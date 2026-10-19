@@ -128,13 +128,12 @@ export function buildScene(params: BuildSceneParams) {
         transitionLookup.set(key, transition);
       }
 
-      for (let i = 0; i < visualElements.length; i++) {
-        const element = visualElements[i];
+      for (const [i, element] of visualElements.entries()) {
         if (processedIds.has(element.id)) continue;
 
         // look ahead: check transition with next element
-        if (i < visualElements.length - 1) {
-          const nextElement = visualElements[i + 1];
+        const nextElement = visualElements[i + 1];
+        if (nextElement !== undefined) {
           const pairKey = `${element.id}:${nextElement.id}`;
           const transition = transitionLookup.get(pairKey);
 
