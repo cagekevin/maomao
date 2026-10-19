@@ -4,6 +4,7 @@
  * 上游有文本但本地为空时校验通过。
  */
 import 'react';
+import { at } from '../helpers/at';
 import type { ReactNode } from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
@@ -163,7 +164,7 @@ describe('TextGenerate 上游文本/图片合并（修复点）', () => {
     fireEvent.click(screen.getByText('生成'));
 
     await waitFor(() => expect(mockChat).toHaveBeenCalled());
-    const call = mockChat.mock.calls[0][0] as unknown as {
+    const call = at(mockChat.mock.calls, 0)[0] as unknown as {
       messages: Array<{ role: string; [k: string]: unknown }>;
     };
     const userMsg = call.messages.find((m) => m.role === 'user');
@@ -178,7 +179,7 @@ describe('TextGenerate 上游文本/图片合并（修复点）', () => {
     fireEvent.click(screen.getByText('生成'));
     await waitFor(() => expect(mockChat).toHaveBeenCalled());
     const userMsg = (
-      mockChat.mock.calls[0][0] as unknown as {
+      at(mockChat.mock.calls, 0)[0] as unknown as {
         messages: Array<{ role: string; [k: string]: unknown }>;
       }
     ).messages.find((m) => m.role === 'user');
@@ -197,7 +198,7 @@ describe('TextGenerate 上游文本/图片合并（修复点）', () => {
     fireEvent.click(screen.getByText('生成'));
     await waitFor(() => expect(mockChat).toHaveBeenCalled());
     const userMsg = (
-      mockChat.mock.calls[0][0] as unknown as {
+      at(mockChat.mock.calls, 0)[0] as unknown as {
         messages: Array<{ role: string; [k: string]: unknown }>;
       }
     ).messages.find((m) => m.role === 'user');
@@ -214,7 +215,7 @@ describe('TextGenerate 上游文本/图片合并（修复点）', () => {
     setup({ prompt: '看图说话' });
     fireEvent.click(screen.getByText('生成'));
     await waitFor(() => expect(mockChat).toHaveBeenCalled());
-    const call = mockChat.mock.calls[0][0] as unknown as {
+    const call = at(mockChat.mock.calls, 0)[0] as unknown as {
       messages: Array<{ role: string; [k: string]: unknown }>;
       images?: unknown;
     };
@@ -237,7 +238,7 @@ describe('TextGenerate 上游文本/图片合并（修复点）', () => {
     setup({ prompt: '请描述 @{i1:参考图|http%3A%2F%2Fup%2Fref.png} 的画面', text: '' });
     fireEvent.click(screen.getByText('生成'));
     await waitFor(() => expect(mockChat).toHaveBeenCalled());
-    const call = mockChat.mock.calls[0][0] as unknown as {
+    const call = at(mockChat.mock.calls, 0)[0] as unknown as {
       messages: Array<{ role: string; [k: string]: unknown }>;
       images?: unknown;
     };

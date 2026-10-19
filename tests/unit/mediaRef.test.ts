@@ -7,6 +7,7 @@
  *   - canvasNodesBridge：写/读快照 / **源码级：不 import 存储**
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { at } from '../helpers/at';
 import type { Node } from '@xyflow/react';
 
 // ── canvasNodesBridge：模块级会话态，需按用例重置（vi.resetModules）──
@@ -184,7 +185,7 @@ describe('providers：映射（复用既有真源）', () => {
 
     const onlyVideo = await canvasSourceProvider.list({ types: ['video'] });
     expect(onlyVideo).toHaveLength(1);
-    expect(onlyVideo[0].ref).toBe('canvas:n2');
+    expect(at(onlyVideo, 0).ref).toBe('canvas:n2');
 
     const kw = await canvasSourceProvider.list({ keyword: '纯文本' });
     expect(kw).toHaveLength(0); // 该节点无媒体，即便名字匹配也不收录
@@ -216,9 +217,9 @@ describe('providers：映射（复用既有真源）', () => {
 
     // ① 顺序修复：原实现在解析 url **之前**按 `!media.type` 跳过 ⇒ 这类节点被静默漏掉
     expect(media.map((r) => r.ref)).toEqual(['canvas:n_file']);
-    expect(media[0].type).toBe('image'); // 类型由唯一判型入口按解析出的地址判
-    expect(media[0].contentId).toBe('sha1:abc');
-    expect(String(media[0].url)).toContain('/files/sha1abc.png');
+    expect(at(media, 0).type).toBe('image'); // 类型由唯一判型入口按解析出的地址判
+    expect(at(media, 0).contentId).toBe('sha1:abc');
+    expect(String(at(media, 0).url)).toContain('/files/sha1abc.png');
 
     // ② 「媒体节点但解析不出地址」= 必须留痕（不阻断 ≠ 不可见）；非媒体节点则**不**留痕
     const warned = warnSpy.mock.calls.map((c) => String(c[1]));
@@ -312,8 +313,8 @@ describe('providers：映射（复用既有真源）', () => {
       await import('../../src/components/base/media/providers/librarySource');
     const list = await librarySourceProvider.list();
     expect(list).toHaveLength(1);
-    expect(list[0]).toMatchObject({ ref: 'library:r1', type: 'image', source: 'library' });
+    expect(at(list, 0)).toMatchObject({ ref: 'library:r1', type: 'image', source: 'library' });
     // url 已归一为绝对
-    expect(list[0].url).toMatch(/^https?:\/\/.+\/files\/a\.png$/);
+    expect(at(list, 0).url).toMatch(/^https?:\/\/.+\/files\/a\.png$/);
   });
 });

@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { at } from '../helpers/at';
 import type {
   TimelineTrack,
   TimelineElement,
@@ -93,7 +94,7 @@ describe('轨级开关：不支持该开关的轨 ⇒ 命令什么都不做', ()
     new ToggleTrackMuteCommand('t-video').execute();
 
     expect(h.updateTracks).toHaveBeenCalledTimes(1);
-    const next = h.updateTracks.mock.calls[0][0] as TimelineTrack[];
+    const next = at(h.updateTracks.mock.calls, 0)[0] as TimelineTrack[];
     expect((next[0] as { muted: boolean }).muted).toBe(true);
   });
 
@@ -111,7 +112,7 @@ describe('轨级开关：不支持该开关的轨 ⇒ 命令什么都不做', ()
     new ToggleTrackVisibilityCommand('t-video').execute();
 
     expect(h.updateTracks).toHaveBeenCalledTimes(1);
-    const next = h.updateTracks.mock.calls[0][0] as TimelineTrack[];
+    const next = at(h.updateTracks.mock.calls, 0)[0] as TimelineTrack[];
     expect((next[0] as { hidden: boolean }).hidden).toBe(true);
   });
 });
@@ -146,9 +147,9 @@ describe('元素级隐藏：只改**可隐藏**的元素（音频元素不写 `h
     ]).execute();
 
     expect(h.updateTracks).toHaveBeenCalledTimes(1);
-    const next = h.updateTracks.mock.calls[0][0] as TimelineTrack[];
-    const videoElement = next[0].elements[0] as { hidden?: boolean };
-    const audioElement = next[1].elements[0] as { hidden?: boolean };
+    const next = at(h.updateTracks.mock.calls, 0)[0] as TimelineTrack[];
+    const videoElement = at(at(next, 0).elements as Array<{ hidden?: boolean }>, 0);
+    const audioElement = at(at(next, 1).elements as Array<{ hidden?: boolean }>, 0);
     expect(videoElement.hidden).toBe(true);
     // 音频元素**不得**被写入 `hidden`（类型上它没有这个字段）
     expect(audioElement.hidden).toBeUndefined();

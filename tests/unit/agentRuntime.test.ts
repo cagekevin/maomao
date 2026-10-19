@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { at } from '../helpers/at';
 
 // 【对齐大雄 docs/12-ai助手架构.md §6.3】
 // 覆盖 roundTrip 的「非流式工具开关」路径：
@@ -125,7 +126,7 @@ describe('agentRuntime.roundTrip —— 非流式工具开关 (§6.3)', () => {
     expect(Array.isArray(captured!.tools)).toBe(true);
     expect(captured!.tool_choice).toBe('auto');
     expect(r.tool_calls!).toBeDefined();
-    expect(r.tool_calls![0].function!.name).toBe('show_plan_for_confirm');
+    expect(at(r.tool_calls!, 0).function!.name).toBe('show_plan_for_confirm');
   });
 
   it('【§6.3 开开关但无 tool_calls】非流式 + 开关=true → 响应无 tool_calls 时不回填', async () => {
@@ -199,14 +200,14 @@ describe('agentRuntime.roundTrip —— 非流式工具开关 (§6.3)', () => {
       const m = chunk.match(/data:\s*(.*)/);
       if (m && m[1] !== '[DONE]') {
         try {
-          const d = JSON.parse(m[1]);
+          const d = JSON.parse(at(m, 1));
           const delta = d.choices?.[0]?.delta || {};
           if (delta.content) acc.content += delta.content;
         } catch {
           return {
             kind: 'malformed',
             error: new Error('bad json'),
-            payload: m[1],
+            payload: at(m, 1),
             message: 'test',
           };
         }
@@ -317,8 +318,8 @@ describe('agentRuntime.roundTrip —— 非流式工具开关 (§6.3)', () => {
       ctx.onStream,
     );
     expect(Array.isArray(r.tool_calls!)).toBe(true);
-    expect(r.tool_calls![0].function!.name).toBe('create_node');
-    expect(r.tool_calls![0].function!.arguments).toBe('{"nodeType":"textGenerateNode"}');
+    expect(at(r.tool_calls!, 0).function!.name).toBe('create_node');
+    expect(at(r.tool_calls!, 0).function!.arguments).toBe('{"nodeType":"textGenerateNode"}');
   });
 
   // ── 【TD-16-50】坏 chunk 不得伪装成功（此前静默蒸发 → 用户见空回复）──────────────

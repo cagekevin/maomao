@@ -5,6 +5,7 @@
  * 的成功路径与 HTTP 错误抛出。策略：node + vi.stubGlobal('fetch')。
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { at } from '../helpers/at';
 import { jsonResp } from './_testUtils.mjs';
 
 // 全局 fetch 已在 tests/setup.mjs 强制 mock 为 vi.fn()，此处取共享实例。
@@ -23,14 +24,14 @@ describe('tasksApi — 成功路径', () => {
     // 两边名字不一致 ⇒ 搜索静默失效。现统一为 search（断言 URL 里也必须是真的 search）。
     const res = await api.fetchTasks({ search: '视频' });
     expect(res.data.items).toHaveLength(1);
-    expect(fetchMock.mock.calls[0][0]).toContain('/api/tasks?');
-    expect(fetchMock.mock.calls[0][0]).toContain('search=%E8%A7%86%E9%A2%91');
+    expect(at(fetchMock.mock.calls, 0)[0]).toContain('/api/tasks?');
+    expect(at(fetchMock.mock.calls, 0)[0]).toContain('search=%E8%A7%86%E9%A2%91');
   });
 
   it('fetchTasks 按 nodeId 精确查（filters 等值，后端 camelToSnake → node_id）', async () => {
     fetchMock.mockResolvedValue(jsonResp({ data: { items: [{ id: 't1' }], total: 1 } }));
     await api.fetchTasks({ nodeId: 'n1' });
-    const url = decodeURIComponent(String(fetchMock.mock.calls[0][0]));
+    const url = decodeURIComponent(String(at(fetchMock.mock.calls, 0)[0]));
     expect(url).toContain('filters={"nodeId":"n1"}');
   });
 
@@ -52,7 +53,7 @@ describe('tasksApi — 成功路径', () => {
   it('deleteTask 带 encodeURIComponent 的 id', async () => {
     fetchMock.mockResolvedValue(jsonResp({ ok: true }));
     await api.deleteTask('a/b');
-    expect(fetchMock.mock.calls[0][0]).toContain('delete?id=a%2Fb');
+    expect(at(fetchMock.mock.calls, 0)[0]).toContain('delete?id=a%2Fb');
   });
 
   it('batchDeleteTasks 空数组返回 deleted:0', async () => {
@@ -65,7 +66,7 @@ describe('tasksApi — 成功路径', () => {
     fetchMock.mockResolvedValue(jsonResp({ deleted: 3 }));
     const res = await api.clearAllTasksApi();
     expect(res.deleted).toBe(3);
-    expect(fetchMock.mock.calls[0][0]).toContain('/api/tasks/clear');
+    expect(at(fetchMock.mock.calls, 0)[0]).toContain('/api/tasks/clear');
   });
 });
 
