@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { at } from '../helpers/at';
 import * as contentStore from '../../src/components/base/core/contentStore.ts';
 import {
   SAFE_BUDGET_BYTES,
@@ -87,12 +88,12 @@ describe('conversationState 订阅与提交（消息单源底座）', () => {
     patchCurrentMessages([{ role: 'user', content: 'first' }]);
     // 核心不变量：patch 后立即 getCurrentSnapshot() 读到最新消息（send finally 落盘依赖此同步链）
     expect(getCurrentSnapshot().messages).toHaveLength(1);
-    expect(getCurrentSnapshot().messages[0].content).toBe('first');
+    expect(at(getCurrentSnapshot().messages, 0).content).toBe('first');
     // 追加一条再读
     const cur = getCurrentSnapshot().messages;
     patchCurrentMessages([...cur, { role: 'assistant', content: 'second' }]);
     expect(getCurrentSnapshot().messages).toHaveLength(2);
-    expect(getCurrentSnapshot().messages[1].content).toBe('second');
+    expect(at(getCurrentSnapshot().messages, 1).content).toBe('second');
   });
 
   it('patchCurrentMessages 是轻量通知路径：不发起落盘调度（contentSet 不被同步触发）', () => {
@@ -125,7 +126,7 @@ describe('conversationState 订阅与提交（消息单源底座）', () => {
     setAgentKey('canvas-assistant');
     // 会话键已迁 KV，水化为异步：轮询等待水化完成读到 KV 里持久化数据（而非空壳）
     await vi.waitFor(() => expect(getCurrentSnapshot().messages).toHaveLength(1));
-    expect(getCurrentSnapshot().messages[0].content).toBe('PERSISTED');
+    expect(at(getCurrentSnapshot().messages, 0).content).toBe('PERSISTED');
   });
 
   it('会话落盘真失败（contentSetAsync 抛错，如 4xx 拒收）→ reportDegrade 报出，且不阻断调用栈', async () => {
@@ -155,14 +156,15 @@ describe('conversationState 订阅与提交（消息单源底座）', () => {
     const persisted = (await vi.waitFor(() => {
       const call = spy.mock.calls[0];
       expect(call, 'persistDebounced flush 后必须发起一次 KV 落盘').toBeTruthy();
-      return call[1] as Array<{ messages: Array<{ content: string }> }>;
+      if (call === undefined) throw new Error('persistDebounced flush 未发起 KV 落盘');
+      return at(call, 1) as Array<{ messages: Array<{ content: string }> }>;
     })) as Array<{ messages: Array<{ content: string }> }>; // contentSetAsync(key, value) → value 即 toStore 数组
     expect(JSON.stringify(persisted).length).toBeLessThan(SAFE_BUDGET_BYTES);
-    const downgradedContent = persisted[0].messages[0].content;
+    const downgradedContent = at(at(persisted, 0).messages, 0).content;
     expect(downgradedContent.length).toBeLessThan(hugeContent.length);
     expect(downgradedContent.includes('…[已截断]')).toBe(true);
     // 内存态保持完整（投影降级不改 states 本体）
-    expect(getCurrentSnapshot().messages[0].content).toBe(hugeContent);
+    expect(at(getCurrentSnapshot().messages, 0).content).toBe(hugeContent);
     spy.mockRestore();
   });
 
@@ -222,7 +224,7 @@ describe('TD-11-12 防回潮：resetCurrentConversationToEmpty 真清空全部�
     ensureActiveConversation();
     // 先注入脏状态：workflow（有值）、pendingGenerations、awaitingConfirm=true
     const st = getState();
-    const conv = st.conversations[0];
+    const conv = at(st.conversations, 0);
     commit({
       ...st,
       conversations: st.conversations.map((c) =>
@@ -236,7 +238,7 @@ describe('TD-11-12 防回潮：resetCurrentConversationToEmpty 真清空全部�
           : c,
       ),
     });
-    const dirty = getState().conversations[0];
+    const dirty = at(getState().conversations, 0);
     expect(dirty.workflow).not.toBeNull();
     expect(dirty.pendingGenerations).not.toBeNull();
     expect(dirty.awaitingConfirm).toBe(true);
@@ -244,7 +246,7 @@ describe('TD-11-12 防回潮：resetCurrentConversationToEmpty 真清空全部�
     // 重置（TD-11-12 改为直接构造完整重置态，不再经会漏字段的 setCurrentSnapshot 漏斗）
     resetCurrentConversationToEmpty();
 
-    const after = getState().conversations[0];
+    const after = at(getState().conversations, 0);
     expect(after.workflow).toBeNull();
     expect(after.pendingGenerations).toBeNull();
     expect(after.awaitingConfirm).toBe(false);
