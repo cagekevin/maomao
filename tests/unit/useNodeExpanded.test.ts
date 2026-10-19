@@ -8,6 +8,7 @@
  * 用 vi.mock 隔离 @xyflow/react（仅取 useReactFlow().setNodes）。
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { at } from '../helpers/at';
 import { renderHook, act } from '@testing-library/react';
 
 const setNodesMock = vi.hoisted(() => vi.fn());
@@ -20,7 +21,7 @@ const { useNodeExpanded } = await import('../../src/hooks/useNodeExpanded.ts');
 /** 取最后一次写回 patch 到目标节点后的 data（模拟 reactflow 的不可变局部更新） */
 function lastPatchedData(): Record<string, unknown> {
   const calls = setNodesMock.mock.calls;
-  const updater = calls[calls.length - 1][0];
+  const updater = at(calls, calls.length - 1)[0];
   const ns = [{ id: 'n1', data: { keep: 1 } }];
   return updater(ns)[0].data;
 }

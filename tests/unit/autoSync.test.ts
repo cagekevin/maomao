@@ -7,6 +7,7 @@
  * 模拟「用户点了稍后/上传/下载」。
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { at } from '../helpers/at';
 
 const FIRST_MS = 30_000;
 const INTERVAL_MS = 45 * 60_000;
@@ -94,7 +95,8 @@ describe('autoSync — 调度节奏', () => {
     await vi.advanceTimersByTimeAsync(FIRST_MS);
     expect(mocks.uploadConfig).toHaveBeenCalledTimes(1);
     // 首轮入参：不传 onProgress（静默）
-    const [onProgress, opts] = mocks.uploadConfig.mock.calls[0];
+    const firstCall = at(mocks.uploadConfig.mock.calls, 0);
+    const [onProgress, opts] = firstCall;
     expect(onProgress).toBeUndefined();
     expect(opts?.onAutoConflict).toBeDefined();
     // 30min 后递归第 2 次

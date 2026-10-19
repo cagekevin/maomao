@@ -26,6 +26,7 @@ import {
   type BrowserContext,
   type Page,
 } from '@playwright/test';
+import { at } from '../helpers/at';
 
 const LT = 'http://127.0.0.1:18080';
 const PREFIX = 'canvas-state-v1-';
@@ -39,7 +40,7 @@ function trackProjectKey(page: Page): () => string {
   page.on('request', (r) => {
     const m = r.url().match(/\/api\/kv\/(?:get|version)\?key=([^&]+)/);
     if (!m) return;
-    const k = decodeURIComponent(m[1]);
+    const k = decodeURIComponent(at(m, 1));
     if (k.startsWith(PREFIX)) key = k;
   });
   return () => key;

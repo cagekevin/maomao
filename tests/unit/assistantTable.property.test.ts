@@ -7,6 +7,7 @@
  * 使用确定性伪随机（固定种子），不引入 flaky；列增删/行增删/建表/AI 写入全覆盖。
  */
 import { describe, it, expect } from 'vitest';
+import { at } from '../helpers/at';
 import {
   addColumn,
   insertColumnAfter,
@@ -72,6 +73,6 @@ describe('assistantTable 性质：cells 长度恒等（阶段5）', () => {
     const p = parsePasted('场景\t镜头\n室内\t特写', undefined);
     expect(p).not.toBeNull();
     expect(p!.rows.every((r) => r.cells.length === p!.columns.length)).toBe(true);
-    expect(p!.rows[0].cells).toEqual(['室内', '特写']);
+    expect(at(p!.rows, 0).cells).toEqual(['室内', '特写']);
   });
 });

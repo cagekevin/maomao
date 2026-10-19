@@ -71,7 +71,10 @@ function tabsContentClasses(source: string): string[] {
   const out: string[] = [];
   const re = /<TabsContent[\s\S]{0,300}?className="([^"]*)"/g;
   let match: RegExpExecArray | null;
-  while ((match = re.exec(source))) out.push(match[1]);
+  while ((match = re.exec(source))) {
+    const captured = match[1];
+    if (captured !== undefined) out.push(captured);
+  }
   return out;
 }
 

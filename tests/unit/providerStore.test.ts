@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { at } from '../helpers/at';
 
 // 这些 store 的快照读取通过 useSyncExternalStore 暴露，但纯逻辑测试不需要 React 渲染。
 // mock react 的 useSyncExternalStore 直接返回 getSnapshot()，即可在 node 下读取模块级 state。
@@ -221,7 +222,7 @@ describe('providerStore §4 供应商数据层（新时代配置型）', () => {
       });
       const res = await mod.save();
       expect(res.ok).toBe(true);
-      const sent = h.mockSaveProviders.mock.calls[0][0];
+      const sent = at(h.mockSaveProviders.mock.calls, 0)[0];
       expect(Array.isArray(sent)).toBe(true);
       const me = sent.find((p: any) => p.id === 'a');
       // 透传保留模型等字段，且不带任何 key 通道

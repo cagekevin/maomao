@@ -19,6 +19,7 @@
  * 通过 vi.mock 隔离 resolveNodeAssetUrl / showToast；用 vi.stubGlobal 控制 navigator.clipboard。
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { at } from '../helpers/at';
 import { renderHook, act } from '@testing-library/react';
 import type { ClipboardEvent as ReactClipboardEvent, DragEvent as ReactDragEvent } from 'react';
 
@@ -325,7 +326,7 @@ describe('useAssetDropPaste — onPaste（万全之策）', () => {
     });
     expect(opts.addNode).not.toHaveBeenCalled();
     expect(toastMock).toHaveBeenCalled();
-    const msg = toastMock.mock.calls[0][0];
+    const msg = at(toastMock.mock.calls, 0)[0];
     expect(typeof msg).toBe('string');
     expect(msg.length).toBeGreaterThan(0);
   });

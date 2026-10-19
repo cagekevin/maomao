@@ -12,6 +12,7 @@
  * 组件测试要验的正是"真判定 → 真渲染"这条链，把判定也 mock 掉就只剩样式断言了。
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { at } from '../helpers/at';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 // 【深引真源（门面桩不覆盖它）】`accept` 必须与白名单同源：写死字符串就会与真源漂移，而漂移**不报错**
 // —— 只会让用户在系统选择框里被挡住或被钓（TD-11-63 顺带：本页此前写死了 `.json,.yaml,.yml,.csv`，
@@ -210,7 +211,7 @@ describe('SkillSettings · 编辑与保存（直接编辑磁盘 + 冲突保护�
     fireEvent.click(screen.getByText('保存修改'));
 
     await waitFor(() => expect(h.save).toHaveBeenCalledTimes(1));
-    const arg = h.save.mock.calls[0][0] as { name: string; baselineHash?: string; id?: string };
+    const arg = at(h.save.mock.calls, 0)[0] as { name: string; baselineHash?: string; id?: string };
     expect(arg.name).toBe('改过的名字');
     expect(arg.id).toBe('id-ok');
     expect(arg.baselineHash).toBeTruthy(); // 少了它，保存就变成"谁后保存谁赢"

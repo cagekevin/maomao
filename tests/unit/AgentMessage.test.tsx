@@ -13,6 +13,7 @@
  *  - 交互：思考折叠展开、确认按钮触发 onConfirmPlan、重试触发 onRetryStep
  */
 import React from 'react';
+import { at } from '../helpers/at';
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 vi.mock('../../src/components/base/api/filesApi.ts', async (importOriginal) => ({
@@ -279,7 +280,7 @@ describe('AgentMessage — tool 消息（成败与重试）', () => {
     expect(screen.getByText('计划执行：2 步失败')).toBeTruthy();
     const retryBtns = screen.getAllByText('重试此步');
     expect(retryBtns).toHaveLength(2);
-    fireEvent.click(retryBtns[0]);
+    fireEvent.click(at(retryBtns, 0));
     expect(onRetryStep).toHaveBeenCalledWith('b');
   });
 });

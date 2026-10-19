@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect } from 'vitest';
+import { at } from '../helpers/at';
 import {
   serializeDOM,
   renderPromptToNodes,
@@ -291,7 +292,7 @@ describe('findAutoLinkOccurrences（统一命中源，§8.5）', () => {
   it('单个命中：返回相对文本的 [start,end)（end 不含 @）', () => {
     const occs = findAutoLinkOccurrences('一只@猫在跑', assets);
     expect(shape(occs)).toEqual([{ start: 2, end: 4, name: '猫' }]);
-    expect(occs[0].asset.id).toBe('img-1');
+    expect(at(occs, 0).asset.id).toBe('img-1');
   });
 
   it('多个命中：非重叠、各自返回', () => {

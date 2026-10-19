@@ -5,6 +5,7 @@
  * 用 vi.mock 隔离 @xyflow/react（仅取 useReactFlow().setNodes），不依赖真实 ReactFlowProvider。
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { at } from '../helpers/at';
 import { renderHook, act } from '@testing-library/react';
 
 const setNodesMock = vi.hoisted(() => vi.fn());
@@ -34,8 +35,9 @@ describe('useNodeData — patchData', () => {
 
     const next = updater!(ns);
     expect(next).not.toBe(ns);
-    expect(next[0]).toEqual({ id: 'n1', data: { a: 1, b: 2 } });
-    expect(next[1].data).toBe(ns[1].data); // 其它节点 data 引用不动
+    if (!Array.isArray(next)) throw new Error('updater 应返回数组');
+    expect(at(next, 0)).toEqual({ id: 'n1', data: { a: 1, b: 2 } });
+    expect(at(next, 1).data).toBe(at(ns, 1).data); // 其它节点 data 引用不动
   });
 });
 

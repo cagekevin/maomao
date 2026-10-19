@@ -8,6 +8,7 @@
  *  - 安全：javascript: 链接不放行（渲染为纯文本）
  */
 import React from 'react';
+import { at } from '../helpers/at';
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 
@@ -37,7 +38,7 @@ describe('ChatMarkdown — 块级 Markdown', () => {
     expect(document.querySelector('table')).toBeTruthy();
     const th = document.querySelectorAll('th');
     expect(th).toHaveLength(2);
-    expect(th[0].textContent).toBe('名称');
+    expect(at(Array.from(th), 0).textContent).toBe('名称');
     expect(document.querySelectorAll('tbody tr')).toHaveLength(2);
   });
 

@@ -5,6 +5,7 @@
  * 策略：node + vi.stubGlobal('fetch')。
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { at } from '../helpers/at';
 import { jsonResp } from './_testUtils.mjs';
 
 // setup.mjs 已把 globalThis.fetch 定义为共享 vi.fn；此处做类型对齐以启用 .mock* / mock.calls。
@@ -21,7 +22,7 @@ describe('projectsApi — 成功路径', () => {
     const res = await api.fetchProjects();
     expect(res.data.projects).toHaveLength(1);
     expect(res.data.lastOpened).toBe('p1');
-    expect(fetchMock.mock.calls[0][0]).toContain('/api/projects');
+    expect(at(fetchMock.mock.calls, 0)[0]).toContain('/api/projects');
   });
 
   it('saveProjects 发送 POST 全量覆盖', async () => {

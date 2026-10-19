@@ -18,6 +18,7 @@
  * **不是断言失败**，不必修。
  */
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { at } from '../helpers/at';
 import { EditorCore } from '../../src/components/videoEditor/engine/core';
 import { RemoveMediaAssetCommand } from '../../src/components/videoEditor/engine/commands/media/remove-media-asset.ts';
 import type { TProject } from '../../src/components/videoEditor/types/project';
@@ -122,7 +123,7 @@ describe('选择的失效/恢复由读取侧不变量保证（TD-22-26）', () =
     // 删素材 → 命令内部委托 deleteElements 把该素材上的元素一并删掉。
     editor.command.execute({ command: new RemoveMediaAssetCommand('p1', 'm-e1') });
 
-    expect(editor.timeline.getTracks()[0].elements).toHaveLength(1);
+    expect(at(editor.timeline.getTracks(), 0).elements).toHaveLength(1);
     expect(editor.selection.getSelectedElements()).toEqual([]);
   });
 

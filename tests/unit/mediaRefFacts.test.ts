@@ -7,6 +7,7 @@
  * 症状会出现在两个业务域、且表现不同（画布是节点空、剪辑器是类型强转）。
  */
 import { describe, it, expect } from 'vitest';
+import { at } from '../helpers/at';
 import { mediaRefFactsOf } from '../../src/components/base/media/mediaRefTypes';
 import type { MediaRef } from '../../src/components/base/media/mediaRefTypes';
 
@@ -35,7 +36,7 @@ describe('mediaRefFactsOf：落地事实（唯一判据）', () => {
   it('无 contentId 时不产生该字段（不用 undefined 占位）', () => {
     const facts = mediaRefFactsOf([mk()]);
 
-    expect('contentId' in facts[0]).toBe(false);
+    expect('contentId' in at(facts, 0)).toBe(false);
   });
 
   it('契约违约（无 url）→ 在根部抛出（不是返判别联合等消费端转发）', () => {

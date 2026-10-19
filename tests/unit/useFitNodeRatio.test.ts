@@ -8,6 +8,7 @@
  * 通过 mock @xyflow/react 捕获 setNodes 验证。
  */
 import { describe, it, expect, vi } from 'vitest';
+import { at } from '../helpers/at';
 import { renderHook } from '@testing-library/react';
 import type { SyntheticEvent } from 'react';
 
@@ -27,7 +28,7 @@ vi.mock('@xyflow/react', () => ({
 const { useFitNodeRatio } = await import('../../src/components/image/hooks/useFitNodeRatio.ts');
 
 function lastSetNodesUpdate() {
-  const updater = setNodes.mock.calls[setNodes.mock.calls.length - 1][0];
+  const updater = at(setNodes.mock.calls, setNodes.mock.calls.length - 1)[0];
   return updater([{ id: 'n1', data: {}, style: {} }])[0];
 }
 

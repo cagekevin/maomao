@@ -8,6 +8,7 @@
  *  - 断线回调（onDisconnectUpstream）被正确透传调用
  */
 import 'react';
+import { at } from '../helpers/at';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 
@@ -30,7 +31,7 @@ vi.mock('../../src/components/canvas/shell/ResourceStrip.tsx', () => ({
         <button
           type="button"
           data-testid="disconnect"
-          onClick={() => onDisconnect?.(images[0].sourceNodeId)}
+          onClick={() => onDisconnect?.(at(images, 0).sourceNodeId)}
         >
           ×
         </button>

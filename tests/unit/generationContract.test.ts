@@ -6,6 +6,7 @@
  *  - 业务失败（含 aborted 不 toast）/ 抛 AbortError（分类中止）/ 抛普通异常 / run 返回 undefined
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { at } from '../helpers/at';
 
 const taskCtl = { taskId: 't-1', progress: vi.fn(), done: vi.fn(), fail: vi.fn() };
 const reportGenerateMock = vi.fn((..._a: unknown[]) => taskCtl);
@@ -124,7 +125,7 @@ describe('runGenerationContract', () => {
     });
     // 分开报告：生成成功、保存失败 → reportDegrade 带 toast（用户可见），不再静默
     expect(reportDegradeMock).toHaveBeenCalledTimes(1);
-    expect(reportDegradeMock.mock.calls[0][0]).toMatchObject({
+    expect(at(reportDegradeMock.mock.calls, 0)[0]).toMatchObject({
       key: 'saveResultToTasks',
       toast: expect.stringContaining('未能保存'),
     });

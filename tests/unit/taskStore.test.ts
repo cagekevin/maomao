@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { at } from '../helpers/at';
 
 // 隔离 taskStore 的 IO 依赖（localToolApi/filesApi 走 fetch → localTool），
 // 只验证纯逻辑：状态映射、类型映射、面板状态、任务清理、重试注册、进度落库节流。
@@ -150,7 +151,7 @@ describe('taskStore §2.6 任务清理', () => {
     clearTasksBy((t) => t.nodeId === 'n1');
     const remaining = getTasks();
     expect(remaining).toHaveLength(1);
-    expect(remaining[0].nodeId).toBe('n2');
+    expect(at(remaining, 0).nodeId).toBe('n2');
   });
 
   it('clearAllTasks 清空全部任务', () => {

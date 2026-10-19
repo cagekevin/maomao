@@ -11,6 +11,7 @@
  * 把 `goPage` 改成恒取第 1 页、或把触发改回 onScroll，① / ② 立刻红（探针见轮次文件）。
  */
 import React from 'react';
+import { at } from '../helpers/at';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, waitFor, cleanup, fireEvent, screen } from '@testing-library/react';
 
@@ -115,7 +116,7 @@ describe('ResourceLibrary（素材库 tab）— 翻页', () => {
 
     // 首屏：请求第 1 页（20 条），第 21 条不在当前页
     await screen.findByText('素材1');
-    expect(h.calls[0].page).toBe(1);
+    expect(at(h.calls, 0).page).toBe(1);
     expect(screen.queryByText('素材21')).toBeNull();
 
     fireEvent.click(screen.getByText('下一页'));

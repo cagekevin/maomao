@@ -17,6 +17,7 @@
  * ════════════════════════════════════════════════════════════════
  */
 import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { at } from '../helpers/at';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { getElementPlaybackRate } from '../../src/components/videoEditor/engine/timeline/element-utils';
@@ -38,7 +39,7 @@ const FILES = walk(VE_ROOT);
 
 function filesMatching(re: RegExp): string[] {
   return FILES.filter((file) => re.test(readFileSync(file, 'utf8')))
-    .map((file) => file.replace(/\\/g, '/').split(VE_PREFIX)[1])
+    .map((file) => at(file.replace(/\\/g, '/').split(VE_PREFIX), 1))
     .sort();
 }
 

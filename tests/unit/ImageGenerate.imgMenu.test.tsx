@@ -208,7 +208,9 @@ function lastPatchData(initialData = {}) {
   const calls = mockSetNodes.mock.calls;
   // 找最后一条含 data patch 的调用
   for (let i = calls.length - 1; i >= 0; i--) {
-    const updater = calls[i][0];
+    const call = calls[i];
+    if (call === undefined) continue;
+    const updater = call[0];
     if (typeof updater === 'function') {
       const r = updater([{ id: 'n1', data: initialData }]);
       return r[0].data;

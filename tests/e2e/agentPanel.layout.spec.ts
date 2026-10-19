@@ -54,7 +54,9 @@ test.describe('AI 助手面板 · 消息渲染不横向溢出', () => {
 
   // 反向保护：不许为了「不溢出」把代码块压成不可读——它应当保持自身横向滚动
   test('代码块保持自身横向滚动，不被压扁也不撑破面板', async ({ page }) => {
-    const r = await renderAndMeasure(page, MESSAGE_FIXTURES['代码块·超长单行'], 640);
+    const fixture = MESSAGE_FIXTURES['代码块·超长单行'];
+    if (fixture === undefined) throw new Error('缺少 fixture：代码块·超长单行');
+    const r = await renderAndMeasure(page, fixture, 640);
     expect(
       r.msgsOver,
       `代码块撑破了消息区（${r.msgsW}px > 面板 ${r.panelW}px）`,
