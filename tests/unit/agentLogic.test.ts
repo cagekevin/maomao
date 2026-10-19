@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { at } from '../helpers/at';
 import {
   parseSSEChunk,
   buildRequestMessages,
@@ -96,12 +97,12 @@ describe('AI 助手 buildRequestMessages（发 LLM 消息组装）§2.15', () =>
   // 改字不红（content 恒等于该常量），仅当注入失效/顺序错/被覆盖时才红。
   it('enhance 默认注入 CANVAS_AGENT_RULES 为 system', () => {
     const out = buildRequestMessages([{ role: 'user', content: 'hi' }], '', true, '', null);
-    expect(out[0].role).toBe('system');
-    expect(out[0].content).toContain(CANVAS_AGENT_RULES);
+    expect(at(out, 0).role).toBe('system');
+    expect(at(out, 0).content).toContain(CANVAS_AGENT_RULES);
     // 执行模型分流段（恒 auto）紧随准则作为独立 system
-    expect(out[1].role).toBe('system');
-    expect(out[1].content).toContain('完全自主');
-    expect(out[2]).toMatchObject({ role: 'user', content: 'hi' });
+    expect(at(out, 1).role).toBe('system');
+    expect(at(out, 1).content).toContain('完全自主');
+    expect(at(out, 2)).toMatchObject({ role: 'user', content: 'hi' });
   });
 
   it('mode=table 时首条 system 注入 TABLE_AGENT_RULES（替换画布准则，不叠加）', () => {
@@ -117,12 +118,12 @@ describe('AI 助手 buildRequestMessages（发 LLM 消息组装）§2.15', () =>
       '',
       'table',
     );
-    expect(out[0].role).toBe('system');
-    expect(out[0].content).toContain(TABLE_AGENT_RULES);
-    expect(out[0].content).not.toContain('猫猫画布助手'); // 不被画布三通道抢占首条
+    expect(at(out, 0).role).toBe('system');
+    expect(at(out, 0).content).toContain(TABLE_AGENT_RULES);
+    expect(at(out, 0).content).not.toContain('猫猫画布助手'); // 不被画布三通道抢占首条
     // 执行模型分流段（恒 auto）仍紧随
-    expect(out[1].role).toBe('system');
-    expect(out[1].content).toContain('完全自主');
+    expect(at(out, 1).role).toBe('system');
+    expect(at(out, 1).content).toContain('完全自主');
     expect(out.some((m) => m.role === 'user' && m.content === 'hi')).toBe(true);
   });
 
@@ -140,7 +141,7 @@ describe('AI 助手 buildRequestMessages（发 LLM 消息组装）§2.15', () =>
       null,
     );
     expect(out.filter((m) => m.role === 'system')).toHaveLength(3); // 画布准则 + 外部准则 + 执行模型分流段(auto)
-    expect(out[1].content).toBe('自定义准则');
+    expect(at(out, 1).content).toBe('自定义准则');
   });
 
   it('块②（本次启用）注入：包裹符写明「本次启用 Skill（N 项）」并追加执行规则', () => {
@@ -227,8 +228,8 @@ describe('AI 助手 buildRequestMessages（发 LLM 消息组装）§2.15', () =>
     );
     const sys = out.filter((m) => m.role === 'system');
     expect(sys).toHaveLength(3); // 画布准则 + 外部准则 + 执行模型分流段(auto)（历史 system「已有」被丢弃）
-    expect(sys[0].content).toContain('猫猫画布助手'); // 画布准则
-    expect(sys[1].content).toBe('外部准则'); // 传入的 systemPrompt
+    expect(at(sys, 0).content).toContain('猫猫画布助手'); // 画布准则
+    expect(at(sys, 1).content).toBe('外部准则'); // 传入的 systemPrompt
     expect(sys.some((m) => m.content === '已有')).toBe(false); // 历史 system 不回传
     expect(out.some((m) => m.role === 'user' && m.content === 'hi')).toBe(true); // 本轮 user 保留
   });
@@ -321,7 +322,7 @@ describe('AI 助手 buildRequestMessages（发 LLM 消息组装）§2.15', () =>
     const out = buildRequestMessages(msgs, '', false);
     const user = out.find((m) => m.role === 'user');
     // 图片转 image_url（带附件时 content 运行时为内容块数组，此处断言为数组）
-    expect((user!.content as unknown as ContentBlock[])[0].type).toBe('image_url');
+    expect(at(user!.content as unknown as ContentBlock[], 0).type).toBe('image_url');
     // 坐标文本附加在 content 里，LLM 能感知参考图来自画布哪个位置
     const text =
       (user!.content as unknown as ContentBlock[]).find((c) => c.type === 'text')?.text || '';
@@ -356,7 +357,7 @@ describe('AI 助手 buildRequestMessages（发 LLM 消息组装）§2.15', () =>
     const users = out.filter((m) => m.role === 'user');
     const assistants = out.filter((m) => m.role === 'assistant');
     expect(users).toHaveLength(1); // 只发本轮
-    expect(users[0].content).toBe('把提示词优化一下');
+    expect(at(users, 0).content).toBe('把提示词优化一下');
     expect(assistants).toHaveLength(0); // 历史 assistant 文字被砍
   });
 
@@ -447,7 +448,7 @@ describe('toChatMessages（TD-11-82 · 宽松态 → 协议态唯一转换）', 
   });
 
   it('字段形状不符 ⇒ 该字段缺席（不把脏值透传给上游）', () => {
-    const [m] = toChatMessages([{ role: 'user', content: { bad: true }, tool_call_id: 42 }]);
+    const m = at(toChatMessages([{ role: 'user', content: { bad: true }, tool_call_id: 42 }]), 0);
     expect(m.content).toBeUndefined();
     expect(m.tool_call_id).toBeUndefined();
   });

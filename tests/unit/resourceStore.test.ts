@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { at } from '../helpers/at';
 import {
   FOLDERS,
   libraryFoldersOf,
@@ -98,20 +99,20 @@ describe('素材库数据层 §2.18', () => {
   it('addResources 新增并置默认 folder=migrated', () => {
     const added = addResources([{ url: '/files/x.png', name: '新图', type: 'image' }]);
     expect(added).toHaveLength(1);
-    expect(added[0].folder).toBe('migrated');
-    expect(added[0].id).toBeTruthy();
-    expect(getResources().find((a) => a.id === added[0].id)).toBeTruthy();
+    expect(at(added, 0).folder).toBe('migrated');
+    expect(at(added, 0).id).toBeTruthy();
+    expect(getResources().find((a) => a.id === at(added, 0).id)).toBeTruthy();
   });
 
   it('addResources 指定 folder 落对应目录', () => {
     const added = addResources([{ url: '/files/y.png', type: 'image' }], 'migrated/场景');
-    expect(added[0].folder).toBe('migrated/场景');
+    expect(at(added, 0).folder).toBe('migrated/场景');
   });
 
   it('removeResource 删除指定 id', () => {
     const added = addResources([{ url: '/files/z.png', type: 'image' }]);
-    removeResource(added[0].id);
-    expect(getResources().find((a) => a.id === added[0].id)).toBeFalsy();
+    removeResource(at(added, 0).id);
+    expect(getResources().find((a) => a.id === at(added, 0).id)).toBeFalsy();
   });
 
   it('clearResources 清空', () => {
@@ -176,9 +177,9 @@ describe('素材库数据层 §2.18', () => {
       'migrated',
     );
     const list = getResources();
-    expect(list.find((r) => r.id === added[0].id)?.projectId).toBe('p1');
-    expect(resourcesOfProject(list, 'p1').some((r) => r.id === added[0].id)).toBe(true);
-    expect(resourcesOfProject(list, 'p2').some((r) => r.id === added[0].id)).toBe(false);
+    expect(list.find((r) => r.id === at(added, 0).id)?.projectId).toBe('p1');
+    expect(resourcesOfProject(list, 'p1').some((r) => r.id === at(added, 0).id)).toBe(true);
+    expect(resourcesOfProject(list, 'p2').some((r) => r.id === at(added, 0).id)).toBe(false);
   });
 });
 
@@ -198,7 +199,7 @@ describe('resourceStore P4 落盘节流', () => {
     addResources([{ url: '/a.png', type: 'image' }]);
     expect(localStorage.getItem(STORAGE_KEY)).toBeNull();
     addResources([{ url: '/b.png', type: 'image' }]);
-    removeResource(getResources()[0].id);
+    removeResource(at(getResources(), 0).id);
     expect(localStorage.getItem(STORAGE_KEY)).toBeNull();
     vi.advanceTimersByTime(300);
     const saved = JSON.parse(localStorage.getItem(STORAGE_KEY)!);
@@ -254,8 +255,8 @@ describe('TD-12-2 占位项与后端项按 url 归并', () => {
 
     const list = getResources();
     expect(list).toHaveLength(1); // 改前 = 2 行（随机 id 与后端路径 id 永不相交）
-    expect(list[0].id).toBe('local-migrated-a.png'); // 以后端身份为准
-    expect(list[0].contentId).toBe('sha1:abc');
+    expect(at(list, 0).id).toBe('local-migrated-a.png'); // 以后端身份为准
+    expect(at(list, 0).contentId).toBe('sha1:abc');
   });
 
   it('不误删：url 不同的本地项照常保留', () => {
@@ -321,9 +322,9 @@ describe('sendToResourceLibrary：落盘 → 归位 → 广播', () => {
     expect(outcome.ok ? outcome.url : '').toBe(PERSISTED);
     const list = getResources();
     expect(list).toHaveLength(1);
-    expect(list[0].url).toBe(PERSISTED);
-    expect(list[0].name).toBe('猫');
-    expect(list[0].folder).toBe('migrated');
+    expect(at(list, 0).url).toBe(PERSISTED);
+    expect(at(list, 0).name).toBe('猫');
+    expect(at(list, 0).folder).toBe('migrated');
   });
 
   it('本机素材已在目标目录 → 幂等短路：不做归位（不产生多余的上下文写）', async () => {
@@ -440,7 +441,7 @@ describe('libraryFoldersOf：静态基底 ∪ 磁盘实有子目录（TD-03-15�
     const list = libraryFoldersOf([]);
     expect(list.map((f) => f.key)).toEqual(['all', 'character', 'scene', 'prop']);
     // 「全部」的 folder 必须是 null（面板据此回落 LIBRARY_ROOT，不在此写死路径）
-    expect(list[0].folder).toBeNull();
+    expect(at(list, 0).folder).toBeNull();
   });
 
   it('磁盘实有子目录自动获得 pill（本轮修的用户可见缺陷）', () => {

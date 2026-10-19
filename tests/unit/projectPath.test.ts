@@ -5,6 +5,7 @@
 //   → pathPositionAtFraction 沿弧长匀速回放（直线匀速不偏、细粒度不掉帧）
 // 依赖均为纯函数，node 环境可跑（npm run test:unit:logic）。
 import { describe, it, expect } from 'vitest';
+import { at } from '../helpers/at';
 import {
   createEmptyPath,
   normalizeCameraPath,
@@ -65,8 +66,10 @@ describe('路径归一化 normalizeShotPaths / normalizeCameraPath', () => {
     const shots = normalizeShotPaths({
       'actor-lead': { points: straightPoints, startFrame: 0, endFrame: 360, keyframeCount: 3 },
     });
-    expect(shots['actor-lead'].points).toHaveLength(3);
-    expect(shots['actor-lead'].keyframeCount).toBe(3);
+    const leadShot = shots['actor-lead'];
+    if (leadShot === undefined) throw new Error('normalizeShotPaths 未产出 actor-lead');
+    expect(leadShot.points).toHaveLength(3);
+    expect(leadShot.keyframeCount).toBe(3);
   });
 });
 
@@ -78,8 +81,8 @@ describe('曲线采样 pathSamplePoints（转折处平滑连续）', () => {
   it('直线采样：首尾对齐起点终点，且全程单调前进', () => {
     const samples = pathSamplePoints(straightPoints, false, 8);
     expect(samples.length).toBeGreaterThan(10);
-    expect(samples[0].x).toBeCloseTo(0, 3);
-    expect(samples[samples.length - 1].x).toBeCloseTo(10, 3);
+    expect(at(samples, 0).x).toBeCloseTo(0, 3);
+    expect(at(samples, samples.length - 1).x).toBeCloseTo(10, 3);
     let lastX = -Infinity;
     for (const s of samples) {
       expect(s.x).toBeGreaterThanOrEqual(lastX - 1e-6); // 单调
@@ -91,8 +94,8 @@ describe('曲线采样 pathSamplePoints（转折处平滑连续）', () => {
     const samples = pathSamplePoints(cornerPoints, false, 16);
     let maxStep = 0;
     for (let i = 1; i < samples.length; i += 1) {
-      const dx = samples[i].x - samples[i - 1].x;
-      const dz = samples[i].z - samples[i - 1].z;
+      const dx = at(samples, i).x - at(samples, i - 1).x;
+      const dz = at(samples, i).z - at(samples, i - 1).z;
       maxStep = Math.max(maxStep, Math.hypot(dx, dz));
     }
     // 整条约 10 单位、采样 32 段，单段步长应 ≪ 2
@@ -111,18 +114,18 @@ describe('关键帧烘焙 bakePathKeyframes（按弧长切帧）', () => {
   it('生成恰好 keyframeCount 个关键帧，覆盖 [start,end]，帧号单调', () => {
     const { frames, sourceKeyframeFrames } = bakePathKeyframes(path, 24);
     expect(frames).toHaveLength(5);
-    expect(frames[0].frame).toBe(10);
-    expect(frames[4].frame).toBe(130);
+    expect(at(frames, 0).frame).toBe(10);
+    expect(at(frames, 4).frame).toBe(130);
     for (let i = 1; i < frames.length; i += 1) {
-      expect(frames[i].frame).toBeGreaterThan(frames[i - 1].frame);
+      expect(at(frames, i).frame).toBeGreaterThan(at(frames, i - 1).frame);
     }
     expect(sourceKeyframeFrames).toEqual(frames.map((f) => f.frame));
   });
 
   it('位置落在首尾控制点范围内（直线端点重合）', () => {
     const { frames } = bakePathKeyframes(path, 24);
-    expect(frames[0].position[0]).toBeCloseTo(0, 3);
-    expect(frames[4].position[0]).toBeCloseTo(10, 3);
+    expect(at(frames, 0).position[0]).toBeCloseTo(0, 3);
+    expect(at(frames, 4).position[0]).toBeCloseTo(10, 3);
   });
 
   it('同一路径重复烘焙产出完全一致的帧（去重稳定，不叠加不漂移）', () => {
