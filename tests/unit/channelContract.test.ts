@@ -228,7 +228,7 @@ describe('M1.2 整快照 → 通道 key（snapshotToChannelKeys）', () => {
   });
 
   it('插值方式随 key 透传（M1-C3 语义的一部分）', () => {
-    const keys = snapshotToChannelKeys('person', legacyPersonKeys[1], 24, 'linear');
+    const keys = snapshotToChannelKeys('person', at(legacyPersonKeys, 1), 24, 'linear');
     expect(at(channelOf(keys, 'transform'), 0).interpolation).toBe('linear');
   });
 
@@ -294,7 +294,10 @@ describe('M1-C6 旧整快照无损迁移 → 播放逐帧一致', () => {
       { 'block-stage': legacyBoxKeys },
       { 'block-stage': 'object' },
     );
-    const flatBack = channelsToSnapshotKeys('object', channels['block-stage']) as ChannelKey[];
+    const flatBack = channelsToSnapshotKeys(
+      'object',
+      trackOf(channels, 'block-stage'),
+    ) as ChannelKey[];
     const migratedResults = sampleFrames.map((frame) => objectAtFrame(box, flatBack, frame, 24));
     // 物体无姿态语义（M1-C1 只留 transform 通道），求值回退的 poseTime 等字段不影响渲染；
     // 断言对渲染真正生效的 transform 字段逐帧一致即可。
@@ -305,9 +308,9 @@ describe('M1-C6 旧整快照无损迁移 → 播放逐帧一致', () => {
     });
     expect(migratedResults.map(pickTransform)).toEqual(legacyResults.map(pickTransform));
     // 收敛生效：物体轨道不再携带 pose/poseTime 等无意义字段
-    expect(flatBack[0].pose).toBeUndefined();
-    expect(flatBack[0].poseTime).toBeUndefined();
-    expect(flatBack[0].joints).toBeUndefined();
+    expect(at(flatBack, 0).pose).toBeUndefined();
+    expect(at(flatBack, 0).poseTime).toBeUndefined();
+    expect(at(flatBack, 0).joints).toBeUndefined();
   });
 
   it('摄像机：迁移为 transform/lens 双通道后 cameraAtFrame 逐帧一致', () => {
@@ -325,14 +328,14 @@ describe('M1-C6 旧整快照无损迁移 → 播放逐帧一致', () => {
 
   it('objectsAtFrame 直接消费通道化轨道，输出与整快照求值一致', () => {
     const channels = {
-      'actor-lead': normalizeObjectTracks(
-        { 'actor-lead': legacyPersonKeys },
-        { 'actor-lead': 'person' },
-      )['actor-lead'],
-      'block-stage': normalizeObjectTracks(
-        { 'block-stage': legacyBoxKeys },
-        { 'block-stage': 'object' },
-      )['block-stage'],
+      'actor-lead': trackOf(
+        normalizeObjectTracks({ 'actor-lead': legacyPersonKeys }, { 'actor-lead': 'person' }),
+        'actor-lead',
+      ),
+      'block-stage': trackOf(
+        normalizeObjectTracks({ 'block-stage': legacyBoxKeys }, { 'block-stage': 'object' }),
+        'block-stage',
+      ),
     };
     const viaChannels = objectsAtFrame([person, box], channels, 10, 24);
     const viaLegacy = objectsAtFrame(
@@ -342,11 +345,11 @@ describe('M1-C6 旧整快照无损迁移 → 播放逐帧一致', () => {
       24,
     );
     // 人物：动作/骨骼语义全保留，整对象逐字段一致
-    expect(viaChannels[0]).toEqual(viaLegacy[0]);
+    expect(at(viaChannels, 0)).toEqual(at(viaLegacy, 0));
     // 物体：无姿态语义，仅比对渲染生效的 transform 字段
-    expect(viaChannels[1].position).toEqual(viaLegacy[1].position);
-    expect(viaChannels[1].rotation).toEqual(viaLegacy[1].rotation);
-    expect(viaChannels[1].scale).toEqual(viaLegacy[1].scale);
+    expect(at(viaChannels, 1).position).toEqual(at(viaLegacy, 1).position);
+    expect(at(viaChannels, 1).rotation).toEqual(at(viaLegacy, 1).rotation);
+    expect(at(viaChannels, 1).scale).toEqual(at(viaLegacy, 1).scale);
   });
 
   it('整工程 normalizeProjectData：旧数据迁移为通道结构', () => {
@@ -367,10 +370,18 @@ describe('M1-C6 旧整快照无损迁移 → 播放逐帧一致', () => {
     })!;
     expect(project.keyframes.transform).toBeInstanceOf(Array);
     expect(project.keyframes.lens).toBeInstanceOf(Array);
-    expect(project.objectKeyframes['actor-lead'].action).toBeInstanceOf(Array);
-    expect(project.objectKeyframes['actor-lead'].skeleton).toBeInstanceOf(Array);
-    expect(project.objectKeyframes['block-stage'].transform).toBeInstanceOf(Array);
-    expect(project.objectKeyframes['block-stage'].action).toBeUndefined();
+    expect(channelOf(trackOf(project.objectKeyframes, 'actor-lead'), 'action')).toBeInstanceOf(
+      Array,
+    );
+    expect(channelOf(trackOf(project.objectKeyframes, 'actor-lead'), 'skeleton')).toBeInstanceOf(
+      Array,
+    );
+    expect(channelOf(trackOf(project.objectKeyframes, 'block-stage'), 'transform')).toBeInstanceOf(
+      Array,
+    );
+    // R3：断言「该通道不存在」必须直接读索引（undefined 才是被测语义），
+    // 不能走 channelOf（它按业务把缺失折算成 []，会把这条断言废掉）
+    expect(trackOf(project.objectKeyframes, 'block-stage').action).toBeUndefined();
   });
 });
 
@@ -400,8 +411,10 @@ describe('归一化与通道化工具（幂等/统计/clamp/写入口）', () =>
       },
     } as unknown as ChannelTracks;
     const normalized = normalizeObjectTracks(noisy, { 'actor-lead': 'person' });
-    expect(normalized['actor-lead'].transform[0].frame).toBe(3);
-    expect(normalized['actor-lead'].transform[0].interpolation).toBe('hold');
+    expect(at(channelOf(trackOf(normalized, 'actor-lead'), 'transform'), 0).frame).toBe(3);
+    expect(at(channelOf(trackOf(normalized, 'actor-lead'), 'transform'), 0).interpolation).toBe(
+      'hold',
+    );
   });
 
   it('countChannelKeyframes 统计通道结构 / 旧数组 / 空值', () => {
@@ -435,9 +448,9 @@ describe('归一化与通道化工具（幂等/统计/clamp/写入口）', () =>
       (list as ChannelKey[]).map((key: ChannelKey) => key.frame),
     );
     expect(Math.max(...frames)).toBeLessThanOrEqual(30);
-    expect((clamped as ChannelTracks).transform.map((key: ChannelKey) => key.frame)).toEqual([
-      0, 24, 30,
-    ]);
+    expect(
+      channelOf(clamped as ChannelTracks, 'transform').map((key: ChannelKey) => key.frame),
+    ).toEqual([0, 24, 30]);
   });
 
   it('upsertChannelKeys：写入口按通道合并，同帧覆盖', () => {
@@ -448,7 +461,7 @@ describe('归一化与通道化工具（幂等/统计/clamp/写入口）', () =>
     );
     channels = upsertChannelKeys(
       channels,
-      snapshotToChannelKeys('person', legacyPersonKeys[1], 24, 'linear'),
+      snapshotToChannelKeys('person', at(legacyPersonKeys, 1), 24, 'linear'),
     );
     expect(countChannelKeyframes(channels)).toBe(2);
     expect(Object.keys(channels).sort()).toEqual(['action', 'skeleton', 'transform']);
@@ -467,7 +480,7 @@ describe('归一化与通道化工具（幂等/统计/clamp/写入口）', () =>
     );
     channels = upsertChannelKeys(
       channels,
-      snapshotToChannelKeys('person', legacyPersonKeys[1], 24, 'linear'),
+      snapshotToChannelKeys('person', at(legacyPersonKeys, 1), 24, 'linear'),
     );
     const removed = removeChannelFrames(channels, [24]);
     expect(countChannelKeyframes(removed)).toBe(1);
@@ -482,20 +495,24 @@ describe('归一化与通道化工具（幂等/统计/clamp/写入口）', () =>
     );
     channels = upsertChannelKeys(
       channels,
-      snapshotToChannelKeys('person', legacyPersonKeys[1], 24, 'linear'),
+      snapshotToChannelKeys('person', at(legacyPersonKeys, 1), 24, 'linear'),
     );
     const moved = moveChannelFrames(channels, 24, 12);
     expect(countChannelKeyframes(moved)).toBe(2);
-    expect((moved as ChannelTracks).transform.map((key: ChannelKey) => key.frame).sort()).toEqual([
-      0, 12,
-    ]);
-    expect((moved as ChannelTracks).action.map((key: ChannelKey) => key.frame).sort()).toEqual([
-      0, 12,
-    ]);
+    expect(
+      channelOf(moved as ChannelTracks, 'transform')
+        .map((key: ChannelKey) => key.frame)
+        .sort(),
+    ).toEqual([0, 12]);
+    expect(
+      channelOf(moved as ChannelTracks, 'action')
+        .map((key: ChannelKey) => key.frame)
+        .sort(),
+    ).toEqual([0, 12]);
     // 移到已存在的帧：目标帧旧 key 被覆盖，帧数不重复
     const collide = moveChannelFrames(channels, 0, 24);
     expect(countChannelKeyframes(collide)).toBe(1);
-    expect((collide as ChannelTracks).transform[0].frame).toBe(24);
+    expect(at(channelOf(collide as ChannelTracks, 'transform'), 0).frame).toBe(24);
     // 同帧平移为幂等
     expect(moveChannelFrames(channels, 0, 0)).toBe(channels);
   });
