@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { at } from '../helpers/at';
 
 // 隔离 contentStore（避免真实写 localStorage / 触发未登记 warning）
 const cache: Record<string, any> = {};
@@ -37,7 +38,7 @@ describe('提示词社区库 §2.19 数据层', () => {
 
   it('normalizeItems 兜底：缺 title/prompt 的条目被过滤，自动补 id', async () => {
     const { getPromptHubSources } = await import('../../src/components/prompt/promptHubStore.ts');
-    const src = getPromptHubSources()[0];
+    const src = at(getPromptHubSources(), 0);
     const raw = [
       { title: 'A', prompt: 'p1', id: 'a' },
       { title: '', prompt: 'p2' }, // 无 title → 过滤
@@ -63,7 +64,7 @@ describe('提示词社区库 §2.19 数据层', () => {
 
   it('相对 URL 转绝对：coverUrl/referenceAssetUrls 按源 url 补全', async () => {
     const { getPromptHubSources } = await import('../../src/components/prompt/promptHubStore.ts');
-    const src = getPromptHubSources()[0];
+    const src = at(getPromptHubSources(), 0);
     const raw = [
       {
         title: 'A',
@@ -78,9 +79,9 @@ describe('提示词社区库 §2.19 数据层', () => {
         : Promise.reject(new Error('skip'));
     const { loadPromptHub } = await import('../../src/components/prompt/promptHubStore.ts');
     const { items } = await loadPromptHub();
-    expect(items[0].coverUrl).toBe(`${src.url.replace(/[^/]+$/, '')}cover.png`);
-    expect(items[0].referenceAssetUrls[0]).toContain(src.url.replace(/[^/]+$/, ''));
-    expect(items[0].referenceAssetUrls[1]).toBe('https://x.com/r2.jpg');
+    expect(at(items, 0).coverUrl).toBe(`${src.url.replace(/[^/]+$/, '')}cover.png`);
+    expect(at(at(items, 0).referenceAssetUrls, 0)).toContain(src.url.replace(/[^/]+$/, ''));
+    expect(at(at(items, 0).referenceAssetUrls, 1)).toBe('https://x.com/r2.jpg');
   });
 
   it('源拉取失败不崩：返回空数组并记 lastError，UI 可显示错误', async () => {
@@ -97,7 +98,7 @@ describe('提示词社区库 §2.19 数据层', () => {
 
   it('缓存生效：TTL 内同源第二次拉取不重复 fetch', async () => {
     const { getPromptHubSources } = await import('../../src/components/prompt/promptHubStore.ts');
-    const src = getPromptHubSources()[0];
+    const src = at(getPromptHubSources(), 0);
     const raw = [{ title: 'A', prompt: 'p' }];
     let calls = 0;
     const okJson = (url: any) =>
@@ -120,7 +121,7 @@ describe('提示词社区库 §2.19 数据层', () => {
 
   it('getCachedPromptHub 同步秒显：未过期缓存直接返回数据，且不触发网络/订阅循环', async () => {
     const { getPromptHubSources } = await import('../../src/components/prompt/promptHubStore.ts');
-    const src = getPromptHubSources()[0];
+    const src = at(getPromptHubSources(), 0);
     const raw = [{ title: 'A', prompt: 'p' }];
     fetchImpl = (url: any) =>
       url === src.url
@@ -132,6 +133,6 @@ describe('提示词社区库 §2.19 数据层', () => {
     const snap = getCachedPromptHub();
     expect(snap.hasCache).toBe(true);
     expect(snap.items.length).toBe(1);
-    expect(snap.items[0].title).toBe('A');
+    expect(at(snap.items, 0).title).toBe('A');
   });
 });

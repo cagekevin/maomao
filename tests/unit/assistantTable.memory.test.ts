@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { at } from '../helpers/at';
 import * as contentStore from '../../src/components/base/core/contentStore.ts';
 const { contentClearCache } = contentStore;
 import {
@@ -78,12 +79,12 @@ describe('assistantTable 会话记忆字段', () => {
     materializeAssistantTabs();
     const a = getCurrentAssistantTabs();
     const b = getCurrentAssistantTabs();
-    expect(a.tabs[0].id).toBe(b.tabs[0].id);
+    expect(at(a.tabs, 0).id).toBe(at(b.tabs, 0).id);
     expect(a.activeTabId).toBe(b.activeTabId);
     // 已落盘 → materialize 幂等（零开销），再读仍同批
     materializeAssistantTabs();
     const c = getCurrentAssistantTabs();
-    expect(c.tabs[0].id).toBe(a.tabs[0].id);
+    expect(at(c.tabs, 0).id).toBe(at(a.tabs, 0).id);
   });
 
   it('globalStyle 复用 global_contract.unified_style_prompt：写全局风格可读回', () => {
@@ -105,7 +106,7 @@ describe('assistantTable 会话记忆字段', () => {
     appendMsg({ role: 'assistant', content: '{"rows":[{"景别":"B"}]}', createdAt: 2 });
     appendMsg({ role: 'user', content: '追加问题', createdAt: 3 });
     const msgs = getActiveConv()!.messages as Array<{ id?: unknown; tableResolved?: string }>;
-    const first = msgs[0];
+    const first = at(msgs, 0);
 
     // 确认第一条 → 只有它带 confirmed，其余（含同为表格的第二条）不带
     markMessageTableResolved(first.id, 'confirmed');
@@ -113,9 +114,9 @@ describe('assistantTable 会话记忆字段', () => {
       id?: unknown;
       tableResolved?: string;
     }>;
-    expect(afterConfirm[0].tableResolved).toBe('confirmed');
-    expect(afterConfirm[1].tableResolved).toBeUndefined();
-    expect(afterConfirm[2].tableResolved).toBeUndefined();
+    expect(at(afterConfirm, 0).tableResolved).toBe('confirmed');
+    expect(at(afterConfirm, 1).tableResolved).toBeUndefined();
+    expect(at(afterConfirm, 2).tableResolved).toBeUndefined();
 
     // 覆写（误触取消后再确认等）→ 状态切换为 cancelled
     markMessageTableResolved(first.id, 'cancelled');
@@ -123,8 +124,8 @@ describe('assistantTable 会话记忆字段', () => {
       id?: unknown;
       tableResolved?: string;
     }>;
-    expect(afterCancel[0].tableResolved).toBe('cancelled');
-    expect(afterCancel[1].tableResolved).toBeUndefined();
+    expect(at(afterCancel, 0).tableResolved).toBe('cancelled');
+    expect(at(afterCancel, 1).tableResolved).toBeUndefined();
 
     // 目标消息 id 缺省/不存在的调用为 no-op，不抛
     expect(() => markMessageTableResolved(undefined, 'confirmed')).not.toThrow();

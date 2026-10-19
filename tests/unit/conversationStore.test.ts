@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { at } from '../helpers/at';
 import type { ConversationMessage } from '../../src/components/agent/contract/conversationTypes.ts';
 import { contentClearCache } from '../../src/components/base/core/contentStore.ts';
 import {
@@ -89,7 +90,7 @@ describe('会话隔离数据层 §2.15', () => {
     expect(getCurrentSnapshot().messages).toEqual([]);
     switchConversation(id1);
     expect(getCurrentSnapshot().messages).toHaveLength(1);
-    expect(getCurrentSnapshot().messages[0].content).toBe('AAA');
+    expect(at(getCurrentSnapshot().messages, 0).content).toBe('AAA');
   });
 
   it('deleteConversation 删除并保留至少 1 个（删空则新建）', () => {
@@ -106,7 +107,7 @@ describe('会话隔离数据层 §2.15', () => {
   it('importLegacy 旧单会话迁移（幂等：已有对话不迁移）', () => {
     const s = importLegacy({ messages: [{ role: 'user', content: '历史消息' }], skills: [] });
     expect(s).toBeTruthy();
-    expect(getCurrentSnapshot().messages[0].content).toBe('历史消息');
+    expect(at(getCurrentSnapshot().messages, 0).content).toBe('历史消息');
     // 再次 import 应返回 null（已有对话）
     expect(importLegacy({ messages: [{ role: 'user', content: 'X' }] })).toBeNull();
   });
@@ -173,13 +174,13 @@ describe('会话隔离数据层 §2.15', () => {
       ],
     })!;
     // 无 id 的消息被补上唯一 id；已有 id 的消息保留
-    expect(c.messages[0].id).toBeTruthy();
-    expect(c.messages[1].id).toBe('keep-me');
-    expect(c.messages[0].id).not.toBe(c.messages[1].id);
+    expect(at(c.messages, 0).id).toBeTruthy();
+    expect(at(c.messages, 1).id).toBe('keep-me');
+    expect(at(c.messages, 0).id).not.toBe(at(c.messages, 1).id);
     // 幂等：二次归一化不改变已补的 id（保证列表 key 稳定）
     const again = normalizeConversation(c)!;
-    expect(again.messages[0].id).toBe(c.messages[0].id);
-    expect(again.messages[1].id).toBe('keep-me');
+    expect(at(again.messages, 0).id).toBe(at(c.messages, 0).id);
+    expect(at(again.messages, 1).id).toBe('keep-me');
   });
 
   it('hydrated 守卫：未 apply 前 setCurrentSnapshot 不落盘（内存可改，但不写 KV）', () => {
@@ -215,7 +216,7 @@ describe('按项目隔离会话（project 作为最顶层）', () => {
 
     // 切回项目 A：会话恢复为 A 自己的内容
     await switchToProject('projA');
-    expect(getCurrentSnapshot().messages[0].content).toBe('项目A的绘画');
+    expect(at(getCurrentSnapshot().messages, 0).content).toBe('项目A的绘画');
     // B 的内容不影响 A
     expect(getCurrentSnapshot().messages).toHaveLength(1);
   });
@@ -246,7 +247,7 @@ describe('按项目隔离会话（project 作为最顶层）', () => {
     resetConversationCache();
     setAgentKey('canvas-assistant-projD');
     await waitHydrated('canvas-assistant-projD'); // 会话键迁 KV，水化为异步：等重水化完成
-    expect(getCurrentSnapshot().messages[0].content).toBe('D 内容');
+    expect(at(getCurrentSnapshot().messages, 0).content).toBe('D 内容');
   });
 
   it('不同项目的对话列表互不影响', async () => {
@@ -320,7 +321,7 @@ describe('跨轮图引用数据源（对齐大雄 agentLastUserAttachments / age
       { num: 1, url: 'http://x/gen1.png', name: '主图', source: 'gen' },
       { num: 2, url: 'http://x/att.png', name: '参考', source: 'att' },
     ]);
-    expect(map[0].num).toBe(1);
-    expect(map[1].num).toBe(2);
+    expect(at(map, 0).num).toBe(1);
+    expect(at(map, 1).num).toBe(2);
   });
 });
