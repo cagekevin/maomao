@@ -10,6 +10,7 @@
  * 若有人把 rows 改回 `Record<label,string>` 或渲染改回按列名取，此用例必红。
  */
 import { describe, it, expect } from 'vitest';
+import { at } from '../helpers/at';
 import { render } from '@testing-library/react';
 import AssistantTablePreviewCard from '../../src/components/agent/assistantTable/AssistantTablePreviewCard.tsx';
 
@@ -43,8 +44,8 @@ describe('AssistantTablePreviewCard — F6 同名列不丢值', () => {
     );
     const tds = container.querySelectorAll('tbody td');
     expect(tds).toHaveLength(2);
-    expect(tds[0].textContent).toBe('甲值');
-    expect(tds[1].textContent).toBe('乙值');
+    expect(at(Array.from(tds), 0).textContent).toBe('甲值');
+    expect(at(Array.from(tds), 1).textContent).toBe('乙值');
   });
 
   it('多行 + 同名列，逐行逐格位置式索引均不覆盖', () => {
@@ -66,12 +67,12 @@ describe('AssistantTablePreviewCard — F6 同名列不丢值', () => {
     const tds = container.querySelectorAll('tbody td');
     expect(tds).toHaveLength(6);
     // 首行三格互不覆盖
-    expect(tds[0].textContent).toBe('r0c0');
-    expect(tds[1].textContent).toBe('r0c1');
-    expect(tds[2].textContent).toBe('r0c2');
+    expect(at(Array.from(tds), 0).textContent).toBe('r0c0');
+    expect(at(Array.from(tds), 1).textContent).toBe('r0c1');
+    expect(at(Array.from(tds), 2).textContent).toBe('r0c2');
     // 次行独立
-    expect(tds[3].textContent).toBe('r1c0');
-    expect(tds[4].textContent).toBe('r1c1');
-    expect(tds[5].textContent).toBe('r1c2');
+    expect(at(Array.from(tds), 3).textContent).toBe('r1c0');
+    expect(at(Array.from(tds), 4).textContent).toBe('r1c1');
+    expect(at(Array.from(tds), 5).textContent).toBe('r1c2');
   });
 });

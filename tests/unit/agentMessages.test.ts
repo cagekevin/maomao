@@ -7,6 +7,7 @@
  *       用内存数组当 store 模拟单源读。
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { at } from '../helpers/at';
 import type { agentChatMessage } from '../../src/components/agent/runtime/agentCore.ts';
 
 // 测试用消息：在 ChatMessage 基础上扩展测试夹具需要的 id/streaming 字段
@@ -70,14 +71,14 @@ describe('appendMsg — 追加一条消息', () => {
     store.set([{ id: 'm1', role: 'user', content: 'a' }]);
     appendMsg({ role: 'assistant', content: 'b' });
     expect(store.current).toHaveLength(2);
-    expect(store.current[1]).toMatchObject({ role: 'assistant', content: 'b' });
-    expect(typeof store.current[1].id).toBe('string');
+    expect(at(store.current, 1)).toMatchObject({ role: 'assistant', content: 'b' });
+    expect(typeof at(store.current, 1).id).toBe('string');
   });
 
   it('已有 id 的消息不重复补 id', () => {
     store.set([]);
     appendMsg({ id: 'fixed', role: 'user', content: 'x' });
-    expect(store.current[0].id).toBe('fixed');
+    expect(at(store.current, 0).id).toBe('fixed');
   });
 });
 
@@ -89,7 +90,7 @@ describe('setHistory — 整体替换', () => {
       { role: 'user', content: 'd' },
     ]);
     expect(store.current).toHaveLength(2);
-    expect(store.current[0].role).toBe('assistant');
+    expect(at(store.current, 0).role).toBe('assistant');
     expect(store.current.every((m) => typeof m.id === 'string')).toBe(true);
   });
 
@@ -116,7 +117,7 @@ describe('updateLastStreaming — 流式增量（仅通知）', () => {
   it('空 toolCalls 不写 tool_calls 字段（杜绝 Empty tool_calls）', () => {
     store.set([{ id: 's', role: 'assistant', content: '', streaming: true }]);
     updateLastStreaming({ content: 'txt', toolCalls: [{ function: { name: '' } }] });
-    const last = store.current[0];
+    const last = at(store.current, 0);
     expect(last.tool_calls).toBeUndefined();
   });
 
@@ -126,7 +127,7 @@ describe('updateLastStreaming — 流式增量（仅通知）', () => {
       { id: 's', role: 'assistant', content: '', streaming: true },
     ]);
     updateLastStreaming({ content: 'hi', toolCalls: [] });
-    expect(store.current[0].content).toBe('keep');
+    expect(at(store.current, 0).content).toBe('keep');
   });
 });
 
@@ -137,7 +138,7 @@ describe('endStreaming — 结束流式', () => {
       { id: 'sid', role: 'assistant', content: '', streaming: true },
     ]);
     endStreaming({ role: 'assistant', content: 'final' });
-    const last = store.current[1];
+    const last = at(store.current, 1);
     expect(last.id).toBe('sid');
     expect(last.streaming).toBe(false);
     expect(last.content).toBe('final');
