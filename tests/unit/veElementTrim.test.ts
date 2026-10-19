@@ -14,6 +14,7 @@
  * ════════════════════════════════════════════════════════════════
  */
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { at } from '../helpers/at';
 import { EditorCore } from '../../src/components/videoEditor/engine/core';
 import { getElementSourceDuration } from '../../src/components/videoEditor/engine/timeline/element-utils';
 import type { MediaAsset } from '../../src/components/videoEditor/types/mediaAssets';
@@ -130,7 +131,10 @@ describe('updateElementTrim 提交 duration —— 拖右边缘改时长能落�
   it('提交的 duration 真实生效（原实现从不提交 duration → 拖曳结果会被丢弃）', () => {
     editor.timeline.updateElementTrim({ elementId: 'e1', trimStart: 0.5, duration: 2.5 });
 
-    const el = editor.timeline.getTracks()[0].elements[0];
+    const el = at(
+      at(editor.timeline.getTracks(), 0).elements as Array<{ duration: number; trimStart: number }>,
+      0,
+    );
     expect(el.duration).toBe(2.5);
     expect(el.trimStart).toBe(0.5);
     // 关键：element 上**不再有** trimEnd 字段（旧存档里的该字段被忽略，无人读）。
@@ -141,7 +145,10 @@ describe('updateElementTrim 提交 duration —— 拖右边缘改时长能落�
     editor.timeline.updateElementTrim({ elementId: 'e1', trimStart: 0.5, duration: 2.5 });
     editor.command.undo();
 
-    const el = editor.timeline.getTracks()[0].elements[0];
+    const el = at(
+      at(editor.timeline.getTracks(), 0).elements as Array<{ duration: number; trimStart: number }>,
+      0,
+    );
     expect(el.duration).toBe(3);
     expect(el.trimStart).toBe(0);
   });

@@ -25,6 +25,7 @@
  *  - `Input` 用真实实现 ⇒ `change` / `blur` 即可。
  */
 import 'react';
+import { at } from '../helpers/at';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 
@@ -353,9 +354,9 @@ describe('组② 非数字字段：draft 入口与值直传入口（TD-22-20）'
   it('背景不透明度（Slider）：percent 域 ⇒ 落库 /100；initial 落在 0~1 域', () => {
     const { element } = setup({ backgroundColor: '#123456' });
     // ⚠️「不透明度」在本面板出现**两次**（文字 / 背景）—— 文字组在前、样式组在后，取后者。
-    const slider = screen
-      .getAllByText('不透明度')[1]
-      .parentElement!.querySelector('input[type="range"]') as HTMLInputElement;
+    const slider = at(screen.getAllByText('不透明度'), 1).parentElement!.querySelector(
+      'input[type="range"]',
+    ) as HTMLInputElement;
     // 断言复用面板自己的判据（字段缺省时回落到 DEFAULT_*），不手抄默认值。
     const initial = element.backgroundOpacity ?? DEFAULT_BG_OPACITY;
 

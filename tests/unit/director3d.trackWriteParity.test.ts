@@ -19,6 +19,7 @@
 //     例：批量平移「目标帧被另一待移动帧占据」时，两条轨道都必须不丢帧。
 //     这条最能暴露「某条轨道忘了先删旧帧」的漂移。
 import { describe, it, expect } from 'vitest';
+import { channelOf, trackOf } from '../helpers/tracks';
 import {
   bakeCameraPath,
   bakeObjectPath,
@@ -226,8 +227,8 @@ describe('两条轨道 · 语义对等性（契约 C6 核心）', () => {
       [10, [1, 0, 0]],
       [15, [2, 0, 0]],
     ]);
-    const camFrames = moveCameraFrames(camTrack, map)
-      .transform.map((k) => k.frame)
+    const camFrames = channelOf(moveCameraFrames(camTrack, map), 'transform')
+      .map((k) => k.frame)
       .sort((a, b) => a - b);
 
     // 对象轨（同帧结构）
@@ -239,8 +240,8 @@ describe('两条轨道 · 语义对等性（契约 C6 核心）', () => {
         ],
       },
     };
-    const objFrames = moveObjectFrames(objTrack, 'obj', map)
-      .obj.transform.map((k) => k.frame)
+    const objFrames = channelOf(trackOf(moveObjectFrames(objTrack, 'obj', map), 'obj'), 'transform')
+      .map((k) => k.frame)
       .sort((a, b) => a - b);
 
     expect(camFrames).toEqual([15, 20]);
@@ -267,7 +268,9 @@ describe('两条轨道 · 语义对等性（契约 C6 核心）', () => {
       baked,
       removeFrames,
     );
-    const camFrames = camNext.transform.map((k) => k.frame).sort((a, b) => a - b);
+    const camFrames = channelOf(camNext, 'transform')
+      .map((k) => k.frame)
+      .sort((a, b) => a - b);
     expect(camFrames).toEqual([0, 24, 120]); // 60 已删，不留幽灵
 
     // 对象轨：同样语义
@@ -292,7 +295,7 @@ describe('两条轨道 · 语义对等性（契约 C6 核心）', () => {
     };
     const op = { op: 'move', from: 0, to: 10 } as const;
     const once = applyTrackOperation(channels, op);
-    expect(once.transform[0].frame).toBe(10);
+    expect(channelOf(once, 'transform')[0].frame).toBe(10);
     // 无变化的操作应返回等价结构（move 同帧直接返回原对象）
     expect(applyTrackOperation(channels, { op: 'move', from: 5, to: 5 })).toBe(channels);
     // clear 清空所有通道
@@ -319,6 +322,6 @@ describe('两条轨道 · 语义对等性（契约 C6 核心）', () => {
         },
       ],
     });
-    expect(result.transform.map((k) => k.frame)).toEqual([30]);
+    expect(channelOf(result, 'transform').map((k) => k.frame)).toEqual([30]);
   });
 });

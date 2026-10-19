@@ -8,6 +8,8 @@
 //   M2-C7 骨骼「插值 or hard 切」决策消费动作通道派生上下文；仅动作通道时骨骼不被接管、不自猜
 // 依赖均为纯函数，node 环境可跑（npm run test:unit:logic）。
 import { describe, it, expect } from 'vitest';
+import { at } from '../helpers/at';
+import { trackOf } from '../helpers/tracks';
 import { cloneJointPose, presetJoints } from '../../src/components/director3d/rig.ts';
 import {
   lerp,
@@ -144,14 +146,14 @@ const legacyCamKeys = [
 ];
 
 // 迁移到通道结构（复用 M1 归一化入口）
-const personChannels = normalizeObjectTracks(
-  { 'actor-lead': legacyPersonKeys },
-  { 'actor-lead': 'person' },
-)['actor-lead'];
-const boxChannels = normalizeObjectTracks(
-  { 'block-stage': legacyBoxKeys },
-  { 'block-stage': 'object' },
-)['block-stage'];
+const personChannels = trackOf(
+  normalizeObjectTracks({ 'actor-lead': legacyPersonKeys }, { 'actor-lead': 'person' }),
+  'actor-lead',
+);
+const boxChannels = trackOf(
+  normalizeObjectTracks({ 'block-stage': legacyBoxKeys }, { 'block-stage': 'object' }),
+  'block-stage',
+);
 const camChannels = normalizeCameraKeyframes(legacyCamKeys, initialCamera);
 
 // ---- 旧整快照求值参考实现（迁移验证锚）：逐字复刻现网 objectAtFrame / cameraAtFrame ----
@@ -171,7 +173,9 @@ function legacyCameraAtFrame(keyframes: any, frame: any, aspectRatio = '16:9') {
   const t = segmentAmount(left, (frame - left.frame) / Math.max(1, right.frame - left.frame));
   return {
     position: left.position.map((value: any, index: any) => lerp(value, right.position[index], t)),
-    rotation: left.rotation.map((value: any, index: any) => lerpAngle(value, right.rotation[index], t)),
+    rotation: left.rotation.map((value: any, index: any) =>
+      lerpAngle(value, right.rotation[index], t),
+    ),
     focalLength: lerp(left.focalLength, right.focalLength, t),
     aspectRatio,
   };
@@ -202,6 +206,13 @@ function compareSubset(actual: any, expected: any, fields: any, tolerance = 1e-9
 }
 
 // ---- M2-C1 单通道求值：部分字段 key 不解接管 ----
+
+function channelsOf(entity: string) {
+  const channels = ENTITY_CHANNELS[entity];
+  // 通道表是索引签名：缺实体 = 常量表被改坏（编程错误），必须响
+  if (channels === undefined) throw new Error(`ENTITY_CHANNELS 缺实体：${entity}`);
+  return channels;
+}
 
 describe('M2-C1 单通道求值：未含字段不解接管', () => {
   it('普通物体：仅 position 关键帧 → rotation/scale 保持基线', () => {
@@ -398,13 +409,13 @@ describe('M2-C7 骨骼决策消费动作通道派生上下文', () => {
     let channels: ChannelTracks = {};
     channels = upsertChannelKeys(
       channels,
-      snapshotToChannelKeys('person', legacyPersonKeys[0], 0, 'smooth'),
+      snapshotToChannelKeys('person', at(legacyPersonKeys, 0), 0, 'smooth'),
     );
     channels = upsertChannelKeys(
       channels,
-      snapshotToChannelKeys('person', legacyPersonKeys[1], 24, 'linear'),
+      snapshotToChannelKeys('person', at(legacyPersonKeys, 1), 24, 'linear'),
     );
-    const actionOnly = { action: channels.action };
+    const actionOnly = channels.action === undefined ? {} : { action: channels.action }; // 无 action 通道 ⇒ 空表
     const atFrame = objectAtFrame(personIdle, actionOnly, 12, FPS);
     // 动作字段被接管
     expect(atFrame.pose).toBe('walk');
@@ -470,15 +481,15 @@ describe('47 三层注册表：派生的 ENTITY_CHANNELS 与 OBJECT_STATE_FIELDS
     expect(OBJECT_STATE_FIELDS.person).toEqual(
       expect.arrayContaining(['continuousMotion', 'footLock']),
     );
-    const channelFields = Object.values(ENTITY_CHANNELS.person).flat();
+    const channelFields = Object.values(channelsOf('person')).flat();
     expect(channelFields).not.toContain('continuousMotion');
     expect(channelFields).not.toContain('footLock');
   });
 
   it('camera 的 targetMode/targetId 归 objectState；派生命中化通道仅 animatable（47 §3）', () => {
     expect(OBJECT_STATE_FIELDS.camera).toEqual(expect.arrayContaining(['targetMode', 'targetId']));
-    expect(ENTITY_CHANNELS.camera.transform).toEqual(['position', 'rotation']);
-    expect(ENTITY_CHANNELS.camera.lens).toEqual(['focalLength']);
-    expect(ENTITY_CHANNELS.camera.lens).not.toContain('targetMode');
+    expect(channelsOf('camera').transform ?? []).toEqual(['position', 'rotation']);
+    expect(channelsOf('camera').lens ?? []).toEqual(['focalLength']);
+    expect(channelsOf('camera').lens ?? []).not.toContain('targetMode');
   });
 });

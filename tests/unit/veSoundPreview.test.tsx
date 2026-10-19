@@ -14,6 +14,7 @@
  * ════════════════════════════════════════════════════════════════
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { at } from '../helpers/at';
 import { act, cleanup, renderHook } from '@testing-library/react';
 import { useSoundPreview } from '../../src/components/videoEditor/hooks-cutia/use-sound-preview';
 
@@ -67,7 +68,7 @@ describe('音效试听的生命周期（TD-22-42）', () => {
       result.current.toggle({ sound: { id: 1, previewUrl: 'blob:s1' } });
     });
 
-    const audio = FakeAudio.instances[0];
+    const audio = at(FakeAudio.instances, 0);
     expect(audio).toBeDefined();
     expect(audio.paused).toBe(false);
     expect(result.current.playingId).toBe(1);
@@ -86,13 +87,13 @@ describe('音效试听的生命周期（TD-22-42）', () => {
     act(() => result.current.toggle({ sound: { id: 2, previewUrl: 'blob:s2' } }));
 
     expect(FakeAudio.instances).toHaveLength(2);
-    expect(FakeAudio.instances[0].paused).toBe(true);
-    expect(FakeAudio.instances[1].paused).toBe(false);
+    expect(at(FakeAudio.instances, 0).paused).toBe(true);
+    expect(at(FakeAudio.instances, 1).paused).toBe(false);
     expect(result.current.playingId).toBe(2);
 
     act(() => result.current.toggle({ sound: { id: 2, previewUrl: 'blob:s2' } }));
 
-    expect(FakeAudio.instances[1].paused).toBe(true);
+    expect(at(FakeAudio.instances, 1).paused).toBe(true);
     expect(result.current.playingId).toBeNull();
   });
 
@@ -103,7 +104,7 @@ describe('音效试听的生命周期（TD-22-42）', () => {
     act(() => result.current.toggle({ sound: { id: 2, previewUrl: 'blob:s2' } }));
 
     // 快速切歌的时序窗口：上一条音频的回调迟到触发。
-    act(() => FakeAudio.instances[0].emit('ended'));
+    act(() => at(FakeAudio.instances, 0).emit('ended'));
 
     // 旧实现是无条件 `setPlayingId(null)` → 会把正在播的新歌状态清掉。
     expect(result.current.playingId).toBe(2);

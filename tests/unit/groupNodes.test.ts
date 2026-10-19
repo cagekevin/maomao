@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { at } from '../helpers/at';
 import type { Node } from '@xyflow/react';
 import { adoptUserNodes, getNodeDimensions } from '@xyflow/system';
 import {
@@ -52,7 +53,7 @@ describe('编组算法 §2.2', () => {
     expect(group.data.label).toBe('编组');
     expect(group.data.name).toBeUndefined();
     // 父节点必须先于子节点声明（unshift 到开头）
-    expect(r.nodes![0].type).toBe('group');
+    expect(at(r.nodes!, 0).type).toBe('group');
     const childA = r.nodes!.find((n) => n.id === 'a')!;
     expect(childA.parentId).toBe(r.groupId);
     // 相对坐标 = 绝对 - group 位置（group 在 minX-pad, minY-pad = -40,-40）
@@ -231,7 +232,7 @@ describe('R3 duplicateSelectedWithEdges 克隆子图（保留组关系 + 连线�
       position: { x: 0, y: 0 },
     };
     const { clones } = duplicateSelectedWithEdges([base], [], ['v']);
-    const clone = clones[0];
+    const clone = at(clones, 0);
     expect(clone).toBeTruthy();
     expect(clone.data).not.toBe(base.data); // toBe 断引用（同一对象），而非 toEqual
     expect(clone.data).toEqual(base.data); // 值相等，结构不破坏
@@ -246,7 +247,7 @@ describe('R3 duplicateSelectedWithEdges 克隆子图（保留组关系 + 连线�
       position: { x: 0, y: 0 },
     };
     const { clones } = duplicateSelectedWithEdges([base], [], ['v']);
-    const clone = clones[0];
+    const clone = at(clones, 0);
     clone.data.loading = false; // 模拟克隆体把「进行中」置为干净
     expect(base.data.loading).toBe(true); // 原节点不受克隆体 patch 影响
     expect(clone.data.loading).toBe(false);
@@ -313,15 +314,16 @@ describe('编组尺寸刷新保真（TASK: 编组后刷新大小变了）', () =
     expect(dims.width).toBe(780);
     expect(dims.height).toBe(530);
     // 子节点父关系与位置还原正确
+    // 显式元组数组：否则推断为 (string | number[])[]，解构出的 abs 类型不可用于 at()
     for (const [id, abs] of [
       ['a', [200, 200]],
       ['b', [600, 250]],
       ['c', [250, 500]],
-    ]) {
+    ] as Array<[string, [number, number]]>) {
       const n = lookup.get(id);
       expect(n.parentId).toBe(groupId);
-      expect(n.internals.positionAbsolute.x).toBe(abs[0]);
-      expect(n.internals.positionAbsolute.y).toBe(abs[1]);
+      expect(n.internals.positionAbsolute.x).toBe(at(abs, 0));
+      expect(n.internals.positionAbsolute.y).toBe(at(abs, 1));
     }
   });
 

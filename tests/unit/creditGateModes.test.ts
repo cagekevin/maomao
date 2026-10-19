@@ -1,4 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { toolOf } from '../helpers/agentTools';
+import { at } from '../helpers/at';
 
 /**
  * 高消耗积分开关（creditSwitch）× execute_plan 唯一入口的契约测试。
@@ -160,12 +162,12 @@ describe('完全自主 × 积分开关 × execute_plan 唯一入口', () => {
     it('开关开【拦截】→ 强制 autoRun=false、建节点、置 creditGate、返回 awaited:credit，不烧积分', async () => {
       __creditState = true;
       const t = buildTool();
-      const r = await t.execute_plan({ generations: GENS, auto_run: true });
+      const r = await toolOf(t, 'execute_plan')({ generations: GENS, auto_run: true });
       expect(r.ok).toBe(true);
       expect(r.data.awaited).toBe('credit');
       // D4：即使 LLM 传 auto_run:true，命中积分闸也必须强制关闭
       expect(mockExecutePlan).toHaveBeenCalledTimes(1);
-      expect(mockExecutePlan.mock.calls[0][0].autoRun).toBe(false);
+      expect(at(mockExecutePlan.mock.calls, 0)[0].autoRun).toBe(false);
       // creditGate 置位并持久化
       expect(convMock.__state.creditGate?.pending).toBe(true);
       expect(convMock.__state.creditGate?.map).toBeTruthy();
@@ -176,11 +178,11 @@ describe('完全自主 × 积分开关 × execute_plan 唯一入口', () => {
     it('开关关【放行】→ 按 auto_run 直接烧积分、不置 creditGate', async () => {
       __creditState = false;
       const t = buildTool();
-      const r = await t.execute_plan({ generations: GENS, auto_run: true });
+      const r = await toolOf(t, 'execute_plan')({ generations: GENS, auto_run: true });
       expect(r.ok).toBe(true);
       expect(r.data.awaited).toBeUndefined();
       expect(mockExecutePlan).toHaveBeenCalledTimes(1);
-      expect(mockExecutePlan.mock.calls[0][0].autoRun).toBe(true);
+      expect(at(mockExecutePlan.mock.calls, 0)[0].autoRun).toBe(true);
       expect(convMock.__state.creditGate).toBeNull();
     });
   });

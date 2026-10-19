@@ -11,6 +11,7 @@
  *  - 共享 value 双实例：焦点实例转 chip，光标不被面板实例抢走。
  */
 import { useState } from 'react';
+import { at } from '../helpers/at';
 import { describe, it, expect } from 'vitest';
 import { render, fireEvent, act } from '@testing-library/react';
 import PromptInput from '../../src/components/canvas/shell/PromptInput.tsx';
@@ -213,7 +214,9 @@ describe('PromptInput 运行期 @名 自动转芯片', () => {
       );
     }
     const { container } = render(<Shared />);
-    const [panel, full] = container.querySelectorAll('[contenteditable="true"]');
+    const editables = Array.from(container.querySelectorAll('[contenteditable="true"]'));
+    const panel = at(editables, 0);
+    const full = at(editables, 1);
 
     act(() => {
       placeCaretAtEnd(full);

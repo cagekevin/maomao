@@ -10,6 +10,7 @@
  * 断言核心：编辑哪个实例，selection 就必须留在哪个实例里。
  */
 import { useState } from 'react';
+import { at } from '../helpers/at';
 import { describe, it, expect } from 'vitest';
 import { render, fireEvent, act } from '@testing-library/react';
 import PromptInput from '../../src/components/canvas/shell/PromptInput.tsx';
@@ -63,7 +64,9 @@ const typeInto = (el: any, ch: any) => {
 describe('PromptInput 共享 value 双实例', () => {
   it('在全屏实例里打字，光标不会被面板实例抢走', () => {
     const { container } = render(<SharedValueHarness />);
-    const [panel, full] = container.querySelectorAll('[contenteditable="true"]');
+    const editables = Array.from(container.querySelectorAll('[contenteditable="true"]'));
+    const panel = at(editables, 0);
+    const full = at(editables, 1);
 
     act(() => {
       placeCaretAtEnd(full);
@@ -78,7 +81,9 @@ describe('PromptInput 共享 value 双实例', () => {
 
   it('连续输入时每敲一个字光标都留在大窗里，且面板实例同步到同一内容', () => {
     const { container } = render(<SharedValueHarness />);
-    const [panel, full] = container.querySelectorAll('[contenteditable="true"]');
+    const editables = Array.from(container.querySelectorAll('[contenteditable="true"]'));
+    const panel = at(editables, 0);
+    const full = at(editables, 1);
 
     act(() => {
       placeCaretAtEnd(full);

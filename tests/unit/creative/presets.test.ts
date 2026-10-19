@@ -1,5 +1,6 @@
 // @vitest-environment node
 import { describe, it, expect } from 'vitest';
+import { at } from '../../helpers/at';
 import {
   presetIdFor,
   isPresetId,
@@ -161,7 +162,7 @@ describe('creativeCatalog —— 真值计数与 id 归一化', () => {
     for (const id of ids) expect(isPresetId(id)).toBe(true);
   });
   it('MJ 条目为 MjPreset，携带不落盘字段（UI 详情用）', () => {
-    const mj = MJ_PRESETS[0];
+    const mj = at(MJ_PRESETS, 0);
     // 收窄走 kind 判别（MjPreset extends CreativePreset，无需类型守卫函数）
     expect(mj.kind).toBe('mj');
     expect(isPresetId(mj.id)).toBe(true);
@@ -183,7 +184,7 @@ describe('creativeCatalog —— 真值计数与 id 归一化', () => {
 
 describe('creativeCatalog × toDictEntry（I4 全链路）', () => {
   it('MjPreset 的富字段经 toDictEntry 白名单挡在字典外（只产 kind/name/prompt）', () => {
-    const mj = MJ_PRESETS[0];
+    const mj = at(MJ_PRESETS, 0);
     const entry = toDictEntry(mj);
     expect(entry).toEqual({ kind: mj.kind, name: mj.name, prompt: mj.prompt });
     for (const k of [
