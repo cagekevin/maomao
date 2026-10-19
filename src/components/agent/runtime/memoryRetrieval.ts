@@ -89,8 +89,7 @@ export function rankProjectMemories(
   while (remaining.length > 0 && selected.length < limit) {
     let bestIndex = 0;
     let bestMMR = -Infinity;
-    for (let i = 0; i < remaining.length; i += 1) {
-      const candidate = remaining[i];
+    for (const [i, candidate] of remaining.entries()) {
       const redundancy =
         selected.length === 0
           ? 0
@@ -101,7 +100,9 @@ export function rankProjectMemories(
         bestIndex = i;
       }
     }
-    selected.push(remaining.splice(bestIndex, 1)[0]);
+    const picked = remaining.splice(bestIndex, 1)[0];
+    if (picked === undefined) break; // remaining 非空且 bestIndex 在界内（不可达兜底）
+    selected.push(picked);
   }
   return selected.map((item) => item.memory);
 }

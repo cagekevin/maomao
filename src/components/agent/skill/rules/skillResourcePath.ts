@@ -54,7 +54,9 @@ export function isTextPackageFile(rel: unknown): boolean {
   for (const p of parts) {
     if (!p || p === '.' || p === '..' || p.startsWith('.')) return false;
   }
-  return TEXT_RESOURCE_EXT.has(textExtOf(parts[parts.length - 1]));
+  const name = parts[parts.length - 1];
+  if (name === undefined) return false; // split('/') 恒至少 1 段（不可达兜底）
+  return TEXT_RESOURCE_EXT.has(textExtOf(name));
 }
 
 /**
@@ -93,11 +95,11 @@ export function extractResourcePaths(body: string): string[] {
   if (typeof body !== 'string' || !body) return [];
   const out = new Set<string>();
   const consider = (raw: string) => {
-    const bare = raw.trim().split('#')[0];
+    const bare = raw.trim().split('#')[0] ?? ''; // 缺段（空串 split）按空处理
     if (!bare || !bare.includes('/')) return; // 只认带目录的引用（references/...）
     if (assertSafeSkillRelativePath(bare)) out.add(bare);
   };
-  for (const m of body.matchAll(BACKTICK_RE)) consider(m[1]);
-  for (const m of body.matchAll(MD_LINK_RE)) consider(m[1]);
+  for (const m of body.matchAll(BACKTICK_RE)) consider(m[1] ?? '');
+  for (const m of body.matchAll(MD_LINK_RE)) consider(m[1] ?? '');
   return [...out];
 }

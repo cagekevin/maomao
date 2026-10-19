@@ -362,10 +362,11 @@ export default function AssistantTablePanel({
           // 「＋ 新建标签页」：先建空 tab 再复制过去（与预览卡同款路径）
           const cur = getCurrentAssistantTabs();
           const next = addTab(cur);
-          const newTabId = next.tabs[next.tabs.length - 1].id;
+          const newTab = next.tabs[next.tabs.length - 1];
+          if (newTab === undefined) return; // addTab 必追加 1 项（不可达兜底）
           pushHistory(cur);
           setCurrentAssistantTabs(next);
-          copyRowsToTarget(newTabId, opsRowIds);
+          copyRowsToTarget(newTab.id, opsRowIds);
         }}
         tabs={tabs.tabs}
         currentTabId={activeTabId}
@@ -403,12 +404,12 @@ export default function AssistantTablePanel({
         .map((r, i) => ({ i, id: r.id }))
         .filter((x) => selectedRowIds.includes(x.id))
         .sort((a, b) => a.i - b.i);
-      if (anchors.length) {
+      const firstAnchor = anchors[0];
+      const lastAnchor = anchors[anchors.length - 1];
+      if (firstAnchor !== undefined && lastAnchor !== undefined) {
         const cur = tableData.rows.findIndex((r) => r.id === row.id);
-        const a0 = anchors[0].i;
-        const a1 = anchors[anchors.length - 1].i;
-        const from = Math.min(a0, a1, cur);
-        const to = Math.max(a0, a1, cur);
+        const from = Math.min(firstAnchor.i, lastAnchor.i, cur);
+        const to = Math.max(firstAnchor.i, lastAnchor.i, cur);
         next = tableData.rows.slice(from, to + 1).map((r) => r.id);
       } else {
         next = [row.id];
@@ -516,10 +517,12 @@ export default function AssistantTablePanel({
         activeTabId={activeTabId}
         onSelect={switchTableTab}
         onAdd={() => {
-          const next = addTab(getCurrentAssistantTabs());
-          pushHistory(getCurrentAssistantTabs());
+          const cur = getCurrentAssistantTabs();
+          const next = addTab(cur);
+          pushHistory(cur);
           setCurrentAssistantTabs(next);
-          switchTableTab(next.tabs[next.tabs.length - 1].id);
+          const newTab = next.tabs.at(-1);
+          if (newTab !== undefined) switchTableTab(newTab.id); // addTab 必追加 1 项
           showToast?.('已新建标签页');
         }}
         onRename={(tabId, name) => {
@@ -543,7 +546,8 @@ export default function AssistantTablePanel({
           const next = copyTab(cur, tabId);
           pushHistory(cur);
           setCurrentAssistantTabs(next);
-          switchTableTab(next.tabs[next.tabs.length - 1].id);
+          const newTab = next.tabs.at(-1);
+          if (newTab !== undefined) switchTableTab(newTab.id); // copyTab 必追加 1 项
           showToast?.('已复制为新表');
         }}
         onFindReplace={() => setFindReplaceOpen(true)}
@@ -731,10 +735,11 @@ export default function AssistantTablePanel({
               // 「＋ 新建标签页」：先建空 tab，再按 replace 重算预览（spec 3.3）
               const cur = getCurrentAssistantTabs();
               const next = addTab(cur);
-              const newTabId = next.tabs[next.tabs.length - 1].id;
+              const newTab = next.tabs.at(-1);
+              if (newTab === undefined) return; // addTab 必追加 1 项（不可达兜底）
               pushHistory(cur); // 建 tab 是结构变更，应可 ⟲ 撤销
               setCurrentAssistantTabs(next);
-              setPreviewTargetTab(newTabId);
+              setPreviewTargetTab(newTab.id);
               showToast?.('已新建空标签页作为写入目标');
             }}
             previewHeight={previewHeight}

@@ -42,17 +42,15 @@ export function useColumnResize(sb: AssistantTable, commit: (sb: AssistantTable)
   const colWidths = useMemo(() => {
     if (colSigRef.current !== colSig) {
       const next: Record<string, number> = {};
-      for (let ci = 0; ci < sb.columns.length; ci++) {
-        const col = sb.columns[ci];
+      for (const [ci, col] of sb.columns.entries()) {
         if (col.width != null && Number.isFinite(col.width)) {
           // 已手动锁定 → 用锁定值（clamp 合法范围）
           next[col.id] = Math.max(COL_W_MIN, Math.min(COL_W_MAX, col.width));
-        } else if (colWidthMapRef.current[col.id] !== undefined) {
-          // 已有估算记忆 → 沿用（防「插入新列」时旧列跳变抖动）
-          next[col.id] = colWidthMapRef.current[col.id];
         } else {
-          // 新列 → 按内容估算一次（D-6：取值按下标）
-          next[col.id] = estimateColumnWidth(col.label, sb.rows, ci);
+          const remembered = colWidthMapRef.current[col.id];
+          // 已有估算记忆 → 沿用（防「插入新列」时旧列跳变抖动）；否则按内容估算一次
+          next[col.id] =
+            remembered !== undefined ? remembered : estimateColumnWidth(col.label, sb.rows, ci);
         }
       }
       colWidthMapRef.current = next;
@@ -81,7 +79,7 @@ export function useColumnResize(sb: AssistantTable, commit: (sb: AssistantTable)
     resizingRef.current = null;
     r.handleEl.classList.remove('active');
     const w = colWidthMapRef.current[r.colId];
-    if (Number.isFinite(w) && w !== r.startW) {
+    if (w !== undefined && Number.isFinite(w) && w !== r.startW) {
       commit(setColumnWidth(sbRef.current, r.colId, w));
       // 松手后列宽已变 → 触发一次全量高度重算（内容随新宽度换行，行高应跟着收缩/撑高）
       setResizeTick((t) => t + 1);

@@ -46,11 +46,15 @@ export function extractImageSpans(text: string): ImageSpan[] {
   // 1) markdown 图片 ![](url) / ![alt](url)
   //    允许 url 内部包含一对括号 (…)，只在结尾的 ) 处闭合，避免含 ) 的签名链接被截断
   for (const m of text.matchAll(/!\[[^\]]*\]\(([^()\s]*(?:\([^()\s]*\)[^()\s]*)*)\)/g)) {
-    spans.push({ url: m[1], start: m.index ?? 0, end: (m.index ?? 0) + m[0].length });
+    const url = m[1];
+    if (url === undefined) continue; // 无捕获组（不可达）
+    spans.push({ url, start: m.index ?? 0, end: (m.index ?? 0) + m[0].length });
   }
   // 2) HTML <img src="url">
   for (const m of text.matchAll(/<img\b[^>]*\bsrc=["']([^"']+)["'][^>]*>/gi)) {
-    spans.push({ url: m[1], start: m.index ?? 0, end: (m.index ?? 0) + m[0].length });
+    const url = m[1];
+    if (url === undefined) continue; // 无捕获组（不可达）
+    spans.push({ url, start: m.index ?? 0, end: (m.index ?? 0) + m[0].length });
   }
   // 3) 裸链接：http(s)://… 或 data:image/…
   //    读到空白才停（不再遇 ) 即截断，保留 url 内部的 ) 与 ?query 参数）；

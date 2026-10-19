@@ -1416,9 +1416,14 @@ const executePlanTool = {
         unified_style_prompt?: string;
         unified_negative_prompt?: string;
       };
-      const gcText = [gc.visual_positioning, gc.unified_style_prompt, gc.unified_negative_prompt]
+      const gcLabels = ['视觉整体定位：', '统一风格提示词：', '统一负面提示词：'] as const;
+      const gcValues = [gc.visual_positioning, gc.unified_style_prompt, gc.unified_negative_prompt];
+      const gcText = gcLabels
+        .map((label, i) => {
+          const value = gcValues[i];
+          return value ? `${label}${value}` : '';
+        })
         .filter(Boolean)
-        .map((t, i) => ['视觉整体定位：', '统一风格提示词：', '统一负面提示词：'][i] + t)
         .join('\n');
       const lockedGens = gcText
         ? resolvedGens.map((g) => ({

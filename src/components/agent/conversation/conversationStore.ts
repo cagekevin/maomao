@@ -74,20 +74,21 @@ export function ensureActiveConversation(): string {
     materializeAssistantTabs();
     return activeId;
   }
-  if (conversations.length > 0) {
+  const first = conversations[0];
+  if (first !== undefined) {
     // 静默回退出声：activeId 失效 → 回退 conversations[0]（兜底不能崩，但要让用户/AI 可见）
     logger.warn(
       'AI助手',
       'ensureActiveConversation：activeId 不指向存在的对话，已回退到 conversations[0]',
       {
         invalidActiveId: activeId,
-        fallbackId: conversations[0].id,
+        fallbackId: first.id,
         count: conversations.length,
       },
     );
-    commit({ ...st, activeId: conversations[0].id });
+    commit({ ...st, activeId: first.id });
     materializeAssistantTabs(); // SSOT-7：切到既有会话即固化表格 id，防跨侧读造两套 id
-    return conversations[0].id;
+    return first.id;
   }
   const conv = normalizeConversation({
     id: agentUid('ac'),
@@ -159,10 +160,11 @@ export function deleteConversation(id: string): {
 } {
   const st = getState();
   const remaining = st.conversations.filter((c) => c.id !== id);
-  if (remaining.length > 0) {
-    commit({ conversations: remaining, activeId: remaining[0].id });
+  const next = remaining[0];
+  if (next !== undefined) {
+    commit({ conversations: remaining, activeId: next.id });
     materializeAssistantTabs(); // SSOT-7：删后切到剩余会话，同样要固化表格 id
-    return { activeId: remaining[0].id, snapshot: getCurrentSnapshot() };
+    return { activeId: next.id, snapshot: getCurrentSnapshot() };
   }
   const conv = normalizeConversation({
     id: agentUid('ac'),

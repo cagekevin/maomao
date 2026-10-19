@@ -123,10 +123,11 @@ export function useTableSelection({
         toast = `已复制 ${copied.length} 行`;
       } else if (range) {
         const cells = rangeToCells(table, range);
-        if (!cells.length || !cells[0].length) return '';
+        const firstRow = cells[0];
+        if (firstRow === undefined || firstRow.length === 0) return '';
         sysText = cells.map((line) => line.join('\t')).join('\n');
         internal = { kind: 'range', cells };
-        toast = `已复制 ${cells.length} 行 × ${cells[0].length} 列`;
+        toast = `已复制 ${cells.length} 行 × ${firstRow.length} 列`;
       } else if (focusedCell) {
         const txt = cellTextAt(focusedCell.rowId, focusedCell.colId);
         if (txt === '' && table.rows.length > 0) {
@@ -175,10 +176,12 @@ export function useTableSelection({
       if (sys.ok && sys.text !== '') {
         const grid = parseClipboardGrid(sys.text);
         if (grid) {
+          const firstRow = grid[0];
+          if (firstRow === undefined || firstRow.length === 0) return '';
           const next = pasteCells(table, anchor, grid);
           if (next === table) return '';
           commit(next);
-          return `已粘贴 ${grid.length} 行 × ${grid[0].length} 列`;
+          return `已粘贴 ${grid.length} 行 × ${firstRow.length} 列`;
         }
         // 纯文本单值 → 覆盖锚点格
         const rowIdx = table.rows.findIndex((r) => r.id === anchor.rowId);
@@ -216,10 +219,12 @@ export function useTableSelection({
         return `已粘贴 ${clipboard.rows.length} 行`;
       }
       if (clipboard.kind === 'range') {
+        const firstRow = clipboard.cells[0];
+        if (firstRow === undefined || firstRow.length === 0) return '';
         const next = pasteCells(table, anchor, clipboard.cells);
         if (next === table) return '';
         commit(next);
-        return `已粘贴 ${clipboard.cells.length} × ${clipboard.cells[0].length} 区域`;
+        return `已粘贴 ${clipboard.cells.length} × ${firstRow.length} 区域`;
       }
       if (clipboard.kind === 'cell') {
         const rowIdx = table.rows.findIndex((r) => r.id === anchor.rowId);

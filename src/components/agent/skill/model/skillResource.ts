@@ -79,6 +79,10 @@ export async function readSkillResource(
     return { ok: false, error: `本轮有多个 Skill 匹配「${ref}」，请用 id 指明：${describe(pool)}` };
   }
   const b = pool[0];
+  if (b === undefined) {
+    // 上方已排除空池（不可达兜底）；返回与原空池分支同一结论，不静默读错技能
+    return { ok: false, error: `找不到 Skill「${ref}」。本轮启用的是：${describe(turnBindings)}` };
+  }
 
   if (!assertSafeSkillRelativePath(path)) {
     return {

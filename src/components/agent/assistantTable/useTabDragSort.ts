@@ -64,8 +64,8 @@ export function useTabDragSort(
     };
     /** 命中判定：DOM 序号 == 数据序号（拖拽中不重排），越界 clamp 到最后一个 tab */
     const detectTo = (clientX: number): number => {
-      for (let i = 0; i < rects.length; i++) {
-        if (clientX >= rects[i].left && clientX <= rects[i].right) return Math.min(total - 1, i);
+      for (const [i, rect] of rects.entries()) {
+        if (clientX >= rect.left && clientX <= rect.right) return Math.min(total - 1, i);
       }
       return to;
     };

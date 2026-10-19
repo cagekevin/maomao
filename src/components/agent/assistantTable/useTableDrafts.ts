@@ -32,7 +32,8 @@ export function useTableDrafts(
   /** 单元格渲染值：有草稿取草稿，否则回退到数据层 backing */
   const cellValue = (rowId: string, colId: string, backing: string): string => {
     const k = draftKey(rowId, colId);
-    return k in edits ? edits[k] : backing;
+    const draft = edits[k];
+    return draft !== undefined ? draft : backing;
   };
   /** 输入时写草稿（不落数据层） */
   const setCellDraft = (rowId: string, colId: string, value: string) => {

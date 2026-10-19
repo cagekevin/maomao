@@ -76,8 +76,7 @@ export function serializeMessagesForSummary(
   }
   let total = parts.join('').length;
   const serialized: string[] = [];
-  for (let i = messages.length - 1; i >= 0; i--) {
-    const message = messages[i];
+  for (const message of messages.slice().reverse()) {
     const roleLabel = message.role === 'user' ? '用户' : '助手';
     let content = typeof message.content === 'string' ? message.content : '';
     if (content.length > PER_MESSAGE_INPUT_CHAR_LIMIT) {

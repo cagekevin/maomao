@@ -83,7 +83,8 @@ export default function AssistantTablePreviewCard(props: AssistantTablePreviewCa
     let i = 0;
     while (i < total) {
       if (changedSet.has(i)) {
-        nodes.push(rowOf(props.rows[i], i));
+        const row = props.rows[i];
+        if (row !== undefined) nodes.push(rowOf(row, i)); // i < total 保证存在（不可达兜底）
         i += 1;
       } else {
         let j = i;

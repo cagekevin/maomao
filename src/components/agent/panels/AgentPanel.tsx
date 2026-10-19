@@ -335,10 +335,10 @@ function AgentPanel({
     () => (getGenParams() as { quality?: string }).quality || 'auto',
   );
   useEffect(() => {
-    if (!genModel && genModels.length > 0) {
-      const first = genModels[0].id;
-      setGenModel(first);
-      setGenParams({ model: first });
+    const firstModel = genModels[0];
+    if (!genModel && firstModel !== undefined) {
+      setGenModel(firstModel.id);
+      setGenParams({ model: firstModel.id });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [genModels]);
@@ -425,6 +425,8 @@ function AgentPanel({
    * 需要名字时现查 `skillNameOf`（缓存变更会经订阅触发重渲）。
    */
   const [activeSkills, setActiveSkills] = useState<string[]>([]);
+  // 首个已选 Skill：title 与按钮文案共用，避免两处各自 `activeSkills[0]`（nua 下是 string|undefined）
+  const firstActiveSkill = activeSkills[0];
   // 设置页改「清单开关 / 预算」（agent_skill_config）时自增 → 重算注入文本（见下方 contentSubscribe）
   const [skillConfigVersion, setSkillConfigVersion] = useState(0);
   /** 磁盘上被外部改过的 Skill 名字（焦点侦测到；用户点「重新载入」后清空） */
@@ -696,6 +698,7 @@ function AgentPanel({
   const selCtx = selectedRows.length
     ? (() => {
         const first = selectedRows[0];
+        if (first === undefined) return null; // selectedRows.length 已判（不可达兜底）
         const idx = tableData.rows.findIndex((r) => r.id === first.id) + 1;
         const firstCell =
           tableData.columns.map((_, ci) => first.cells[ci] || '').find((v) => !!v) || '';
@@ -1646,10 +1649,10 @@ function AgentPanel({
                   </svg>
                   <span>
                     表格协作中 ·{' '}
-                    {selectedRows.length > 0
-                      ? selectedRows.length === 1
-                        ? `当前选中第 ${tableData.rows.findIndex((r) => r.id === selectedRows[0].id) + 1} 行`
-                        : `已选中 ${selectedRows.length} 行`
+                    {selCtx
+                      ? selCtx.count === 1
+                        ? `当前选中第 ${selCtx.idx} 行`
+                        : `已选中 ${selCtx.count} 行`
                       : 'AI 会优先处理左侧表格'}
                   </span>
                   {selectedRows.length > 0 && (
@@ -2173,12 +2176,12 @@ function AgentPanel({
                   disabled={sending}
                   className="agent-skill-main"
                   title={
-                    activeSkills.length > 0
-                      ? `当前带的 Skill：${skillNameOf(activeSkills[0])}（点下拉可换一个）`
+                    firstActiveSkill !== undefined
+                      ? `当前带的 Skill：${skillNameOf(firstActiveSkill)}（点下拉可换一个）`
                       : '应用 Skill'
                   }
                 >
-                  {activeSkills.length === 0 ? 'Skill' : skillNameOf(activeSkills[0])}
+                  {firstActiveSkill === undefined ? 'Skill' : skillNameOf(firstActiveSkill)}
                 </button>
                 {skillPickOpen && (
                   <div className="agent-pop is-slash agent-mh-280">
@@ -2281,8 +2284,8 @@ function buildTableSnapshotText(
   if (cols.length) lines.push(`列：${cols.join(' / ')}`);
   if (globalStyle) lines.push(`全局风格：${globalStyle}`);
   if (rows.length) {
-    for (let i = 0; i < rows.length; i++) {
-      const rowText = rowToText(sb, rows[i]);
+    for (const [i, row] of rows.entries()) {
+      const rowText = rowToText(sb, row);
       lines.push(`第${i + 1}行：${rowText || '（空行）'}`);
     }
   } else {

@@ -423,15 +423,15 @@ function migrateLegacyGlobal(): { conversations: Conversation[]; activeId: strin
     conversations = [];
   }
   if (conversations.length === 0) return { conversations: [], activeId: '' };
+  const first = conversations[0];
+  if (first === undefined) return { conversations: [], activeId: '' }; // 非空已判（不可达兜底）
   let activeId = '';
   try {
     const id = contentGet(LEGACY_ACTIVE_KEY);
     activeId =
-      typeof id === 'string' && id && conversations.some((c) => c.id === id)
-        ? id
-        : conversations[0].id;
+      typeof id === 'string' && id && conversations.some((c) => c.id === id) ? id : first.id;
   } catch {
-    activeId = conversations[0].id;
+    activeId = first.id;
   }
   return { conversations, activeId };
 }
@@ -439,7 +439,10 @@ function migrateLegacyGlobal(): { conversations: Conversation[]; activeId: strin
 /** 读取当前 agentKey 的 state（确保已初始化）——供各分文件读写共享状态 */
 export function getState(): ConversationStoreState {
   ensureState(currentAgentKey);
-  return states[currentAgentKey];
+  const state = states[currentAgentKey];
+  // ensureState 刚建过该 key 的条目；走到这里仍缺 = 状态容器被破坏，必须 fail-loud
+  if (state === undefined) throw new Error(`会话状态未初始化：${currentAgentKey}`);
+  return state;
 }
 
 /** 统一提交：更新当前 agentKey 的 state + 通知；持久化由 persist 控制（hydrated 后才写 localStorage，防挂载覆盖）。

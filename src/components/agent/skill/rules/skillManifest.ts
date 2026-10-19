@@ -42,8 +42,9 @@ export function splitFrontmatter(source: string): { raw: string | null; body: st
   const text = source.replace(/^\uFEFF/, ''); // 去 BOM（外部编辑器常见）
   if (!/^---[ \t]*\r?\n/.test(text)) return { raw: null, body: source };
   const lines = text.split(/\r?\n/);
-  for (let i = 1; i < lines.length; i++) {
-    if (/^---[ \t]*$/.test(lines[i])) {
+  for (const [i, line] of lines.entries()) {
+    if (i === 0) continue; // 首行是开头的 `---`（上方已校验）
+    if (/^---[ \t]*$/.test(line)) {
       return { raw: lines.slice(1, i).join('\n'), body: lines.slice(i + 1).join('\n') };
     }
   }
@@ -69,9 +70,11 @@ function parseFields(raw: string): Record<string, string> {
   for (const line of raw.split(/\r?\n/)) {
     if (!line.trim() || line.trim().startsWith('#')) continue;
     const m = /^([A-Za-z0-9_-]+)[ \t]*:[ \t]*(.*)$/.exec(line);
-    if (m) {
-      current = m[1].toLowerCase();
-      fields[current] = unquote(m[2]);
+    const key = m?.[1];
+    const value = m?.[2];
+    if (key !== undefined && value !== undefined) {
+      current = key.toLowerCase();
+      fields[current] = unquote(value);
       continue;
     }
     // 续行：并入上一字段
@@ -92,16 +95,19 @@ export function parseSkillMarkdown(source: string): { manifest: SkillManifest; b
 
   const fields = parseFields(raw);
   const manifest: SkillManifest = { ...base };
-  const has = (k: string) => Object.prototype.hasOwnProperty.call(fields, k);
 
   // 【空值 = 不存在（唯一口径）】`version:`（空）与"没写这一行"是同一件事 ⇒ 折成 `undefined`。
   // 不折的话：解析给 `''`、序列化省略空值行 ⇒ 再解析回 `undefined` ≠ `''`，语义幂等当场破（TD-11-37）。
   // `name`/`description` 不必折：它们"无此行"本就回落到 `''`（与"写了空行"同一个值）。
   const optional = (v: string): string | undefined => (v ? v : undefined);
-  if (has('name')) manifest.name = fields['name'];
-  if (has('description')) manifest.description = fields['description'];
-  if (has('version')) manifest.version = optional(fields['version']);
-  if (has('id')) manifest.id = optional(fields['id']);
+  const name = fields['name'];
+  if (name !== undefined) manifest.name = name;
+  const description = fields['description'];
+  if (description !== undefined) manifest.description = description;
+  const version = fields['version'];
+  if (version !== undefined) manifest.version = optional(version);
+  const id = fields['id'];
+  if (id !== undefined) manifest.id = optional(id);
   for (const [k, v] of Object.entries(fields)) {
     if (!KNOWN_FIELDS.has(k) && v) manifest.unknown[k] = v; // 空值行 = 不存在，不占位（同口径）
   }
