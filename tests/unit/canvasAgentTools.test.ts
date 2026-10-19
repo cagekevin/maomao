@@ -1,4 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { at } from '../helpers/at';
+import { toolOf } from '../helpers/agentTools';
 import type { Node, Edge } from '@xyflow/react';
 import type { CanvasAgentCtx } from '../../src/components/agent/canvas/useCanvasAgentTools.ts';
 
@@ -195,7 +197,10 @@ describe('画布 Agent 工具层 §2.5', () => {
   it('create_node 建文本节点成功 + 返回 id', () => {
     const ctx = makeCtx();
     const t = buildCanvasAgentTools(ctx);
-    const r = t.create_node({
+    const r = toolOf(
+      t,
+      'create_node',
+    )({
       type: 'textGenerateNode',
       label: '测试',
       prompt: '你好',
@@ -210,7 +215,7 @@ describe('画布 Agent 工具层 §2.5', () => {
   it('create_node 未知类型报错', () => {
     const ctx = makeCtx();
     const t = buildCanvasAgentTools(ctx);
-    const r = t.create_node({ type: 'nope' });
+    const r = toolOf(t, 'create_node')({ type: 'nope' });
     expect(r.ok).toBe(false);
     expect(r.error).toContain('未知节点类型');
   });
@@ -218,7 +223,7 @@ describe('画布 Agent 工具层 §2.5', () => {
   it('create_node connectFrom 自动连线', () => {
     const ctx = makeCtx([{ id: 'a', type: 'textGenerateNode', data: {}, position: {} }]);
     const t = buildCanvasAgentTools(ctx);
-    const r = t.create_node({ type: 'textGenerateNode', connectFrom: 'a' });
+    const r = toolOf(t, 'create_node')({ type: 'textGenerateNode', connectFrom: 'a' });
     expect(r.data.connected).toBe(true);
     expect(ctx.getEdges()).toHaveLength(1);
   });
@@ -226,7 +231,7 @@ describe('画布 Agent 工具层 §2.5', () => {
   it('create_node imageGenerateNode 默认 420×420', () => {
     const ctx = makeCtx();
     const t = buildCanvasAgentTools(ctx);
-    const r = t.create_node({ type: 'imageGenerateNode' });
+    const r = toolOf(t, 'create_node')({ type: 'imageGenerateNode' });
     const node = ctx.getNodes().find((n) => n.id === r.data!.id)!;
     expect(node.width).toBe(420);
   });
@@ -234,7 +239,10 @@ describe('画布 Agent 工具层 §2.5', () => {
   it('create_node imageGenerateNode 应用 aspectRatio + resolution（9:16 + 1080p→1K）', () => {
     const ctx = makeCtx();
     const t = buildCanvasAgentTools(ctx);
-    const r = t.create_node({
+    const r = toolOf(
+      t,
+      'create_node',
+    )({
       type: 'imageGenerateNode',
       prompt: '奥特曼打怪兽',
       aspectRatio: '9:16',
@@ -252,13 +260,19 @@ describe('画布 Agent 工具层 §2.5', () => {
   it('create_node imageGenerateNode resolution=4K 映射到 imageSize=4K；1440p→2K', () => {
     // 每次用独立 ctx（节点 id 用 Date.now()，同毫秒并发会撞 id，故分开断言）
     const c1 = makeCtx();
-    const r4 = buildCanvasAgentTools(c1).create_node({
+    const r4 = toolOf(
+      buildCanvasAgentTools(c1),
+      'create_node',
+    )({
       type: 'imageGenerateNode',
       resolution: '4K',
     });
     expect(c1.getNodes().find((n) => n.id === r4.data!.id)!.data.imageSize).toBe('4K');
     const c2 = makeCtx();
-    const r2 = buildCanvasAgentTools(c2).create_node({
+    const r2 = toolOf(
+      buildCanvasAgentTools(c2),
+      'create_node',
+    )({
       type: 'imageGenerateNode',
       resolution: '1440p',
     });
@@ -268,7 +282,10 @@ describe('画布 Agent 工具层 §2.5', () => {
   it('create_node 非生图节点不写 aspectRatio/resolution', () => {
     const ctx = makeCtx();
     const t = buildCanvasAgentTools(ctx);
-    const r = t.create_node({
+    const r = toolOf(
+      t,
+      'create_node',
+    )({
       type: 'textGenerateNode',
       prompt: 'x',
       aspectRatio: '9:16',
@@ -292,7 +309,7 @@ describe('画布 Agent 工具层 §2.5', () => {
       },
     ]);
     const t = buildCanvasAgentTools(ctx);
-    const r = t.create_node({ type: 'imageGenerateNode', prompt: '新图' });
+    const r = toolOf(t, 'create_node')({ type: 'imageGenerateNode', prompt: '新图' });
     expect(r.ok).toBe(true);
     const node = ctx.getNodes().find((n) => n.id === r.data!.id)!;
     expect(node.position.x).toBe(200 + 420 + 100);
@@ -319,7 +336,7 @@ describe('画布 Agent 工具层 §2.5', () => {
       }, // 最右：300+300=600
     ]);
     const t = buildCanvasAgentTools(ctx);
-    const r = t.create_node({ type: 'imageGenerateNode' });
+    const r = toolOf(t, 'create_node')({ type: 'imageGenerateNode' });
     const node = ctx.getNodes().find((n) => n.id === r.data!.id)!;
     expect(node.position.x).toBe(300 + 300 + 100); // 最右边界 600 + 100
     expect(node.position.y).toBe(50); // 最小顶部
@@ -337,7 +354,7 @@ describe('画布 Agent 工具层 §2.5', () => {
       },
     ]);
     const t = buildCanvasAgentTools(ctx);
-    const r = t.create_node({ type: 'imageGenerateNode', position: { x: 999, y: 888 } });
+    const r = toolOf(t, 'create_node')({ type: 'imageGenerateNode', position: { x: 999, y: 888 } });
     const node = ctx.getNodes().find((n) => n.id === r.data!.id)!;
     expect(node.position.x).toBe(999);
     expect(node.position.y).toBe(888);
@@ -346,7 +363,10 @@ describe('画布 Agent 工具层 §2.5', () => {
   it('batch_create_nodes 批量建', () => {
     const ctx = makeCtx();
     const t = buildCanvasAgentTools(ctx);
-    const r = t.batch_create_nodes({
+    const r = toolOf(
+      t,
+      'batch_create_nodes',
+    )({
       nodes: [{ type: 'textGenerateNode' }, { type: 'imageGenerateNode' }],
     });
     expect(r.ok).toBe(true);
@@ -356,7 +376,10 @@ describe('画布 Agent 工具层 §2.5', () => {
   it('P11 batch_create_nodes 单次 setNodes 写回（循环内不逐条写）', () => {
     const ctx = makeCtx();
     const t = buildCanvasAgentTools(ctx);
-    const r = t.batch_create_nodes({
+    const r = toolOf(
+      t,
+      'batch_create_nodes',
+    )({
       nodes: [{ type: 'textGenerateNode' }, { type: 'imageGenerateNode' }, { type: 'assetNode' }],
     });
     expect(r.ok).toBe(true);
@@ -368,7 +391,10 @@ describe('画布 Agent 工具层 §2.5', () => {
   it('P11 batch_create_nodes connectFrom 边合并为单次 setEdges', () => {
     const ctx = makeCtx([{ id: 'a', type: 'textGenerateNode', data: {}, position: {} }]);
     const t = buildCanvasAgentTools(ctx);
-    const r = t.batch_create_nodes({
+    const r = toolOf(
+      t,
+      'batch_create_nodes',
+    )({
       nodes: [
         { type: 'textGenerateNode', connectFrom: 'a' },
         { type: 'textGenerateNode', connectFrom: 'a' },
@@ -394,8 +420,8 @@ describe('画布 Agent 工具层 §2.5', () => {
     ]);
     const t1 = buildCanvasAgentTools(c1);
     const seqPos = [
-      t1.create_node({ type: 'textGenerateNode' }).data.position,
-      t1.create_node({ type: 'textGenerateNode' }).data.position,
+      toolOf(t1, 'create_node')({ type: 'textGenerateNode' }).data.position,
+      toolOf(t1, 'create_node')({ type: 'textGenerateNode' }).data.position,
     ];
     // P11：批量建（合并为单次写）
     const c2 = makeCtx([
@@ -409,7 +435,10 @@ describe('画布 Agent 工具层 §2.5', () => {
       },
     ]);
     const t2 = buildCanvasAgentTools(c2);
-    const b = t2.batch_create_nodes({
+    const b = toolOf(
+      t2,
+      'batch_create_nodes',
+    )({
       nodes: [{ type: 'textGenerateNode' }, { type: 'textGenerateNode' }],
     });
     const batchPos = b.data.ids.map(
@@ -422,7 +451,10 @@ describe('画布 Agent 工具层 §2.5', () => {
   it('P11 batch_create_nodes 含非法类型：合法照建、非法跳过并保留错误', () => {
     const ctx = makeCtx();
     const t = buildCanvasAgentTools(ctx);
-    const r = t.batch_create_nodes({ nodes: [{ type: 'textGenerateNode' }, { type: 'nope' }] });
+    const r = toolOf(
+      t,
+      'batch_create_nodes',
+    )({ nodes: [{ type: 'textGenerateNode' }, { type: 'nope' }] });
     expect(r.ok).toBe(true); // 有合法节点仍成功
     expect(r.data.ids).toHaveLength(1);
     expect(ctx.getNodes()).toHaveLength(1);
@@ -438,7 +470,7 @@ describe('画布 Agent 工具层 §2.5', () => {
       [{ id: 'e', source: 'a', target: 'b' }],
     );
     const t = buildCanvasAgentTools(ctx);
-    const r = t.delete_node({ nodeId: 'a' });
+    const r = toolOf(t, 'delete_node')({ nodeId: 'a' });
     expect(r.ok).toBe(true);
     expect(ctx.getNodes().some((n) => n.id === 'a')).toBe(false);
     expect(ctx.getEdges()).toHaveLength(0);
@@ -447,7 +479,7 @@ describe('画布 Agent 工具层 §2.5', () => {
   it('delete_node 不存在报错', () => {
     const ctx = makeCtx();
     const t = buildCanvasAgentTools(ctx);
-    expect(t.delete_node({ nodeId: 'x' }).ok).toBe(false);
+    expect(toolOf(t, 'delete_node')({ nodeId: 'x' }).ok).toBe(false);
   });
 
   it('getNodeAssetUrl：提取节点主图 URL（assetUrl 字符串）', () => {
@@ -507,7 +539,7 @@ describe('画布 Agent 工具层 §2.5', () => {
   it('batch_delete_nodes 批量删', () => {
     const ctx = makeCtx([{ id: 'a' }, { id: 'b' }, { id: 'c' }]);
     const t = buildCanvasAgentTools(ctx);
-    const r = t.batch_delete_nodes({ nodeIds: ['a', 'b'] });
+    const r = toolOf(t, 'batch_delete_nodes')({ nodeIds: ['a', 'b'] });
     expect(r.ok).toBe(true);
     expect(ctx.getNodes()).toHaveLength(1);
   });
@@ -517,9 +549,9 @@ describe('画布 Agent 工具层 §2.5', () => {
       { id: 'a', type: 'textGenerateNode', data: { label: '旧', prompt: 'keep' }, position: {} },
     ]);
     const t = buildCanvasAgentTools(ctx);
-    const before = ctx.getNodes()[0];
-    const r = t.update_node({ nodeId: 'a', label: '新' });
-    const after = ctx.getNodes()[0];
+    const before = at(ctx.getNodes(), 0);
+    const r = toolOf(t, 'update_node')({ nodeId: 'a', label: '新' });
+    const after = at(ctx.getNodes(), 0);
     expect(after.data.label).toBe('新');
     expect(after.data.prompt).toBe('keep');
     expect(after).not.toBe(before);
@@ -529,34 +561,40 @@ describe('画布 Agent 工具层 §2.5', () => {
   it('update_node 非白名单字段被忽略', () => {
     const ctx = makeCtx([{ id: 'a', type: 'textGenerateNode', data: {}, position: {} }]);
     const t = buildCanvasAgentTools(ctx);
-    const r = t.update_node({ nodeId: 'a', prompt: 'P', evilField: 'x' });
+    const r = toolOf(t, 'update_node')({ nodeId: 'a', prompt: 'P', evilField: 'x' });
     expect(r.ok).toBe(true);
-    expect(ctx.getNodes()[0].data.evilField).toBeUndefined();
-    expect(ctx.getNodes()[0].data.prompt).toBe('P');
+    expect(at(ctx.getNodes(), 0).data.evilField).toBeUndefined();
+    expect(at(ctx.getNodes(), 0).data.prompt).toBe('P');
   });
 
   it('update_node_any_field 合并任意字段', () => {
     const ctx = makeCtx([{ id: 'a', type: 'imageGenerateNode', data: {}, position: {} }]);
     const t = buildCanvasAgentTools(ctx);
-    const r = t.update_node_any_field({ nodeId: 'a', patch: { custom: 1, assetUrl: '/f.png' } });
+    const r = toolOf(
+      t,
+      'update_node_any_field',
+    )({ nodeId: 'a', patch: { custom: 1, assetUrl: '/f.png' } });
     expect(r.ok).toBe(true);
-    expect(ctx.getNodes()[0].data.custom).toBe(1);
+    expect(at(ctx.getNodes(), 0).data.custom).toBe(1);
   });
 
   it('connect_nodes 去重 + 端点校验', () => {
     const ctx = makeCtx([{ id: 'a' }, { id: 'b' }]);
     const t = buildCanvasAgentTools(ctx);
-    t.connect_nodes({ source: 'a', target: 'b' });
-    const r2 = t.connect_nodes({ source: 'a', target: 'b' });
+    toolOf(t, 'connect_nodes')({ source: 'a', target: 'b' });
+    const r2 = toolOf(t, 'connect_nodes')({ source: 'a', target: 'b' });
     expect(r2.data.alreadyConnected).toBe(true);
     expect(ctx.getEdges()).toHaveLength(1);
-    expect(t.connect_nodes({ source: 'x', target: 'b' }).ok).toBe(false);
+    expect(toolOf(t, 'connect_nodes')({ source: 'x', target: 'b' }).ok).toBe(false);
   });
 
   it('batch_connect_nodes 批量', () => {
     const ctx = makeCtx([{ id: 'a' }, { id: 'b' }, { id: 'c' }]);
     const t = buildCanvasAgentTools(ctx);
-    const r = t.batch_connect_nodes({
+    const r = toolOf(
+      t,
+      'batch_connect_nodes',
+    )({
       connections: [
         { source: 'a', target: 'b' },
         { source: 'b', target: 'c' },
@@ -568,7 +606,10 @@ describe('画布 Agent 工具层 §2.5', () => {
   it('P11 batch_connect_nodes 单次 setEdges 写回（循环内不逐条写）', () => {
     const ctx = makeCtx([{ id: 'a' }, { id: 'b' }, { id: 'c' }, { id: 'd' }]);
     const t = buildCanvasAgentTools(ctx);
-    const r = t.batch_connect_nodes({
+    const r = toolOf(
+      t,
+      'batch_connect_nodes',
+    )({
       connections: [
         { source: 'a', target: 'b' },
         { source: 'b', target: 'c' },
@@ -584,7 +625,10 @@ describe('画布 Agent 工具层 §2.5', () => {
   it('P11 batch_connect_nodes 去重：重复连线计成功但只写一次', () => {
     const ctx = makeCtx([{ id: 'a' }, { id: 'b' }]);
     const t = buildCanvasAgentTools(ctx);
-    const r = t.batch_connect_nodes({
+    const r = toolOf(
+      t,
+      'batch_connect_nodes',
+    )({
       connections: [
         { source: 'a', target: 'b' },
         { source: 'a', target: 'b' },
@@ -598,7 +642,10 @@ describe('画布 Agent 工具层 §2.5', () => {
   it('P11 batch_connect_nodes 非法端点不写边、不计数', () => {
     const ctx = makeCtx([{ id: 'a' }, { id: 'b' }]);
     const t = buildCanvasAgentTools(ctx);
-    const r = t.batch_connect_nodes({
+    const r = toolOf(
+      t,
+      'batch_connect_nodes',
+    )({
       connections: [
         { source: 'a', target: 'b' },
         { source: 'x', target: 'a' },
@@ -612,11 +659,11 @@ describe('画布 Agent 工具层 §2.5', () => {
   it('delete_edge 按 edgeId 或端点删', () => {
     const ctx = makeCtx([{ id: 'a' }, { id: 'b' }], [{ id: 'e1', source: 'a', target: 'b' }]);
     const t = buildCanvasAgentTools(ctx);
-    expect(t.delete_edge({ edgeId: 'e1' }).ok).toBe(true);
+    expect(toolOf(t, 'delete_edge')({ edgeId: 'e1' }).ok).toBe(true);
     expect(ctx.getEdges()).toHaveLength(0);
     // 再建一条按端点删
-    t.connect_nodes({ source: 'a', target: 'b' });
-    const r = t.delete_edge({ source: 'a', target: 'b' });
+    toolOf(t, 'connect_nodes')({ source: 'a', target: 'b' });
+    const r = toolOf(t, 'delete_edge')({ source: 'a', target: 'b' });
     expect(r.ok).toBe(true);
     expect(ctx.getEdges()).toHaveLength(0);
   });
@@ -624,7 +671,7 @@ describe('画布 Agent 工具层 §2.5', () => {
   it('delete_edge 不存在报错', () => {
     const ctx = makeCtx();
     const t = buildCanvasAgentTools(ctx);
-    expect(t.delete_edge({ edgeId: 'no' }).ok).toBe(false);
+    expect(toolOf(t, 'delete_edge')({ edgeId: 'no' }).ok).toBe(false);
   });
 
   it('list_nodes / list_edges / read_canvas 只读', () => {
@@ -640,9 +687,9 @@ describe('画布 Agent 工具层 §2.5', () => {
       [{ id: 'e', source: 'a', target: 'b' }],
     );
     const t = buildCanvasAgentTools(ctx);
-    expect(t.list_nodes({}).data.nodes).toHaveLength(1);
-    expect(t.list_edges({}).data.edges).toHaveLength(1);
-    const rc = t.read_canvas({});
+    expect(toolOf(t, 'list_nodes')({}).data.nodes).toHaveLength(1);
+    expect(toolOf(t, 'list_edges')({}).data.edges).toHaveLength(1);
+    const rc = toolOf(t, 'read_canvas')({});
     expect(rc.data.nodes[0].assetUrl).toBe('/f.png');
   });
 
@@ -651,14 +698,14 @@ describe('画布 Agent 工具层 §2.5', () => {
       { id: 'a', type: 'imageGenerateNode', data: { prompt: 'P' }, position: {} },
     ]);
     const t = buildCanvasAgentTools(ctx);
-    expect(t.get_node_details({ nodeId: 'a' }).data.data.prompt).toBe('P');
-    expect(t.get_node_details({ nodeId: 'z' }).ok).toBe(false);
+    expect(toolOf(t, 'get_node_details')({ nodeId: 'a' }).data.data.prompt).toBe('P');
+    expect(toolOf(t, 'get_node_details')({ nodeId: 'z' }).ok).toBe(false);
   });
 
   it('generate_node 拿到 resultUrl → 返回已完成收敛信号（completed:true，不再重复）', async () => {
     const ctx = makeCtx([{ id: 'a', type: 'imageGenerateNode', data: {}, position: {} }]);
     const t = buildCanvasAgentTools(ctx);
-    const r = await t.generate_node({ nodeId: 'a' });
+    const r = await toolOf(t, 'generate_node')({ nodeId: 'a' });
     expect(r.ok).toBe(true);
     expect(r.data.resultUrl).toBe('http://r/x.png');
     // 对齐参考项目收敛信号：resultUrl 非空 = 已完成，明确"无需重复操作"
@@ -671,7 +718,7 @@ describe('画布 Agent 工具层 §2.5', () => {
     vi.mocked(taskStore.runNodeGeneration).mockResolvedValueOnce({ ok: true, resultUrl: '' });
     const ctx = makeCtx([{ id: 'a', type: 'imageGenerateNode', data: {}, position: {} }]);
     const t = buildCanvasAgentTools(ctx);
-    const r = await t.generate_node({ nodeId: 'a' });
+    const r = await toolOf(t, 'generate_node')({ nodeId: 'a' });
     expect(r.ok).toBe(true);
     expect(r.data.completed).toBe(false);
     expect(r.data.submitted).toBe(true);
@@ -682,7 +729,7 @@ describe('画布 Agent 工具层 §2.5', () => {
     vi.mocked(taskStore.runNodeGeneration).mockResolvedValueOnce({ ok: false, error: '模型超时' });
     const ctx = makeCtx([{ id: 'a', type: 'imageGenerateNode', data: {}, position: {} }]);
     const t = buildCanvasAgentTools(ctx);
-    const r = await t.generate_node({ nodeId: 'a' });
+    const r = await toolOf(t, 'generate_node')({ nodeId: 'a' });
     expect(r.ok).toBe(false);
     expect((r as unknown as { nodeId: string }).nodeId).toBe('a'); // 失败也带 nodeId
     expect(r.error).toBe('模型超时');
@@ -692,7 +739,7 @@ describe('画布 Agent 工具层 §2.5', () => {
     vi.mocked(taskStore.runNodeGeneration).mockResolvedValueOnce(false);
     const ctx = makeCtx([{ id: 'a', type: 'imageGenerateNode', data: {}, position: {} }]);
     const t = buildCanvasAgentTools(ctx);
-    const r = await t.generate_node({ nodeId: 'a' });
+    const r = await toolOf(t, 'generate_node')({ nodeId: 'a' });
     expect(r.ok).toBe(false);
     expect(r.error).toContain('未注册生成契约');
     expect((r as unknown as { nodeId: string }).nodeId).toBe('a');
@@ -705,7 +752,7 @@ describe('画布 Agent 工具层 §2.5', () => {
       { id: 'text_x', type: 'textGenerateNode', data: {}, position: {} },
     ]);
     const t = buildCanvasAgentTools(ctx);
-    const r = await t.generate_node({ nodeId: 'imageGenerateNode_1' }); // 模型自猜的假 id
+    const r = await toolOf(t, 'generate_node')({ nodeId: 'imageGenerateNode_1' }); // 模型自猜的假 id
     expect(r.ok).toBe(false);
     expect(r.error).toContain('节点不存在：imageGenerateNode_1');
     // 兜底引导：回填画布上真实可用的生图节点 id（而非只报错让模型卡死/重复建节点）
@@ -717,7 +764,7 @@ describe('画布 Agent 工具层 §2.5', () => {
     convMock.__state.awaiting = true; // 模拟已进入待确认
     const ctx = makeCtx();
     const t = buildCanvasAgentTools(ctx);
-    const r = await t.execute_plan({ generations: [{ id: 'g1', prompt: '猫' }] });
+    const r = await toolOf(t, 'execute_plan')({ generations: [{ id: 'g1', prompt: '猫' }] });
     expect(r.ok).toBe(false);
     expect(r.error).toContain('尚未确认');
   });
@@ -727,9 +774,9 @@ describe('画布 Agent 工具层 §2.5', () => {
       { id: 'a', type: 'textGenerateNode', data: {}, position: { x: 5, y: 5 } },
     ]);
     const t = buildCanvasAgentTools(ctx);
-    expect(t.focus_node({ nodeId: 'a' }).ok).toBe(true);
+    expect(toolOf(t, 'focus_node')({ nodeId: 'a' }).ok).toBe(true);
     expect(ctx.setCenter).toHaveBeenCalled();
-    expect(t.focus_node({ nodeId: 'z' }).ok).toBe(false);
+    expect(toolOf(t, 'focus_node')({ nodeId: 'z' }).ok).toBe(false);
   });
 
   // 【TD-11-9 · 2026-09-11】MUTATING_TOOLS 一致性对账（此前零覆盖）。
@@ -779,7 +826,7 @@ describe('画布 Agent 工具层 §2.5', () => {
 
     for (const name of MUTATING_EXPECTED) {
       vi.mocked(convStore.pushActiveAiUndo).mockClear();
-      tools[name]({ nodeId: 'n1', id: 'n1', source: 'n1', target: 'n1' });
+      toolOf(tools, name)({ nodeId: 'n1', id: 'n1', source: 'n1', target: 'n1' });
       expect(
         vi.mocked(convStore.pushActiveAiUndo).mock.calls.length,
         `${name} 应 push 撤销快照`,
@@ -787,7 +834,7 @@ describe('画布 Agent 工具层 §2.5', () => {
     }
     for (const name of NON_MUTATING_EXPECTED) {
       vi.mocked(convStore.pushActiveAiUndo).mockClear();
-      tools[name]({ nodeId: 'n1', id: 'n1' });
+      toolOf(tools, name)({ nodeId: 'n1', id: 'n1' });
       expect(vi.mocked(convStore.pushActiveAiUndo).mock.calls.length, `${name} 不应 push`).toBe(0);
     }
   });
@@ -795,14 +842,16 @@ describe('画布 Agent 工具层 §2.5', () => {
   it('undo_ai 无栈返回错误', () => {
     const ctx = makeCtx();
     const t = buildCanvasAgentTools(ctx);
-    expect(t.undo_ai({}).ok).toBe(false);
+    expect(toolOf(t, 'undo_ai')({}).ok).toBe(false);
   });
 
   it('未知工具经 callTool 返回错误（不在本测试 mock 范围，直接验证包错）', () => {
     const ctx = makeCtx();
     const t = buildCanvasAgentTools(ctx);
     // 包一层 try：工具不存在时 buildCanvasAgentTools 的 map 里没有该 key → 返回 undefined 调用报错
-    const r = t.call_no_such_tool ? t.call_no_such_tool({}) : { ok: false, error: '未知工具' };
+    const r = t.call_no_such_tool
+      ? toolOf(t, 'call_no_such_tool')({})
+      : { ok: false, error: '未知工具' };
     expect(r.ok).toBe(false);
   });
 
@@ -811,18 +860,18 @@ describe('画布 Agent 工具层 §2.5', () => {
     // 2026-08-27 简化：credit = creditSwitch（全局总闸）。开关默认开即命中。
     const ctx = makeCtx();
     const t = buildCanvasAgentTools(ctx);
-    const r = await t.execute_plan({ generations: [{ id: 'g1', prompt: '猫' }] });
+    const r = await toolOf(t, 'execute_plan')({ generations: [{ id: 'g1', prompt: '猫' }] });
     expect(r.ok).toBe(true);
     // D4：credit 命中 → 返回 awaited:'credit'，不声称「已生成」
     expect(r.data.awaited).toBe('credit');
     expect(r.data.note).toContain('待积分确认');
     // 强制 autoRun=false（红线 §6.4：绝不放行 LLM 的 auto_run:true 直接真生成）
     expect(mockExecutePlan).toHaveBeenCalledTimes(1);
-    expect(mockExecutePlan.mock.calls[0][0].autoRun).toBe(false);
+    expect(at(mockExecutePlan.mock.calls, 0)[0].autoRun).toBe(false);
     // 节点已建好（ready）、置 per-conv creditGate 持久化
     expect(convMock.__state.creditGate?.pending).toBe(true);
     expect(convMock.__state.creditGate?.map).toBeTruthy();
-    expect(convMock.__state.creditGate?.gens[0].prompt).toBe('猫');
+    expect(at(convMock.__state.creditGate?.gens ?? [], 0).prompt).toBe('猫');
     // 未置 awaiting 态（credit 闸与 awaiting 确认闸两条门禁互相独立）
     expect(convMock.__state.awaiting).toBe(false);
   });
@@ -834,11 +883,14 @@ describe('画布 Agent 工具层 §2.5', () => {
     setCreditSwitch(false);
     const ctx = makeCtx();
     const t = buildCanvasAgentTools(ctx);
-    const r = await t.execute_plan({ generations: [{ id: 'g1', prompt: '猫' }], auto_run: true });
+    const r = await toolOf(
+      t,
+      'execute_plan',
+    )({ generations: [{ id: 'g1', prompt: '猫' }], auto_run: true });
     expect(r.ok).toBe(true);
     expect(r.data.awaited).toBeUndefined(); // 未命中积分闸
     expect(mockExecutePlan).toHaveBeenCalledTimes(1);
-    expect(mockExecutePlan.mock.calls[0][0].autoRun).toBe(true); // 原 autoRun 语义保留
+    expect(at(mockExecutePlan.mock.calls, 0)[0].autoRun).toBe(true); // 原 autoRun 语义保留
     expect(convMock.__state.creditGate).toBeNull(); // 不置积分待确认态
     setCreditSwitch(true); // 还原默认开，避免污染后续
   });
@@ -862,7 +914,7 @@ describe('画布 Agent 工具层 §2.5', () => {
     const r = await runExistingPlanTool(ctx);
     expect(r.ok).toBe(true);
     expect(mockExecutePlan).toHaveBeenCalledTimes(1);
-    const arg = mockExecutePlan.mock.calls[0][0];
+    const arg = at(mockExecutePlan.mock.calls, 0)[0];
     expect(arg.mode).toBe('runExisting'); // D5：复用执行器，不重建节点
     expect(arg.nodeMappings).toEqual({ g1: 'n1' }); // D6：映射来自同一次 execute_plan
     expect(convMock.__state.creditGate).toBeNull(); // 成功清 gate（失败保留待重试）
@@ -873,7 +925,7 @@ describe('画布 Agent 工具层 §2.5', () => {
     convMock.__state.pending = null;
     const ctx = makeCtx();
     const t = buildCanvasAgentTools(ctx);
-    const r = await t.execute_plan({}); // 无 generations 也无暂存
+    const r = await toolOf(t, 'execute_plan')({}); // 无 generations 也无暂存
     expect(r.ok).toBe(false);
     // 【D缺口】统一兜底：错误透传并给出「未找到生成计划」来源引导，而非静默跳过
     expect(r.error).toContain('未找到生成计划');
@@ -886,13 +938,13 @@ describe('画布 Agent 工具层 §2.5', () => {
     convMock.__state.pending = [{ id: 'g1', prompt: '一只猫' }];
     const ctx = makeCtx();
     const t = buildCanvasAgentTools(ctx);
-    const r = await t.execute_plan({}); // 不传 generations，只靠暂存
+    const r = await toolOf(t, 'execute_plan')({}); // 不传 generations，只靠暂存
     expect(r.ok).toBe(true);
     expect(mockExecutePlan).toHaveBeenCalledTimes(1);
-    const arg = mockExecutePlan.mock.calls[0][0];
+    const arg = at(mockExecutePlan.mock.calls, 0)[0];
     expect(arg.generations).toHaveLength(1);
-    expect(arg.generations![0].id).toBe('g1'); // 主通道：gens 取自暂存，非 args
-    expect(arg.generations![0].prompt).toBe('一只猫'); // 无 global_contract → 不加风格前缀
+    expect(at(arg.generations!, 0).id).toBe('g1'); // 主通道：gens 取自暂存，非 args
+    expect(at(arg.generations!, 0).prompt).toBe('一只猫'); // 无 global_contract → 不加风格前缀
     expect(convStore.setActivePendingGenerations).toHaveBeenCalledWith(null); // 执行后清暂存
   });
 
@@ -903,7 +955,10 @@ describe('画布 Agent 工具层 §2.5', () => {
     const ctx = makeCtx();
     const t = buildCanvasAgentTools(ctx);
     // AI 规划：step1 用参考图1(→0)，step2 用参考图2(→1)，step3 无索引（用整批共享）
-    const r = await t.execute_plan({
+    const r = await toolOf(
+      t,
+      'execute_plan',
+    )({
       generations: [
         { id: 'g1', prompt: '把猫变白', use_attachments: true, attachment_indices: [0] },
         { id: 'g2', prompt: '把狗变黑', use_attachments: true, attachment_indices: [1] },
@@ -912,12 +967,12 @@ describe('画布 Agent 工具层 §2.5', () => {
       referenceImages: ['http://ref/global.png'],
     });
     expect(r.ok).toBe(true);
-    const arg = mockExecutePlan.mock.calls[0][0];
+    const arg = at(mockExecutePlan.mock.calls, 0)[0];
     // 每步按索引解析成自己的 referenceImages
-    expect(arg.generations![0].referenceImages).toEqual(['http://ref/1.png']);
-    expect(arg.generations![1].referenceImages).toEqual(['http://ref/2.png']);
+    expect(at(arg.generations!, 0).referenceImages).toEqual(['http://ref/1.png']);
+    expect(at(arg.generations!, 1).referenceImages).toEqual(['http://ref/2.png']);
     // 无索引的步骤不注入 per-step referenceImages（执行器会回退整批共享）
-    expect(arg.generations![2].referenceImages).toBeUndefined();
+    expect(at(arg.generations!, 2).referenceImages).toBeUndefined();
   });
 
   it('【对齐大雄 agentLastUserAttachments】本轮无图时 execute_plan 回退用历史 user 图（attachment_indices 精确取）', async () => {
@@ -930,17 +985,20 @@ describe('画布 Agent 工具层 §2.5', () => {
     ]);
     const ctx = makeCtx();
     const t = buildCanvasAgentTools(ctx);
-    const r = await t.execute_plan({
+    const r = await toolOf(
+      t,
+      'execute_plan',
+    )({
       generations: [
         { id: 'g1', prompt: '把上一张改白', use_attachments: true, attachment_indices: [0] },
         { id: 'g2', prompt: '把上一张改黑', use_attachments: true, attachment_indices: [1] },
       ],
     });
     expect(r.ok).toBe(true);
-    const arg = mockExecutePlan.mock.calls[0][0];
+    const arg = at(mockExecutePlan.mock.calls, 0)[0];
     // 每步按索引精确取历史图（对齐大雄「本轮无图回退上一轮用户图」）
-    expect(arg.generations![0].referenceImages).toEqual(['http://hist/1.png']);
-    expect(arg.generations![1].referenceImages).toEqual(['http://hist/2.png']);
+    expect(at(arg.generations!, 0).referenceImages).toEqual(['http://hist/1.png']);
+    expect(at(arg.generations!, 1).referenceImages).toEqual(['http://hist/2.png']);
   });
 
   it('【对齐大雄 direct_refs】execute_plan 按图编号引用历史/生成图，prompt 里「图N」翻译成「第X张参考图」', async () => {
@@ -953,7 +1011,10 @@ describe('画布 Agent 工具层 §2.5', () => {
     ]);
     const ctx = makeCtx();
     const t = buildCanvasAgentTools(ctx);
-    const r = await t.execute_plan({
+    const r = await toolOf(
+      t,
+      'execute_plan',
+    )({
       generations: [
         {
           id: 'g1',
@@ -963,11 +1024,14 @@ describe('画布 Agent 工具层 §2.5', () => {
       ],
     });
     expect(r.ok).toBe(true);
-    const arg = mockExecutePlan.mock.calls[0][0];
+    const arg = at(mockExecutePlan.mock.calls, 0)[0];
     // prompt 里「图1」「图2」被翻译成「第1张参考图」「第2张参考图」
-    expect(arg.generations![0].prompt).toContain('把第1张参考图改成红色，第2张参考图保持不变');
+    expect(at(arg.generations!, 0).prompt).toContain('把第1张参考图改成红色，第2张参考图保持不变');
     // referenceImages 精确取 direct_refs 的 url
-    expect(arg.generations![0].referenceImages).toEqual(['http://x/gen1.png', 'http://x/gen2.png']);
+    expect(at(arg.generations!, 0).referenceImages).toEqual([
+      'http://x/gen1.png',
+      'http://x/gen2.png',
+    ]);
   });
 
   it('buildFusionPrompt：挂全部前序成功图 + 改写为融合提示词（对齐大雄）', () => {
@@ -992,7 +1056,7 @@ describe('画布 Agent 工具层 §2.5', () => {
     convMock.__state.pending = null;
     const ctx = makeCtx();
     const t = buildCanvasAgentTools(ctx);
-    const r = await t.execute_plan({}); // 无 generations 也无暂存
+    const r = await toolOf(t, 'execute_plan')({}); // 无 generations 也无暂存
     expect(r.ok).toBe(false);
     // 【D缺口】统一兜底：错误透传并给出「未找到生成计划」来源引导，而非静默跳过
     expect(r.error).toContain('未找到生成计划');
