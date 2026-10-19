@@ -9,6 +9,7 @@
  *  - 大小上限：超限 → 进 failures（不 OOM）
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { at } from '../helpers/at';
 import {
   normalizeFileUrl,
   linkMediaRefsToProject,
@@ -90,7 +91,7 @@ describe('linkMediaRefsToProject：登记引用（不上传）', () => {
       expect(res.skipped).toHaveLength(0);
     }
     expect(media.added).toHaveLength(1);
-    expect(media.added[0].persistentUrl).toBe('http://127.0.0.1:18080/files/a.png');
+    expect(at(media.added, 0).persistentUrl).toBe('http://127.0.0.1:18080/files/a.png');
   });
 
   it('双轨去重 · 轨 2（归一化 url）：已存在同 url → skipped，不重复登记', async () => {
@@ -149,7 +150,7 @@ describe('linkMediaRefsToProject：登记引用（不上传）', () => {
     if (!res.ok) {
       expect(res.linked).toHaveLength(1);
       expect(res.failures).toHaveLength(1);
-      expect(res.failures[0].ref).toBe('canvas:n2');
+      expect(at(res.failures, 0).ref).toBe('canvas:n2');
     }
   });
 
@@ -169,7 +170,7 @@ describe('linkMediaRefsToProject：登记引用（不上传）', () => {
     expect(res.ok).toBe(false);
     if (!res.ok) {
       expect(res.failures).toHaveLength(1);
-      expect(res.failures[0].message).toContain('上限');
+      expect(at(res.failures, 0).message).toContain('上限');
     }
     expect(media.addMediaAsset).not.toHaveBeenCalled();
   });

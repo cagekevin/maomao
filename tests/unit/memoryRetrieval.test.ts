@@ -6,6 +6,7 @@
  * buildProjectMemoryContextFromStore 集成（空缓存 → 空串）。
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { at } from '../helpers/at';
 import type {
   ProjectMemory,
   ProjectMemoryKind,
@@ -54,7 +55,7 @@ describe('rankProjectMemories —— 相关度 + 类别权重 + 近因（T1）',
     ];
     // 与 "冷色" 相关的记忆（含"冷色"字）应优先
     const ranked = rankProjectMemories(hits, '喜欢冷色调的方案', { now });
-    expect(ranked[0].content).toBe('偏好冷色调渐变好看的风格');
+    expect(at(ranked, 0).content).toBe('偏好冷色调渐变好看的风格');
   });
 
   it('相关度相当但类别权重更高者优先（decision/fact 高于 preference）', () => {
@@ -65,7 +66,7 @@ describe('rankProjectMemories —— 相关度 + 类别权重 + 近因（T1）',
       mem('这是一条关于比较相关的优秀保存', 'decision', now),
     ];
     const ranked = rankProjectMemories(list, '关于优秀的保存', { now });
-    expect(ranked[0].kind).toBe('decision');
+    expect(at(ranked, 0).kind).toBe('decision');
   });
 
   it('无 query 时按类别权重 + 近因排序', () => {
@@ -75,7 +76,7 @@ describe('rankProjectMemories —— 相关度 + 类别权重 + 近因（T1）',
       mem('constraint 记忆', 'constraint', now),
     ];
     const ranked = rankProjectMemories(list, '', { now });
-    expect(ranked[0].kind).toBe('constraint');
+    expect(at(ranked, 0).kind).toBe('constraint');
   });
 
   it('禁用（enabled:false）与空正文被过滤', () => {

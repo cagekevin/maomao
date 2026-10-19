@@ -8,6 +8,7 @@
  * 否则某一侧漏接线时单测仍全绿（假绿）。
  */
 import { describe, it, expect } from 'vitest';
+import { at } from '../helpers/at';
 import { createAgentCanvasHost } from '../../src/components/agent/canvas/agentCanvasHost.ts';
 import type { AgentCanvasHostCtx } from '../../src/components/agent/canvas/agentCanvasHost.ts';
 import type { Node, Edge } from '@xyflow/react';
@@ -44,7 +45,7 @@ describe('agentCanvasHost.updateNodeData — 字典 GC（Agent 写回路径）',
     const host = createAgentCanvasHost(ctx);
     // Agent 经 update_node_any_field 写入不带胶囊的新 prompt
     host.updateNodeData('n1', { prompt: '改造后的提示词' });
-    const data = ctx.current()[0].data as Record<string, unknown>;
+    const data = at(ctx.current(), 0).data as Record<string, unknown>;
     expect(data.creativePresets).toEqual({});
   });
 
@@ -59,14 +60,14 @@ describe('agentCanvasHost.updateNodeData — 字典 GC（Agent 写回路径）',
     ]);
     const host = createAgentCanvasHost(ctx);
     host.updateNodeData('n1', { assetUrl: '/x.png' });
-    expect((ctx.current()[0].data as Record<string, unknown>).creativePresets).toBe(dict);
+    expect((at(ctx.current(), 0).data as Record<string, unknown>).creativePresets).toBe(dict);
   });
 
   it('无 creativePresets 的节点不受影响（通用路径零副作用）', () => {
     const ctx = makeCtx([{ id: 'n1', position: { x: 0, y: 0 }, data: { prompt: 'x' } } as Node]);
     const host = createAgentCanvasHost(ctx);
     host.updateNodeData('n1', { prompt: 'y' });
-    const data = ctx.current()[0].data as Record<string, unknown>;
+    const data = at(ctx.current(), 0).data as Record<string, unknown>;
     expect(data.prompt).toBe('y');
     expect('creativePresets' in data).toBe(false);
   });

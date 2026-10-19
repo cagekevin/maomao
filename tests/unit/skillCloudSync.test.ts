@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { at } from '../helpers/at';
 
 // skillApi 是唯一网络边界：桩掉它，本测试锁的是「谁该写回、谁必须被保护」的判据。
 const api = vi.hoisted(() => ({ list: vi.fn(), read: vi.fn(), save: vi.fn() }));
@@ -128,7 +129,7 @@ describe('applyCloudSkillsToDisk（云拉取后写回磁盘）', () => {
 
     await applyCloudSkillsToDisk();
 
-    const files = api.save.mock.calls[0][2] as Array<{ relPath: string; content: string }>;
+    const files = at(api.save.mock.calls, 0)[2] as Array<{ relPath: string; content: string }>;
     expect(files.find((f) => f.relPath === 'SKILL.md')?.content).toContain(`id: ${ID}`);
   });
 
@@ -142,7 +143,7 @@ describe('applyCloudSkillsToDisk（云拉取后写回磁盘）', () => {
     expect(r.ok).toBe(false);
     expect(r.written).toBe(1);
     expect(r.failed).toHaveLength(1);
-    expect(r.failed[0].message).toContain('磁盘只读');
+    expect(at(r.failed, 0).message).toContain('磁盘只读');
   });
 
   it('缓存损坏 ⇒ 前置失败，一个包都不写', async () => {
@@ -176,7 +177,7 @@ describe('applyCloudSkillsToDisk（云拉取后写回磁盘）', () => {
     expect(r.written).toBe(1);
     // 【旧实现只有一句 `continue`】⇒ 云端拉回 2 条、实写 1 条，用户看不到差额（以为全收敛了）
     expect(r.failed).toHaveLength(1);
-    expect(r.failed[0].message).toContain('未写回磁盘');
+    expect(at(r.failed, 0).message).toContain('未写回磁盘');
     expect(readSkillList().list).toHaveLength(2); // 残缺条目原样留着，不静默删
   });
 });

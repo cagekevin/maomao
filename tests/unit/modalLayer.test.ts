@@ -11,6 +11,7 @@
  * 没有任何用例在测"可见性变化时登记状态是否跟着变"。本文件补的就是这个缺口。
  */
 import { describe, it, expect, afterEach, beforeEach, vi } from 'vitest';
+import { at } from '../helpers/at';
 import { render, renderHook, cleanup } from '@testing-library/react';
 import { createElement } from 'react';
 import {
@@ -123,8 +124,8 @@ describe('modalLayer — 登记与注销', () => {
     const { unmount } = renderHook(() => useFullscreenEditorKeys({ enabled: true }));
     const list = debugModalLayers();
     expect(list).toHaveLength(1);
-    expect(list[0].openSec).toBeGreaterThanOrEqual(0);
-    expect(typeof list[0].stack).toBe('string');
+    expect(at(list, 0).openSec).toBeGreaterThanOrEqual(0);
+    expect(typeof at(list, 0).stack).toBe('string');
     unmount();
     expect(debugModalLayers()).toHaveLength(0);
   });
@@ -162,7 +163,7 @@ describe('modalLayer — 「常驻误登记」告警只在层不可见时才喊'
 
     vi.advanceTimersByTime(61_000);
     expect(warn).toHaveBeenCalledTimes(1);
-    expect(String(warn.mock.calls[0][0])).toContain('常驻误登记');
+    expect(String(at(warn.mock.calls, 0)[0])).toContain('常驻误登记');
     unmount();
   });
 

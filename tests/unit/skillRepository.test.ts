@@ -8,6 +8,7 @@
  * **不另开文件** —— 拆成三个文件是"只加不减"）。
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { at } from '../helpers/at';
 // 组合与内置从门面取（TD-11-51/52：白名单/乱码修复/组合都已搬进模块）
 import {
   getBuiltinSkills,
@@ -56,8 +57,8 @@ describe('Skill 系统 §2.19', () => {
     expect(Array.isArray(b)).toBe(true);
     expect(b.length).toBeGreaterThanOrEqual(1);
     // `id` 是**稳定契约**（用户的启用态/绑定都指向它，改 id = 断启用态）⇒ 值得锁。
-    expect(b[0].id).toBe('skill_ecommerce_detail');
-    // 【2026-09-22 删掉一条自证式断言】原 `expect(b[0].builtin).toBe(true)` 断的是**这个常量里
+    expect(at(b, 0).id).toBe('skill_ecommerce_detail');
+    // 【2026-09-22 删掉一条自证式断言】原 `expect(at(b, 0).builtin).toBe(true)` 断的是**这个常量里
     // 刚写下的字面量**（生产代码里零读者）—— 把常量删掉那个字段它照样绿，属"断言自己刚写进 mock 的值"
     // （ADR-0049 形态③）。字段本身已删（只写不读）；"内置进官方组"这条**行为**由
     // `skillLibraryView.test.ts` 的 `kind === 'official'` 断（那才是真断言）。
@@ -78,8 +79,8 @@ describe('Skill 系统 §2.19', () => {
 
     const mine = listAllSkills().list.filter((s) => !s.builtin);
     expect(mine).toHaveLength(1);
-    expect(mine[0].category).toBe('客户项目');
-    expect(mine[0].slug).toBe('G');
+    expect(at(mine, 0).category).toBe('客户项目');
+    expect(at(mine, 0).slug).toBe('G');
   });
 
   it('组合层按 id 查得到（面板的 `skillNameOf` 直接用它现查）', () => {

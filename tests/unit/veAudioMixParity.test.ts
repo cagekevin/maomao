@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { at } from '../helpers/at';
 import type { MediaAsset } from '../../src/components/videoEditor/types/mediaAssets';
 import type { TimelineTrack, VideoElement } from '../../src/components/videoEditor/types/timeline';
 import {
@@ -21,7 +22,7 @@ import {
 type FakeChannels = Float32Array[];
 
 function makeFakeBuffer(channels: FakeChannels, sampleRate = 44100): AudioBuffer {
-  const length = channels[0].length;
+  const length = at(channels, 0).length;
   return {
     numberOfChannels: channels.length,
     length,
@@ -122,12 +123,12 @@ describe('TD-22-29 · collectAudioSources 采集倒放判据', () => {
     const { items } = collectAudioSources({ tracks: makeTracks({ reversed: true }), mediaAssets });
 
     expect(items).toHaveLength(1);
-    expect(items[0].reversed).toBe(true);
+    expect(at(items, 0).reversed).toBe(true);
   });
 
   it('未反转 → spec.reversed = false', () => {
     const { items } = collectAudioSources({ tracks: makeTracks({ reversed: false }), mediaAssets });
 
-    expect(items[0].reversed).toBe(false);
+    expect(at(items, 0).reversed).toBe(false);
   });
 });

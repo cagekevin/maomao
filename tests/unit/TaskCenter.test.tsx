@@ -14,6 +14,7 @@
  *  - 清理任务
  */
 import React from 'react';
+import { at } from '../helpers/at';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 
@@ -207,7 +208,7 @@ describe('TaskCenter — 更多菜单操作', () => {
     h.setTasks([makeTask()]);
     render(<TaskCenter />);
     const menus = document.querySelectorAll('button[title="复制提示词"]');
-    fireEvent.click(menus[0]);
+    fireEvent.click(at(Array.from(menus), 0));
     // copyPrompt 现走 copyText 异步信封，toast 在微任务后触发，需 flush
     await new Promise((r) => setTimeout(r, 0));
     expect(h.showToast).toHaveBeenCalledWith('已复制提示词', { type: 'success' });
@@ -276,7 +277,7 @@ describe('TaskCenter — 清理任务', () => {
     render(<TaskCenter />);
     // 打开清理下拉（⋮ 顶部按钮）
     const moreBtns = document.querySelectorAll('button[title="清理任务"]');
-    fireEvent.click(moreBtns[0]);
+    fireEvent.click(at(Array.from(moreBtns), 0));
     expect(screen.getByText(/清理失败\/未知任务/)).toBeTruthy();
     expect(screen.getByText(/清理全部任务/)).toBeTruthy();
 
@@ -291,7 +292,7 @@ describe('TaskCenter — 清理任务', () => {
     ]);
     render(<TaskCenter />);
     const moreBtns = document.querySelectorAll('button[title="清理任务"]');
-    fireEvent.click(moreBtns[0]);
+    fireEvent.click(at(Array.from(moreBtns), 0));
     // 计数含 unknown（否则数字对不上行为）
     expect(screen.getByText(/清理失败\/未知任务 \(1\)/)).toBeTruthy();
     fireEvent.click(screen.getByText(/清理失败\/未知任务/));

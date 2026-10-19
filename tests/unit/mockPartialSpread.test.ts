@@ -44,6 +44,7 @@
  *   ⇒ 教训（同 `check-gate-vitals` 那次）：**判据要判"代码做了什么"，不是"长得像不像我预期的样子"。**
  */
 import { readdirSync, readFileSync } from 'node:fs';
+import { at } from '../helpers/at';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, it, expect } from 'vitest';
@@ -86,7 +87,7 @@ function scanMockHeads(text: string): Array<{ path: string; derived: boolean; he
     //     天然匹配不上 → 把**所有合法桩判成违规**，是典型的"判据比实际窄"。）
     const derived = body !== '' && /(?:importOriginal|vi\.importActual)/.test(body);
     out.push({
-      path: m[2],
+      path: at(m, 2),
       derived,
       head: `vi.mock('${m[2]}', ${
         text
@@ -106,7 +107,7 @@ function scanMockHeads(text: string): Array<{ path: string; derived: boolean; he
  */
 function bracketSlice(text: string, start: number): string {
   let i = start;
-  while (i < text.length && /\s/.test(text[i])) i++;
+  while (i < text.length && /\s/.test(text.charAt(i))) i++;
   // 工厂可能以 `async` / 标识符 / `(` 开头 —— 统一从**第一个括号**开始量配平。
   // ⚠️ 不能要求 `text[i] === '('`：正则已把 `vi.mock('<path>',` 消耗掉，start 落在 `async` 上，
   //    而**工厂体在 `=>` 之后**。故先找到 `=>`，再从其后量。
@@ -116,7 +117,7 @@ function bracketSlice(text: string, start: number): string {
   const nextMock = text.indexOf('vi.mock(', i);
   if (arrow >= 0 && (nextMock < 0 || arrow < nextMock) && (semi < 0 || arrow < semi + 0)) {
     let k = arrow + 2;
-    while (k < text.length && /\s/.test(text[k])) k++;
+    while (k < text.length && /\s/.test(text.charAt(k))) k++;
     if (text[k] === '(' || text[k] === '{') {
       return balanced(text, k);
     }

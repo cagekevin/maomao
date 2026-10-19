@@ -16,6 +16,7 @@
  * 「拉了几次」是这条不变式的**直接观测量**，埋不掉。
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { at } from '../helpers/at';
 import { render, waitFor, cleanup, act } from '@testing-library/react';
 
 const h = vi.hoisted(() => ({
@@ -143,7 +144,7 @@ describe('ImportMediaModal — 拉取只由意图驱动，结果不得反推（T
     await waitFor(() => expect(h.queryMediaRefs).toHaveBeenCalledTimes(2));
 
     // 第 2 次拉到的目录条目会让分类清单补齐（多出「颜色」pill）—— 这正是旧实现的成环触发点。
-    expect(h.queryMediaRefs.mock.calls[1][1]).toEqual({ folderExact: 'migrated' });
+    expect(at(h.queryMediaRefs.mock.calls, 1)[1]).toEqual({ folderExact: 'migrated' });
 
     await settle();
     expect(h.queryMediaRefs).toHaveBeenCalledTimes(2);
@@ -164,7 +165,7 @@ describe('ImportMediaModal — 拉取只由意图驱动，结果不得反推（T
     await waitFor(() => expect(h.queryMediaRefs).toHaveBeenCalledTimes(3));
 
     // 「全部」= 精确 migrated 根（provider 声明），不是"无分类的递归全量"。
-    expect(h.queryMediaRefs.mock.calls[2][1]).toEqual({ folderExact: 'migrated' });
+    expect(at(h.queryMediaRefs.mock.calls, 2)[1]).toEqual({ folderExact: 'migrated' });
 
     await settle();
     expect(h.queryMediaRefs).toHaveBeenCalledTimes(3);
@@ -185,7 +186,7 @@ describe('ImportMediaModal — 拉取只由意图驱动，结果不得反推（T
     await waitFor(() => expect(h.queryMediaRefs).toHaveBeenCalledTimes(3));
 
     // 子目录 = **前缀**（含更深子目录），与侧边栏素材库同一份规则（libraryBrowse 唯一实现）。
-    expect(h.queryMediaRefs.mock.calls[2][1]).toEqual({ folder: 'migrated/颜色' });
+    expect(at(h.queryMediaRefs.mock.calls, 2)[1]).toEqual({ folder: 'migrated/颜色' });
 
     // 下钻态：分类与目录互斥 ⇒ 没有任何 pill 处于选中态（铁律见组件文件头）。
     const pressed = [...container.querySelectorAll('.pk-pill')].filter(
