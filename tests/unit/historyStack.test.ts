@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { at } from '../helpers/at';
 import { HistoryStack } from '../../src/components/canvas/structure/historyStack.ts';
 
 // §2.3 画布历史栈（撤销/重做）：规划 §3.1 的 useCanvasHistory.test.js 遗漏项。
@@ -39,7 +40,7 @@ describe('HistoryStack MAX=15 上限', () => {
     pushN(s, 20);
     expect(s.history).toHaveLength(15);
     // 最早的 5 条被挤出
-    expect(s.history[0].i).toBe(6);
+    expect(at(s.history, 0).i).toBe(6);
     expect(s.history.at(-1)!.i).toBe(20);
   });
 
@@ -55,7 +56,7 @@ describe('HistoryStack MAX=15 上限', () => {
     pushN(s, 60);
     expect(s.history).toHaveLength(50);
     // 最早的 10 条被挤出
-    expect(s.history[0].i).toBe(11);
+    expect(at(s.history, 0).i).toBe(11);
     expect(s.history.at(-1)!.i).toBe(60);
   });
 });

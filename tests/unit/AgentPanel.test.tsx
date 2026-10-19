@@ -20,6 +20,7 @@
  * 会与组件内 useEffect(setPendingMediaNodes) 无限 re-render → 堆溢出。测试必须传稳定引用。
  */
 import React from 'react';
+import { at } from '../helpers/at';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, within, act, waitFor } from '@testing-library/react';
 // 【深引真源常量（门面桩不会覆盖它）】`accept` 与单文件上限都必须与模块白名单同源：
@@ -896,8 +897,8 @@ describe('AgentPanel — 选文件（参考图 / 导入 Skill · TD-11-63）', (
     pickFiles([textFile('漫画生成.md', '---\nname: 漫画生成\n---\n正文甲')]);
 
     await waitFor(() => expect(h.importCalls.length).toBe(1));
-    expect(h.importCalls[0][0]).toBe('漫画生成.md'); // 名字口径交给模块（去扩展名是它的活）
-    expect(h.importCalls[0][1]).toContain('正文甲');
+    expect(at(h.importCalls, 0)[0]).toBe('漫画生成.md'); // 名字口径交给模块（去扩展名是它的活）
+    expect(at(h.importCalls, 0)[1]).toContain('正文甲');
     // 成功后才选中它；chip 的名字是**现查**的（面板不镜像字段 —— TD-17 装配契约）
     await waitFor(() => expect(screen.getByTitle(/当前带的 Skill：导入的技能/)).toBeTruthy());
     expect(h.showToast).toHaveBeenCalledWith('已导入 Skill「导入的技能」', { type: 'success' });

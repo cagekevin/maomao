@@ -8,6 +8,7 @@
  *       deriveSelectedAssets / selectedAssetSig / selectedNodeIdSig。
  */
 import { describe, it, expect } from 'vitest';
+import { at } from '../helpers/at';
 import type { Node } from '@xyflow/react';
 import {
   getNodeAssetUrl,
@@ -151,7 +152,7 @@ describe('deriveSelectedAssets（单一事实来源 = nodes[].selected）', () =
     const nodes = [
       mkNode({ assetUrl: 'http://a/1.png', projectName: '项目名' }, { id: 'n1', selected: true }),
     ];
-    expect(deriveSelectedAssets(nodes, noContent)[0].label).toBe('项目名');
+    expect(at(deriveSelectedAssets(nodes, noContent), 0).label).toBe('项目名');
   });
 
   it('选中「只持 contentId」的节点 → 也能进待发送区（此前被静默判空）', () => {
@@ -188,7 +189,7 @@ describe('selectedAssetSig / selectedNodeIdSig（短路签名）', () => {
     const base = [
       { nodeId: 'a', nodeType: 'x', label: '', type: 'image' as const, url: 'u1', x: 0, y: 0 },
     ];
-    const moved = [{ ...base[0], x: 999, y: 999 }];
+    const moved = [{ ...at(base, 0), x: 999, y: 999 }];
     expect(selectedAssetSig(base)).toBe(selectedAssetSig(moved));
   });
 

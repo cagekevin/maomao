@@ -6,6 +6,7 @@
  * 覆盖：脱敏（T1）/ 保存与读取（T2）/ upsert（T3）/ 60 条上限淘汰（T4）/ 删除（T5）/ 不分项目隔离（T6）。
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { at } from '../helpers/at';
 
 // 用 vi.hoisted 提供内存态，隔离真实 Content 层 IO，且可任意模块态引用。
 const h = vi.hoisted(() => ({ store: new Map() }));
@@ -81,7 +82,7 @@ describe('saveProjectMemory / loadProjectMemories —— 保存与读取（T2）
       content: '采用方案一',
       enabled: true,
     });
-    expect(typeof list[0].createdAt).toBe('number');
+    expect(typeof at(list, 0).createdAt).toBe('number');
     // 落盘到 Content 层
     expect(h.store.has('agent_project_memory_v1_gw')).toBe(true);
   });
@@ -127,7 +128,7 @@ describe('saveProjectMemory —— 60 条上限淘汰最旧（T4）', () => {
     expect(list).toHaveLength(PROJECT_MEMORY_LIMIT);
     // id=m1 的 updatedAt=1 最小，最先被淘汰
     expect(list.some((m) => m.id === 'm1')).toBe(false);
-    expect(list[0].id).toBe(`m${total}`); // 最新在最前
+    expect(at(list, 0).id).toBe(`m${total}`); // 最新在最前
   });
 });
 

@@ -21,6 +21,7 @@
  * node 环境下会抛未处理的 rejection；`VideoNode` 构造是同步的（取帧在 render 期）。
  */
 import { describe, expect, it } from 'vitest';
+import { at } from '../helpers/at';
 import type { MediaAsset } from '../../src/components/videoEditor/types/mediaAssets';
 import type {
   TimelineTrack,
@@ -467,7 +468,7 @@ describe('元素矩形唯一（画面 / 框子 / 命中同源）', () => {
     });
 
     // 渲染侧拿到的显示尺寸
-    expect((scene.children[0].params as { mediaSize?: unknown }).mediaSize).toEqual({
+    expect((at(scene.children, 0).params as { mediaSize?: unknown }).mediaSize).toEqual({
       width: 800,
       height: 600,
     });
@@ -493,7 +494,7 @@ describe('元素矩形唯一（画面 / 框子 / 命中同源）', () => {
       settings: SETTINGS,
     });
 
-    expect((scene.children[0].params as { mediaSize?: unknown }).mediaSize).toEqual(CANVAS);
+    expect((at(scene.children, 0).params as { mediaSize?: unknown }).mediaSize).toEqual(CANVAS);
 
     const rect = getElementCanvasRect({
       element,

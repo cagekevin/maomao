@@ -7,6 +7,7 @@
 //   - 'XYZ' 应用在侧方/后方场景显著偏离（dot 明显 < 1），佐证必须用 'YXZ'
 // 依赖均为纯函数 + three，node 环境可跑（npm run test:unit:logic）。
 import { describe, it, expect } from 'vitest';
+import { at } from '../helpers/at';
 import * as THREE from 'three';
 import { cameraRotationToward } from '../../src/components/director3d/project.ts';
 
@@ -37,7 +38,7 @@ describe('cameraRotationToward 欧拉约定', () => {
 
   it("'XYZ' 在侧方/后方场景显著偏离（佐证必须用 'YXZ'）", () => {
     // 目标在正侧方（dz=0）时 'XYZ' 的 yaw 分解失效，前向明显不指向目标
-    const { position, target } = cases[1];
+    const { position, target } = at(cases, 1);
     const dotXyz = forwardAfter(position, target, 'XYZ').dot(toTarget(position, target));
     const dotYxz = forwardAfter(position, target, 'YXZ').dot(toTarget(position, target));
     expect(dotXyz).toBeLessThan(0.999);

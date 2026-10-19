@@ -4,6 +4,7 @@
  */
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { at } from '../helpers/at';
 import { renderHook } from '@testing-library/react';
 import type { DragEvent } from 'react';
 import {
@@ -88,9 +89,9 @@ describe('sourceDragProps（源·文件卡片）', () => {
     const evt = makeDragStartEvent();
     p.onDragStart?.(evt);
     expect(evt.setData).toHaveBeenCalledTimes(1);
-    expect(evt.setData.mock.calls[0][0]).toBe(RESOURCE_MOVE_MIME);
+    expect(at(evt.setData.mock.calls, 0)[0]).toBe(RESOURCE_MOVE_MIME);
     // url 必须随 payload 传出（TD-12-8：磁盘定位真源由 url 派生，不能只用 UI folder/name）
-    expect(JSON.parse(evt.setData.mock.calls[0][1])).toEqual({
+    expect(JSON.parse(at(evt.setData.mock.calls, 0)[1])).toEqual({
       folder: 'migrated',
       name: 'a.png',
       url: 'x',

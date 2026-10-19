@@ -12,6 +12,7 @@
  * 按 URL 里的 `page` 动态返回分页响应，从而真正走到"循环翻页"这段代码。
  */
 import { describe, it, expect, beforeEach } from 'vitest';
+import { at } from '../helpers/at';
 import { jsonResp } from './_testUtils.mjs';
 
 // 全局 fetch 已在 tests/setup.mjs 强制 mock，此处取共享实例。
@@ -65,7 +66,7 @@ describe('pagedList — 单页读取（参数透传）', () => {
 
     await paged.fetchResourcePage({ search: '猫' });
 
-    const url = decodeURIComponent(String(fetchMock.mock.calls[0][0]));
+    const url = decodeURIComponent(String(at(fetchMock.mock.calls, 0)[0]));
     expect(url).toContain('search=猫');
   });
 
@@ -76,7 +77,7 @@ describe('pagedList — 单页读取（参数透传）', () => {
 
     await paged.fetchTaskPage({ nodeId: 'n1' });
 
-    const url = decodeURIComponent(String(fetchMock.mock.calls[0][0]));
+    const url = decodeURIComponent(String(at(fetchMock.mock.calls, 0)[0]));
     expect(url).toContain('filters={"nodeId":"n1"}');
   });
 });

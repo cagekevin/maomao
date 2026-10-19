@@ -10,6 +10,7 @@
  * 策略：mock conversationStore.getCurrentWorkflow；patch 为纯返回值，不落盘。
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { at } from '../helpers/at';
 
 vi.mock('../../src/components/agent/conversation/conversationStore.ts', async (importOriginal) => ({
   ...((await importOriginal()) as Record<string, unknown>),
@@ -67,7 +68,7 @@ describe('wfSteer — 补充指令入队', () => {
       status?: string;
     };
     expect(patch.steerQueue).toHaveLength(1);
-    expect(patch.steerQueue[0].text).toBe('补充');
+    expect(at(patch.steerQueue, 0).text).toBe('补充');
     expect(patch.status).toBe('running');
   });
 
@@ -120,7 +121,7 @@ describe('wfNextSteer — 队列出队', () => {
     const { next, patch } = wfNextSteer('completed');
     expect(next!.text).toBe('续');
     expect(patch.steerQueue).toHaveLength(1);
-    expect(patch.steerQueue[0].text).toBe('再');
+    expect(at(patch.steerQueue, 0).text).toBe('再');
     expect(patch.status).toBe('planning');
   });
 

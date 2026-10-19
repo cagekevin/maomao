@@ -16,6 +16,7 @@
  *  - 抽帧流程通过 spy document.createElement 注入 fake video/canvas。
  */
 import 'react';
+import { at } from '../helpers/at';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { mocks } from './_nodeMocks.mjs';
@@ -333,7 +334,7 @@ describe('VideoExtractNode — 结果操作（复制/下载）', () => {
 
   it('复制单帧 → 写入单张 payload', () => {
     setup(WITH_RESULT);
-    fireEvent.click(screen.getAllByTitle('复制为新节点 (Ctrl+V粘贴)')[0]);
+    fireEvent.click(at(screen.getAllByTitle('复制为新节点 (Ctrl+V粘贴)'), 0));
     expect(h.copyText).toHaveBeenCalledWith(
       JSON.stringify({ type: 'mutiwindow-images', images: ['data:image/jpeg;base64,a'] }),
     );
@@ -341,7 +342,7 @@ describe('VideoExtractNode — 结果操作（复制/下载）', () => {
 
   it('下载单帧 → downloadUrl 调用', () => {
     setup(WITH_RESULT);
-    fireEvent.click(screen.getAllByTitle('下载')[0]);
+    fireEvent.click(at(screen.getAllByTitle('下载'), 0));
     expect(h.downloadUrl).toHaveBeenCalledWith('data:image/jpeg;base64,a', 'frame-1.jpg');
   });
 

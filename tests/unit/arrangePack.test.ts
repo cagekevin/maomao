@@ -5,6 +5,7 @@
  *      同分取更大的 perRow（更贴从左到右阅读流向）。
  */
 import { describe, it, expect } from 'vitest';
+import { at } from '../helpers/at';
 import { packComponents } from '../../src/components/canvas/structure/arrangePack.ts';
 
 describe('packComponents', () => {
@@ -75,7 +76,7 @@ describe('packComponents', () => {
     );
     expect(wide.perRow).toBe(2);
     expect(wide.width).toBe(220);
-    expect(wide.placements[1].x).toBe(120);
+    expect(at(wide.placements, 1).x).toBe(120);
 
     // 纵向：窄视窗强制单列，gapY=50 → 第二块 y=150（100+50）
     const tall = packComponents(
@@ -87,6 +88,6 @@ describe('packComponents', () => {
     );
     expect(tall.perRow).toBe(1);
     expect(tall.height).toBe(250);
-    expect(tall.placements[1].y).toBe(150);
+    expect(at(tall.placements, 1).y).toBe(150);
   });
 });

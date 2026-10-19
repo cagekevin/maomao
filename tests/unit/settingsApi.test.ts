@@ -6,6 +6,7 @@
  * 策略：node + vi.stubGlobal('fetch')。
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { at } from '../helpers/at';
 import { jsonResp } from './_testUtils.mjs';
 
 // setup.mjs 已把 globalThis.fetch 定义为共享 vi.fn；此处做类型对齐以启用 .mock* / mock.calls。
@@ -20,8 +21,8 @@ describe('settingsApi — providerApi 成功路径', () => {
   it('getProviders 走 GET', async () => {
     fetchMock.mockResolvedValue(jsonResp({ providers: [] }));
     await providerApi.getProviders();
-    expect(fetchMock.mock.calls[0][0]).toBe('http://127.0.0.1:18080/api/providers');
-    expect(fetchMock.mock.calls[0][1].method).toBe('GET');
+    expect(at(fetchMock.mock.calls, 0)[0]).toBe('http://127.0.0.1:18080/api/providers');
+    expect(at(fetchMock.mock.calls, 0)[1].method).toBe('GET');
   });
 
   it('saveProviders 走 PUT，body 含 providers', async () => {

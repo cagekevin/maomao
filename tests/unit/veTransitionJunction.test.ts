@@ -13,6 +13,7 @@
  * ════════════════════════════════════════════════════════════════
  */
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { at } from '../helpers/at';
 import { EditorCore } from '../../src/components/videoEditor/engine/core';
 import {
   areElementsAdjacent,
@@ -157,7 +158,7 @@ describe('countAdjacentJunctions 与写路径同源 —— 「看得见的就能
     expect(shown).toBe(4);
 
     const { applied } = editor.timeline.addTransitionsToAdjacentPairs({
-      type: TRANSITION_PRESETS[0].type,
+      type: at(TRANSITION_PRESETS, 0).type,
       duration: 0.5,
     });
     expect(applied).toBe(shown);
@@ -166,7 +167,7 @@ describe('countAdjacentJunctions 与写路径同源 —— 「看得见的就能
   it('加完转场后，交界数不变（转场不改变"片段是否相接"）', () => {
     const before = editor.timeline.countAdjacentJunctions();
     editor.timeline.addTransitionsToAdjacentPairs({
-      type: TRANSITION_PRESETS[0].type,
+      type: at(TRANSITION_PRESETS, 0).type,
       duration: 0.5,
     });
     expect(editor.timeline.countAdjacentJunctions()).toBe(before);
