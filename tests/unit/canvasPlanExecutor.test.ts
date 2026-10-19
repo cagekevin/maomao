@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { at } from '../helpers/at';
 import type { Node, Edge } from '@xyflow/react';
 
 // 多步编排执行器：隔离 runNodeGeneration（真实生图 → 落盘 resultUrl）与 isNodeRegistered
@@ -107,8 +108,8 @@ describe('多步编排执行器 executePlan §2.5/2.6', () => {
     expect(ctx.nodes()).toHaveLength(2);
     expect(ctx.nodes().every((n) => n.type === 'imageGenerateNode')).toBe(true);
     // 比例归一：square→1:1，story→9:16
-    expect(ctx.nodes()[0].data.aspectRatio).toBe('1:1');
-    expect(ctx.nodes()[1].data.aspectRatio).toBe('9:16');
+    expect(at(ctx.nodes(), 0).data.aspectRatio).toBe('1:1');
+    expect(at(ctx.nodes(), 1).data.aspectRatio).toBe('9:16');
     // 每个节点生成结果已写回 assetUrl
     expect(ctx.nodes().every((n) => n.data.assetUrl === 'http://r/ok.png')).toBe(true);
     expect(r.entries).toHaveLength(2);
@@ -127,8 +128,8 @@ describe('多步编排执行器 executePlan §2.5/2.6', () => {
     });
     // 机制升级：单依赖步无独立前序 → 被提升为独立种子，正常执行而非跳过
     expect(r.entries).toHaveLength(1);
-    expect(r.entries[0].status).toBe('completed');
-    expect(r.entries[0].resultUrl).toBe('http://r/ok.png');
+    expect(at(r.entries, 0).status).toBe('completed');
+    expect(at(r.entries, 0).resultUrl).toBe('http://r/ok.png');
     expect(runNodeGeneration).toHaveBeenCalledTimes(1);
     // 提升后不建任何连线（其自身是种子）
     expect(ctx.edges()).toHaveLength(0);
@@ -140,12 +141,12 @@ describe('多步编排执行器 executePlan §2.5/2.6', () => {
         { id: 'dep', prompt: '变体', depends_on_previous: true },
       ],
     });
-    expect(r2.entries[0].status).toBe('completed');
-    expect(r2.entries[1].status).toBe('completed');
+    expect(at(r2.entries, 0).status).toBe('completed');
+    expect(at(r2.entries, 1).status).toBe('completed');
     // 建了 1 条连线：base → dep
     expect(ctx2.edges()).toHaveLength(1);
-    expect(ctx2.edges()[0].source).toBe(r2.entries[0].nodeId);
-    expect(ctx2.edges()[0].target).toBe(r2.entries[1].nodeId);
+    expect(at(ctx2.edges(), 0).source).toBe(at(r2.entries, 0).nodeId);
+    expect(at(ctx2.edges(), 0).target).toBe(at(r2.entries, 1).nodeId);
   });
 
   it('依赖批：前置任一步失败 → 整批跳过（不生成）', async () => {
@@ -159,9 +160,9 @@ describe('多步编排执行器 executePlan §2.5/2.6', () => {
         { id: 'dep', prompt: '变体', depends_on_previous: true },
       ],
     });
-    expect(r.entries[0].status).toBe('failed');
-    expect(r.entries[1].status).toBe('failed');
-    expect(r.entries[1].error).toContain('前置步骤未全部成功');
+    expect(at(r.entries, 0).status).toBe('failed');
+    expect(at(r.entries, 1).status).toBe('failed');
+    expect(at(r.entries, 1).error).toContain('前置步骤未全部成功');
     // 没为 dep 建连线
     expect(ctx.edges()).toHaveLength(0);
   });
@@ -171,9 +172,9 @@ describe('多步编排执行器 executePlan §2.5/2.6', () => {
     const ctx = makeCtx();
     const r = await executePlan({ ctx, generations: [{ id: 'g1', prompt: '猫' }] });
     // 未触发（未注册 / 并发上限）按「待生成」处理，不算失败
-    expect(r.entries[0].status).toBe('ready');
-    expect(r.entries[0].error).toBe('');
-    expect(ctx.nodes()[0].data.assetUrl).toBeUndefined();
+    expect(at(r.entries, 0).status).toBe('ready');
+    expect(at(r.entries, 0).error).toBe('');
+    expect(at(ctx.nodes(), 0).data.assetUrl).toBeUndefined();
   });
 
   it('autoRun=false：只建节点不触发，status=ready', async () => {
@@ -184,8 +185,8 @@ describe('多步编排执行器 executePlan §2.5/2.6', () => {
       generations: [{ id: 'g1', prompt: '猫' }],
     });
     expect(ctx.nodes()).toHaveLength(1);
-    expect(ctx.nodes()[0].data.assetUrl).toBeUndefined();
-    expect(r.entries[0].status).toBe('ready');
+    expect(at(ctx.nodes(), 0).data.assetUrl).toBeUndefined();
+    expect(at(r.entries, 0).status).toBe('ready');
     expect(r.workflow.status).toBe('ready');
     expect(runNodeGeneration).not.toHaveBeenCalled();
   });
@@ -197,9 +198,9 @@ describe('多步编排执行器 executePlan §2.5/2.6', () => {
       generations: [{ id: 'g1', prompt: '猫' }],
       referenceImages: ['http://r/ref.png'],
     });
-    const imgs = ctx.nodes()[0]!.data.images as Array<{ url: string }>;
+    const imgs = at(ctx.nodes(), 0)!.data.images as Array<{ url: string }>;
     expect(imgs).toHaveLength(1);
-    expect(imgs[0].url).toBe('http://r/ref.png');
+    expect(at(imgs, 0).url).toBe('http://r/ref.png');
   });
 
   it('模型/比例/分辨率：每步显式 > 面板 defaults > 内置默认', async () => {
@@ -216,11 +217,17 @@ describe('多步编排执行器 executePlan §2.5/2.6', () => {
     const byId = Object.fromEntries(
       r.entries.map((e) => [e.id, ctx.nodes().find((n) => n.id === e.nodeId)]),
     ) as Record<string, Node>;
-    expect(byId.explicit.data.aspectRatio).toBe('3:4'); // portrait→3:4
-    expect(byId.explicit.data.imageSize).toBe('4K');
-    expect(byId.explicit.data.selectedModel).toBe('gpt-image-2');
-    expect(byId.inherit.data.aspectRatio).toBe('16:9'); // landscape→16:9
-    expect(byId.inherit.data.imageSize).toBe('2K');
+    // 节点按 label 建索引；两个 label 是本用例的 fixture 契约，缺了就是计划执行漏建节点
+    const explicitNode = byId.explicit;
+    const inheritNode = byId.inherit;
+    if (explicitNode === undefined || inheritNode === undefined) {
+      throw new Error('byId 缺 explicit/inherit 节点');
+    }
+    expect(explicitNode.data.aspectRatio).toBe('3:4'); // portrait→3:4
+    expect(explicitNode.data.imageSize).toBe('4K');
+    expect(explicitNode.data.selectedModel).toBe('gpt-image-2');
+    expect(inheritNode.data.aspectRatio).toBe('16:9'); // landscape→16:9
+    expect(inheritNode.data.imageSize).toBe('2K');
   });
 });
 
@@ -277,8 +284,8 @@ describe('TASK-009 逐步进度日志 onLog + 跳过文案带数字', () => {
       onLog: (l) => logs.push(l),
     });
     // 跳过文案带成功/总数（独立批共 1，成功 0）
-    expect(r.entries[1].error).toContain('前置步骤未全部成功');
-    expect(r.entries[1].error).toContain('成功 0 / 共 1');
+    expect(at(r.entries, 1).error).toContain('前置步骤未全部成功');
+    expect(at(r.entries, 1).error).toContain('成功 0 / 共 1');
     // 有 warn 级别的跳过日志
     expect(logs.some((l) => l.level === 'warn' && l.message.includes('前置步骤未全部成功'))).toBe(
       true,
@@ -301,7 +308,7 @@ describe('TASK-009 逐步进度日志 onLog + 跳过文案带数字', () => {
       ],
       onLog: (l) => logs.push(l),
     });
-    expect(r.entries[1].status).toBe('completed');
+    expect(at(r.entries, 1).status).toBe('completed');
     // 依赖步开始：连接前序成功节点 1 个
     expect(
       logs.some(
@@ -395,7 +402,7 @@ describe('TASK-007 2.4 中文参数写法归一', () => {
       ctx,
       generations: [{ id: 'a', prompt: '猫', ratio: 'square', resolution: '2K', quality: 'high' }],
     });
-    const n = ctx.nodes()[0].data;
+    const n = at(ctx.nodes(), 0).data;
     expect(n.aspectRatio).toBe('1:1');
     expect(n.imageSize).toBe('2K');
     expect(n.quality).toBe('high');
@@ -425,7 +432,7 @@ describe('Gap B 依赖批 DAG 拓扑调度（兄弟依赖步并行）', () => {
     expect(r.entries.every((e) => e.status === 'completed')).toBe(true);
     // 兄弟依赖步并行触发（替代旧的逐个串行）→ 最大并发 ≥ 2
     expect(maxConcurrency).toBeGreaterThanOrEqual(2);
-    const baseNode = r.entries[0].nodeId;
+    const baseNode = at(r.entries, 0).nodeId;
     const edges = ctx.edges();
     // 变体之间不互连（互不依赖）
     const depNodes = r.entries.slice(1).map((e) => e.nodeId);
@@ -457,14 +464,14 @@ describe('Gap B 依赖批 DAG 拓扑调度（兄弟依赖步并行）', () => {
       ],
     });
     expect(r.entries.every((e) => e.status === 'completed')).toBe(true);
-    const aNode = r.entries[1].nodeId;
-    const bNode = r.entries[2].nodeId;
+    const aNode = at(r.entries, 1).nodeId;
+    const bNode = at(r.entries, 2).nodeId;
     // b 严格在 a 之后触发
     expect(order.indexOf(aNode)).toBeLessThan(order.indexOf(bNode));
     // b 只连 a，不直接连 base
     const baseToB = ctx
       .edges()
-      .filter((ed) => ed.target === bNode && ed.source === r.entries[0].nodeId);
+      .filter((ed) => ed.target === bNode && ed.source === at(r.entries, 0).nodeId);
     const aToB = ctx.edges().filter((ed) => ed.target === bNode && ed.source === aNode);
     expect(baseToB).toHaveLength(0);
     expect(aToB).toHaveLength(1);

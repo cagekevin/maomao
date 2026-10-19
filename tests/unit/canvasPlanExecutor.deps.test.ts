@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { at } from '../helpers/at';
 
 // 隔离真实生图（TASK-012 依赖批调用层补全）
 vi.mock('../../src/components/base/store/taskStore.ts', async (importOriginal) => ({
@@ -76,7 +77,7 @@ describe('TASK-012 依赖批改写调用层补全', () => {
       referenceImages: ['http://user/ref.png'], // 用户上传参考图
     });
     // 独立批产品定稿先建（nodes[0]），依赖批主图（nodes[1]）的 data.images 应为空（不写用户参考图）
-    const mainNode = ctx.nodes()[1];
+    const mainNode = at(ctx.nodes(), 1);
     expect(mainNode.data.images).toBeUndefined();
     // 产品定稿节点被连线到主图（靠连线挂产品定稿）
     expect(ctx.edges()).toHaveLength(1);
@@ -92,7 +93,7 @@ describe('TASK-012 依赖批改写调用层补全', () => {
         { id: 'page1', prompt: '详情页1', depends_on_previous: true }, // 未标 dependency_mode
       ],
     });
-    const mainNode = ctx.nodes()[1];
+    const mainNode = at(ctx.nodes(), 1);
     // 被改写为 product_reference：prompt 含产品一致性约束特征
     expect(mainNode.data.prompt).toContain('严格参考图1');
     // use_attachments 生效：data.images 为空
@@ -109,7 +110,7 @@ describe('TASK-012 依赖批改写调用层补全', () => {
         { id: 'page1', prompt: '详情页1', depends_on_previous: true }, // 未标 dependency_mode
       ],
     });
-    const mainNode = ctx.nodes()[1];
+    const mainNode = at(ctx.nodes(), 1);
     // 被改写为 product_reference：prompt 含产品一致性约束特征
     expect(mainNode.data.prompt).toContain('严格参考图1');
     expect(mainNode.data.images).toBeUndefined();
@@ -127,7 +128,7 @@ describe('TASK-012 依赖批改写调用层补全', () => {
     });
     // 自动追加一个融合依赖步 → 共 3 个节点（2 独立 + 1 融合）
     expect(ctx.nodes()).toHaveLength(3);
-    const fusionNode = ctx.nodes()[2];
+    const fusionNode = at(ctx.nodes(), 2);
     expect(fusionNode.data.prompt).toContain('融合');
     // 融合步连线到两个独立节点
     expect(ctx.edges().filter((e) => e.target === fusionNode.id)).toHaveLength(2);
@@ -157,7 +158,7 @@ describe('TASK-012 依赖批改写调用层补全', () => {
         { id: 'b', prompt: '融合', dependency_mode: 'fusion', depends_on_previous: true },
       ],
     });
-    const fusionNode = ctx.nodes()[1];
+    const fusionNode = at(ctx.nodes(), 1);
     expect(fusionNode.data.prompt).toContain('融合');
     expect(fusionNode.data.prompt).toContain('参考');
   });

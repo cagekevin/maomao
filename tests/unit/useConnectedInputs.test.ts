@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { at } from '../helpers/at';
 import {
   getNodeOutput,
   NODE_OUTPUTS,
@@ -68,7 +69,7 @@ describe('asset 双形态 · contentId 型产出', () => {
       data: { contentId: 'sha1:deadbeef', label: '猫' },
     });
     expect(r.images).toHaveLength(1);
-    expect(r.images[0].url).toBe('http://127.0.0.1:18080/files/migrated/abc.png');
+    expect(at(r.images, 0).url).toBe('http://127.0.0.1:18080/files/migrated/abc.png');
   });
 
   it('contentId 查无 resource 行 → 不产出（不伪造 url，保持诚实）', () => {
@@ -116,7 +117,7 @@ describe('管线契约 getNodeOutput', () => {
       },
     });
     expect(r.images).toHaveLength(1);
-    expect(r.images[0]).toMatchObject({ id: 'a', url: '/files/a.png', label: '图A' });
+    expect(at(r.images, 0)).toMatchObject({ id: 'a', url: '/files/a.png', label: '图A' });
   });
 
   it('videoExtractNode.extractedImages[] → 帧（image 类）', () => {
@@ -126,8 +127,8 @@ describe('管线契约 getNodeOutput', () => {
       data: { extractedImages: ['data:image/png;base64,aaa', 'data:image/png;base64,bbb'] },
     });
     expect(r.images).toHaveLength(2);
-    expect(r.images[0].id).toBe('frame-0');
-    expect(r.images[1].label).toBe('帧 2');
+    expect(at(r.images, 0).id).toBe('frame-0');
+    expect(at(r.images, 1).label).toBe('帧 2');
   });
 
   it('gridSplitNode / gridMergeNode → 切片/图 聚合', () => {
@@ -138,7 +139,7 @@ describe('管线契约 getNodeOutput', () => {
     });
     expect(sp.images.map((x) => x.id)).toEqual(['split-0', 'split-1']);
     const mg = getNodeOutput({ id: 'm', type: 'gridMergeNode', data: { extractedImages: ['u1'] } });
-    expect(mg.images[0].id).toBe('merge-0');
+    expect(at(mg.images, 0).id).toBe('merge-0');
   });
 
   it('通用兜底 assetUrl → images', () => {
@@ -148,7 +149,7 @@ describe('管线契约 getNodeOutput', () => {
       data: { assetUrl: 'http://x/y.png' },
     });
     expect(r.images).toHaveLength(1);
-    expect(r.images[0].url).toBe('http://x/y.png');
+    expect(at(r.images, 0).url).toBe('http://x/y.png');
   });
 
   it('通用兜底图片产出带 label（改名流向下游候选）', () => {
@@ -157,7 +158,7 @@ describe('管线契约 getNodeOutput', () => {
       type: 'imageGenerateNode',
       data: { assetUrl: 'http://x/y.png', label: '猫' },
     });
-    expect(r.images[0].label).toBe('猫');
+    expect(at(r.images, 0).label).toBe('猫');
   });
 
   it('通用兜底图片无 label → 不注入（下游兜底 图片N）', () => {
@@ -166,7 +167,7 @@ describe('管线契约 getNodeOutput', () => {
       type: 'imageGenerateNode',
       data: { assetUrl: 'http://x/y.png' },
     });
-    expect(r.images[0].label).toBeUndefined();
+    expect(at(r.images, 0).label).toBeUndefined();
   });
 
   it('通用兜底 videoUrl（data:video）→ videos，尊重 assetType，且带 label（预留）', () => {
@@ -176,7 +177,7 @@ describe('管线契约 getNodeOutput', () => {
       data: { videoUrl: 'data:video/mp4;base64,xxx', label: '参考' },
     });
     expect(r.videos).toHaveLength(1);
-    expect(r.videos[0].label).toBe('参考');
+    expect(at(r.videos, 0).label).toBe('参考');
   });
 
   it('assetNode 产出走显式声明字段 assetUrl，assetType=audio 时进 audios（真实契约）', () => {
@@ -186,7 +187,7 @@ describe('管线契约 getNodeOutput', () => {
       data: { assetUrl: 'blob:x', assetType: 'audio', label: 'BGM' },
     });
     expect(r.audios).toHaveLength(1);
-    expect(r.audios[0].label).toBe('BGM');
+    expect(at(r.audios, 0).label).toBe('BGM');
   });
 
   it('安全网只服务未登记类型：未登记 type 仍可经 assetUrl/videoUrl/resultUrl 取到产出（存量退役节点快照）', () => {
@@ -198,7 +199,7 @@ describe('管线契约 getNodeOutput', () => {
       data: { resultUrl: 'blob:x', assetType: 'audio', label: 'BGM' },
     });
     expect(r.audios).toHaveLength(1);
-    expect(r.audios[0].label).toBe('BGM');
+    expect(at(r.audios, 0).label).toBe('BGM');
   });
 
   it('无自有产出类型不进安全网：即使带着 assetUrl 也返回空（显式无产出优先）', () => {
@@ -255,28 +256,30 @@ describe('管线契约 getNodeOutput', () => {
     };
     const r1 = getNodeOutput(node, 'shot-s1');
     expect(r1.images).toHaveLength(1);
-    expect(r1.images[0].url).toBe('/files/r.png');
-    expect(r1.images[0].label).toBe('小红帽'); // 资产名带出，供下游 @名 匹配
+    expect(at(r1.images, 0).url).toBe('/files/r.png');
+    expect(at(r1.images, 0).label).toBe('小红帽'); // 资产名带出，供下游 @名 匹配
     const r2 = getNodeOutput(node, 'shot-s2');
-    expect(r2.images[0].url).toBe('/files/w.png');
-    expect(r2.images[0].label).toBe('大灰狼');
+    expect(at(r2.images, 0).url).toBe('/files/w.png');
+    expect(at(r2.images, 0).label).toBe('大灰狼');
   });
 
   it('剧本盒子非 shot- 端口走通用兜底', () => {
     const node = { id: 'sb', type: 'scriptBoxNode', data: { assetUrl: '/files/out.png' } };
     const r = getNodeOutput(node, 'output');
     expect(r.images).toHaveLength(1);
-    expect(r.images[0].url).toBe('/files/out.png');
+    expect(at(r.images, 0).url).toBe('/files/out.png');
   });
 
   it('剧本盒声明在非分镜端口时「弃权」（返回 undefined），不屏蔽通用兜底', () => {
     // 断言实现一变必红：若有人把 getNodeOutput 里的 `if (out)` 改回 `|| {}`，
     // 声明返回 undefined 会被当空产出 → 通用兜底被屏蔽 → 上一条断言立刻变红。
     const d = { assetUrl: '/files/out.png' };
-    expect(NODE_OUTPUTS.scriptBoxNode(d, 'output')).toBeUndefined();
-    expect(NODE_OUTPUTS.scriptBoxNode(d, undefined)).toBeUndefined();
+    const scriptBoxOutput = NODE_OUTPUTS.scriptBoxNode;
+    if (scriptBoxOutput === undefined) throw new Error('NODE_OUTPUTS 缺 scriptBoxNode');
+    expect(scriptBoxOutput(d, 'output')).toBeUndefined();
+    expect(scriptBoxOutput(d, undefined)).toBeUndefined();
     // 分镜端口命中时正常返回产出对象
-    expect(NODE_OUTPUTS.scriptBoxNode({ shots: [{ id: 's1' }] }, shotHandleId('s1'))).toBeDefined();
+    expect(scriptBoxOutput({ shots: [{ id: 's1' }] }, shotHandleId('s1'))).toBeDefined();
   });
 
   it('无节点/无 data 返回空', () => {
@@ -358,7 +361,7 @@ describe('P0-B ① 入边索引（incomingOf 引用缓存，edges 引用变才�
     ];
     const idx = buildIncomingIndex(edges);
     expect(idx.get('d1')?.map((x) => x.source)).toEqual(['u1', 'u3']);
-    expect(idx.get('d1')?.[0].sourceHandle).toBe('out-a');
+    expect(at(idx.get('d1') ?? [], 0).sourceHandle).toBe('out-a');
     expect(idx.get('d2')?.map((x) => x.source)).toEqual(['u2']);
   });
 });
@@ -418,14 +421,14 @@ describe('P0-B ③ 聚合（aggregateUpstream 与旧 useMemo 体语义等价）'
     const out = aggregateUpstream([{ node: src, sourceHandle: undefined }]);
     expect(out.images).toHaveLength(1);
     expect(out.images![0]!.url).toBe('http://a.png');
-    expect(out.images[0].sourceNodeId).toBe('u1');
+    expect(at(out.images, 0).sourceNodeId).toBe('u1');
   });
 
   it('textGenerateNode 上游 → texts 通道带 sourceNodeId', () => {
     const src = mkNode('t1', 'textGenerateNode', { text: '你好' });
     const out = aggregateUpstream([{ node: src, sourceHandle: undefined }]);
-    expect(out.texts[0].text).toBe('你好');
-    expect(out.texts[0].sourceNodeId).toBe('t1');
+    expect(at(out.texts, 0).text).toBe('你好');
+    expect(at(out.texts, 0).sourceNodeId).toBe('t1');
   });
 
   it('相对 /files/ URL 兜底为绝对 URL（刷新不破图）', () => {
@@ -464,15 +467,15 @@ describe('P0-B 编组出口（parentLookup 展开，行为与旧 nodes.filter �
       { source: 'g1', sourceHandle: undefined },
     ]);
     expect(up).toHaveLength(1);
-    expect(up[0].node.id).toBe('c1');
-    expect(up[0].fromGroup).toBe(true);
+    expect(at(up, 0).node.id).toBe('c1');
+    expect(at(up, 0).fromGroup).toBe(true);
   });
 
   it('组内子节点聚合：不补 sourceNodeId（保持既有行为）', () => {
     const up = [{ node: child1, sourceHandle: undefined, fromGroup: true }];
     const out = aggregateUpstream(up);
     expect(out.images![0]!.url).toBe('http://c1.png');
-    expect(out.images[0].sourceNodeId).toBeUndefined();
+    expect(at(out.images, 0).sourceNodeId).toBeUndefined();
   });
 
   it('组内子节点 data 变化 → upstreamEqual 判不等（折叠/增删子节点同理走长度/元素变化）', () => {
