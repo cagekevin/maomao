@@ -58,10 +58,16 @@ const norm = (arr: number[]): number[] =>
   Array.from(
     new Set(arr.map((v) => clamp(v, 0.01, 0.99)).map((v) => Math.round(v * 10000) / 10000)),
   ).sort((a, b) => a - b);
-const pairs = (arr: number[]) => {
+/** 相邻断点配对（[起, 止]）。返回元组数组 ⇒ 下游解构恒得 number，无需再判 undefined */
+const pairs = (arr: number[]): Array<[number, number]> => {
   const t = [0, ...arr, 1];
-  const out = [];
-  for (let i = 0; i < t.length - 1; i++) out.push([t[i], t[i + 1]]);
+  const out: Array<[number, number]> = [];
+  for (let i = 0; i < t.length - 1; i++) {
+    const from = t[i];
+    const to = t[i + 1];
+    if (from === undefined || to === undefined) break; // i < length - 1（不可达兜底）
+    out.push([from, to]);
+  }
   return out;
 };
 const genId = () => generateId('lasso');
@@ -600,6 +606,7 @@ function GridSplitNode({ id, data, selected }: GridSplitNodeProps) {
             if (s.id !== rec.id || s.points.length < 3) return s;
             let pts = s.points.slice();
             const last = pts[pts.length - 1];
+            if (last === undefined) return s; // points.length >= 3 已判（不可达兜底）
             const snapped = snapEdge(last);
             if (snapped.edge) pts[pts.length - 1] = { x: snapped.x, y: snapped.y };
             if (edge && snapped.edge) pts = closePolygon(pts, edge, snapped.edge);

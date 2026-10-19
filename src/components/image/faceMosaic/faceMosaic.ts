@@ -87,10 +87,13 @@ export async function loadFaceDetector(): Promise<FaceDetector> {
 function eyeLine(e: Detection, imgW: number, imgH: number): EyeLine | null {
   const kp = e.keypoints;
   if (!kp || kp.length < 2) return null;
-  const lx = kp[1].x * imgW,
-    ly = kp[1].y * imgH;
-  const rx = kp[0].x * imgW,
-    ry = kp[0].y * imgH;
+  const left = kp[1];
+  const right = kp[0];
+  if (left === undefined || right === undefined) return null; // 上方已判 ≥2 个（不可达兜底）
+  const lx = left.x * imgW,
+    ly = left.y * imgH;
+  const rx = right.x * imgW,
+    ry = right.y * imgH;
   const dist = Math.hypot(lx - rx, ly - ry);
   if (!isFinite(dist) || dist <= 0) return null;
   return { lx, ly, rx, ry, dist };

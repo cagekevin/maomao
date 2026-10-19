@@ -140,9 +140,14 @@ function PanoViewer({
               for (let x = 0; x < width; x++) {
                 const src = (y * width + x) * 4;
                 const dst = ((height - 1 - y) * width + x) * 4;
-                imgData.data[dst] = pixels[src];
-                imgData.data[dst + 1] = pixels[src + 1];
-                imgData.data[dst + 2] = pixels[src + 2];
+                const r = pixels[src];
+                const g = pixels[src + 1];
+                const b = pixels[src + 2];
+                // 像素缓冲按 width×height×4 分配；缺项 = 不可达，跳过该像素
+                if (r === undefined || g === undefined || b === undefined) continue;
+                imgData.data[dst] = r;
+                imgData.data[dst + 1] = g;
+                imgData.data[dst + 2] = b;
                 imgData.data[dst + 3] = 255;
               }
             }

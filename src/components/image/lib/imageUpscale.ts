@@ -139,9 +139,13 @@ function applyUnsharpMask(canvas: HTMLCanvasElement, amount: number): void {
             yy = y + dy;
           if (xx >= 0 && xx < W && yy >= 0 && yy < H) {
             const i = (yy * W + xx) * 4;
-            r += data[i];
-            g += data[i + 1];
-            b += data[i + 2];
+            const rr = data[i];
+            const gg = data[i + 1];
+            const bb = data[i + 2];
+            if (rr === undefined || gg === undefined || bb === undefined) continue; // 界内已判（不可达）
+            r += rr;
+            g += gg;
+            b += bb;
             cnt++;
           }
         }
@@ -156,8 +160,10 @@ function applyUnsharpMask(canvas: HTMLCanvasElement, amount: number): void {
   // USM：pixel' = ref + amount*(ref - blur)
   for (let i = 0; i < data.length; i += 4) {
     for (let c = 0; c < 3; c++) {
-      const diff = ref[i + c] - out[i + c];
-      data[i + c] = ref[i + c] + amount * diff;
+      const refValue = ref[i + c];
+      const blurred = out[i + c];
+      if (refValue === undefined || blurred === undefined) break; // i + 2 < data.length（不可达）
+      data[i + c] = refValue + amount * (refValue - blurred);
     }
   }
   ctx.putImageData(imgData, 0, 0);

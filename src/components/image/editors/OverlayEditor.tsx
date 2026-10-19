@@ -312,7 +312,8 @@ export default function OverlayEditor({ state, onChange, upstreamUrls }: Overlay
       else if (dir === 'down') to = Math.min(sorted.length - 1, from + 1);
       if (to === from) return;
       const arr = sorted.slice();
-      const [moved] = arr.splice(from, 1);
+      const moved = arr.splice(from, 1)[0];
+      if (moved === undefined) return; // from 已判有效（不可达兜底）
       arr.splice(to, 0, moved);
       const len = arr.length;
       onChange({ ...state, layers: arr.map((l, i) => ({ ...l, zIndex: len - i })) });
@@ -330,7 +331,8 @@ export default function OverlayEditor({ state, onChange, upstreamUrls }: Overlay
       const to = sorted.findIndex((l) => l.id === toId);
       if (from < 0 || to < 0) return;
       const arr = sorted.slice();
-      const [moved] = arr.splice(from, 1);
+      const moved = arr.splice(from, 1)[0];
+      if (moved === undefined) return; // from 已判有效（不可达兜底）
       arr.splice(to, 0, moved);
       const len = arr.length;
       onChange({ ...state, layers: arr.map((l, i) => ({ ...l, zIndex: len - i })) });
@@ -457,6 +459,7 @@ export default function OverlayEditor({ state, onChange, upstreamUrls }: Overlay
     if (!canvas || historyRef.current.length <= 1) return;
     historyRef.current.pop();
     const last = historyRef.current[historyRef.current.length - 1];
+    if (last === undefined) return; // pop 后仍 ≥1 项（不可达兜底）
     const ctx = canvas.getContext('2d');
     if (ctx) ctx.putImageData(last, 0, 0);
   }, []);

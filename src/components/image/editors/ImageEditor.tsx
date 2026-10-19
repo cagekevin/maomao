@@ -511,7 +511,13 @@ export default function ImageEditor({
           px = null;
         }
         if (px) {
-          setColor(`#${`000000${((px[0] << 16) | (px[1] << 8) | px[2]).toString(16)}`.slice(-6)}`);
+          const r = px[0];
+          const g = px[1];
+          const b = px[2];
+          // getImageData 取 1×1 ⇒ 恒有 RGBA 四字节；缺项 = 不可达
+          if (r !== undefined && g !== undefined && b !== undefined) {
+            setColor(`#${`000000${((r << 16) | (g << 8) | b).toString(16)}`.slice(-6)}`);
+          }
         }
         setTool('pencil');
         return;

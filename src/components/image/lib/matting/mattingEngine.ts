@@ -111,7 +111,9 @@ export function isForeground(logit: number): boolean {
 export function alphaFromLogits(logits: ArrayLike<number>): Uint8ClampedArray {
   const out = new Uint8ClampedArray(logits.length);
   for (let i = 0; i < logits.length; i += 1) {
-    out[i] = isForeground(logits[i]) ? 255 : 0;
+    const logit = logits[i];
+    if (logit === undefined) break; // i < logits.length（不可达兜底）
+    out[i] = isForeground(logit) ? 255 : 0;
   }
   return out;
 }

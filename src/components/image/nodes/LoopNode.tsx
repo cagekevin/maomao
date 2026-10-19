@@ -89,8 +89,11 @@ export function splitSmartPromptItems(text: unknown) {
   return [trimmed];
 }
 
-/** 拆分方式选项（用户可选的拆分形式） */
-export const SPLIT_METHODS = [
+/** 拆分方式选项（用户可选的拆分形式）。非空元组：`[0]` 恒存在（默认项） */
+export const SPLIT_METHODS: readonly [
+  { key: string; label: string },
+  ...Array<{ key: string; label: string }>,
+] = [
   { key: 'newline', label: '按回车换行' },
   { key: 'number', label: '按序号 (1. 2. 3.)' },
   { key: 'ordinal', label: '按「第一张图」' },

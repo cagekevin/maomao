@@ -193,8 +193,12 @@ export async function encodeImage(
       for (let x = 0; x < drawW; x += 1) {
         const srcIdx = (y * width + x) * 4;
         const dstIdx = y * MATTING_INPUT_SIZE + x;
+        const r = data[srcIdx];
+        const g = data[srcIdx + 1];
+        const b = data[srcIdx + 2];
+        if (r === undefined || g === undefined || b === undefined) continue; // 界内（不可达兜底）
         // 归一化走 mattingEngine 唯一实现（MEAN/STD 只在 mattingConfig 定义一次）
-        normalizeInto(arr, plane, dstIdx, data[srcIdx], data[srcIdx + 1], data[srcIdx + 2]);
+        normalizeInto(arr, plane, dstIdx, r, g, b);
       }
     }
 
@@ -211,6 +215,11 @@ export async function encodeImage(
     );
 
     const [imageName, intermName] = sessions.encoder.outputNames;
+    if (imageName === undefined || intermName === undefined) {
+      throw new Error(
+        `抠图：encoder 输出名缺失（实得 ${sessions.encoder.outputNames.join(', ') || '空'}）`,
+      );
+    }
     const image = out[imageName];
     const interm = out[intermName];
     if (!image || !interm) {
@@ -272,6 +281,11 @@ export async function predictMask(
     );
 
     const maskName = sessions.decoder.outputNames[0];
+    if (maskName === undefined) {
+      throw new Error(
+        `抠图：decoder 输出名缺失（实得 ${sessions.decoder.outputNames.join(', ') || '空'}）`,
+      );
+    }
     const mask = out[maskName];
     if (!mask) {
       throw new Error(

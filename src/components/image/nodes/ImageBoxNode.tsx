@@ -287,7 +287,8 @@ function ImageBoxNode({ id, data, selected }: ImageBoxNodeProps) {
     (from: number, to: number) => {
       if (from === to || from < 0 || to < 0 || from >= images.length || to >= images.length) return;
       const arr = images.slice();
-      const [moved] = arr.splice(from, 1);
+      const moved = arr.splice(from, 1)[0];
+      if (moved === undefined) return; // from 已判界内（不可达兜底）
       arr.splice(to, 0, moved);
       let newActive = activeIndex;
       const curId = images[activeIndex]?.id;
@@ -362,9 +363,10 @@ function ImageBoxNode({ id, data, selected }: ImageBoxNodeProps) {
         }),
       ),
     ).then((r) => {
-      if (failures.length > 0) {
+      const firstFailure = failures[0];
+      if (firstFailure !== undefined) {
         logger.warn('图片盒子', '部分文件未导入（已跳过）', { failed: failures });
-        toastError(`${failures.length} 个文件导入失败：${failures[0].message}`);
+        toastError(`${failures.length} 个文件导入失败：${firstFailure.message}`);
       }
       return r.filter((x): x is { url: string; label: string } => x !== null);
     });
@@ -847,11 +849,12 @@ function ImageBoxNode({ id, data, selected }: ImageBoxNodeProps) {
           >
             {(() => {
               const idx = menuIndex;
-              const img = images[idx];
+              const img = idx === null ? undefined : images[idx];
               const close = () => {
                 setMenuIndex(null);
                 setMenuPos(null);
               };
+              if (img === undefined) return null; // 菜单已关 / 索引失效 ⇒ 不渲染
               return (
                 <>
                   <button

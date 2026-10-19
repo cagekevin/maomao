@@ -401,6 +401,7 @@ function PanoramaNode({ id, data, selected }: PanoramaNodeProps) {
           if (boxes.length > 0) {
             // 有图片盒子下游：追加到第一个盒子
             const boxId = boxes[0];
+            if (boxId === undefined) return; // boxes 非空已判（不可达兜底）
             const boxNode = getNode(boxId);
             const existing = (boxNode?.data?.images as Array<{ url?: string }> | undefined) || [];
             const existingUrls = new Set(existing.map((x) => x.url));

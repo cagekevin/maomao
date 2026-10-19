@@ -47,8 +47,11 @@ import { replaceNodeImage } from '@/components/base/utils/media/nodeImage';
 const parseGrid = (str: string | null | undefined): { rows: number; cols: number } | null => {
   const m = (str || '').trim().match(/^(\d+)\s*[x×*]\s*(\d+)$/i);
   if (!m) return null;
-  const rows = clamp(parseInt(m[1], 10), 1, 20);
-  const cols = clamp(parseInt(m[2], 10), 1, 20);
+  const rowDigits = m[1];
+  const colDigits = m[2];
+  if (rowDigits === undefined || colDigits === undefined) return null; // 正则双组（不可达兜底）
+  const rows = clamp(parseInt(rowDigits, 10), 1, 20);
+  const cols = clamp(parseInt(colDigits, 10), 1, 20);
   return rows && cols ? { rows, cols } : null;
 };
 /** 叠加图层状态（与 base/OverlayEditor 的 OverlayState 对齐；完整形状见该文件） */
@@ -267,8 +270,14 @@ function GridMergeNode({ id, data, selected }: GridMergeNodeProps) {
             (img): img is HTMLImageElement => img != null,
           );
           if (imgs.length === 0) return null;
+          const firstImg = imgs[0];
+          if (firstImg === undefined) return null; // 非空已判（不可达兜底）
           const vertical = longDirection === 'vertical';
-          const base = longAutoSize ? (vertical ? imgs[0].width : imgs[0].height) : longTargetSize;
+          const base = longAutoSize
+            ? vertical
+              ? firstImg.width
+              : firstImg.height
+            : longTargetSize;
           let totalW = 0;
           let totalH = 0;
           const sizes: { w: number; h: number }[] = [];
@@ -301,6 +310,7 @@ function GridMergeNode({ id, data, selected }: GridMergeNodeProps) {
           let offset = 0;
           imgs.forEach((img, i) => {
             const s = sizes[i];
+            if (s === undefined) return; // sizes 与 imgs 同长（不可达兜底）
             const w = s.w * scale;
             const h = s.h * scale;
             if (vertical) {
@@ -331,8 +341,12 @@ function GridMergeNode({ id, data, selected }: GridMergeNodeProps) {
             cellH = first.height;
           } else {
             const [rw, rh] = aspectRatio.split(':').map(Number);
-            const ratio = rw / rh;
-            cellH = Math.round(cellSize / ratio);
+            if (rw === undefined || rh === undefined || rh === 0) {
+              // 比例串非法（正则/UI 已限定，不可达）⇒ 回退正方形，不产生 NaN 尺寸
+              cellH = cellSize;
+            } else {
+              cellH = Math.round(cellSize / (rw / rh));
+            }
           }
           const canvasW = cellW * cols;
           const canvasH = cellH * rows;
@@ -492,9 +506,11 @@ function GridMergeNode({ id, data, selected }: GridMergeNodeProps) {
     suppressSyncRef.current = true;
     setGridCells((arr) => {
       const c = arr.slice();
-      const t = c[from];
-      c[from] = c[to];
-      c[to] = t;
+      const fromValue = c[from];
+      const toValue = c[to];
+      if (fromValue === undefined || toValue === undefined) return c; // 越界 ⇒ 不交换
+      c[from] = toValue;
+      c[to] = fromValue;
       return c;
     });
   }, []);
@@ -503,9 +519,11 @@ function GridMergeNode({ id, data, selected }: GridMergeNodeProps) {
     if (from === to) return;
     setLongList((arr) => {
       const c = arr.slice();
-      const t = c[from];
-      c[from] = c[to];
-      c[to] = t;
+      const fromValue = c[from];
+      const toValue = c[to];
+      if (fromValue === undefined || toValue === undefined) return c; // 越界 ⇒ 不交换
+      c[from] = toValue;
+      c[to] = fromValue;
       return c;
     });
   }, []);

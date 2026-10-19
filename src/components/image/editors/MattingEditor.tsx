@@ -212,7 +212,9 @@ export default function MattingEditor({ assetUrl, onSave, onClose }: MattingEdit
       if (base && bctx) {
         const out = bctx.getImageData(0, 0, dims.w, dims.h);
         for (let i = 0, j = 3; i < alpha.length; i += 1, j += 4) {
-          out.data[j] = alpha[i];
+          const a = alpha[i];
+          if (a === undefined) break; // i < alpha.length（不可达兜底）
+          out.data[j] = a;
         }
         const tmp = document.createElement('canvas');
         tmp.width = dims.w;

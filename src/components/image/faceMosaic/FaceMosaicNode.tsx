@@ -109,6 +109,8 @@ function FaceMosaicNode({ id, data, selected }: FaceMosaicNodeProps) {
     // 读取端兜底：相对 /files/ 路径统一补全，刷新不破图
     return list.map((u) => toAbsoluteFileUrl(u));
   }, [localImages, connected]);
+  // 手动打码编辑器的入参（首张）；渲染期只算一次，避免 `assetUrls()[0]` 重复调用与 IndexedAccess 告警
+  const firstAssetUrl = assetUrls()[0];
 
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -157,9 +159,9 @@ function FaceMosaicNode({ id, data, selected }: FaceMosaicNodeProps) {
     const results = [];
     let faceCount = 0;
     let firstErr = '';
-    for (let i = 0; i < urls.length; i++) {
+    for (const [i, sourceUrl] of urls.entries()) {
       try {
-        const r = await applyMosaic(urls[i], { mode, strength, color });
+        const r = await applyMosaic(sourceUrl, { mode, strength, color });
         const up = await uploadFileToLocal(
           dataUrlToBlob(r.dataUrl, 'image/png'),
           UPLOAD_DIRS.faceMosaic,
@@ -414,9 +416,9 @@ function FaceMosaicNode({ id, data, selected }: FaceMosaicNodeProps) {
       </div>
 
       {/* 手动打码编辑器 */}
-      {manualOpen && assetUrls()[0] && (
+      {manualOpen && firstAssetUrl !== undefined && (
         <FaceMosaicEditor
-          assetUrl={assetUrls()[0]}
+          assetUrl={firstAssetUrl}
           onSave={handleManualSave}
           onClose={() => setManualOpen(false)}
         />
