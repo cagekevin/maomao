@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { at } from '../helpers/at';
 
 vi.mock('../../src/components/generate/lib/generate.ts', async (importOriginal) => ({
   ...((await importOriginal()) as Record<string, unknown>),
@@ -145,13 +146,13 @@ describe('剧本盒引擎深度业务 §2.7', () => {
     // 两个分镜都生成（并发 Promise.all）
     expect(chatCompletions).toHaveBeenCalledTimes(2);
     // 第一个分镜的 user 中应包含匹配到的参考资产
-    const firstCall = chatCompletionsMock.mock.calls[0][0];
-    expect(firstCall.messages[1].content).toContain('@小红帽');
-    expect(firstCall.messages[1].content).toContain('@森林');
+    const firstCall = at(chatCompletionsMock.mock.calls, 0)[0];
+    expect(at(firstCall.messages, 1).content).toContain('@小红帽');
+    expect(at(firstCall.messages, 1).content).toContain('@森林');
     // 约束已收敛到 playbook（§4.2 单一数据源），不再读 node.data 的 image/videoGlobalConstraint。
     // manga 内置默认无约束 → 此处断言「不注入」，证明引擎不再走旧的覆盖层。
-    expect(firstCall.messages[1].content).not.toContain('不要文字');
-    expect(firstCall.messages[1].content).not.toContain('慢镜头');
+    expect(at(firstCall.messages, 1).content).not.toContain('不要文字');
+    expect(at(firstCall.messages, 1).content).not.toContain('慢镜头');
     // 写回：两个分镜都拿到 prompt/videoPrompt
     const last = patches[patches.length - 1];
     expect(last.shots.find((s: any) => s.id === 's1').prompt).toBe('分镜画面提示词');
@@ -195,12 +196,12 @@ describe('剧本盒引擎深度业务 §2.7', () => {
     const s1 = last.shots.find((x: any) => x.id === 's1');
     expect(s1.prompt).not.toContain('@图片1');
     // 承接/钩子上下文也注入（s2 是结尾镜，只有上一镜承接，无下一镜钩子）
-    const s2Call = chatCompletionsMock.mock.calls[1][0] as unknown as {
+    const s2Call = at(chatCompletionsMock.mock.calls, 1)[0] as unknown as {
       messages: Array<{ content: string }>;
     };
-    expect(s2Call.messages[1].content).toContain('【剧情承接：上一镜状态描述】镜头1');
-    expect(s2Call.messages[1].content).toContain('结尾镜');
-    expect(s2Call.messages[1].content).toContain('【负面黑名单·绝对禁止出现】');
+    expect(at(s2Call.messages, 1).content).toContain('【剧情承接：上一镜状态描述】镜头1');
+    expect(at(s2Call.messages, 1).content).toContain('结尾镜');
+    expect(at(s2Call.messages, 1).content).toContain('【负面黑名单·绝对禁止出现】');
   });
 
   it('onGenerateShotPrompts：videoPrompt 已含 @视频1 时不重复补写标签', async () => {
@@ -267,7 +268,7 @@ describe('剧本盒引擎深度业务 §2.7', () => {
     await eng.onGenerateShotPrompts(['s1']);
     expect(showToast).toHaveBeenCalledWith('超时', undefined);
     const last = patches[patches.length - 1];
-    expect(last.shots[0].promptLoading).toBe(false);
+    expect(at<Record<string, unknown>>(last.shots ?? [], 0).promptLoading).toBe(false);
   });
 
   // ── onGenerateAllAssetImages：选中集 / 全量无图 ──
@@ -437,7 +438,7 @@ describe('剧本盒引擎深度业务 §2.7', () => {
     const eng = createScriptBoxEngine(ctx());
     await eng.onGenerateShotImage('s1', 'keyframe');
     const last = patches[patches.length - 1];
-    expect(last.shots[0].imgGen).toMatchObject({
+    expect(at<Record<string, unknown>>(last.shots ?? [], 0).imgGen).toMatchObject({
       type: 'keyframe',
       label: '关键帧',
       prompt: '关键帧画面提示词',
@@ -470,14 +471,16 @@ describe('剧本盒引擎深度业务 §2.7', () => {
     const eng = createScriptBoxEngine(ctx());
     await eng.onGenerateScript();
     const last = patches[patches.length - 1];
-    const shot = last.shots[0];
+    const shot = at<Record<string, unknown>>(last.shots ?? [], 0);
     expect(shot.id).toBe('sb-1-shot-0');
     expect(shot.index).toBe(1);
     expect(shot.duration).toBe('5s');
     expect(shot.grid).toBe(0);
     expect(shot.connImg).toBe(false);
     // 资产 prompt 走 ZgPrompt
-    expect(last.assets[0].prompt).toContain('[视觉风格：皮克斯]');
+    expect(at<Record<string, unknown>>(last.assets ?? [], 0).prompt).toContain(
+      '[视觉风格：皮克斯]',
+    );
   });
 
   // ── P1-2 onGenerateTailFrameVariants：抽帧 → 多角度生图 → 写回变体 ──
@@ -515,8 +518,8 @@ describe('剧本盒引擎深度业务 §2.7', () => {
     // TypeError（对象非 nullish，?.() 不短路）→ 请求发出前即失败，综合图永远拿不到结果。
     // 本用例用 vi.fn 记录全部实参，故能拦住该错位（_nodeMocks 的默认 mock 只记 a[0]，拦不住）。
     // 【TD-01-12】第 2 位现为任务中心进度回调（原语提供）→ 任务中心有真实进度（此前传 undefined）。
-    expect(generateImageMock.mock.calls[0][1]).toBeTypeOf('function');
-    expect(generateImageMock.mock.calls[0][2]).toBeInstanceOf(AbortSignal);
+    expect(at(generateImageMock.mock.calls, 0)[1]).toBeTypeOf('function');
+    expect(at(generateImageMock.mock.calls, 0)[2]).toBeInstanceOf(AbortSignal);
     // 【TD-01-12】任务中心可见：以「每镜一卡」伪 nodeId `{nodeId}-tailframe-{shotId}` 上报
     //（此前完全裸绕任务中心：无卡片、无进度、失败无分类），并 done 收敛。
     expect(reportGenerateMock).toHaveBeenCalledWith(

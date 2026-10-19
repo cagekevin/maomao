@@ -43,8 +43,10 @@ function packageName(id: string): string | null {
   const i = id.lastIndexOf(marker);
   if (i === -1) return null;
   const rest = id.slice(i + marker.length);
-  const seg = rest.split('/');
-  return rest.startsWith('@') ? `${seg[0]}/${seg[1]}` : seg[0];
+  const [firstSeg, secondSeg] = rest.split('/');
+  // 归一化裸模块名：`pkg` 或 `@scope/pkg`；空串/无段直接返回 null（调用方按非包处理）
+  if (!firstSeg) return null;
+  return rest.startsWith('@') ? `${firstSeg}/${secondSeg ?? ''}` : firstSeg;
 }
 
 /**

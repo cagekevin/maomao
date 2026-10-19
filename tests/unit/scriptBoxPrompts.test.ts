@@ -217,8 +217,8 @@ describe('剧本盒纯函数 §2.7/2.17', () => {
     const patch = scriptBoxRemoveResource(assets, 'a1', shots);
     expect(patch.assets.map((a) => a.id)).toEqual(['a2']);
     expect(patch.pickedCount).toBe(0);
-    expect(patch.shots![0].description).toBe('森林 深处 @小红帽 走进'); // @森林 去 @，@小红帽 保留
-    expect(patch.shots![1].description).toBe('无引用');
+    expect(at(patch.shots!, 0).description).toBe('森林 深处 @小红帽 走进'); // @森林 去 @，@小红帽 保留
+    expect(at(patch.shots!, 1).description).toBe('无引用');
   });
 
   it('removeResource：无 name 资产（空壳）删除时不改镜头', () => {
