@@ -66,6 +66,7 @@ function packWithPerRow(
     // 行内第 1 个不放前导间距，后续每个在本项之前加 gapX（无尾间距，perRow=1 也正确）
     for (let col = 0; col < perRow && rowStart + col < n; col++) {
       const b = boxes[rowStart + col];
+      if (b === undefined) break; // rowStart + col < n（不可达兜底）
       if (col > 0) rowW += gapX;
       placements.push({ x: rowW, y });
       rowW += b.width;
@@ -92,6 +93,7 @@ export function packComponents(boxes: ArrangePackBox[], opts: ArrangePackOpts): 
   }
   if (n === 1) {
     const b = boxes[0];
+    if (b === undefined) return { perRow: 0, width: 0, height: 0, placements: [] }; // n === 1（不可达）
     return {
       perRow: 1,
       width: b.width,

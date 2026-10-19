@@ -323,7 +323,7 @@ export default function StepPrompt({ data, updateData, callbacks }: StepPromptPr
               : '为全部镜头批量生成提示词'
           }
           onClick={() =>
-            callbacks.onGenerateShotPrompts?.([...selShots].map((i) => shots[i].id ?? ''))
+            callbacks.onGenerateShotPrompts?.([...selShots].map((i) => shots[i]?.id ?? ''))
           }
         >
           <RefreshCw size={11} /> 批量生成提示词{selShots.size ? `(${selShots.size})` : ''}
@@ -333,7 +333,7 @@ export default function StepPrompt({ data, updateData, callbacks }: StepPromptPr
           title={selShots.size ? `为选中的 ${selShots.size} 镜批量生图` : '为全部镜头批量生图'}
           onClick={() =>
             callbacks.onConnectShots?.(
-              [...selShots].map((i) => shots[i].id ?? ''),
+              [...selShots].map((i) => shots[i]?.id ?? ''),
               'image',
             )
           }
@@ -355,7 +355,7 @@ export default function StepPrompt({ data, updateData, callbacks }: StepPromptPr
           onClick={async () => {
             setMergeLoading(true);
             try {
-              await callbacks.onGenerateMergedVideo?.([...selShots].map((i) => shots[i].id ?? ''));
+              await callbacks.onGenerateMergedVideo?.([...selShots].map((i) => shots[i]?.id ?? ''));
             } finally {
               setMergeLoading(false);
             }
@@ -402,7 +402,7 @@ export default function StepPrompt({ data, updateData, callbacks }: StepPromptPr
             {/* 当前镜头操作：生成提示词 / 生图 / 生视频（统一深色按钮，与整体设计语言一致） */}
             <button
               className="flex items-center gap-1 px-2.5 py-1.5 text-caption-sm text-primary bg-surface-hover hover:bg-surface-hover-strong rounded"
-              onClick={() => callbacks.onGenerateShotPrompts?.([shots[singleIdx].id ?? ''])}
+              onClick={() => callbacks.onGenerateShotPrompts?.([shots[singleIdx]?.id ?? ''])}
             >
               <RefreshCw size={11} />{' '}
               {shots[singleIdx]?.prompt || shots[singleIdx]?.videoPrompt
@@ -411,13 +411,13 @@ export default function StepPrompt({ data, updateData, callbacks }: StepPromptPr
             </button>
             <button
               className="flex items-center gap-1 px-2.5 py-1.5 text-caption-sm text-primary bg-surface-hover hover:bg-surface-hover-strong border border-edge rounded"
-              onClick={() => callbacks.onConnectShot?.(shots[singleIdx].id ?? '', 'image')}
+              onClick={() => callbacks.onConnectShot?.(shots[singleIdx]?.id ?? '', 'image')}
             >
               <ImageIcon size={11} /> 生图
             </button>
             <button
               className="flex items-center gap-1 px-2.5 py-1.5 text-caption-sm text-primary bg-surface-hover hover:bg-surface-hover-strong border border-edge rounded"
-              onClick={() => callbacks.onConnectShot?.(shots[singleIdx].id ?? '', 'video')}
+              onClick={() => callbacks.onConnectShot?.(shots[singleIdx]?.id ?? '', 'video')}
             >
               <Video size={11} /> 生视频
             </button>

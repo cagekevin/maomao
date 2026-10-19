@@ -182,8 +182,8 @@ export function textToDlg(text?: string | null): Dialogue[] {
     .map((l: string) => {
       const m = l.match(/^([^：:]+)[：:](.+)$/);
       if (m) {
-        const role = m[1].trim();
-        return { kind: role === '旁白' ? '旁白' : '台词', role, text: m[2].trim() };
+        const role = (m[1] ?? '').trim();
+        return { kind: role === '旁白' ? '旁白' : '台词', role, text: (m[2] ?? '').trim() };
       }
       return { kind: '台词', role: '', text: l.trim() };
     });
@@ -651,6 +651,7 @@ export function buildShots(n: number): Shot[] {
   const shots: Shot[] = [];
   for (let i = 0; i < n; i++) {
     const t = SHOT_TPL[i % SHOT_TPL.length];
+    if (t === undefined) break; // 模板表非空（不可达兜底）
     const dur = 3 + (i % 3);
     const shot = {
       id: i + 1,
@@ -716,7 +717,9 @@ export function buildShotImageUser(
   { globalStyle = '', assets = [] }: { globalStyle?: string; assets?: ScriptAsset[] } = {},
 ): string {
   if (!shot) return '';
-  const t = IMAGE_GEN_TYPES[type ?? IMAGE_GEN_DEFAULT] || IMAGE_GEN_TYPES[IMAGE_GEN_DEFAULT];
+  // 类型表缺项（含默认项）⇒ 用最小兜底文案，不把 undefined 拼进 prompt
+  const t = IMAGE_GEN_TYPES[type ?? IMAGE_GEN_DEFAULT] ??
+    IMAGE_GEN_TYPES[IMAGE_GEN_DEFAULT] ?? { label: '图片' };
   const dlg = dialogueText(shot.dialogue);
   const assetNames = (assets || [])
     .map((a) => a.name)

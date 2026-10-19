@@ -23,6 +23,14 @@ import type { ResourceStripProps } from '../canvas/shell/ResourceStrip.tsx';
 // 作为 props 传给 `memo(ResourceStrip)` 时引用恒变 ⇒ 浅比较必失败、memo 恒失效。
 const EMPTY_IMAGES: NonNullable<ResourceStripProps['images']> = [];
 const EMPTY_TEXTS: NonNullable<ResourceStripProps['texts']> = [];
+/** 分镜数快捷选项（值, 文案）。元组化 ⇒ 解构恒有值 */
+const SHOT_COUNT_OPTIONS: Array<[string | number, string]> = [
+  ['auto', '自动'],
+  [10, '10'],
+  [20, '20'],
+  [30, '30'],
+  [50, '50'],
+];
 import { useOutsideClick } from '../base/core/interaction/uiHooks.ts';
 import { useRenderAssetResolver } from '../base/utils/media/assetUrl.ts';
 import ScriptBoxModal from './ScriptBoxModal.tsx';
@@ -157,13 +165,7 @@ export default function StepShots({ data, updateData, callbacks }: StepShotsProp
         <div>
           <div className="text-caption-sm text-secondary mb-1.5">镜头数量</div>
           <div className="flex gap-1">
-            {[
-              ['auto', '自动'],
-              [10, '10'],
-              [20, '20'],
-              [30, '30'],
-              [50, '50'],
-            ].map(([v, l]) => (
+            {SHOT_COUNT_OPTIONS.map(([v, l]) => (
               <button
                 key={String(v)}
                 onClick={() => setShotCount(v)}

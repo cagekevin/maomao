@@ -116,6 +116,8 @@ export function getPlaybook(id: string | null | undefined): Playbook {
   // 悬挂引用：不静默吞掉，留痕警示（UI 侧据此显式展示「缺失」条）
   if (rid) logger.warn('scriptbox', '剧本盒子工作流不存在，回退默认', { playbookId: rid });
   const def = SCRIPT_BOX_WORKFLOWS[DEFAULT_WORKFLOW];
+  // 默认工作流是常量表的一部分，缺失 = 编程错误（不能静默回退到 undefined）
+  if (def === undefined) throw new Error(`剧本盒子：默认工作流 ${DEFAULT_WORKFLOW} 缺失`);
   return normalizeBuiltin(DEFAULT_WORKFLOW, def);
 }
 

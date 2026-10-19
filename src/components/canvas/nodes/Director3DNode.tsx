@@ -105,7 +105,9 @@ function Director3DNode({ id, data, selected }: Director3DNodeProps) {
         logger.warn('导演台', '部分截图未落盘（失败项已按兜底保留内联/丢弃）', {
           failed: failedShots.map((s) => ({ name: s.name, message: s.message })),
         });
-        toastWarning(`${failedShots.length} 张截图未落盘：${failedShots[0].message}`);
+        toastWarning(
+          `${failedShots.length} 张截图未落盘：${failedShots[0]?.message ?? '未知原因'}`,
+        );
       }
       const persisted = shotResults.filter(
         (s): s is { url: string; name: string; message?: string } => Boolean(s.url),
@@ -119,6 +121,7 @@ function Director3DNode({ id, data, selected }: Director3DNodeProps) {
       }));
       if (boxes.length > 0) {
         const boxId = boxes[0];
+        if (boxId === undefined) return; // boxes 非空已判（不可达兜底）
         const boxNode = getNode(boxId);
         const existing = (boxNode?.data?.images as Array<{ url?: string }> | undefined) || [];
         const existingUrls = new Set(existing.map((x) => x.url));
@@ -208,6 +211,7 @@ function Director3DNode({ id, data, selected }: Director3DNodeProps) {
       if (targets.length > 0) {
         // 已有下游 AssetNode：写最近导出视频
         const targetId = targets[0];
+        if (targetId === undefined) return; // 非空已判（不可达兜底）
         // 主图写回走唯一入口；assetType 随同一次不可变更新写下去。
         replaceNodeImage(
           { id: targetId, dataUrl: lastUrl, dataPatch: { assetType: 'video' } },

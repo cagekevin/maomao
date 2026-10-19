@@ -54,6 +54,7 @@ export class HistoryStack<T = unknown> {
     if (this.index <= 0) return null;
     this.suppress = true;
     const snap = this.history[this.index - 1];
+    if (snap === undefined) return null; // index > 0 已判（不可达兜底）
     this.index -= 1;
     this.branchRef = this.index;
     return snap;
@@ -64,6 +65,7 @@ export class HistoryStack<T = unknown> {
     if (this.index >= this.history.length - 1) return null;
     this.suppress = true;
     const snap = this.history[this.index + 1];
+    if (snap === undefined) return null; // index < length - 1 已判（不可达兜底）
     this.index += 1;
     this.branchRef = this.index;
     return snap;

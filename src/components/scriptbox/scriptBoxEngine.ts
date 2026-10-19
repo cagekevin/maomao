@@ -629,6 +629,7 @@ export function createScriptBoxEngine({
     while (next < target.length) {
       const asset = target[next];
       next += 1;
+      if (asset === undefined) break; // next < target.length（不可达兜底）
       const p = onGenerateAssetImage(asset.id).finally(() => pool.delete(p));
       pool.add(p);
       if (pool.size >= MAX_CONCURRENT) {
@@ -849,6 +850,7 @@ export function createScriptBoxEngine({
     while (next < target.length) {
       const shot = target[next];
       next += 1;
+      if (shot === undefined) break; // next < target.length（不可达兜底）
       const p = genShot(shot).finally(() => pool.delete(p));
       pool.add(p);
       if (pool.size >= MAX_CONCURRENT) {
@@ -1425,8 +1427,10 @@ export function createScriptBoxEngine({
     const refImages = images.map((im) =>
       im && im.url ? { ...im, url: toAbsoluteFileUrl(im.url) } : im,
     );
-    const { size } = shotPrefill(picked[0], 'video');
-    const firstIdx = picked[0]?.index,
+    const firstPicked = picked[0];
+    if (firstPicked === undefined) return; // 非空已判（不可达兜底）
+    const { size } = shotPrefill(firstPicked, 'video');
+    const firstIdx = firstPicked.index,
       lastIdx = picked[picked.length - 1]?.index;
     const label =
       firstIdx != null && lastIdx != null
@@ -1493,7 +1497,7 @@ export function createScriptBoxEngine({
             {
               id: `e-${nodeId}-${nodeId2}`,
               source: nodeId,
-              sourceHandle: shotHandleId(picked[0].id ?? ''),
+              sourceHandle: shotHandleId(firstPicked.id ?? ''),
               target: nodeId2,
               type: 'default',
               animated: false,
@@ -1537,6 +1541,7 @@ export function createScriptBoxEngine({
       return;
     }
     const prevShot = shots[idx - 1];
+    if (prevShot === undefined) return; // idx >= 1 已判（不可达兜底）
     const videoUrl = findPrevShotVideoUrl(String(prevShot.id));
     if (!videoUrl) {
       toast('未找到上一镜的视频结果，请先生成上一镜视频');
@@ -1775,10 +1780,18 @@ export function dialogueLines(dialogue?: Dialogue[] | string | null): string {
       const t = e.trim();
       if (!t) return '';
       const n = t.match(/^\[([^|\]]*)\|([^\]]*)\]\s?(.*)$/);
-      if (n)
-        return `${n[1] === '旁白' ? '旁白' : `说话者：${n[2] || '未指定角色'}`}，完整原句：${n[3]}`;
+      if (n) {
+        const [, role, speaker, sentence] = n;
+        if (role !== undefined && speaker !== undefined && sentence !== undefined) {
+          return `${role === '旁白' ? '旁白' : `说话者：${speaker || '未指定角色'}`}，完整原句：${sentence}`;
+        }
+      }
       const r = t.match(/^([^：:]+)\s*[：:]\s*(.*)$/);
-      if (r) return `说话者：${r[1].trim()}，完整原句：${r[2]}`;
+      if (r) {
+        const [, who, said] = r;
+        if (who !== undefined && said !== undefined)
+          return `说话者：${who.trim()}，完整原句：${said}`;
+      }
       return `完整原句：${t}`;
     })
     .filter(Boolean)
@@ -2032,8 +2045,9 @@ export function assembleShotUser(
 
   // ── 眼线锁定（≥2 角色时，对齐官方 x）──
   if (chars.length >= 2) {
+    const leadName = chars[0]?.name ?? '核心人物'; // chars.length >= 2（不可达兜底）
     rows.push(
-      `【眼线锁定（时间轴内严格执行，角色之间不得乱对视）】：\n- 核心人物 @${chars[0].name}：本镜视线目标根据「画面描述」执行，最后 0.8 秒扫过全场并停在叙事钩点上。\n- 其他角色（压迫位/背景位）：眼线全程只锁 @${chars[0].name} 的脸、手或关键道具，彼此绝对不准对视、不准交流、不准互看；背景位人物不得突然转头或有大动作。`,
+      `【眼线锁定（时间轴内严格执行，角色之间不得乱对视）】：\n- 核心人物 @${leadName}：本镜视线目标根据「画面描述」执行，最后 0.8 秒扫过全场并停在叙事钩点上。\n- 其他角色（压迫位/背景位）：眼线全程只锁 @${leadName} 的脸、手或关键道具，彼此绝对不准对视、不准交流、不准互看；背景位人物不得突然转头或有大动作。`,
     );
   }
 

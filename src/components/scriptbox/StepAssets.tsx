@@ -57,6 +57,9 @@ export default function StepAssets({ data, updateData, callbacks }: StepAssetsPr
   const [picking, setPicking] = useState<number | null>(null);
   // 缩略图显示复用系统统一按需出图出口（与 AssetNode 一致），不再各自落盘独立缩略图文件
   const render = useRenderAssetResolver();
+  // 选中资产派生一次：JSX 条件与闭包里都用它，避免重复 `assets[idx]` 触发 nua
+  const editingAsset = editIdx === null ? undefined : assets[editIdx];
+  const pickingAsset = picking === null ? undefined : assets[picking];
 
   // 【§五 #5／§七 #6 收口】类别清单与中文名派生自唯一真源 `ASSET_CATEGORY_META`（`@/types`）；
   // 只有"图标"是 UI 本地资产 ⇒ 用 `Record<AssetCategory, …>` 保证**新增类别漏配图标即编译红**。
@@ -164,14 +167,14 @@ export default function StepAssets({ data, updateData, callbacks }: StepAssetsPr
 
         {/* 右侧：固定编辑面板（选中资产时显示，不遮挡左侧资产） */}
         <div className="w-[340px] shrink-0 border-l border-edge-faint pl-3 min-h-0 overflow-visible">
-          {editIdx !== null && assets[editIdx] ? (
+          {editIdx !== null && editingAsset !== undefined ? (
             <AssetPanel
-              key={assets[editIdx].id}
-              asset={assets[editIdx]}
+              key={editingAsset.id}
+              asset={editingAsset}
               idx={editIdx}
               data={d}
               updateData={updateData}
-              onGen={() => callbacks.onGenerateAssetImage?.(assets[editIdx].id)}
+              onGen={() => callbacks.onGenerateAssetImage?.(editingAsset.id)}
               onClose={() => setEditIdx(null)}
             />
           ) : (
@@ -188,16 +191,16 @@ export default function StepAssets({ data, updateData, callbacks }: StepAssetsPr
       {/* 从素材库选择：按资产类别锁文件夹（人物/场景/道具），点选一张图设为该资产参考图。
           这里直接用 updateData 写回 assets（不依赖 node.data 上是否注入 onPickAssetImage），
           保证选完图一定能写进该资产并显示。 */}
-      {picking !== null && assets[picking] && (
+      {picking !== null && pickingAsset !== undefined && (
         <ScriptBoxAssetPicker
-          folder={resourceFolderOf(assets[picking].category)}
+          folder={resourceFolderOf(pickingAsset.category)}
           onClose={() => setPicking(null)}
           onPick={(url) => {
             if (url) {
               const abs = toAbsoluteFileUrl(url);
               updateData({
                 assets: assets.map((a) =>
-                  a.id === assets[picking].id
+                  a.id === pickingAsset.id
                     ? {
                         ...a,
                         assetUrl: abs,

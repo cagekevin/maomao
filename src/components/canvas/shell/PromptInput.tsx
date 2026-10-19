@@ -358,13 +358,12 @@ function PromptInput({
         return true;
       }
     }
-    if (
-      node.nodeType === Node.ELEMENT_NODE &&
-      offset > 0 &&
-      isChipEl(node.childNodes[offset - 1])
-    ) {
-      node.childNodes[offset - 1].remove();
-      return true;
+    if (node.nodeType === Node.ELEMENT_NODE && offset > 0) {
+      const prevChild = node.childNodes[offset - 1];
+      if (prevChild !== undefined && isChipEl(prevChild)) {
+        prevChild.remove();
+        return true;
+      }
     }
     if (
       node.nodeType === Node.TEXT_NODE &&
@@ -576,7 +575,8 @@ function PromptInput({
         if (filtered.length > 0) {
           e.preventDefault();
           const idx = Math.min(activeIndex, filtered.length - 1);
-          handleSelectMention(filtered[idx]);
+          const selected = filtered[idx];
+          if (selected !== undefined) handleSelectMention(selected); // idx 已夹取（不可达）
           return;
         }
       }

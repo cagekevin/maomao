@@ -87,22 +87,24 @@ export function extractStructuralSnapshot(
  */
 export function isSameStructure(a: StructuralSnapshot, b: StructuralSnapshot): boolean {
   if (a.nodes.length !== b.nodes.length || a.edges.length !== b.edges.length) return false;
-  for (let i = 0; i < a.nodes.length; i++) {
-    const x = a.nodes[i];
+  for (const [i, x] of a.nodes.entries()) {
     const y = b.nodes[i];
+    if (y === undefined) return false; // 长度已判相等（不可达兜底）
     if (x.id !== y.id || x.type !== y.type || (x.parentId ?? '') !== (y.parentId ?? '')) {
       return false;
     }
   }
-  for (let i = 0; i < a.edges.length; i++) {
-    const x = a.edges[i];
+  for (const [i, x] of a.edges.entries()) {
     const y = b.edges[i];
+    if (y === undefined) return false; // 长度已判相等（不可达兜底）
     if (
       x.id !== y.id ||
       x.source !== y.source ||
       x.target !== y.target ||
       (x.sourceHandle ?? '') !== (y.sourceHandle ?? '') ||
-      (y.targetHandle ?? '') !== (y.targetHandle ?? '')
+      // 【2026-10-19 修正】原为 `(y.targetHandle) !== (y.targetHandle)`（自比较恒 false），
+      // 导致 targetHandle 变化被判「结构未变」而漏入栈。改为 x vs y。
+      (x.targetHandle ?? '') !== (y.targetHandle ?? '')
     ) {
       return false;
     }

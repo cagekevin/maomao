@@ -111,8 +111,8 @@ export function injectNodePrefs(type: string, data: NodePrefsMap): NodePrefsMap 
   const fieldMap = PREFS_FIELDS[type as NodeTypeKey];
   if (!fieldMap) return data;
   const prefs = getNodePrefs(type, PREFS_DEFAULTS[type as NodeTypeKey] ?? {});
-  for (const dataKey of Object.keys(fieldMap)) {
-    if (data[dataKey] === undefined) data[dataKey] = prefs[fieldMap[dataKey]];
+  for (const [dataKey, prefKey] of Object.entries(fieldMap)) {
+    if (data[dataKey] === undefined) data[dataKey] = prefs[prefKey];
   }
   return data;
 }

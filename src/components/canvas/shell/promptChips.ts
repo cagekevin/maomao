@@ -219,13 +219,17 @@ export function renderPromptToNodes(text: string, metaMap?: Map<string, ChipMeta
   while ((match = re.exec(text)) !== null) {
     pushTextWithBreaks(text.slice(lastIndex, match.index));
     const id = match[1];
+    if (id === undefined) {
+      lastIndex = re.lastIndex; // 正则第 1 组缺失（不可达）：推进游标防死循环
+      continue;
+    }
     const meta = metaMap ? metaMap.get(id) : undefined;
     // label：优先 metaMap 的当前名（上游改名后字符串里是旧名，metaMap 是新的）
-    const label = (meta && meta.label && String(meta.label).trim()) || match[2];
+    const label = (meta && meta.label && String(meta.label).trim()) || match[2] || '';
     // kind：字符串自带缩略图 → 必为图片；否则以 metaMap 为准，再回落文本
     const url = match[3] ? decodeThumb(match[3]) : meta?.url || '';
-    const kind = url ? 'image' : meta?.kind || 'text';
-    pushChip(buildChipEl(id, label, kind as 'image' | 'text', url));
+    const kind: 'image' | 'text' = url ? 'image' : meta?.kind === 'image' ? 'image' : 'text';
+    pushChip(buildChipEl(id, label, kind, url));
     lastIndex = re.lastIndex;
   }
   pushTextWithBreaks(text.slice(lastIndex));
@@ -377,6 +381,10 @@ export function findAutoLinkOccurrences(
   let m: RegExpExecArray | null;
   while ((m = re.exec(text)) !== null) {
     const name = m[1];
+    if (name === undefined) {
+      re.lastIndex = m.index + m[0].length; // 第 1 组缺失（不可达）：推进防死循环
+      continue;
+    }
     const asset = byName.get(name);
     if (asset) {
       out.push({ start: m.index, end: m.index + m[0].length, name, asset });
@@ -510,7 +518,7 @@ export function commitOccurrencesInRun(
   // 若 run 末段仍是非芯片文本（如被延迟的 open query），落点 = 该文本内相对偏移。
   if (caretOffset >= 0) {
     const lastOcc = toCommit[toCommit.length - 1];
-    const rel = caretOffset - lastOcc.end;
+    const rel = caretOffset - (lastOcc?.end ?? 0); // 无命中 ⇒ 相对 run 起点
     const parentEl = parent as HTMLElement;
     const chips = parentEl.querySelectorAll('[data-ref-id]');
     const lastChip = chips[chips.length - 1];
