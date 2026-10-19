@@ -9,6 +9,8 @@
 // 另含：迁移幂等性、keyframeMaxFrame/clampKeyframeFrames 通道化适配、写入口 upsert/remove、读侧桥 flatten。
 // 依赖均为纯函数，node 环境可跑（npm run test:unit:logic）。
 import { describe, it, expect } from 'vitest';
+import { at } from '../helpers/at';
+import { channelOf, trackOf } from '../helpers/tracks';
 import { presetJoints } from '../../src/components/director3d/rig.ts';
 import type { ChannelTracks, ChannelKey } from '../../src/components/director3d/project.ts';
 import {
@@ -176,33 +178,42 @@ describe('M1.1 实体·通道注册表 ENTITY_CHANNELS', () => {
 
 describe('M1.2 整快照 → 通道 key（snapshotToChannelKeys）', () => {
   it('人物整快照按 transform/action/skeleton 拆包，fields 无跨通道混入（M1-C1）', () => {
-    const keys = snapshotToChannelKeys('person', legacyPersonKeys[0], 0, 'smooth');
+    const keys = snapshotToChannelKeys('person', at(legacyPersonKeys, 0), 0, 'smooth');
     expect(Object.keys(keys).sort()).toEqual(['action', 'skeleton', 'transform']);
-    expect(keys.transform[0].fields).toEqual({
+    expect(at(channelOf(keys, 'transform'), 0).fields).toEqual({
       position: [-1.25, 0, 0.3],
       rotation: [0, 0.25, 0],
       scale: [1, 1, 1],
     });
-    expect(Object.keys(keys.action[0].fields!).sort()).toEqual(['pose', 'poseTime']);
-    expect(Object.keys(keys.skeleton[0].fields!).sort()).toEqual(['joints', 'rigRoot']);
+    expect(Object.keys(at(channelOf(keys, 'action'), 0).fields!).sort()).toEqual([
+      'pose',
+      'poseTime',
+    ]);
+    expect(Object.keys(at(channelOf(keys, 'skeleton'), 0).fields!).sort()).toEqual([
+      'joints',
+      'rigRoot',
+    ]);
     // 反例：transform.fields 里不得出现动作/骨骼字段
     // objectState（continuousMotion）不进任何通道（47）
-    expect(keys.action[0].fields!.continuousMotion).toBeUndefined();
-    expect(keys.transform[0].fields!.pose).toBeUndefined();
-    expect(keys.transform[0].fields!.joints).toBeUndefined();
+    expect(at(channelOf(keys, 'action'), 0).fields!.continuousMotion).toBeUndefined();
+    expect(at(channelOf(keys, 'transform'), 0).fields!.pose).toBeUndefined();
+    expect(at(channelOf(keys, 'transform'), 0).fields!.joints).toBeUndefined();
   });
 
   it('摄像机整快照拆为 transform + lens（镜头通道独立）', () => {
-    const keys = snapshotToChannelKeys('camera', legacyCamKeys[0], 0, 'smooth');
+    const keys = snapshotToChannelKeys('camera', at(legacyCamKeys, 0), 0, 'smooth');
     expect(Object.keys(keys).sort()).toEqual(['lens', 'transform']);
-    expect(keys.transform[0].fields).toEqual({ position: [7.4, 4.6, 8.2], rotation: [0.3, 0, 0] });
-    expect(keys.lens[0].fields).toEqual({ focalLength: 42 });
+    expect(at(channelOf(keys, 'transform'), 0).fields).toEqual({
+      position: [7.4, 4.6, 8.2],
+      rotation: [0.3, 0, 0],
+    });
+    expect(at(channelOf(keys, 'lens'), 0).fields).toEqual({ focalLength: 42 });
   });
 
   it('普通物体整快照只产生 transform 通道（pose 等无效字段被收敛掉）', () => {
-    const keys = snapshotToChannelKeys('object', legacyBoxKeys[0], 0, 'smooth');
+    const keys = snapshotToChannelKeys('object', at(legacyBoxKeys, 0), 0, 'smooth');
     expect(Object.keys(keys)).toEqual(['transform']);
-    expect(keys.transform[0].fields).toEqual({
+    expect(at(channelOf(keys, 'transform'), 0).fields).toEqual({
       position: [1.4, 0.45, -0.8],
       rotation: [0, -0.18, 0],
       scale: [1, 1, 1],
@@ -212,17 +223,17 @@ describe('M1.2 整快照 → 通道 key（snapshotToChannelKeys）', () => {
   it('通道内 key 支持部分字段：只含 position 的 key 不落 rotation（M1-C3）', () => {
     const keys = snapshotToChannelKeys('person', { position: [1, 2, 3] }, 5, 'smooth');
     expect(Object.keys(keys)).toEqual(['transform']);
-    expect(keys.transform[0].fields).toEqual({ position: [1, 2, 3] });
-    expect(keys.transform[0].fields!.rotation).toBeUndefined();
+    expect(at(channelOf(keys, 'transform'), 0).fields).toEqual({ position: [1, 2, 3] });
+    expect(at(channelOf(keys, 'transform'), 0).fields!.rotation).toBeUndefined();
   });
 
   it('插值方式随 key 透传（M1-C3 语义的一部分）', () => {
     const keys = snapshotToChannelKeys('person', legacyPersonKeys[1], 24, 'linear');
-    expect(keys.transform[0].interpolation).toBe('linear');
+    expect(at(channelOf(keys, 'transform'), 0).interpolation).toBe('linear');
   });
 
   it('未知实体类型回退到 object（默认仅 transform）', () => {
-    const keys = snapshotToChannelKeys('alien', legacyBoxKeys[0], 0, 'smooth');
+    const keys = snapshotToChannelKeys('alien', at(legacyBoxKeys, 0), 0, 'smooth');
     expect(Object.keys(keys)).toEqual(['transform']);
   });
 });
@@ -235,13 +246,13 @@ describe('读侧桥 channelsToSnapshotKeys（M2 求值器落地前的过渡）',
       { 'actor-lead': legacyPersonKeys },
       { 'actor-lead': 'person' },
     );
-    const flat = channelsToSnapshotKeys('person', channels['actor-lead']);
+    const flat = channelsToSnapshotKeys('person', trackOf(channels, 'actor-lead'));
     expect(flat.map((key) => key.frame)).toEqual([0, 24, 48]);
-    expect(flat[0].pose).toBe('walk');
-    expect(flat[0].position).toEqual([-1.25, 0, 0.3]);
-    expect(flat[0].rigRoot).toEqual([0, 0, 0]);
-    expect(flat[0].joints).toEqual(presetJoints('walk'));
-    expect(flat[1].interpolation).toBe('linear');
+    expect(at(flat, 0).pose).toBe('walk');
+    expect(at(flat, 0).position).toEqual([-1.25, 0, 0.3]);
+    expect(at(flat, 0).rigRoot).toEqual([0, 0, 0]);
+    expect(at(flat, 0).joints).toEqual(presetJoints('walk'));
+    expect(at(flat, 1).interpolation).toBe('linear');
   });
 
   it('snapshotKeysForTrack 对已通道化/旧数组输入均返回整快照数组', () => {
@@ -249,8 +260,8 @@ describe('读侧桥 channelsToSnapshotKeys（M2 求值器落地前的过渡）',
       { 'actor-lead': legacyPersonKeys },
       { 'actor-lead': 'person' },
     );
-    expect(snapshotKeysForTrack(channels['actor-lead'], 'person')).toEqual(
-      channelsToSnapshotKeys('person', channels['actor-lead']),
+    expect(snapshotKeysForTrack(trackOf(channels, 'actor-lead'), 'person')).toEqual(
+      channelsToSnapshotKeys('person', trackOf(channels, 'actor-lead')),
     );
     expect(snapshotKeysForTrack(legacyPersonKeys, 'person')).toEqual(
       legacyPersonKeys.map((key) => ({ ...key })),
@@ -269,7 +280,10 @@ describe('M1-C6 旧整快照无损迁移 → 播放逐帧一致', () => {
       { 'actor-lead': legacyPersonKeys },
       { 'actor-lead': 'person' },
     );
-    const flatBack = channelsToSnapshotKeys('person', channels['actor-lead']) as ChannelKey[];
+    const flatBack = channelsToSnapshotKeys(
+      'person',
+      trackOf(channels, 'actor-lead'),
+    ) as ChannelKey[];
     const migratedResults = sampleFrames.map((frame) => objectAtFrame(person, flatBack, frame, 24));
     expect(migratedResults).toEqual(legacyResults);
   });
@@ -395,7 +409,7 @@ describe('归一化与通道化工具（幂等/统计/clamp/写入口）', () =>
       { 'actor-lead': legacyPersonKeys },
       { 'actor-lead': 'person' },
     );
-    expect(countChannelKeyframes(channels['actor-lead'])).toBe(3);
+    expect(countChannelKeyframes(trackOf(channels, 'actor-lead'))).toBe(3);
     expect(countChannelKeyframes(legacyPersonKeys)).toBe(3);
     expect(countChannelKeyframes({})).toBe(0);
     expect(countChannelKeyframes([])).toBe(0);
@@ -416,7 +430,7 @@ describe('归一化与通道化工具（幂等/统计/clamp/写入口）', () =>
       { 'actor-lead': legacyPersonKeys },
       { 'actor-lead': 'person' },
     );
-    const clamped = clampKeyframeFrames(channels['actor-lead'], 30);
+    const clamped = clampKeyframeFrames(trackOf(channels, 'actor-lead'), 30);
     const frames = Object.values(clamped).flatMap((list) =>
       (list as ChannelKey[]).map((key: ChannelKey) => key.frame),
     );
@@ -430,7 +444,7 @@ describe('归一化与通道化工具（幂等/统计/clamp/写入口）', () =>
     let channels: ChannelTracks = {};
     channels = upsertChannelKeys(
       channels,
-      snapshotToChannelKeys('person', legacyPersonKeys[0], 0, 'smooth'),
+      snapshotToChannelKeys('person', at(legacyPersonKeys, 0), 0, 'smooth'),
     );
     channels = upsertChannelKeys(
       channels,
@@ -439,17 +453,17 @@ describe('归一化与通道化工具（幂等/统计/clamp/写入口）', () =>
     expect(countChannelKeyframes(channels)).toBe(2);
     expect(Object.keys(channels).sort()).toEqual(['action', 'skeleton', 'transform']);
     // 同帧重写：只更新该帧、不新增
-    const overwrite = { ...legacyPersonKeys[0], position: [9, 9, 9] };
+    const overwrite = { ...at(legacyPersonKeys, 0), position: [9, 9, 9] };
     channels = upsertChannelKeys(channels, snapshotToChannelKeys('person', overwrite, 0, 'smooth'));
     expect(countChannelKeyframes(channels)).toBe(2);
-    expect(channels.transform[0].fields!.position).toEqual([9, 9, 9]);
+    expect(at(channelOf(channels, 'transform'), 0).fields!.position).toEqual([9, 9, 9]);
   });
 
   it('removeChannelFrames：从所有通道删除指定帧', () => {
     let channels: ChannelTracks = {};
     channels = upsertChannelKeys(
       channels,
-      snapshotToChannelKeys('person', legacyPersonKeys[0], 0, 'smooth'),
+      snapshotToChannelKeys('person', at(legacyPersonKeys, 0), 0, 'smooth'),
     );
     channels = upsertChannelKeys(
       channels,
@@ -457,14 +471,14 @@ describe('归一化与通道化工具（幂等/统计/clamp/写入口）', () =>
     );
     const removed = removeChannelFrames(channels, [24]);
     expect(countChannelKeyframes(removed)).toBe(1);
-    expect(removed.transform[0].frame).toBe(0);
+    expect(at(channelOf(removed, 'transform'), 0).frame).toBe(0);
   });
 
   it('moveChannelFrames：把某帧在所有通道整体平移为另一帧', () => {
     let channels: ChannelTracks = {};
     channels = upsertChannelKeys(
       channels,
-      snapshotToChannelKeys('person', legacyPersonKeys[0], 0, 'smooth'),
+      snapshotToChannelKeys('person', at(legacyPersonKeys, 0), 0, 'smooth'),
     );
     channels = upsertChannelKeys(
       channels,
