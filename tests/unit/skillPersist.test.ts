@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { at } from '../helpers/at';
 
 // skillApi 是唯一网络边界：桩掉它，本测试锁的是**写路径的顺序语义**（落盘优先 / 失败不动缓存）。
 const api = vi.hoisted(() => ({
@@ -73,12 +74,12 @@ describe('saveSkillToDisk（先落盘成功，才回写缓存）', () => {
     ];
     expect(category).toBe(UNSORTED_GROUP);
     expect(slug).toBe('我的技能');
-    expect(files[0].content).toMatch(/^---\nid: [0-9a-f-]{36}\n/);
+    expect(at(files, 0).content).toMatch(/^---\nid: [0-9a-f-]{36}\n/);
 
     const list = readSkillList().list as Array<Record<string, unknown>>;
     expect(list).toHaveLength(1);
-    expect(list[0].name).toBe('我的技能');
-    expect(list[0].content).toBe('正文');
+    expect(at(list, 0).name).toBe('我的技能');
+    expect(at(list, 0).content).toBe('正文');
   });
 
   it('更新既有：先读整包，只替换 SKILL.md（references 原样保住）', async () => {
@@ -123,9 +124,9 @@ describe('saveSkillToDisk（先落盘成功，才回写缓存）', () => {
     expect(files.find((f) => f.relPath === 'SKILL.md')?.content).toContain('新正文');
     // id 保持（改名换组都不该换身份）
     const list = readSkillList().list as Array<Record<string, unknown>>;
-    expect(list[0].id).toBe('id-1');
-    expect(list[0].description).toBe('新描述');
-    expect(list[0].aliases).toEqual(['skill_old']); // 缓存里"磁盘上没有"的字段要带过
+    expect(at(list, 0).id).toBe('id-1');
+    expect(at(list, 0).description).toBe('新描述');
+    expect(at(list, 0).aliases).toEqual(['skill_old']); // 缓存里"磁盘上没有"的字段要带过
   });
 
   it('更新时保留磁盘上原有的 frontmatter（未知字段不被一次保存抹掉）', async () => {
@@ -164,7 +165,7 @@ describe('saveSkillToDisk（先落盘成功，才回写缓存）', () => {
     });
 
     expect(r.ok).toBe(true);
-    const files = api.save.mock.calls[0][2] as Array<{ relPath: string; content: string }>;
+    const files = at(api.save.mock.calls, 0)[2] as Array<{ relPath: string; content: string }>;
     const md = files.find((f) => f.relPath === 'SKILL.md')?.content || '';
     expect(md).toContain('x-author: 张三'); // 未知字段带过
     expect(md).toContain('version: 2'); // 已知但本次没传的字段也带过
@@ -191,8 +192,8 @@ describe('saveSkillToDisk（先落盘成功，才回写缓存）', () => {
     expect(r.ok === false && r.message).toContain('磁盘只读');
     expect(r.ok === false && 'diskWritten' in r && r.diskWritten).toBeFalsy();
     const list = readSkillList().list as Array<Record<string, unknown>>;
-    expect(list[0].description).toBe('旧描述'); // 没写盘就不许动缓存
-    expect(list[0].content).toBe('旧正文');
+    expect(at(list, 0).description).toBe('旧描述'); // 没写盘就不许动缓存
+    expect(at(list, 0).content).toBe('旧正文');
   });
 
   it('磁盘已写成功但缓存回写失败 ⇒ 不谎报成功（diskWritten 标记）', async () => {
@@ -268,7 +269,7 @@ describe('分组（组 = 技能库一级目录；新建时选组 / 编辑时换�
     expect(category).toBe('客户项目');
     expect(slug).toBe('客户海报');
     const list = readSkillList().list as Array<Record<string, unknown>>;
-    expect(list[0].category).toBe('客户项目');
+    expect(at(list, 0).category).toBe('客户项目');
   });
 
   it('分组名里的路径敌意字符被安全化（不许借组名越界，也不许前导点）', async () => {
@@ -312,12 +313,12 @@ describe('分组（组 = 技能库一级目录；新建时选组 / 编辑时换�
     });
 
     expect(r.ok).toBe(true);
-    expect(api.save.mock.calls[0][0]).toBe('视频类'); // 新位置
+    expect(at(api.save.mock.calls, 0)[0]).toBe('视频类'); // 新位置
     expect(api.del).toHaveBeenCalledWith('图片类', '漫画生成'); // 再删旧位置
     const list = readSkillList().list as Array<Record<string, unknown>>;
-    expect(list[0].category).toBe('视频类');
-    expect(list[0].slug).toBe('漫画生成');
-    expect(list[0].id).toBe('id-1'); // 换组不换身份（绑定/启用态都指着它）
+    expect(at(list, 0).category).toBe('视频类');
+    expect(at(list, 0).slug).toBe('漫画生成');
+    expect(at(list, 0).id).toBe('id-1'); // 换组不换身份（绑定/启用态都指着它）
   });
 
   it('输入的是**磁盘上已存在的分组名**（含 `*`）⇒ 原样落进去，不改名（TD-11-25）', async () => {
@@ -348,8 +349,8 @@ describe('分组（组 = 技能库一级目录；新建时选组 / 编辑时换�
 
     expect(r.ok).toBe(true);
     // 不许被 `slugifySkillName` 改成 `客户 项目`：那等于给一个真实存在的目录改名，技能会落到别处
-    expect(api.save.mock.calls[0][0]).toBe('客户*项目');
-    expect(api.save.mock.calls[0][1]).toBe('漫画生成'); // 只换组，目录名不动（身份是 id）
+    expect(at(api.save.mock.calls, 0)[0]).toBe('客户*项目');
+    expect(at(api.save.mock.calls, 0)[1]).toBe('漫画生成'); // 只换组，目录名不动（身份是 id）
   });
 
   it('输入的是**新名字** ⇒ 仍走安全化（不把"后端会拒的名字"甩给用户）', async () => {
@@ -363,7 +364,7 @@ describe('分组（组 = 技能库一级目录；新建时选组 / 编辑时换�
     });
 
     expect(r.ok).toBe(true);
-    expect(api.save.mock.calls[0][0]).toBe('新 组');
+    expect(at(api.save.mock.calls, 0)[0]).toBe('新 组');
   });
 
   it('清空「分组」框（显式空串）⇒ **移回未分组**（旧实现把空串与 undefined 折叠 ⇒ 永远移不回去）', async () => {
@@ -389,10 +390,10 @@ describe('分组（组 = 技能库一级目录；新建时选组 / 编辑时换�
     });
 
     expect(r.ok).toBe(true);
-    expect(api.save.mock.calls[0][0]).toBe(UNSORTED_GROUP); // 落到未分类
+    expect(at(api.save.mock.calls, 0)[0]).toBe(UNSORTED_GROUP); // 落到未分类
     expect(api.del).toHaveBeenCalledWith('图片类', '漫画生成'); // 旧位置此时才删（新位置写成功之后）
     const list = readSkillList().list as Array<Record<string, unknown>>;
-    expect(list[0].category).toBe(UNSORTED_GROUP);
+    expect(at(list, 0).category).toBe(UNSORTED_GROUP);
   });
 
   it('没提分组（`undefined`：导入 / 云写回）⇒ 保持既有分组不动（两态语义不同，不可折叠）', async () => {
@@ -416,7 +417,7 @@ describe('分组（组 = 技能库一级目录；新建时选组 / 编辑时换�
     });
 
     expect(r.ok).toBe(true);
-    expect(api.save.mock.calls[0][0]).toBe('图片类'); // 原地不动
+    expect(at(api.save.mock.calls, 0)[0]).toBe('图片类'); // 原地不动
     expect(api.del).not.toHaveBeenCalled();
   });
 
@@ -475,7 +476,7 @@ describe('分组（组 = 技能库一级目录；新建时选组 / 编辑时换�
     }
     // 缓存**不动**：磁盘上旧包还在，若把缓存改成新组就会出现"缓存说在视频类、磁盘图片类里也有一份"
     const list = readSkillList().list as Array<Record<string, unknown>>;
-    expect(list[0].category).toBe('图片类');
+    expect(at(list, 0).category).toBe('图片类');
   });
 });
 
@@ -519,7 +520,7 @@ describe('保存冲突（界面直接编辑磁盘 ⇒ 两个写者真实存在 �
       expect.unreachable('应当是冲突那一支');
     }
     expect(api.save).not.toHaveBeenCalled(); // 不静默覆盖：磁盘与索引都不许动
-    expect((readSkillList().list as Array<Record<string, unknown>>)[0].content).toBe('旧正文');
+    expect(at(readSkillList().list as Array<Record<string, unknown>>, 0).content).toBe('旧正文');
   });
 
   it('基线一致（磁盘没被动过）⇒ 正常保存，不报冲突', async () => {
@@ -641,8 +642,8 @@ describe('恢复 / 丢弃（索引里那份可能是最后一份正文 · TD-11-
     ];
     expect(category).toBe('图片类');
     expect(slug).toBe('漫画生成'); // ← 排除"它自己"的占用，才落得回原路径
-    expect(files[0].content).toContain('旧正文');
-    expect(files[0].content).toContain('id: id-1'); // 身份不变
+    expect(at(files, 0).content).toContain('旧正文');
+    expect(at(files, 0).content).toContain('id: id-1'); // 身份不变
   });
 
   it('落点目录名非法 ⇒ 在**产出点**就拒绝（`slug` 第二入口的围栏，TD-11-53）', async () => {

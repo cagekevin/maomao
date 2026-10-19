@@ -8,6 +8,8 @@
 //   M4-C6 混合轨迁移规则：①路径帧无姿态残留 ②手动帧字段完整迁入 ③路径启用时 position=路径、动作/骨骼不丢
 // 依赖均为纯函数，node 环境可跑（npm run test:unit:logic）。
 import { describe, it, expect } from 'vitest';
+import { at } from '../helpers/at';
+import { channelOf, trackOf } from '../helpers/tracks';
 import { cloneJointPose } from '../../src/components/director3d/rig.ts';
 import {
   objectAtFrame,
@@ -141,7 +143,7 @@ describe('M4-C1 writeObjectTrack 统一写入口', () => {
   it('upsert 增/改一帧：同帧覆盖（整体替换该帧 key）', () => {
     const keys = snapshotToChannelKeys('person', { frame: 10, position: [1, 0, 0] }, 10, 'linear');
     const tracks = writeObjectTrack({}, 'actor-lead', { op: 'upsert', keys });
-    expect(tracks['actor-lead'].transform[0]).toEqual({
+    expect(at(channelOf(trackOf(tracks, 'actor-lead'), 'transform'), 0)).toEqual({
       frame: 10,
       interpolation: 'linear',
       fields: { position: [1, 0, 0] },
@@ -154,9 +156,11 @@ describe('M4-C1 writeObjectTrack 统一写入口', () => {
       'smooth',
     );
     const after = writeObjectTrack(tracks, 'actor-lead', { op: 'upsert', keys: replaceKeys });
-    expect(after['actor-lead'].transform).toHaveLength(1);
-    expect(after['actor-lead'].transform[0].interpolation).toBe('smooth');
-    expect(after['actor-lead'].transform[0].fields).toEqual({
+    expect(channelOf(trackOf(after, 'actor-lead'), 'transform')).toHaveLength(1);
+    expect(at(channelOf(trackOf(after, 'actor-lead'), 'transform'), 0).interpolation).toBe(
+      'smooth',
+    );
+    expect(at(channelOf(trackOf(after, 'actor-lead'), 'transform'), 0).fields).toEqual({
       position: [9, 0, 0],
       rotation: [0, 1, 0],
       scale: [1, 1, 1],
@@ -180,7 +184,7 @@ describe('M4-C1 writeObjectTrack 统一写入口', () => {
     );
     const tracks = writeObjectTrack({}, 'actor-lead', { op: 'upsert', keys });
     const moved = writeObjectTrack(tracks, 'actor-lead', { op: 'move', from: 10, to: 20 });
-    expect(moved['actor-lead'].transform[0].frame).toBe(20);
+    expect(at(channelOf(trackOf(moved, 'actor-lead'), 'transform'), 0).frame).toBe(20);
   });
 
   it('interpolation 改该帧插值（各通道一致）', () => {
@@ -196,8 +200,8 @@ describe('M4-C1 writeObjectTrack 统一写入口', () => {
       frame: 10,
       value: 'hold',
     });
-    for (const list of Object.values(updated['actor-lead'])) {
-      expect(list[0].interpolation).toBe('hold');
+    for (const list of Object.values(trackOf(updated, 'actor-lead'))) {
+      expect(at(list, 0).interpolation).toBe('hold');
     }
   });
 
@@ -217,8 +221,8 @@ describe('M4-C1 writeObjectTrack 统一写入口', () => {
     const next = setChannelInterpolation(channels, 10, 'hold') as unknown as {
       transform: Array<{ interpolation: string }>;
     };
-    expect(next.transform[0].interpolation).toBe('smooth');
-    expect(next.transform[1].interpolation).toBe('hold');
+    expect(at(next.transform, 0).interpolation).toBe('smooth');
+    expect(at(next.transform, 1).interpolation).toBe('hold');
   });
 });
 
@@ -259,12 +263,12 @@ describe('M4-C5 batch 原子性（路径 bake 先删旧帧再整批插新）', (
       ],
     });
 
-    const frames = batchResult!['actor-lead'].transform
+    const frames = channelOf(trackOf(batchResult!, 'actor-lead'), 'transform')
       .map((key) => key.frame)
       .sort((a, b) => a - b);
     expect(frames).toEqual([0, 24, 120, 240]); // 旧路径帧 0/60 被删，新增 120/240，手动帧 24 保留
-    expect(batchResult!['actor-lead'].action).toHaveLength(1);
-    const leadAction = batchResult!['actor-lead']!.action[0]!;
+    expect(channelOf(trackOf(batchResult!, 'actor-lead'), 'action')).toHaveLength(1);
+    const leadAction = at(channelOf(trackOf(batchResult!, 'actor-lead'), 'action'), 0);
     expect(leadAction.fields!.pose).toBe('run'); // 手动动作帧不丢
   });
 });
@@ -279,7 +283,7 @@ describe('M4-C2/C6 混合 legacy 轨迁移', () => {
     expect(migrated.action).toHaveLength(1);
     expect(migrated.skeleton).toHaveLength(1);
 
-    const transform = migrated.transform;
+    const transform = channelOf(migrated, 'transform');
     // ①路径帧无姿态残留：fields 只有 position（剥掉 pose/joints/rigRoot/rotation/scale）
     for (const pathFrame of [0, 60, 120, 180, 240]) {
       const key = transform.find((k) => k.frame === pathFrame);
@@ -292,13 +296,15 @@ describe('M4-C2/C6 混合 legacy 轨迁移', () => {
     expect(manualTransform!.fields!.position).toEqual([100, 0, 100]);
     expect(manualTransform!.fields!.scale).toEqual([1.2, 1, 1]);
     // ②手动帧完整迁入 action/skeleton 通道（continuousMotion 是 objectState，不落通道，见 47）
-    expect(migrated.action[0]).toEqual({
+    expect(at(channelOf(migrated, 'action'), 0)).toEqual({
       frame: 24,
       interpolation: 'smooth',
       fields: { pose: 'run', poseTime: 0.6 },
     });
     // cloneJointPose 恒返回全部登记关节（缺失补零），runJoints 注入值应在其中
-    expect(migrated.skeleton[0]!.fields!.joints).toEqual(cloneJointPose(runJoints));
+    expect(at(channelOf(migrated, 'skeleton'), 0).fields!.joints).toEqual(
+      cloneJointPose(runJoints),
+    );
   });
 
   it('③路径启用时 position=路径位置（忽略位置关键帧），动作/骨骼不丢', () => {

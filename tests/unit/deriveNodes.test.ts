@@ -1,4 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
+import { at } from '../helpers/at';
 import {
   buildSpawnNodes,
   commitNewNodes,
@@ -16,13 +17,13 @@ describe('buildSpawnNodes', () => {
     ]);
     expect(childNodes).toHaveLength(2);
     expect(edges).toHaveLength(2);
-    expect(edges[0].source).toBe('p1');
-    expect(edges[0].target).toBe(childNodes[0].id);
-    expect(edges[0].id).toBe(`e-p1-${childNodes[0].id}`);
+    expect(at(edges, 0).source).toBe('p1');
+    expect(at(edges, 0).target).toBe(at(childNodes, 0).id);
+    expect(at(edges, 0).id).toBe(`e-p1-${at(childNodes, 0).id}`);
     // 子节点自动偏移（默认 x=base.x+40，y 递增）
-    expect(childNodes[0].position.x).toBe(140);
-    expect(childNodes[0].position.y).toBe(240);
-    expect(childNodes[1].position.y).toBe(440);
+    expect(at(childNodes, 0).position.x).toBe(140);
+    expect(at(childNodes, 0).position.y).toBe(240);
+    expect(at(childNodes, 1).position.y).toBe(440);
   });
 
   it('保留显式 id 与自定义边选项（sourceHandle/targetHandle/type/animated）', () => {
@@ -36,18 +37,18 @@ describe('buildSpawnNodes', () => {
         animated: false,
       },
     );
-    expect(childNodes[0].id).toBe('c1');
-    expect(childNodes[0].position).toEqual({ x: 1, y: 2 });
-    expect(edges[0].sourceHandle).toBe('merged-output');
-    expect(edges[0].targetHandle).toBe(null);
-    expect(edges[0].type).toBe('default');
-    expect(edges[0].animated).toBe(false);
+    expect(at(childNodes, 0).id).toBe('c1');
+    expect(at(childNodes, 0).position).toEqual({ x: 1, y: 2 });
+    expect(at(edges, 0).sourceHandle).toBe('merged-output');
+    expect(at(edges, 0).targetHandle).toBe(null);
+    expect(at(edges, 0).type).toBe('default');
+    expect(at(edges, 0).animated).toBe(false);
   });
 
   it('不传子节点位置时基于父节点偏移', () => {
     const { childNodes } = buildSpawnNodes(parent, [{ type: 'a', data: {} }]);
-    expect(childNodes[0].position.x).toBe(140);
-    expect(childNodes[0].position.y).toBe(240);
+    expect(at(childNodes, 0).position.x).toBe(140);
+    expect(at(childNodes, 0).position.y).toBe(240);
   });
 });
 
@@ -75,9 +76,9 @@ describe('commitNewNodes / spawnAndCommit（建节点唯一原语，TD-04-2/04-1
       { nodes: [{ id: 'n1', type: 'imageGenerateNode', position: { x: 1, y: 2 }, data: {} }] },
       handles,
     );
-    expect(out[0].width).toBe(420);
-    expect(out[0].height).toBe(420);
-    expect(out[0].style).toEqual({ width: 420, height: 420 });
+    expect(at(out, 0).width).toBe(420);
+    expect(at(out, 0).height).toBe(420);
+    expect(at(out, 0).style).toEqual({ width: 420, height: 420 });
   });
 
   it('原子提交：setNodes/setEdges 追加 + history.record 一次（含节点与边）', () => {
@@ -93,7 +94,7 @@ describe('commitNewNodes / spawnAndCommit（建节点唯一原语，TD-04-2/04-1
     expect(handles.setNodes).toHaveBeenCalledTimes(1);
     expect(handles.setEdges).toHaveBeenCalledTimes(1);
     expect(handles.history.record).toHaveBeenCalledTimes(1);
-    const snap = handles.history.record.mock.calls[0][0];
+    const snap = at(handles.history.record.mock.calls, 0)[0];
     expect(snap.nodes.map((n: any) => n.id)).toEqual(['old', 'n1']);
     expect(snap.edges.map((e: any) => e.id)).toEqual(['e-n1']);
   });
