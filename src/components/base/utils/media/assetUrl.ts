@@ -111,7 +111,8 @@ export function toRelativeFileUrl(u: string | null | undefined): string | null {
   if (!u || typeof u !== 'string') return null;
   if (u.startsWith('/files/')) return u;
   const m = /^https?:\/\/[^/]+(\/files\/.*)$/.exec(u);
-  return m ? m[1] : null;
+  const path = m?.[1];
+  return path ?? null; // 未命中 = 非本地文件（正常结论）
 }
 
 /**

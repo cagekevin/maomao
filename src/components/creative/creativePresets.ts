@@ -124,6 +124,7 @@ export function collectPresetIds(prompt: string): string[] {
   let m: RegExpExecArray | null;
   while ((m = re.exec(prompt)) !== null) {
     const id = m[1];
+    if (id === undefined) continue; // 捕获组缺失（不可达；exec 已推进游标）
     if (isPresetId(id)) ids.push(id);
   }
   return ids;
@@ -148,8 +149,8 @@ export function syncCreativePresets(
   if (!dict) return {};
   const ids = new Set(collectPresetIds(prompt));
   const next: CreativePresetsDict = {};
-  for (const id of Object.keys(dict)) {
-    if (ids.has(id)) next[id] = dict[id];
+  for (const [id, entry] of Object.entries(dict)) {
+    if (entry !== undefined && ids.has(id)) next[id] = entry; // 缺项不入表（不可达）
   }
   return next;
 }

@@ -1352,6 +1352,7 @@ function Canvas() {
       // 仅当「连接无效（拖到空白）+ 有源节点和源端口」时弹菜单（官方判断）
       if (!t || t.isValid || !t.fromNode || !t.fromHandle) return;
       const point = 'changedTouches' in event ? event.changedTouches[0] : event;
+      if (point === undefined) return; // 无触点（不可达兜底）
       const { clientX, clientY } = point;
       if (clientX == null) return;
 

@@ -163,7 +163,11 @@ export function useSizeSync(
 export function parseAspect(aspectRatio?: string | null): number | null {
   if (!aspectRatio || aspectRatio === 'Auto') return null;
   const m = aspectRatio.match(/^(\d+(?:\.\d+)?)\s*[:：]\s*(\d+(?:\.\d+)?)$/);
-  return m ? parseFloat(m[1]) / parseFloat(m[2]) : null;
+  if (!m) return null;
+  const width = parseFloat(m[1] ?? '');
+  const height = parseFloat(m[2] ?? '');
+  // 正则已保证两组数字；高度 ≤0 视为非法比例（防除零）
+  return Number.isFinite(width) && Number.isFinite(height) && height > 0 ? width / height : null;
 }
 
 /**

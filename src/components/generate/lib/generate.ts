@@ -132,6 +132,7 @@ async function attachImages(
   // messages 为空的诚实判空：没有 user 消息可附加，直接原样返回
   if (userIdx < 0) return messages;
   const last = messages[userIdx];
+  if (last === undefined) return messages; // userIdx >= 0（不可达兜底）
   const contentArr: ChatContentBlock[] = Array.isArray(last.content)
     ? [...last.content]
     : [

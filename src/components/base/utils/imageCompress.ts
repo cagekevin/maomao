@@ -67,7 +67,7 @@ function inferMime(src: string): string | null {
   if (!src || typeof src !== 'string') return null;
   if (src.startsWith('data:')) {
     const m = /^data:([^;,]+)/.exec(src);
-    return m ? m[1] : null;
+    return m?.[1] ?? null; // 无 MIME 段 = 非合法 dataURL
   }
   if (src.startsWith('blob:')) return null; // blob: 拿不到类型（需 Blob.type，此处未知）
   // TD-16-14：原 `split('?')[0]` 只剥 `?` 不剥 `#`（`a.png#x` 查表失败）；

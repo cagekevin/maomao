@@ -293,7 +293,7 @@ function ReportView({
     ...projectSizes.map((p, i) => ({
       label: p.projectName,
       value: p.fileBytes,
-      color: PROJECT_COLORS[i % PROJECT_COLORS.length],
+      color: PROJECT_COLORS[i % PROJECT_COLORS.length] ?? '#64748b', // 调色板越界回退灰
     })),
     ...(sharedBytes > 0
       ? [{ label: '素材库 / 未归属', value: sharedBytes, color: '#64748b' }]
@@ -694,7 +694,7 @@ function DonutChart({ segments, total, size = 150 }: DonutChartProps) {
               fontSize="16"
               fontWeight="400"
             >
-              {slices[hoverIdx].pct.toFixed(0)}%
+              {(slices[hoverIdx]?.pct ?? 0).toFixed(0)}%
             </text>
             <text
               x={cx}
@@ -704,7 +704,7 @@ function DonutChart({ segments, total, size = 150 }: DonutChartProps) {
               fontSize="12"
               fontWeight="400"
             >
-              {formatBytes(slices[hoverIdx].value)}
+              {formatBytes(slices[hoverIdx]?.value ?? 0)}
             </text>
           </>
         ) : (

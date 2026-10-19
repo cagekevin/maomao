@@ -678,8 +678,9 @@ export default function SkillSettings() {
     const notes: string[] = [];
     if (skipped.length)
       notes.push(`跳过 ${skipped.length} 个非文本/超大文件（${skipped.slice(0, 3).join('、')}）`);
-    if (r.failed.length)
-      notes.push(`${r.failed.length} 个包失败（${r.failed[0].target}：${r.failed[0].message}）`);
+    const firstFailed = r.failed[0];
+    if (firstFailed !== undefined)
+      notes.push(`${r.failed.length} 个包失败（${firstFailed.target}：${firstFailed.message}）`);
     setNotice(
       r.imported.length
         ? `已导入 ${r.imported.length} 个技能包${notes.length ? `；${notes.join('；')}` : ''}`

@@ -946,7 +946,7 @@ export async function rehydrateStoresAfterCloudPull(): Promise<void> {
     if (res.status === 'rejected') {
       reportDegrade({
         layer: '云同步重水合',
-        key: rehydrators[i].label,
+        key: rehydrators[i]?.label ?? `#${i}`, // 与 results 同长（不可达兜底）
         e: res.reason as Error,
         toast: '云同步已完成，但本地部分数据刷新失败，建议刷新页面',
       });

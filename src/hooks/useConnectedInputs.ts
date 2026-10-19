@@ -177,7 +177,11 @@ export const NODE_OUTPUTS: Record<string, NodeOutputResolver> = {
       const url = objField(im, 'url');
       if (url) {
         const id = objField(im, 'id');
-        images.push({ ...(id !== undefined ? { id } : {}), url, label: objField(im, 'label') || '' });
+        images.push({
+          ...(id !== undefined ? { id } : {}),
+          url,
+          label: objField(im, 'label') || '',
+        });
       }
     }
     return { images };
@@ -423,9 +427,9 @@ export function collectUpstream(
 export function upstreamEqual(a: UpstreamRef[] | undefined, b: UpstreamRef[] | undefined): boolean {
   if (a === b) return true;
   if (!a || !b || a.length !== b.length) return false;
-  for (let i = 0; i < a.length; i++) {
-    const x = a[i];
+  for (const [i, x] of a.entries()) {
     const y = b[i];
+    if (y === undefined) return false; // 长度已判相等（不可达兜底）
     if (x.fromGroup !== y.fromGroup || x.sourceHandle !== y.sourceHandle) return false;
     const xn = x.node;
     const yn = y.node;

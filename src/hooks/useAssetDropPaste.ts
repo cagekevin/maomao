@@ -382,7 +382,7 @@ export function useAssetDropPaste({
     const img = docR.ok ? docR.value.querySelector('img[src]') : null;
     if (img) return img.getAttribute('src') || '';
     const m = String(html).match(/<img[^>]*\ssrc=["']([^"']+)["']/i);
-    return m ? m[1] : '';
+    return m?.[1] ?? ''; // 无 src = 无可提取图（正常结论）
   }, []);
 
   // 把 ClipboardItem 的 Blob 包装成 File（createNodeFromFile 需要 name/type 判型）。name 从 mime 推。

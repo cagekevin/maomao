@@ -60,7 +60,7 @@ interface TypeBadgeEntry {
   icon: typeof ImageIcon;
   cls: string;
 }
-const TYPE_BADGE: Record<string, TypeBadgeEntry> = {
+const TYPE_BADGE: Record<string, TypeBadgeEntry> & { image: TypeBadgeEntry } = {
   image: { icon: ImageIcon, cls: 'text-blue-400 bg-blue-500/10' },
   video: { icon: Play, cls: 'text-purple-400 bg-purple-500/10' },
   audio: { icon: Music, cls: 'text-green-400 bg-green-500/10' },

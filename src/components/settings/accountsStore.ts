@@ -490,7 +490,7 @@ async function writeTabLocalStorage(
           const rec = store as Record<string, string>;
           attemptQuietly(() => {
             // storage-raw-ok: 同上（写目标站点 MAIN world 的 localStorage）
-            for (const k of Object.keys(rec)) localStorage.setItem(k, rec[k]);
+            for (const [k, v] of Object.entries(rec)) localStorage.setItem(k, v);
           });
         }
       },
@@ -736,7 +736,8 @@ export async function toggleFavorite(envId: string): Promise<void> {
 export async function moveEnv(fromIndex: number | null, toIndex: number): Promise<void> {
   if (fromIndex === null || fromIndex === toIndex) return;
   const next = [...state.envs];
-  const [moved] = next.splice(fromIndex, 1);
+  const moved = next.splice(fromIndex, 1)[0];
+  if (moved === undefined) return; // fromIndex 已判非 null（不可达兜底）
   next.splice(toIndex, 0, moved);
   await saveEnvs(next);
 }

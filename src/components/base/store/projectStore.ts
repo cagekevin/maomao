@@ -660,7 +660,10 @@ export function deleteProject(id: string): boolean {
       reason: e?.message || e,
     });
   });
-  if (currentProjectId === id) currentProjectId = next[0].id;
+  if (currentProjectId === id) {
+    const fallback = next[0];
+    if (fallback !== undefined) currentProjectId = fallback.id; // 上方已判「至少保留一个」
+  }
   writeProjects(next);
   // 【P0 埋点】删除项目（排查「项目莫名消失」：确认删除动作发生）
   logger.debug('项目', '[删除]', { id, before, after: projects.length }, { module: 'project' });

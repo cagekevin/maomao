@@ -77,7 +77,7 @@ interface TypeBadge {
   cls: string;
 }
 
-const TYPE_BADGE: Record<string, TypeBadge> = {
+const TYPE_BADGE: Record<string, TypeBadge> & { image: TypeBadge } = {
   image: { icon: ImageIcon, cls: 'text-blue-400 bg-blue-500/10' },
   video: { icon: Play, cls: 'text-purple-400 bg-purple-500/10' },
   audio: { icon: Music, cls: 'text-green-400 bg-green-500/10' },
@@ -335,8 +335,8 @@ function ResourceLibrary() {
       }
       if (ok > 0) {
         // 【失败可见】部分成功时把失败明细一并说明（原来只要有 1 个成功就完全静默其余失败）。
-        const tail =
-          failures.length > 0 ? `；${failures.length} 个失败：${failures[0].message}` : '';
+        const firstFailure = failures[0];
+        const tail = firstFailure ? `；${failures.length} 个失败：${firstFailure.message}` : '';
         showToast(`已上传 ${ok} 个素材${tail}`, {
           type: failures.length > 0 ? 'warning' : 'success',
         });

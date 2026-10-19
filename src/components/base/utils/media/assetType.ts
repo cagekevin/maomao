@@ -58,7 +58,7 @@ export function classifyAssetUrlKind(url: string | null | undefined): AssetType 
     for (const [prefix, kind] of DATA_PREFIX) if (lower.startsWith(prefix)) return kind;
     return null;
   }
-  const clean = lower.split('?')[0].split('#')[0];
+  const clean = lower.split('?')[0]?.split('#')[0] ?? ''; // 去 query/hash（split 首段恒存在）
   const dot = clean.lastIndexOf('.');
   if (dot < 0) return null;
   return EXT_MAP.get(clean.slice(dot + 1)) ?? null;
