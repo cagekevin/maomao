@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { at } from '../helpers/at';
 
 // skillApi 是唯一网络边界：桩掉它，本测试锁的是**切包规则 + 整包提交语义**。
 const api = vi.hoisted(() => ({ list: vi.fn(), read: vi.fn(), save: vi.fn() }));
@@ -76,7 +77,7 @@ describe('importSkillPackages（整目录导入）', () => {
 
     expect(r.ok).toBe(true);
     expect(api.save).toHaveBeenCalledTimes(1);
-    const [category, slug, files] = api.save.mock.calls[0] as [
+    const [category, slug, files] = at(api.save.mock.calls, 0) as [
       string,
       string,
       Array<{ relPath: string; content: string }>,
@@ -100,8 +101,8 @@ describe('importSkillPackages（整目录导入）', () => {
     expect(api.save).toHaveBeenCalledTimes(2);
     const bySlug = new Map(
       api.save.mock.calls.map((c) => [
-        c[1] as string,
-        (c[2] as Array<{ relPath: string }>).map((f) => f.relPath).sort(),
+        at(c, 1) as string,
+        (at(c, 2) as Array<{ relPath: string }>).map((f) => f.relPath).sort(),
       ]),
     );
     expect([...bySlug.keys()].sort()).toEqual(['Y技能', '漫画生成']);
@@ -125,7 +126,7 @@ describe('importSkillPackages（整目录导入）', () => {
     ]);
 
     expect(r.ok).toBe(true);
-    const files = api.save.mock.calls[0][2] as Array<{ relPath: string }>;
+    const files = at(at(api.save.mock.calls, 0), 2) as Array<{ relPath: string }>;
     expect(files.map((f) => f.relPath).sort()).toEqual(['SKILL.md', 'references/a.md']);
   });
 
@@ -137,7 +138,7 @@ describe('importSkillPackages（整目录导入）', () => {
     expect(r.ok).toBe(false);
     expect(r.imported).toHaveLength(1);
     expect(r.failed).toHaveLength(1);
-    expect(r.failed[0].message).toContain('磁盘只读');
+    expect(at(r.failed, 0).message).toContain('磁盘只读');
   });
 
   it('已存在的同 id ⇒ 视为**整包覆盖**（提交集合即最终状态，不合并旧包）', async () => {
@@ -166,8 +167,8 @@ describe('importSkillPackages（整目录导入）', () => {
     const r = await importSkillPackages(pkg('新文件夹', ['id: id-1', 'name: 新名']));
 
     expect(r.ok).toBe(true);
-    expect(r.imported[0].updated).toBe(true); // 事前就存在 ⇒ 是更新不是新增
-    const files = api.save.mock.calls[0][2] as Array<{ relPath: string; content: string }>;
+    expect(at(r.imported, 0).updated).toBe(true); // 事前就存在 ⇒ 是更新不是新增
+    const files = at(at(api.save.mock.calls, 0), 2) as Array<{ relPath: string; content: string }>;
     expect(files.map((f) => f.relPath).sort()).toEqual(['SKILL.md', 'references/a.md']);
     expect(files.find((f) => f.relPath === 'references/a.md')?.content).not.toContain('旧的');
     expect(readSkillList().list).toHaveLength(1); // 没有多出一份
@@ -237,40 +238,40 @@ describe('importSkillText（导入不丢作者写的东西）', () => {
     const r = await importSkillText('随便叫什么.md', text);
 
     expect(r.ok).toBe(true);
-    const [, , files] = api.save.mock.calls[0] as [
+    const [, , files] = at(api.save.mock.calls, 0) as [
       string,
       string,
       Array<{ relPath: string; content: string }>,
     ];
-    const md = files[0].content;
+    const md = at(files, 0).content;
     expect(md).toContain('name: 导入的技能');
     expect(md).toContain('when-to-use: 用户要求 X 时');
     expect(md).toContain('x-author: 张三'); // 未知字段不许丢
     expect(md).toMatch(/---\n\n正文第一行$/); // 正文里不再带 frontmatter
     const list = readSkillList().list as Array<Record<string, unknown>>;
-    expect(list[0].name).toBe('导入的技能');
+    expect(at(list, 0).name).toBe('导入的技能');
   });
 
   it('没有 frontmatter ⇒ 用文件名当名称（去掉白名单扩展名），全文当正文', async () => {
     await importSkillText('电商详情.md', '就一段正文');
 
-    const [, slug, files] = api.save.mock.calls[0] as [
+    const [, slug, files] = at(api.save.mock.calls, 0) as [
       string,
       string,
       Array<{ relPath: string; content: string }>,
     ];
     expect(slug).toBe('电商详情');
-    expect(files[0].content).toContain('就一段正文');
+    expect(at(files, 0).content).toContain('就一段正文');
   });
 
   it('名字里本来有点 ⇒ **不被吃**（面板传原文件名、设置页传已去扩展名，两种输入都原样保留 · TD-11-63）', async () => {
     // 面板那条调用点传的是 `File.name`（含扩展名）
     await importSkillText('报告 v1.2.md', '正文');
-    expect(api.save.mock.calls[0][1], '原文件名 ⇒ 只掉白名单扩展名').toBe('报告 v1.2');
+    expect(at(at(api.save.mock.calls, 0), 1), '原文件名 ⇒ 只掉白名单扩展名').toBe('报告 v1.2');
 
     api.save.mockClear();
     // 设置页那条调用点已先 `skillNameFromFile(f.name)` 去过一次 —— 再经本函数必须**幂等**
     await importSkillText('清单 v2.1', '正文');
-    expect(api.save.mock.calls[0][1], '已去扩展名 ⇒ 不许再吃一段').toBe('清单 v2.1');
+    expect(at(at(api.save.mock.calls, 0), 1), '已去扩展名 ⇒ 不许再吃一段').toBe('清单 v2.1');
   });
 });

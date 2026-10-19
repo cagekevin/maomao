@@ -22,14 +22,14 @@ describe('projectsApi — 成功路径', () => {
     const res = await api.fetchProjects();
     expect(res.data.projects).toHaveLength(1);
     expect(res.data.lastOpened).toBe('p1');
-    expect(at(fetchMock.mock.calls, 0)[0]).toContain('/api/projects');
+    expect(at(at(fetchMock.mock.calls, 0), 0)).toContain('/api/projects');
   });
 
   it('saveProjects 发送 POST 全量覆盖', async () => {
     fetchMock.mockResolvedValue(jsonResp({ ok: true }));
     const projects = [{ id: 'p1', name: 'P1' }];
     await api.saveProjects(projects, 'p1');
-    const [, init] = fetchMock.mock.calls[0];
+    const [, init] = at(fetchMock.mock.calls, 0);
     expect(init.method).toBe('POST');
     expect(JSON.parse(init.body)).toEqual({ projects, lastOpened: 'p1' });
   });

@@ -4,6 +4,7 @@
  * fetch 全部 mock。
  */
 import { beforeEach, afterEach, describe, it, expect, vi } from 'vitest';
+import { at } from '../helpers/at';
 import { API_BASE } from '../../src/components/base/core/config.ts';
 import * as ra from '@/components/base/api/localToolApi.ts';
 import * as fl from '@/components/base/api/filesApi.ts';
@@ -30,14 +31,14 @@ describe('fetchResources', () => {
     const data = { items: [{ id: '1' }], total: 1, page: 1, pageSize: 60, totalPages: 1 };
     const fetchMock = mockFetchOnce(data);
     const r = await ra.fetchResources();
-    expect(fetchMock.mock.calls[0][0]).toBe(`${API_BASE}/api/resources?page=1&pageSize=60`);
+    expect(at(fetchMock.mock.calls, 0)[0]).toBe(`${API_BASE}/api/resources?page=1&pageSize=60`);
     expect(r).toEqual(data);
   });
 
   it('folder/type 写入 filters JSON（folder 走 eqOrPrefix：目录及其子孙目录，TD-12-13）', async () => {
     const fetchMock = mockFetchOnce({ items: [] });
     await ra.fetchResources({ folder: 'tasks', type: 'image', page: 2, pageSize: 10 });
-    const url = fetchMock.mock.calls[0][0];
+    const url = at(fetchMock.mock.calls, 0)[0];
     expect(url).toContain('page=2&pageSize=10');
     const m = url.match(/filters=([^&]+)/);
     const filters = JSON.parse(decodeURIComponent(m[1]));
@@ -50,12 +51,12 @@ describe('fetchResources', () => {
   it('projectId 透传为 ?projectId=（docs/122 #3 前端消费契约，不传则无该参数）', async () => {
     const fetchMock = mockFetchOnce({ items: [] });
     await ra.fetchResources({ projectId: 'p1' });
-    const url = fetchMock.mock.calls[0][0];
+    const url = at(fetchMock.mock.calls, 0)[0];
     expect(url).toContain(`projectId=p1`);
     // 不传 projectId → 不带该参数（向后兼容全量）
     fetchMock.mockClear();
     await ra.fetchResources({});
-    expect(fetchMock.mock.calls[0][0]).not.toContain('projectId');
+    expect(at(fetchMock.mock.calls, 0)[0]).not.toContain('projectId');
   });
 
   it('HTTP 非 2xx 抛 HttpError，message 取业务文案', async () => {
@@ -72,8 +73,8 @@ describe('rescanResources', () => {
   it('POST rescan 并返回 json', async () => {
     const fetchMock = mockFetchOnce({ data: { scanned: 3 } });
     const r = await ra.rescanResources();
-    expect(fetchMock.mock.calls[0][0]).toBe(`${API_BASE}/api/resources/rescan`);
-    expect(fetchMock.mock.calls[0][1].method).toBe('POST');
+    expect(at(fetchMock.mock.calls, 0)[0]).toBe(`${API_BASE}/api/resources/rescan`);
+    expect(at(fetchMock.mock.calls, 0)[1].method).toBe('POST');
     expect(r.data.scanned).toBe(3);
   });
 
@@ -91,7 +92,7 @@ describe('deleteResource', () => {
   it('id 被 encodeURIComponent', async () => {
     const fetchMock = mockFetchOnce({ ok: true });
     await ra.deleteResource('a/b c');
-    expect(fetchMock.mock.calls[0][0]).toContain('delete?id=' + encodeURIComponent('a/b c'));
+    expect(at(fetchMock.mock.calls, 0)[0]).toContain('delete?id=' + encodeURIComponent('a/b c'));
   });
 
   it('非 2xx 抛 HttpError', async () => {
@@ -108,7 +109,7 @@ describe('renameResource', () => {
   it('id 与 name 都进 query 且被编码', async () => {
     const fetchMock = mockFetchOnce({ data: { ok: true, id: '1', url: 'u', name: '新名' } });
     const r = await ra.renameResource('1', '新名');
-    const url = fetchMock.mock.calls[0][0];
+    const url = at(fetchMock.mock.calls, 0)[0];
     expect(url).toContain('id=' + encodeURIComponent('1'));
     expect(url).toContain('name=' + encodeURIComponent('新名'));
     expect(r.data.name).toBe('新名');
@@ -124,9 +125,9 @@ describe('openLocalFolder / openFileDir', () => {
   it('openLocalFolder 默认 subfolder=tasks', async () => {
     const fetchMock = mockFetchOnce({ path: '/tmp' });
     await fl.openLocalFolder();
-    expect(fetchMock.mock.calls[0][0]).toContain('open?subfolder=tasks');
+    expect(at(fetchMock.mock.calls, 0)[0]).toContain('open?subfolder=tasks');
     await fl.openLocalFolder('gen');
-    expect(fetchMock.mock.calls[1][0]).toContain('open?subfolder=gen');
+    expect(at(fetchMock.mock.calls, 1)[0]).toContain('open?subfolder=gen');
   });
 
   it('openFileDir 空路径直接返回 undefined', async () => {
@@ -140,7 +141,7 @@ describe('openLocalFolder / openFileDir', () => {
   it('openFileDir 正常请求 open-dir', async () => {
     const fetchMock = mockFetchOnce({ path: '/d' });
     await fl.openFileDir('tasks/a.png');
-    expect(fetchMock.mock.calls[0][0]).toContain(
+    expect(at(fetchMock.mock.calls, 0)[0]).toContain(
       'open-dir?filepath=' + encodeURIComponent('tasks/a.png'),
     );
   });

@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { at } from '../helpers/at';
 
 // skillApi 是唯一网络边界：桩掉它，本测试只锁 hydrate / migration 的**判别与写入语义**。
 // 用 vi.hoisted 拿 mock 句柄（vi.mock 会被提升到 import 之前，普通 const 会踩 TDZ）。
@@ -98,7 +99,7 @@ describe('reloadSkillsFromDisk（磁盘 → 缓存）', () => {
     expect(r.ok).toBe(true);
     expect(r.loaded).toBe(1);
     const list = readSkillList().list as Array<Record<string, unknown>>;
-    expect(list[0]).toMatchObject({
+    expect(at(list, 0)).toMatchObject({
       kind: 'user',
       id: ID,
       category: '图片类',
@@ -106,8 +107,8 @@ describe('reloadSkillsFromDisk（磁盘 → 缓存）', () => {
       name: '漫画生成',
       description: '生成分镜式漫画页',
     });
-    expect(list[0].content).toBe('正文内容');
-    expect(String(list[0].contentHash)).not.toBe('');
+    expect(at(list, 0).content).toBe('正文内容');
+    expect(String(at(list, 0).contentHash)).not.toBe('');
   });
 
   it('缺 frontmatter id ⇒ 不猜身份：不纳入 + 如实列出', async () => {
@@ -141,7 +142,7 @@ describe('reloadSkillsFromDisk（磁盘 → 缓存）', () => {
     await reloadSkillsFromDisk();
 
     const list = readSkillList().list as Array<Record<string, unknown>>;
-    expect(list[0].aliases).toEqual(['skill_old']);
+    expect(at(list, 0).aliases).toEqual(['skill_old']);
   });
 
   it('内容未变 ⇒ changed=false（不做无意义写盘）', async () => {
@@ -259,22 +260,22 @@ describe('migrateSkillsToDiskIfNeeded（localStorage → 磁盘，一次性）',
 
     expect(r.migrated).toBe(1);
     expect(api.save).toHaveBeenCalledTimes(1);
-    const [category, slug, files] = api.save.mock.calls[0] as [
+    const [category, slug, files] = at(api.save.mock.calls, 0) as [
       string,
       string,
       Array<{ relPath: string; content: string }>,
     ];
     expect(category).toBe(UNSORTED_GROUP);
     expect(slug).toBe('我的技能');
-    expect(files[0].relPath).toBe('SKILL.md');
+    expect(at(files, 0).relPath).toBe('SKILL.md');
     // 新 id 必须写进 frontmatter（否则重启就换身份）
-    expect(files[0].content).toMatch(/^---\nid: [0-9a-f-]{36}\n/);
+    expect(at(files, 0).content).toMatch(/^---\nid: [0-9a-f-]{36}\n/);
 
     const list = readSkillList().list as Array<Record<string, unknown>>;
     expect(list).toHaveLength(1);
-    expect(list[0].id).not.toBe('skill_1700000000000');
-    expect(list[0].aliases).toEqual(['skill_1700000000000']);
-    expect(list[0].content).toBe('执行 XX');
+    expect(at(list, 0).id).not.toBe('skill_1700000000000');
+    expect(at(list, 0).aliases).toEqual(['skill_1700000000000']);
+    expect(at(list, 0).content).toBe('执行 XX');
   });
 
   it('落盘失败 ⇒ 该条原样保留（不清不覆盖）+ 如实上报', async () => {
@@ -288,7 +289,7 @@ describe('migrateSkillsToDiskIfNeeded（localStorage → 磁盘，一次性）',
     expect(r.ok).toBe(false);
     expect(r.failures).toEqual([{ id: 'skill_1', message: '目录不存在' }]);
     const list = readSkillList().list as Array<Record<string, unknown>>;
-    expect(list[0].id).toBe('skill_1'); // 旧条目还在，用户仍能用
+    expect(at(list, 0).id).toBe('skill_1'); // 旧条目还在，用户仍能用
   });
 
   it('缓存形状违约（非数组）⇒ 不迁（避免把残缺列表固化到磁盘）', async () => {
@@ -317,7 +318,7 @@ describe('detectSkillDrift（磁盘被外部改了 ⇒ 只提示，不擅自动�
 
     expect(r.ok).toBe(true);
     expect(r.changed.map((c) => c.id)).toEqual([ID]);
-    expect(r.changed[0].name).toBe('漫画生成');
+    expect(at(r.changed, 0).name).toBe('漫画生成');
     // 取数范围与判据匹配：只拉 `SKILL.md`（本函数只比它的正文指纹），不把 references/** 全量搬回来（TD-11-39）
     expect(api.list).toHaveBeenLastCalledWith({ withContent: true, onlySkillMd: true });
   });

@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { at } from '../helpers/at';
 import type { Dialogue, Shot, ScriptAsset } from '@/components/scriptbox/scriptBoxPrompts.ts';
 import {
   ZgPrompt,
@@ -179,7 +180,7 @@ describe('剧本盒纯函数 §2.7/2.17', () => {
       { id: 'v2', assetUrl: '/files/tail.png' },
       true,
     )!;
-    expect(next[0]).toMatchObject({
+    expect(at(next, 0)).toMatchObject({
       usePrevShotVideoTail: true,
       selectedTailFrameVariantId: 'v2',
       prevShotImageRefUrls: ['/files/tail.png'],
@@ -196,7 +197,7 @@ describe('剧本盒纯函数 §2.7/2.17', () => {
       },
     ];
     const next = applyTailFrameSelection(shots, 1, null, false)!;
-    expect(next[0]).toMatchObject({
+    expect(at(next, 0)).toMatchObject({
       usePrevShotVideoTail: false,
       selectedTailFrameVariantId: 'original',
       prevShotImageRefUrls: [],
@@ -230,7 +231,7 @@ describe('剧本盒纯函数 §2.7/2.17', () => {
     const shots = [{ description: '@小红帽 走进 @小红帽屋' }];
     const next = renameAssetRefs(shots, '小红帽', '小红帽(新)');
     // 原实现用 seg.startsWith(oldName) 判断，@小红帽屋 也被改写（抽取不改变行为）
-    expect(next[0].description).toBe('@小红帽(新) 走进 @小红帽(新)屋');
+    expect(at(next, 0).description).toBe('@小红帽(新) 走进 @小红帽(新)屋');
   });
 
   it('parseShotSeconds："3s"→3；非法/0/空 → 兜底 3', () => {
@@ -251,8 +252,8 @@ describe('剧本盒纯函数 §2.7/2.17', () => {
     ];
     const out = collectAssets(shot, assets);
     expect(out).toHaveLength(1);
-    expect(out[0].url).toBe('/files/r.png');
-    expect(out[0].label).toBe('小红帽'); // 资产名带出，供下游 @名 匹配
+    expect(at(out, 0).url).toBe('/files/r.png');
+    expect(at(out, 0).label).toBe('小红帽'); // 资产名带出，供下游 @名 匹配
   });
 
   it('collectAssets：无资产或无图返回空', () => {
@@ -381,16 +382,16 @@ describe('剧本盒纯函数 §2.7/2.17', () => {
       { id: 's2', duration: '5s' },
     ];
     const next = patchShots(shots, 0, 'duration', '7s');
-    expect(next[0]).toMatchObject({ id: 's1', duration: '7s' });
-    expect(next[1]).toMatchObject({ id: 's2', duration: '5s' }); // 未改动
+    expect(at(next, 0)).toMatchObject({ id: 's1', duration: '7s' });
+    expect(at(next, 1)).toMatchObject({ id: 's2', duration: '5s' }); // 未改动
     expect(next).not.toBe(shots); // 新引用（不可变）
-    expect(shots[0].duration).toBe('3s'); // 原数组不受影响
+    expect(at(shots, 0).duration).toBe('3s'); // 原数组不受影响
   });
 
   it('patchShots：对象 patch 一次性合并多字段', () => {
     const shots = [{ id: 's1', prompt: '', videoPrompt: '' }];
     const next = patchShots(shots, 0, { prompt: 'p', videoPrompt: 'v' });
-    expect(next[0]).toMatchObject({ id: 's1', prompt: 'p', videoPrompt: 'v' });
+    expect(at(next, 0)).toMatchObject({ id: 's1', prompt: 'p', videoPrompt: 'v' });
   });
 });
 
@@ -428,7 +429,7 @@ describe('剧本盒纯函数 · 合并生成视频', () => {
     // 两镜都引用 @小狗（同一资产），应去重为 1 张；餐桌未在镜头文本出现则不入图
     const r = mergeShotsForVideo(shots, assets);
     expect(r.images).toHaveLength(1);
-    expect(r.images[0].url).toBe('/files/dog.png');
+    expect(at(r.images, 0).url).toBe('/files/dog.png');
   });
 
   it('mergeShotsForVideo：多镜引用不同资产 → 全部并入且去重', () => {
@@ -460,7 +461,7 @@ describe('剧本盒纯函数 · 合并生成视频', () => {
       dialogue: [{ kind: '台词', role: '小狗', text: '好吃吗' }],
       sound: '呜咽声',
     };
-    const user = buildMergedVideoUser([shotWithDlg, shots[1]], assets);
+    const user = buildMergedVideoUser([shotWithDlg, at(shots, 1)], assets);
     expect(user).toContain('下面共 2 个连续镜头');
     // 标题【镜头N】对应剧本镜号
     expect(user).toContain('【镜头1】');
@@ -563,7 +564,7 @@ describe('剧本盒纯函数 · 合并生成视频', () => {
       ];
       const assets = [{ id: 'a1', name: '小狗', assetUrl: '/files/dog.png' }];
       expect(mergeShotsForVideo(shots, assets).images).toHaveLength(1);
-      expect(mergeShotsForVideo(shots, assets).images[0].url).toBe('/files/dog.png');
+      expect(at(mergeShotsForVideo(shots, assets).images, 0).url).toBe('/files/dog.png');
     });
 
     it('资产 assetUrl 为空串 → 不入图', () => {

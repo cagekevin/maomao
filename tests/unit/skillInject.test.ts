@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
+import { at } from '../helpers/at';
 import {
   freezeSkillTurn,
   getSkillIndexText,
@@ -52,7 +53,7 @@ describe('freezeSkillTurn（发送起点冻结：入参只有 id，正文与落�
 
     const turn = freezeSkillTurn(['u1']);
 
-    expect(turn.bindings[0].content).toBe('一二三四五六七八九十'); // 留痕：全文
+    expect(at(turn.bindings, 0).content).toBe('一二三四五六七八九十'); // 留痕：全文
     expect(turn.docs).toContain('一二三四五'); // 注入：截断
     expect(turn.docs).not.toContain('六七八九十');
   });
@@ -65,7 +66,7 @@ describe('freezeSkillTurn（发送起点冻结：入参只有 id，正文与落�
     const turn = freezeSkillTurn(['u1']);
 
     expect(turn.bindings).toHaveLength(1);
-    expect(turn.bindings[0]).toMatchObject({
+    expect(at(turn.bindings, 0)).toMatchObject({
       skillId: 'u1',
       name: '用户技能',
       origin: 'user',
@@ -73,38 +74,38 @@ describe('freezeSkillTurn（发送起点冻结：入参只有 id，正文与落�
       category: '客户项目',
       slug: '用户技能',
     });
-    expect(typeof turn.bindings[0].contentHash).toBe('string');
+    expect(typeof at(turn.bindings, 0).contentHash).toBe('string');
     expect(turn.error).toBeUndefined();
     expect(turn.missing).toBeUndefined();
   });
 
   it('在设置页换组/改名后，下一次冻结用**新落点**（现查 ⇒ 天然跟随，无需回填）', () => {
     putSkills([{ id: 'u1', name: '甲', content: '正文', category: '旧组', slug: '甲' }]);
-    expect(freezeSkillTurn(['u1']).bindings[0].category).toBe('旧组');
+    expect(at(freezeSkillTurn(['u1']).bindings, 0).category).toBe('旧组');
 
     putSkills([{ id: 'u1', name: '甲', content: '正文', category: '新组', slug: '甲-2' }]);
     const again = freezeSkillTurn(['u1']);
 
-    expect(again.bindings[0].category).toBe('新组');
-    expect(again.bindings[0].slug).toBe('甲-2');
+    expect(at(again.bindings, 0).category).toBe('新组');
+    expect(at(again.bindings, 0).slug).toBe('甲-2');
   });
 
   it('内置 skill：按 id 冻结、origin=builtin，且**没有落点**（它本来就没有磁盘包，不是漏传）', () => {
     const turn = freezeSkillTurn(['skill_ecommerce_detail']);
 
     expect(turn.bindings).toHaveLength(1);
-    expect(turn.bindings[0].origin).toBe('builtin');
-    expect(turn.bindings[0].name).toBeTruthy();
-    expect(turn.bindings[0].category).toBeUndefined();
-    expect(turn.bindings[0].slug).toBeUndefined();
+    expect(at(turn.bindings, 0).origin).toBe('builtin');
+    expect(at(turn.bindings, 0).name).toBeTruthy();
+    expect(at(turn.bindings, 0).category).toBeUndefined();
+    expect(at(turn.bindings, 0).slug).toBeUndefined();
     expect(turn.docs).toContain('本次启用 Skill（1 项）');
   });
 
   it('指纹随正文变（同一个 skill 改一版 ⇒ 指纹必变，否则"冻结"无法对账）', () => {
     putSkills([{ id: 'x', name: 'X', content: '第一版' }]);
-    const a = freezeSkillTurn(['x']).bindings[0].contentHash;
+    const a = at(freezeSkillTurn(['x']).bindings, 0).contentHash;
     putSkills([{ id: 'x', name: 'X', content: '第二版' }]);
-    const b = freezeSkillTurn(['x']).bindings[0].contentHash;
+    const b = at(freezeSkillTurn(['x']).bindings, 0).contentHash;
 
     expect(a).not.toBe(b);
   });

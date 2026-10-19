@@ -19,6 +19,7 @@
 //     例：批量平移「目标帧被另一待移动帧占据」时，两条轨道都必须不丢帧。
 //     这条最能暴露「某条轨道忘了先删旧帧」的漂移。
 import { describe, it, expect } from 'vitest';
+import { at } from '../helpers/at';
 import { channelOf, trackOf } from '../helpers/tracks';
 import {
   bakeCameraPath,
@@ -87,11 +88,10 @@ function legacyBakeCameraPath(
   for (const frame of bakedFrames) {
     const u = (frame.frame - path.startFrame) / Math.max(1, path.endFrame - path.startFrame);
     const tangent = pathTangentAtFraction(path, u) || [0, 0, -1];
-    const targetPoint = [
-      frame.position[0] + tangent[0],
-      frame.position[1] + tangent[1],
-      frame.position[2] + tangent[2],
-    ];
+    // bakedFrames 在本 helper 里是 any：先解构成带默认值的三元组，避开 any→at 推断成 unknown
+    const [fx = 0, fy = 0, fz = 0] = (frame.position ?? []) as number[];
+    const [tx = 0, ty = 0, tz = 0] = tangent as number[];
+    const targetPoint = [fx + tx, fy + ty, fz + tz];
     const snapshot = {
       frame: frame.frame,
       interpolation: 'linear',
@@ -295,7 +295,7 @@ describe('两条轨道 · 语义对等性（契约 C6 核心）', () => {
     };
     const op = { op: 'move', from: 0, to: 10 } as const;
     const once = applyTrackOperation(channels, op);
-    expect(channelOf(once, 'transform')[0].frame).toBe(10);
+    expect(at(channelOf(once, 'transform'), 0).frame).toBe(10);
     // 无变化的操作应返回等价结构（move 同帧直接返回原对象）
     expect(applyTrackOperation(channels, { op: 'move', from: 5, to: 5 })).toBe(channels);
     // clear 清空所有通道

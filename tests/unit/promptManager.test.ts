@@ -4,6 +4,7 @@
  * 严格基于 src/components/base/promptManager.js 真实导出编写。
  */
 import { beforeEach, afterEach, describe, it, expect, vi } from 'vitest';
+import { at } from '../helpers/at';
 import {
   contentClearCache,
   contentGet,
@@ -32,13 +33,13 @@ afterEach(() => {
 describe('ensureIds', () => {
   it('为缺 id 的预设补全 id', () => {
     const out = pm.ensureIds([{ title: 'a', prompt: 'x' }]);
-    expect(out[0].id).toBeTruthy();
-    expect(out[0].title).toBe('a');
+    expect(at(out, 0).id).toBeTruthy();
+    expect(at(out, 0).title).toBe('a');
   });
 
   it('保留已有 id 不变', () => {
     const out = pm.ensureIds([{ id: 'keep', title: 'a', prompt: 'x' }]);
-    expect(out[0].id).toBe('keep');
+    expect(at(out, 0).id).toBe('keep');
   });
 
   it('非数组输入返回空数组', () => {
@@ -66,7 +67,7 @@ describe('loadPresets / savePresets', () => {
   it('旧数据缺 id 时被补齐并写回', () => {
     contentSet(STORAGE_KEY, [{ title: '旧', type: 'text', prompt: 'p' }]);
     const list = pm.loadPresets();
-    expect(list[0].id).toBeTruthy();
+    expect(at(list, 0).id).toBeTruthy();
     const reread = readStored(STORAGE_KEY);
     expect(reread![0].id).toBeTruthy();
   });
@@ -105,7 +106,7 @@ describe('recent', () => {
     const big = Array.from({ length: 60 }, (_, i) => 'x' + i);
     big.forEach((id) => pm.recordRecent(id));
     expect(pm.getRecent().length).toBe(50);
-    expect(pm.getRecent()[0]).toBe('x59');
+    expect(at(pm.getRecent(), 0)).toBe('x59');
   });
 });
 
@@ -117,7 +118,7 @@ describe('cards mapping', () => {
     ];
     const cards = pm.mapToLibraryCards(list);
     expect(cards.length).toBe(1);
-    expect(cards[0]).toMatchObject({
+    expect(at(cards, 0)).toMatchObject({
       id: '1',
       title: 'T1',
       content: 'P1',
@@ -134,8 +135,8 @@ describe('cards mapping', () => {
       { title: '无 id', type: 'all', prompt: 'P', enabled: true },
     ] as unknown as Parameters<typeof pm.mapToLibraryCards>[0];
     const cards = pm.mapToLibraryCards(list);
-    expect(cards[0].id).toBeTruthy();
-    expect(cards[0].id.startsWith('preset-')).toBe(false); // 不再是旧口径
+    expect(at(cards, 0).id).toBeTruthy();
+    expect(at(cards, 0).id.startsWith('preset-')).toBe(false); // 不再是旧口径
   });
 
   it('getRecentCards 按 id 顺序提取', () => {

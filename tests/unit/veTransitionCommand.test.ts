@@ -21,6 +21,7 @@
  * tracks、不回滚 settings。
  */
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { at } from '../helpers/at';
 import { EditorCore } from '../../src/components/videoEditor/engine/core';
 import type { TProject } from '../../src/components/videoEditor/types/project';
 import type { MediaAsset } from '../../src/components/videoEditor/types/mediaAssets';
@@ -145,7 +146,7 @@ describe('转场增删改走命令栈（TD-22-40）', () => {
     editor.command.redo();
     expect(transitionsOf(editor)).toHaveLength(1);
     // 重做后仍是**同一条**转场（id 在构造期生成，不随 redo 变化）。
-    expect(transitionsOf(editor)[0].id).toBe(transition?.id);
+    expect(at(transitionsOf(editor), 0).id).toBe(transition?.id);
   });
 
   it('删转场：撤销后恢复（误删可救）', () => {
@@ -156,14 +157,14 @@ describe('转场增删改走命令栈（TD-22-40）', () => {
       type: 'fade',
       duration: 0.5,
     });
-    const transitionId = transitionsOf(editor)[0].id;
+    const transitionId = at(transitionsOf(editor), 0).id;
 
     editor.timeline.removeTransition({ trackId: 't1', transitionId });
     expect(transitionsOf(editor)).toHaveLength(0);
 
     editor.command.undo();
     expect(transitionsOf(editor)).toHaveLength(1);
-    expect(transitionsOf(editor)[0].id).toBe(transitionId);
+    expect(at(transitionsOf(editor), 0).id).toBe(transitionId);
   });
 
   it('改转场时长：撤销后回到原时长', () => {
@@ -174,17 +175,17 @@ describe('转场增删改走命令栈（TD-22-40）', () => {
       type: 'fade',
       duration: 0.5,
     });
-    const transitionId = transitionsOf(editor)[0].id;
+    const transitionId = at(transitionsOf(editor), 0).id;
 
     editor.timeline.updateTransition({
       trackId: 't1',
       transitionId,
       updates: { duration: 0.9 },
     });
-    expect(transitionsOf(editor)[0].duration).toBe(0.9);
+    expect(at(transitionsOf(editor), 0).duration).toBe(0.9);
 
     editor.command.undo();
-    expect(transitionsOf(editor)[0].duration).toBe(0.5);
+    expect(at(transitionsOf(editor), 0).duration).toBe(0.5);
   });
 
   it('不邻接的两元素：返回 null 且**不入栈**（无效操作不污染撤销历史）', () => {

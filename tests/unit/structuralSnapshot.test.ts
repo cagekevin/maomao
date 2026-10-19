@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { at } from '../helpers/at';
 import type { Edge, Node } from '@xyflow/react';
 import {
   applyStructuralSnapshot,
@@ -39,9 +40,9 @@ describe('TD-04-31 · 结构快照提取', () => {
 
   it('parentId 属结构（编组归属），缺省则不写入', () => {
     const s = extractStructuralSnapshot([node('c1', { parentId: 'g1' }), node('n2')], []);
-    expect(s.nodes[0]).toEqual({ id: 'c1', type: 'imageBox', parentId: 'g1' });
-    expect(s.nodes[1]).toEqual({ id: 'n2', type: 'imageBox' });
-    expect('parentId' in s.nodes[1]).toBe(false);
+    expect(at(s.nodes, 0)).toEqual({ id: 'c1', type: 'imageBox', parentId: 'g1' });
+    expect(at(s.nodes, 1)).toEqual({ id: 'n2', type: 'imageBox' });
+    expect('parentId' in at(s.nodes, 1)).toBe(false);
   });
 
   it('边只留端点结构；sourceHandle/targetHandle 有才写', () => {
@@ -50,13 +51,13 @@ describe('TD-04-31 · 结构快照提取', () => {
       { id: 'e2', source: 'b', target: 'c' },
     ] as unknown as Edge[];
     const s = extractStructuralSnapshot([], edges);
-    expect(s.edges[0]).toEqual({
+    expect(at(s.edges, 0)).toEqual({
       id: 'e1',
       source: 'a',
       target: 'b',
       sourceHandle: 'out',
     });
-    expect(s.edges[1]).toEqual({ id: 'e2', source: 'b', target: 'c' });
+    expect(at(s.edges, 1)).toEqual({ id: 'e2', source: 'b', target: 'c' });
   });
 });
 
@@ -74,9 +75,9 @@ describe('TD-04-31 · 撤销不回退位置/尺寸/内容（核心）', () => {
     ];
     const out = applyStructuralSnapshot(current, [], snap);
     expect(out.nodes).toHaveLength(1);
-    expect(out.nodes[0].position).toEqual({ x: 999, y: 888 });
-    expect(out.nodes[0].width).toBe(777);
-    expect(out.nodes[0].data).toEqual({ label: '用户改过的新内容' });
+    expect(at(out.nodes, 0).position).toEqual({ x: 999, y: 888 });
+    expect(at(out.nodes, 0).width).toBe(777);
+    expect(at(out.nodes, 0).data).toEqual({ label: '用户改过的新内容' });
   });
 
   it('撤销一次「新建」→ 该节点被移除，其余节点位置不动', () => {
@@ -87,7 +88,7 @@ describe('TD-04-31 · 撤销不回退位置/尺寸/内容（核心）', () => {
     ];
     const out = applyStructuralSnapshot(current, [], beforeAdd);
     expect(out.nodes.map((n) => n.id)).toEqual(['a']);
-    expect(out.nodes[0].position).toEqual({ x: 5, y: 5 }); // 未被回退
+    expect(at(out.nodes, 0).position).toEqual({ x: 5, y: 5 }); // 未被回退
   });
 
   it('撤销一次「删除」→ 节点被重建（结构回来了）', () => {
@@ -95,8 +96,8 @@ describe('TD-04-31 · 撤销不回退位置/尺寸/内容（核心）', () => {
     const current = [node('a', { position: { x: 3, y: 3 } })]; // b 已被删
     const out = applyStructuralSnapshot(current, [], withNode);
     expect(out.nodes.map((n) => n.id)).toEqual(['a', 'b']);
-    expect(out.nodes[0].position).toEqual({ x: 3, y: 3 }); // a 位置保留
-    expect(out.nodes[1].parentId).toBe('a'); // 归属结构恢复
+    expect(at(out.nodes, 0).position).toEqual({ x: 3, y: 3 }); // a 位置保留
+    expect(at(out.nodes, 1).parentId).toBe('a'); // 归属结构恢复
   });
 });
 

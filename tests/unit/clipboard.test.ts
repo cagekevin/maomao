@@ -6,6 +6,7 @@
  * 策略：jsdom 环境 + vi.stubGlobal 拦截 navigator.clipboard / fetch / URL.createObjectURL / Image。
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { at } from '../helpers/at';
 
 const {
   sanitizePastedText,
@@ -159,7 +160,7 @@ describe('clipboard — downloadUrl', () => {
     const revoke = vi.fn();
     vi.stubGlobal('URL', { createObjectURL: () => 'blob:u', revokeObjectURL: revoke });
     const res = await downloadUrl('http://x/f', 'file.txt');
-    expect(fetchSpy.mock.calls[0][0]).toBe('http://x/f');
+    expect(at(at(fetchSpy.mock.calls, 0), 0)).toBe('http://x/f');
     expect(createEl).toHaveBeenCalledWith('a');
     expect(revoke).toHaveBeenCalledWith('blob:u');
     expect(res.ok).toBe(true);
@@ -197,7 +198,7 @@ describe('clipboard — downloadBlob（直接下载已有 Blob）', () => {
     vi.stubGlobal('URL', { createObjectURL: () => 'blob:u', revokeObjectURL: vi.fn() });
     const res = await downloadBlob(new Blob(['x']));
     expect(res.ok).toBe(true);
-    const anchor = createEl.mock.results[0]?.value;
+    const anchor = at(createEl.mock.results, 0)?.value;
     expect(anchor?.download).toBe('download');
   });
 });
@@ -247,15 +248,15 @@ describe('clipboard — buildNodesFromClipboard（粘贴节点组重建）', () 
     const newIds = r.nodes.map((n) => n.id);
     expect(newIds).not.toContain('a');
     expect(newIds).not.toContain('b');
-    expect(newIds[0].startsWith('assetNode-')).toBe(true);
+    expect(at(newIds, 0).startsWith('assetNode-')).toBe(true);
     // 新节点 selected:true
     expect(r.nodes.every((n) => n.selected)).toBe(true);
     // 边 id 用新 source/target 重映射
     expect(r.edges).toHaveLength(1);
-    expect(r.edges[0].source).toBe(r.nodes[0].id);
-    expect(r.edges[0].target).toBe(r.nodes[1].id);
-    expect(r.edges[0].type).toBe('default');
-    expect(r.edges[0].selected).toBe(true);
+    expect(at(r.edges, 0).source).toBe(at(r.nodes, 0).id);
+    expect(at(r.edges, 0).target).toBe(at(r.nodes, 1).id);
+    expect(at(r.edges, 0).type).toBe('default');
+    expect(at(r.edges, 0).selected).toBe(true);
   });
 
   it('以粘贴点为中心：包围盒中心对齐 pos', () => {
@@ -273,8 +274,8 @@ describe('clipboard — buildNodesFromClipboard（粘贴节点组重建）', () 
       nodes: [{ id: 'a', type: 'assetNode', data: { label: 'L' }, position: { x: 0, y: 0 } }],
     };
     const r = buildNodesFromClipboard(JSON.stringify(src), { x: 0, y: 0 })!;
-    r.nodes[0].data.label = 'MUTATED';
-    expect(src.nodes[0].data.label).toBe('L');
+    at(r.nodes, 0).data.label = 'MUTATED';
+    expect(at(src.nodes, 0).data.label).toBe('L');
   });
 });
 

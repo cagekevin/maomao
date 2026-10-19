@@ -60,13 +60,17 @@ const callAt = (n: number) =>
 /** 只取"提交进了历史"的那几次（pushHistory !== false）。 */
 const committedCalls = () =>
   updateElements.mock.calls
-    .map((c) => c[0] as { updates: { updates: Record<string, unknown> }[]; pushHistory?: boolean })
+    .map(
+      (c) => at(c, 0) as { updates: { updates: Record<string, unknown> }[]; pushHistory?: boolean },
+    )
     .filter((a) => a.pushHistory !== false);
 
 /** 只取"实时预览"的那几次（pushHistory === false）。 */
 const previewCalls = () =>
   updateElements.mock.calls
-    .map((c) => c[0] as { updates: { updates: Record<string, unknown> }[]; pushHistory?: boolean })
+    .map(
+      (c) => at(c, 0) as { updates: { updates: Record<string, unknown> }[]; pushHistory?: boolean },
+    )
     .filter((a) => a.pushHistory === false);
 
 /**
@@ -135,14 +139,17 @@ describe('属性面板两段提交契约（TD-22-20 测试网）', () => {
 
     expect(previewCalls()).toHaveLength(2);
     expect(committedCalls()).toHaveLength(0);
-    expect(callAt(1)?.updates[0].updates).toEqual({ fontSize: initial + 6 });
+    expect(at(callAt(1)?.updates ?? [], 0).updates).toEqual({ fontSize: initial + 6 });
 
     // 失焦：两步——① 写回 initial（不落历史）② 提交最终值（落历史）
     fireEvent.blur(input);
 
     const seq = updateElements.mock.calls.map((c) => {
-      const a = c[0] as { updates: { updates: Record<string, unknown> }[]; pushHistory?: boolean };
-      return [a.updates[0].updates.fontSize, a.pushHistory === true] as const;
+      const a = at(c, 0) as {
+        updates: { updates: Record<string, unknown> }[];
+        pushHistory?: boolean;
+      };
+      return [at(a.updates, 0).updates.fontSize, a.pushHistory === true] as const;
     });
     expect(seq).toEqual([
       [initial + 5, false],
@@ -163,8 +170,11 @@ describe('属性面板两段提交契约（TD-22-20 测试网）', () => {
     fireEvent.pointerUp(slider);
 
     const seq = updateElements.mock.calls.map((c) => {
-      const a = c[0] as { updates: { updates: Record<string, unknown> }[]; pushHistory?: boolean };
-      return [a.updates[0].updates.fontSize, a.pushHistory === true] as const;
+      const a = at(c, 0) as {
+        updates: { updates: Record<string, unknown> }[];
+        pushHistory?: boolean;
+      };
+      return [at(a.updates, 0).updates.fontSize, a.pushHistory === true] as const;
     });
     expect(seq).toEqual([
       [initial + 4, false],
@@ -203,11 +213,14 @@ describe('组① 其余数字字段：提交序 + 值域换算（TD-22-20）', (
     return scope.querySelector('input[type="number"]') as HTMLInputElement;
   };
 
-  /** 每次调用的 `[updates[0].updates, pushHistory]` 序。 */
+  /** 每次调用的 `[at(updates, 0).updates, pushHistory]` 序。 */
   const seq = () =>
     updateElements.mock.calls.map((c) => {
-      const a = c[0] as { updates: { updates: Record<string, unknown> }[]; pushHistory?: boolean };
-      return [a.updates[0].updates, a.pushHistory === true] as const;
+      const a = at(c, 0) as {
+        updates: { updates: Record<string, unknown> }[];
+        pushHistory?: boolean;
+      };
+      return [at(a.updates, 0).updates, a.pushHistory === true] as const;
     });
 
   it('不透明度：percent 域 → 落库 /100；先还原 initial 再提交', () => {
@@ -306,8 +319,11 @@ describe('组② 非数字字段：draft 入口与值直传入口（TD-22-20）'
 
   const seq = () =>
     updateElements.mock.calls.map((c) => {
-      const a = c[0] as { updates: { updates: Record<string, unknown> }[]; pushHistory?: boolean };
-      return [a.updates[0].updates, a.pushHistory === true] as const;
+      const a = at(c, 0) as {
+        updates: { updates: Record<string, unknown> }[];
+        pushHistory?: boolean;
+      };
+      return [at(a.updates, 0).updates, a.pushHistory === true] as const;
     });
 
   it('文本内容（Textarea）：编辑中预览、失焦时先还原 initial 再提交', () => {
@@ -428,8 +444,11 @@ describe('组②c 描边 / 阴影（对象字段）（TD-22-20）', () => {
 
   const seq = () =>
     updateElements.mock.calls.map((c) => {
-      const a = c[0] as { updates: { updates: Record<string, unknown> }[]; pushHistory?: boolean };
-      return [a.updates[0].updates, a.pushHistory === true] as const;
+      const a = at(c, 0) as {
+        updates: { updates: Record<string, unknown> }[];
+        pushHistory?: boolean;
+      };
+      return [at(a.updates, 0).updates, a.pushHistory === true] as const;
     });
 
   const STROKE = { color: '#000000', width: 4 };
@@ -530,8 +549,11 @@ describe('组③ video 面板 6 个字段（TD-22-20）', () => {
 
   const seq = () =>
     updateElements.mock.calls.map((c) => {
-      const a = c[0] as { updates: { updates: Record<string, unknown> }[]; pushHistory?: boolean };
-      return [a.updates[0].updates, a.pushHistory === true] as const;
+      const a = at(c, 0) as {
+        updates: { updates: Record<string, unknown> }[];
+        pushHistory?: boolean;
+      };
+      return [at(a.updates, 0).updates, a.pushHistory === true] as const;
     });
 
   const setupVideo = () => {
@@ -664,8 +686,11 @@ describe('组④ sticker / audio 面板（TD-22-20）', () => {
 
   const seq = () =>
     updateElements.mock.calls.map((c) => {
-      const a = c[0] as { updates: { updates: Record<string, unknown> }[]; pushHistory?: boolean };
-      return [a.updates[0].updates, a.pushHistory === true] as const;
+      const a = at(c, 0) as {
+        updates: { updates: Record<string, unknown> }[];
+        pushHistory?: boolean;
+      };
+      return [at(a.updates, 0).updates, a.pushHistory === true] as const;
     });
 
   const setupSticker = () => {
