@@ -88,7 +88,7 @@ function SceneObject({
     pointerId: number;
     startX: number;
     startY: number;
-    rotation: number[];
+    rotation: [number, number, number];
   } | null>(null);
   const scaleTransformStart = useRef<number[] | null>(null);
   const appliedGroundRequest = useRef<string | null>(null);
@@ -134,19 +134,20 @@ function SceneObject({
         const changedAxis = nextScale
           .map((value, axis) => ({
             axis,
-            change: locks[axis] ? -1 : Math.abs(value / Math.max(0.0001, baseline[axis]) - 1),
+            // baseline 来自 Vector3.toArray()（恒 3 项），缺项按 1（无缩放）兜底
+            change: locks[axis] ? -1 : Math.abs(value / Math.max(0.0001, baseline[axis] ?? 1) - 1),
           }))
           .sort((left, right) => right.change - left.change)[0];
         const factor =
-          changedAxis?.change > 0.00001
-            ? nextScale[changedAxis.axis] / Math.max(0.0001, baseline[changedAxis.axis])
+          changedAxis !== undefined && changedAxis.change > 0.00001
+            ? (nextScale[changedAxis.axis] ?? 1) / Math.max(0.0001, baseline[changedAxis.axis] ?? 1)
             : 1;
         nextScale = baseline.map((value, axis) =>
           locks[axis] ? value : Math.max(0.05, value * factor),
         );
       } else
         nextScale = nextScale.map((value, axis) =>
-          locks[axis] ? baseline[axis] : Math.max(0.05, value),
+          locks[axis] ? (baseline[axis] ?? value) : Math.max(0.05, value),
         );
       object.scale.fromArray(nextScale);
     }
@@ -373,21 +374,21 @@ function CameraFrustum({
     const halfH = (12 / focal) * length;
     const halfW = halfH * aspect;
     const zFar = apexZ - length;
-    const corners = [
+    const corners: Array<[number, number, number]> = [
       [-halfW, -halfH, zFar],
       [halfW, -halfH, zFar],
       [halfW, halfH, zFar],
       [-halfW, halfH, zFar],
     ];
-    const positions = [];
+    const positions: number[] = [];
     // 顶点 → 四个角（4 条棱线）
-    for (let i = 0; i < 4; i += 1) {
-      positions.push(0, 0, apexZ, corners[i][0], corners[i][1], corners[i][2]);
+    for (const corner of corners) {
+      positions.push(0, 0, apexZ, corner[0], corner[1], corner[2]);
     }
     // 远端四条边（取景框）
-    for (let i = 0; i < 4; i += 1) {
-      const a = corners[i];
-      const b = corners[(i + 1) % 4];
+    for (const [i, a] of corners.entries()) {
+      const b = corners[(i + 1) % corners.length];
+      if (b === undefined) continue; // 取模后必在界内（不可达兜底）
       positions.push(a[0], a[1], a[2], b[0], b[1], b[2]);
     }
     const next = new THREE.BufferGeometry();
@@ -890,6 +891,7 @@ function PathEditor({
       if (activeMode.current === 'draw') {
         const trail = trailRef.current;
         const last = trail[trail.length - 1];
+        if (last === undefined) return; // 空轨迹 = draw 尚未落起点，不采样（否则写入 NaN 点）
         const dx = point.x - last.x;
         const dz = point.z - last.z;
         if (Math.hypot(dx, dz) > spacing) trail.push(point);
@@ -956,8 +958,8 @@ function PathEditor({
       const v = new THREE.Vector3();
       let best = Infinity;
       let bestIndex = -1;
-      for (let i = 0; i < curvePoints.length; i += 1) {
-        v.set(curvePoints[i].x, curvePoints[i].y, curvePoints[i].z).project(camera);
+      for (const [i, point] of curvePoints.entries()) {
+        v.set(point.x, point.y, point.z).project(camera);
         const dx = v.x - ndcX;
         const dy = v.y - ndcY;
         const d = dx * dx + dy * dy;
@@ -1055,7 +1057,8 @@ function PathEditor({
           : {
               onPointerMove: handleCurvePointerMove,
               onDoubleClick: addPointOnDoubleClick,
-              onContextMenu: (event: { nativeEvent: MouseEvent }) => onRightClick(event.nativeEvent),
+              onContextMenu: (event: { nativeEvent: MouseEvent }) =>
+                onRightClick(event.nativeEvent),
             })}
       >
         <planeGeometry args={[200, 200]} />
