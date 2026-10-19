@@ -28,7 +28,7 @@ describe('settingsApi — providerApi 成功路径', () => {
   it('saveProviders 走 PUT，body 含 providers', async () => {
     fetchMock.mockResolvedValue(jsonResp({ ok: true }));
     await providerApi.saveProviders([{ id: 'p1' }]);
-    const [url, init] = fetchMock.mock.calls[0];
+    const [url, init] = at(fetchMock.mock.calls, 0);
     expect(url).toContain('/api/providers');
     expect(init.method).toBe('PUT');
     expect(JSON.parse(init.body)).toEqual({ providers: [{ id: 'p1' }] });
@@ -37,7 +37,7 @@ describe('settingsApi — providerApi 成功路径', () => {
   it('testConnection 走 POST', async () => {
     fetchMock.mockResolvedValue(jsonResp({ ok: true }));
     await providerApi.testConnection({ id: 'p1' });
-    const [url, init] = fetchMock.mock.calls[0];
+    const [url, init] = at(fetchMock.mock.calls, 0);
     expect(url).toContain('/api/providers/test-connection');
     expect(init.method).toBe('POST');
   });
@@ -45,7 +45,7 @@ describe('settingsApi — providerApi 成功路径', () => {
   it('fetchModels 走 POST，含 encodeURIComponent 的 id', async () => {
     fetchMock.mockResolvedValue(jsonResp({ models: [] }));
     await providerApi.fetchModels('a/b');
-    const [url, init] = fetchMock.mock.calls[0];
+    const [url, init] = at(fetchMock.mock.calls, 0);
     expect(url).toContain('/api/providers/a%2Fb/fetch-models');
     expect(init.method).toBe('POST');
   });

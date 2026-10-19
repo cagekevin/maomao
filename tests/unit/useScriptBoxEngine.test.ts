@@ -10,6 +10,7 @@
  * 通过 vi.mock 隔离 @xyflow/react / scriptBoxEngine / settings/providerStore。
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { at } from '../helpers/at';
 import { renderHook } from '@testing-library/react';
 import type { ScriptBoxEngineDeps } from '../../src/components/scriptbox/scriptBoxEngine.ts';
 import { publish } from '../../src/components/base/core/event/eventBus.ts';
@@ -151,15 +152,25 @@ describe('useScriptBoxEngine', () => {
     renderHook(() => useScriptBoxEngine('sb1', dirty));
     const calls = setNodes.mock.calls.filter((c) => typeof c[0] === 'function');
     expect(calls.length).toBeGreaterThan(0);
-    const out = calls[calls.length - 1][0]([{ id: 'sb1', data: dirty }])[0];
+    // 三步分开取：calls 元素是 any[]（vi.fn 无泛型），逐层 at 才能保证每层都有存在性检查
+    const lastCall = at(calls, calls.length - 1);
+    const updater = at(lastCall, 0);
+    // updater 返回 any（vi.fn 无泛型）⇒ at 推断不出 T，显式断言成被测形状
+    const out = at(updater([{ id: 'sb1', data: dirty }]), 0) as {
+      data: {
+        genMask: boolean;
+        shots: Array<Record<string, unknown>>;
+        assets: Array<Record<string, unknown>>;
+      };
+    };
     expect(out.data.genMask).toBe(false);
-    expect(out.data.shots[0]).toMatchObject({
+    expect(at(out.data.shots, 0)).toMatchObject({
       promptLoading: false,
       imgGenLoading: false,
       tailFrameVariantsLoading: false,
     });
-    expect(out.data.shots[1].promptLoading).toBeUndefined(); // 干净镜头不被改写
-    expect(out.data.assets[0].loading).toBe(false);
+    expect(at(out.data.shots, 1).promptLoading).toBeUndefined(); // 干净镜头不被改写
+    expect(at(out.data.assets, 0).loading).toBe(false);
   });
 
   it('挂载时无执行态残留 → 不写回（避免每次挂载多一次 setNodes）', () => {
@@ -169,7 +180,7 @@ describe('useScriptBoxEngine', () => {
 
   it('createScriptBoxEngine 用最新 data（getData 读 getNodes）', () => {
     renderHook(() => useScriptBoxEngine('sb1', { shots: [] }));
-    const cfg = createScriptBoxEngine.mock.calls[0][0]!;
+    const cfg = at(createScriptBoxEngine.mock.calls, 0)[0]!;
     expect((cfg.getData as unknown as () => unknown)()).toMatchObject({ shots: [] });
     expect(cfg.getProviderState?.()).toEqual({
       providers: [{ id: 'p1', isPrimary: true }],
@@ -179,23 +190,23 @@ describe('useScriptBoxEngine', () => {
 
   it('updateData 经 setNodes 不可变合并（对象 patch）', () => {
     renderHook(() => useScriptBoxEngine('sb1', { shots: [] }));
-    const cfg = createScriptBoxEngine.mock.calls[0][0]!;
+    const cfg = at(createScriptBoxEngine.mock.calls, 0)[0]!;
     // updateData 内部直接调 setNodes(updater)；这里验证其注入的 updater 正确合并
     // 注入回调的 useEffect 先触发，updateData 后触发，故取最后一个 function 调用
     cfg.updateData({ title: '新剧本' });
     const calls = setNodes.mock.calls.filter((c) => typeof c[0] === 'function');
     expect(calls.length).toBeGreaterThan(0);
-    const call = calls[calls.length - 1];
+    const call = at(calls, calls.length - 1);
     const out = call[0]([{ id: 'sb1', data: { shots: [], a: 1 } }])[0];
     expect(out.data).toEqual({ shots: [], a: 1, title: '新剧本' });
   });
 
   it('updateData 支持函数式 patch（并发安全，基于 latest 合并）', () => {
     renderHook(() => useScriptBoxEngine('sb1', { shots: [] }));
-    const cfg = createScriptBoxEngine.mock.calls[0][0]!;
+    const cfg = at(createScriptBoxEngine.mock.calls, 0)[0]!;
     cfg.updateData((latest) => ({ title: `${latest.title}＋更新` }));
     const calls = setNodes.mock.calls.filter((c) => typeof c[0] === 'function');
-    const call = calls[calls.length - 1];
+    const call = at(calls, calls.length - 1);
     const out = call[0]([{ id: 'sb1', data: { title: '旧', a: 1 } }])[0];
     expect(out.data).toEqual({ title: '旧＋更新', a: 1 });
   });
@@ -219,7 +230,7 @@ describe('useScriptBoxEngine', () => {
 
   it('addNodes 经 screenToFlowPosition 偏移落点', () => {
     renderHook(() => useScriptBoxEngine('sb1', { shots: [] }));
-    const cfg = createScriptBoxEngine.mock.calls[0][0]!;
+    const cfg = at(createScriptBoxEngine.mock.calls, 0)[0]!;
     // base = screenToFlowPosition({x:0,y:0}) = {x:5,y:7}；偏移 x + base.x + 100, y + base.y
     cfg.addNodes!([{ id: 'x', position: { x: 10, y: 20 } }]);
     const out = lastAddedNode();
@@ -230,7 +241,7 @@ describe('useScriptBoxEngine', () => {
   it('addNodes 注入节点模型记忆（复用 App.addNode 的新建口径）', () => {
     prefsStore = { imageGenerateNode: { model: 'p1::gpt-image-1' } };
     renderHook(() => useScriptBoxEngine('sb1', { shots: [] }));
-    const cfg = createScriptBoxEngine.mock.calls[0][0]!;
+    const cfg = at(createScriptBoxEngine.mock.calls, 0)[0]!;
     // 剧本盒已预填 aspectRatio → 不被记忆覆盖；selectedModel 缺失 → 由记忆补上
     cfg.addNodes!([
       {
@@ -248,7 +259,7 @@ describe('useScriptBoxEngine', () => {
 
   it('addNodes 无记忆时不写空模型（留给节点兜底自动选第一个）', () => {
     renderHook(() => useScriptBoxEngine('sb1', { shots: [] }));
-    const cfg = createScriptBoxEngine.mock.calls[0][0]!;
+    const cfg = at(createScriptBoxEngine.mock.calls, 0)[0]!;
     cfg.addNodes!([
       { id: 'x', type: 'videoGenerateNode', position: { x: 0, y: 0 }, data: { prompt: 'v' } },
     ]);
@@ -262,7 +273,7 @@ describe('useScriptBoxEngine', () => {
   /** 取最后一次 updateData 的更新结果（应用到给定 data） */
   function applyLatestUpdater(data: Record<string, unknown>) {
     const calls = setNodes.mock.calls.filter((c) => typeof c[0] === 'function');
-    const call = calls[calls.length - 1];
+    const call = at(calls, calls.length - 1);
     return call[0]([{ id: 'sb1', data }])[0].data;
   }
 

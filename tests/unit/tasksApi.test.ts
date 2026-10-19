@@ -39,7 +39,7 @@ describe('tasksApi — 成功路径', () => {
     fetchMock.mockResolvedValue(jsonResp({ ok: true }));
     const task = { task_id: 't1', prompt: 'x' };
     await api.saveTask(task);
-    const [, init] = fetchMock.mock.calls[0];
+    const [, init] = at(fetchMock.mock.calls, 0);
     expect(init.method).toBe('POST');
     expect(JSON.parse(init.body)).toEqual(task);
   });

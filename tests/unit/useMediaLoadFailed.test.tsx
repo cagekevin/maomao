@@ -11,6 +11,7 @@
  *  - `resetKey` 变化 → 复位（换素材必须重新尝试，否则旧 failed 粘住新素材）。
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { at } from '../helpers/at';
 import { renderHook, act } from '@testing-library/react';
 
 // logger.warn 必须被调用（"只置位不留痕" = 把不可诊断的问题留给后人）
@@ -44,7 +45,7 @@ describe('useMediaLoadFailed — 失败必须可见（置位 + 留痕）', () =>
     );
     act(() => result.current.onError());
 
-    const [category, message, detail] = h.warn.mock.calls[0];
+    const [category, message, detail] = at(h.warn.mock.calls, 0);
     expect(category).toBe('媒体');
     expect(message).toContain('预览素材');
     expect(detail).toEqual({ id: 'asset-1', type: 'video' });
