@@ -1,4 +1,6 @@
 import { describe, it, expect } from 'vitest';
+import { at } from '../helpers/at';
+import { colOf, rowOf } from '../helpers/table';
 import {
   validateTabs,
   validateWorkspace,
@@ -56,9 +58,9 @@ describe('validateTabs 不变量校验（spec §七.L4）', () => {
 
   it('deleteColumn 走 updateTab 套用后仍健康（L1 长度对齐不破坏）', () => {
     const tabs = validTabs();
-    const t = tabs.tabs[0];
+    const t = at(tabs.tabs, 0);
     // 在活动表的列上删「画面」列 → 行该下标的格子随 deleteColumn 清理
-    const delCol = deleteColumn({ columns: t.columns, rows: t.rows }, t.columns[1].id);
+    const delCol = deleteColumn({ columns: t.columns, rows: t.rows }, colOf(t.columns, 1).id);
     const next: AssistantTableTabs = {
       ...tabs,
       tabs: [{ ...t, columns: delCol.columns, rows: delCol.rows }],
@@ -68,20 +70,23 @@ describe('validateTabs 不变量校验（spec §七.L4）', () => {
 
   it('错误注入·L1 缺 cells 与 L1 多 cells：都报 error（证明校验真能抓长度不齐/静默膨胀）', () => {
     // 缺 cells：cells 长度 0 ≠ 列数 2
-    const t = validTabs().tabs[0];
-    const missing: TableRow = { id: t.rows[0].id, cells: [] }; // 长度 0 ≠ 2 列
+    const t = at(validTabs().tabs, 0);
+    const missing: TableRow = { id: rowOf(t.rows, 0).id, cells: [] }; // 长度 0 ≠ 2 列
     const tabsMissing: AssistantTableTabs = { ...validTabs(), tabs: [{ ...t, rows: [missing] }] };
     expect(onlyErrors(tabsMissing).some((v) => v.code === 'L1')).toBe(true);
 
     // 多 cells：cells 长度 3 ≠ 列数 2
-    const extra: TableRow = { id: t.rows[0].id, cells: ['x', 'y', 'z'] };
+    const extra: TableRow = { id: rowOf(t.rows, 0).id, cells: ['x', 'y', 'z'] };
     const tabsExtra: AssistantTableTabs = { ...validTabs(), tabs: [{ ...t, rows: [extra] }] };
     expect(onlyErrors(tabsExtra).some((v) => v.code === 'L1')).toBe(true);
   });
 
   it('错误注入·I2/I3 列或行 id 重复：报 error', () => {
-    const t = validTabs().tabs[0];
-    const dupCols: TableColumn[] = [t.columns[0], { ...t.columns[1], id: t.columns[0].id }];
+    const t = at(validTabs().tabs, 0);
+    const dupCols: TableColumn[] = [
+      colOf(t.columns, 0),
+      { ...colOf(t.columns, 1), id: colOf(t.columns, 0).id },
+    ];
     const c: AssistantTableTabs = { ...validTabs(), tabs: [{ ...t, columns: dupCols }] };
     expect(onlyErrors(c).some((v) => v.code === 'I2')).toBe(true);
 
@@ -102,25 +107,25 @@ describe('validateTabs 不变量校验（spec §七.L4）', () => {
   });
 
   it('错误注入·S1 空列名：报 error', () => {
-    const t = validTabs().tabs[0];
+    const t = at(validTabs().tabs, 0);
     const badCol: AssistantTableTabs = {
       ...validTabs(),
-      tabs: [{ ...t, columns: [{ ...t.columns[0], label: '  ' }] }],
+      tabs: [{ ...t, columns: [{ ...colOf(t.columns, 0), label: '  ' }] }],
     };
     expect(onlyErrors(badCol).some((v) => v.code === 'S1')).toBe(true);
   });
 
   it('警告级·S2 同名列 / I6 跨表复用列:id：报 warn 不报 error', () => {
     // S2：两列归一后同名
-    const t = validTabs().tabs[0];
+    const t = at(validTabs().tabs, 0);
     const dupLabel: AssistantTableTabs = {
       ...validTabs(),
       tabs: [
         {
           ...t,
           columns: [
-            { ...t.columns[0], label: '景别' },
-            { ...t.columns[1], label: '  景别  ' }, // 归一（trim）后与「景别」同名
+            { ...colOf(t.columns, 0), label: '景别' },
+            { ...colOf(t.columns, 1), label: '  景别  ' }, // 归一（trim）后与「景别」同名
           ],
         },
       ],
@@ -189,11 +194,11 @@ describe('validateWorkspace 运行态校验（W/P 类）', () => {
 
   it('W2 行选与单格并存：warn', () => {
     const tabs = validTabs();
-    const t = tabs.tabs[0];
+    const t = at(tabs.tabs, 0);
     const v = validateWorkspace(
       ws({
-        selectedRowIds: [t.rows[0].id],
-        focusedCell: { rowId: t.rows[0].id, colId: t.columns[0].id },
+        selectedRowIds: [rowOf(t.rows, 0).id],
+        focusedCell: { rowId: rowOf(t.rows, 0).id, colId: colOf(t.columns, 0).id },
       }),
       tabs,
     );
@@ -202,7 +207,7 @@ describe('validateWorkspace 运行态校验（W/P 类）', () => {
 
   it('P1 preview 目标 tab 悬空：error（确认会写悬空→假成功的根）', () => {
     const tabs = validTabs();
-    const t = tabs.tabs[0];
+    const t = at(tabs.tabs, 0);
     const v = validateWorkspace(
       ws({
         preview: {
@@ -225,7 +230,7 @@ describe('validateWorkspace 运行态校验（W/P 类）', () => {
 
   it('P3 changedRowIds 越界：warn', () => {
     const tabs = validTabs();
-    const t = tabs.tabs[0];
+    const t = at(tabs.tabs, 0);
     const v = validateWorkspace(
       ws({
         preview: {
@@ -249,7 +254,7 @@ describe('validateWorkspace 运行态校验（W/P 类）', () => {
 
 describe('validateTabs 接入真实变更链路（通用断言落地）', () => {
   it('addColumn 后行补空串，L1 长度对齐保持（缺格会被校验抓）', () => {
-    const t = validTabs().tabs[0];
+    const t = at(validTabs().tabs, 0);
     const next = addColumn({ columns: t.columns, rows: t.rows }, '新列');
     expect(
       validateTabs({ tabs: [{ ...t, columns: next.columns, rows: next.rows }], activeTabId: 'A' }),

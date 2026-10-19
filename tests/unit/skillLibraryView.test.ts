@@ -8,6 +8,8 @@
  *  · 组三态与"空分组要留着"、"官方恒在最前、`_未分类` 恒在最后"。
  */
 import { describe, it, expect } from 'vitest';
+import { at } from '../helpers/at';
+import { rowOf } from '../helpers/table';
 // 【故意**不**导入两个组哨兵】它们已不是导出面（TD-11-62）：消费者拿 `kind`（语义）。
 // 本文件若还要 import 哨兵才能断言，就说明"外面还在比哨兵"这件事没被修掉。
 import { buildSkillLibraryView } from '../../src/components/agent/skill/view/skillLibraryView.ts';
@@ -66,10 +68,11 @@ describe('buildSkillLibraryView · 行从磁盘来（投影不得伪装成正常
       indexRows: [{ id: 'a', category: '图片类', slug: '旧技能', name: '旧技能', content: '正文' }],
     });
 
-    const row = view.groups.at(-1)!.rows[0];
+    const group = at(view.groups, view.groups.length - 1);
+    const row = rowOf(group.rows, 0);
     // 消费者读 `kind` / `label`，**不认识哨兵 `name`**（TD-11-62：改哨兵值不许影响任何渲染分支）
-    expect(view.groups.at(-1)!.kind).toBe('index-only');
-    expect(view.groups.at(-1)!.label).toBe('磁盘上已删除');
+    expect(group.kind).toBe('index-only');
+    expect(group.label).toBe('磁盘上已删除');
     expect(row.state).toBe('index-only');
     expect(row.usable).toBe(false);
     expect(row.editable).toBe(false);
@@ -85,9 +88,9 @@ describe('buildSkillLibraryView · 行从磁盘来（投影不得伪装成正常
       ),
     });
 
-    expect(view.groups[0].rows[0].state).toBe('missing-id');
-    expect(view.groups[0].rows[0].usable).toBe(false);
-    expect(view.groups[0].rows[0].editable).toBe(false);
+    expect(rowOf(at(view.groups, 0).rows, 0).state).toBe('missing-id');
+    expect(rowOf(at(view.groups, 0).rows, 0).usable).toBe(false);
+    expect(rowOf(at(view.groups, 0).rows, 0).editable).toBe(false);
     expect(view.counts.missingId).toBe(1);
   });
 
@@ -98,8 +101,8 @@ describe('buildSkillLibraryView · 行从磁盘来（投影不得伪装成正常
       indexRows: [],
     });
 
-    expect(view.groups[0].rows[0].state).toBe('not-indexed');
-    expect(view.groups[0].rows[0].editable).toBe(false);
+    expect(rowOf(at(view.groups, 0).rows, 0).state).toBe('not-indexed');
+    expect(rowOf(at(view.groups, 0).rows, 0).editable).toBe(false);
   });
 
   it('磁盘有 + 有 id + 索引有 ⇒ `ok`：可编辑、可用', () => {
@@ -109,7 +112,7 @@ describe('buildSkillLibraryView · 行从磁盘来（投影不得伪装成正常
       indexRows: [{ id: 'id-1', category: '图片类', slug: '漫画生成', name: '漫画生成' }],
     });
 
-    const row = view.groups[0].rows[0];
+    const row = rowOf(at(view.groups, 0).rows, 0);
     expect(row.state).toBe('ok');
     expect(row.usable).toBe(true);
     expect(row.editable).toBe(true); // 能编辑 ⇒ 磁盘必存在（保存不可能"把已删的包重建"）
@@ -125,9 +128,9 @@ describe('buildSkillLibraryView · 行从磁盘来（投影不得伪装成正常
       },
     });
 
-    expect(view.groups[0].rows[0].state).toBe('unreadable');
-    expect(view.groups[0].rows[0].name).toBe('半成品');
-    expect(view.groups[0].rows[0].usable).toBe(false);
+    expect(rowOf(at(view.groups, 0).rows, 0).state).toBe('unreadable');
+    expect(rowOf(at(view.groups, 0).rows, 0).name).toBe('半成品');
+    expect(rowOf(at(view.groups, 0).rows, 0).usable).toBe(false);
   });
 });
 
@@ -139,7 +142,7 @@ describe('buildSkillLibraryView · 行上的提醒（与状态正交）', () => 
       indexRows: [{ id: 'id-1', category: '图片类', slug: '漫画生成', name: '漫画生成' }],
     });
 
-    const row = view.groups[0].rows[0];
+    const row = rowOf(at(view.groups, 0).rows, 0);
     expect(row.noDescription).toBe(true);
     expect(row.usable).toBe(true); // 正文照样能注入 ⇒ 不许把它算成"不可用"
   });
@@ -160,8 +163,8 @@ describe('buildSkillLibraryView · 行上的提醒（与状态正交）', () => 
       indexRows: [{ id: 'id-1', category: '图片类', slug: '漫画生成', name: '漫画生成' }],
     });
 
-    expect(view.groups[0].rows[0].missingRefs).toEqual(['references/风格.md']);
-    expect(view.groups[0].rows[0].resourceCount).toBe(1);
+    expect(rowOf(at(view.groups, 0).rows, 0).missingRefs).toEqual(['references/风格.md']);
+    expect(rowOf(at(view.groups, 0).rows, 0).resourceCount).toBe(1);
   });
 
   it('正文长度如实带给行（详情/编辑器的预算条要用）', () => {
@@ -171,7 +174,7 @@ describe('buildSkillLibraryView · 行上的提醒（与状态正交）', () => 
       indexRows: [{ id: 'id-1', category: '图片类', slug: '漫画生成' }],
     });
 
-    expect(view.groups[0].rows[0].contentLength).toBe(5);
+    expect(rowOf(at(view.groups, 0).rows, 0).contentLength).toBe(5);
   });
 });
 
@@ -183,11 +186,11 @@ describe('buildSkillLibraryView · 组与三态', () => {
       builtins: [BUILTIN],
     });
 
-    expect(view.groups[0].kind).toBe('official');
-    expect(view.groups[0].label).toBe('官方');
-    expect(view.groups[0].rows[0].readonly).toBe(true);
-    expect(view.groups[0].rows[0].editable).toBe(false);
-    expect(view.groups[0].rows[0].usable).toBe(true);
+    expect(at(view.groups, 0).kind).toBe('official');
+    expect(at(view.groups, 0).label).toBe('官方');
+    expect(rowOf(at(view.groups, 0).rows, 0).readonly).toBe(true);
+    expect(rowOf(at(view.groups, 0).rows, 0).editable).toBe(false);
+    expect(rowOf(at(view.groups, 0).rows, 0).usable).toBe(true);
   });
 
   it('磁盘上的空分组要留着（它是真实存在的目录）', () => {
@@ -195,8 +198,8 @@ describe('buildSkillLibraryView · 组与三态', () => {
 
     // 组顺序 = `compareSkillGroups`（本地中文序；`_未分类` 恒最后）—— 视图层是唯一排序口径
     expect(view.groups.map((g) => g.name)).toEqual(['空组', '营销文案']);
-    expect(view.groups[0].rows).toEqual([]);
-    expect(view.groups[1].rows).toEqual([]);
+    expect(at(view.groups, 0).rows).toEqual([]);
+    expect(at(view.groups, 1).rows).toEqual([]);
   });
 
   it('`toggleIds` 与组头计数**同源**（组内哪些行可开关只判一次 · TD-11-67）', () => {
@@ -327,7 +330,7 @@ describe('buildSkillLibraryView · 未决（读不到磁盘 ≠ 磁盘上没有�
 
     expect(view.undecided).toBe(true);
     expect(view.counts.rows).toBe(1);
-    expect(view.groups[0].rows[0].name).toBe('漫画生成');
+    expect(rowOf(at(view.groups, 0).rows, 0).name).toBe('漫画生成');
     // 未决时"磁盘上已删"这件事**无从判断** ⇒ 不许凭空造出仅索引行
     expect(view.counts.indexOnly).toBe(0);
   });

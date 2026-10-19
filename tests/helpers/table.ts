@@ -22,8 +22,11 @@ import type {
 } from '../../src/components/agent/assistantTable/assistantTable.ts';
 import { at } from './at';
 
-/** 第 index 行（越界抛 `at(): 下标 N 越界（长度 M）`）。 */
-export function rowOf(rows: readonly TableRow[], index: number): TableRow {
+/**
+ * 第 index 行（越界抛 `at(): 下标 N 越界（长度 M）`）。
+ * 泛型版：`group.rows` 在技能库里是 `SkillRow[]` 而非 `TableRow[]` —— 行访问器不该强迫调用方换类型。
+ */
+export function rowOf<T>(rows: readonly T[], index: number): T {
   return at(rows, index);
 }
 

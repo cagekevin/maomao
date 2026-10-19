@@ -1,4 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { at } from '../helpers/at';
+import { cellOf, colOf, rowOf } from '../helpers/table';
 import * as contentStore from '../../src/components/base/core/contentStore.ts';
 const { contentClearCache, contentGet } = contentStore;
 import { logger } from '../../src/components/base/core/log/logger.ts';
@@ -77,7 +79,7 @@ function setupConvWithTable() {
 function appendAssistant(content: string): unknown {
   appendMsg({ role: 'assistant', content, createdAt: Date.now() });
   const msgs = getActiveConv()!.messages as Array<{ id?: unknown }>;
-  return msgs[msgs.length - 1].id;
+  return at(msgs, msgs.length - 1).id;
 }
 
 describe('tableWorkspaceState — 开合/选中/预览/游标（纯运行态）', () => {
@@ -137,7 +139,7 @@ describe('tableWorkspaceState — 开合/选中/预览/游标（纯运行态）'
 describe('tableWorkspaceState — acceptTablePreview 算结果 + confirm 原样写回（预览=确认）', () => {
   it('单行（选中行 + AI 只回 1 行）→ update 该行，消息打 confirmed，预览清空', () => {
     const sb = setupConvWithTable();
-    const rowId = sb.rows[0].id;
+    const rowId = rowOf(sb.rows, 0).id;
     const mid = appendAssistant('{"rows":[{"景别":"特写","画面":"新画面"}]}');
 
     setTableWorkspaceRows([rowId]);
@@ -153,20 +155,20 @@ describe('tableWorkspaceState — acceptTablePreview 算结果 + confirm 原样�
 
     const after = getCurrentAssistantTable();
     // 景别=列 0，画面=列 1（cells 按下标取值）
-    expect(after.rows[0].cells[0]).toBe('特写');
-    expect(after.rows[0].cells[1]).toBe('新画面');
+    expect(cellOf(after.rows, 0, 0)).toBe('特写');
+    expect(cellOf(after.rows, 0, 1)).toBe('新画面');
     expect(after.rows).toHaveLength(1); // 不新增行
     expect(getTableWorkspace().preview).toBeNull();
     const msgs = getActiveConv()!.messages as Array<{ tableResolved?: string }>;
-    expect(msgs[msgs.length - 1].tableResolved).toBe('confirmed');
+    expect(at(msgs, msgs.length - 1).tableResolved).toBe('confirmed');
   });
 
   it('多行改（选中 2 行 + AI 回 2 行）→ 两行都更新，未选中行不受影响（验收 2）', () => {
     setupConvWithTable();
     const sb = parsePasted('景别\t画面\n中景\t原1\n特写\t原2\n全景\t原3')!;
     setCurrentAssistantTable(sb);
-    const r1 = sb.rows[0].id;
-    const r3 = sb.rows[2].id;
+    const r1 = rowOf(sb.rows, 0).id;
+    const r3 = rowOf(sb.rows, 2).id;
     const mid = appendAssistant('{"rows":[{"画面":"新1"},{"画面":"新3"}]}');
 
     setTableWorkspaceRows([r1, r3]);
@@ -180,9 +182,9 @@ describe('tableWorkspaceState — acceptTablePreview 算结果 + confirm 原样�
 
     const after = getCurrentAssistantTable();
     // 画面=列 1
-    expect(after.rows[0].cells[1]).toBe('新1');
-    expect(after.rows[1].cells[1]).toBe('原2'); // 未选中行不受影响
-    expect(after.rows[2].cells[1]).toBe('新3');
+    expect(cellOf(after.rows, 0, 1)).toBe('新1');
+    expect(cellOf(after.rows, 1, 1)).toBe('原2'); // 未选中行不受影响
+    expect(cellOf(after.rows, 2, 1)).toBe('新3');
     expect(after.rows).toHaveLength(3);
   });
 
@@ -190,7 +192,7 @@ describe('tableWorkspaceState — acceptTablePreview 算结果 + confirm 原样�
     setupConvWithTable();
     const sb = parsePasted('景别\t画面\n中景\t原1\n特写\t原2')!;
     const col0 = sb.columns[0];
-    setCurrentAssistantTable({ ...sb, columns: [{ ...col0, width: 180 }, sb.columns[1]] });
+    setCurrentAssistantTable({ ...sb, columns: [{ ...col0, width: 180 }, colOf(sb.columns, 1)] });
     const mid = appendAssistant('{"rows":[{"景别":"全景","画面":"新增"}]}');
 
     acceptTablePreview({
@@ -200,14 +202,14 @@ describe('tableWorkspaceState — acceptTablePreview 算结果 + confirm 原样�
     });
     const p = getTableWorkspace().preview!;
     expect(p.opKind).toBe('append');
-    expect(p.resultCols[0].id).toBe(col0.id); // 列 id 保留
-    expect(p.resultCols[0].width).toBe(180); // 列宽不丢
+    expect(colOf(p.resultCols, 0).id).toBe(col0.id); // 列 id 保留
+    expect(colOf(p.resultCols, 0).width).toBe(180); // 列宽不丢
     confirmTablePreview();
 
     const after = getCurrentAssistantTable();
     expect(after.rows).toHaveLength(3); // 原 2 行 + 追加 1 行
-    expect(after.rows[2].cells[0]).toBe('全景');
-    expect(after.rows[0].cells[0]).toBe('中景'); // 原行不动
+    expect(cellOf(after.rows, 2, 0)).toBe('全景');
+    expect(cellOf(after.rows, 0, 0)).toBe('中景'); // 原行不动
   });
 
   it('单行带 _rowIndex（无选中）→ 精准 patch 到对应行，不当列、不整表替换', () => {
@@ -232,14 +234,14 @@ describe('tableWorkspaceState — acceptTablePreview 算结果 + confirm 原样�
     const after = getCurrentAssistantTable();
     expect(after.rows).toHaveLength(3); // 不整表替换、不新增行
     // 景别=列 0，画面=列 1
-    expect(after.rows[1].cells[1]).toBe('已更新'); // 第 2 行画面被改
-    expect(after.rows[1].cells[0]).toBe('特写'); // 第 2 行其它列保留
-    expect(after.rows[0].cells[1]).toBe('原1'); // 其它行不动
-    expect(after.rows[2].cells[1]).toBe('原3');
+    expect(cellOf(after.rows, 1, 1)).toBe('已更新'); // 第 2 行画面被改
+    expect(cellOf(after.rows, 1, 0)).toBe('特写'); // 第 2 行其它列保留
+    expect(cellOf(after.rows, 0, 1)).toBe('原1'); // 其它行不动
+    expect(cellOf(after.rows, 2, 1)).toBe('原3');
     expect(after.columns.map((c) => c.label)).toEqual(['景别', '画面']); // _rowIndex 不当列
-    expect(row2.id).toBe(after.rows[1].id); // 写回的是原第 2 行（id 稳定）
+    expect(row2.id).toBe(rowOf(after.rows, 1).id); // 写回的是原第 2 行（id 稳定）
     const msgs = getActiveConv()!.messages as Array<{ tableResolved?: string }>;
-    expect(msgs[msgs.length - 1].tableResolved).toBe('confirmed');
+    expect(at(msgs, msgs.length - 1).tableResolved).toBe('confirmed');
     expect(getTableWorkspace().preview).toBeNull();
   });
 
@@ -263,7 +265,7 @@ describe('tableWorkspaceState — acceptTablePreview 算结果 + confirm 原样�
     const after = getCurrentAssistantTable();
     expect(after.columns.map((c) => c.label)).toEqual(['新列A', '新列B']);
     expect(after.rows).toHaveLength(1);
-    expect(after.rows[0].cells[0]).toBe('a1');
+    expect(cellOf(after.rows, 0, 0)).toBe('a1');
     // 隔离决策（spec 1.1/2.1）：globalStyle 写当前活动 tab 的 globalStyle，不再写 global_contract
     const tabs = getCurrentAssistantTabs();
     expect(getActiveTab(tabs)!.globalStyle).toBe('写实电影感');
@@ -274,7 +276,7 @@ describe('tableWorkspaceState — acceptTablePreview 算结果 + confirm 原样�
   it('AI 返回列名与现有不一致 → 新列出现在预览 resultCols，确认后写入（验收 4）', () => {
     setupConvWithTable();
     const sb = getCurrentAssistantTable();
-    const rid = sb.rows[0].id;
+    const rid = rowOf(sb.rows, 0).id;
     const mid = appendAssistant('{"rows":[{"画面":"新画面","备注":"新列值"}]}');
 
     setTableWorkspaceRows([rid]);
@@ -289,13 +291,13 @@ describe('tableWorkspaceState — acceptTablePreview 算结果 + confirm 原样�
 
     const after = getCurrentAssistantTable();
     expect(after.columns.map((c) => c.label)).toEqual(['景别', '画面', '备注']);
-    expect(after.rows[0].cells[2]).toBe('新列值'); // 备注=列 2
+    expect(cellOf(after.rows, 0, 2)).toBe('新列值'); // 备注=列 2
   });
 
   it('预览=确认：preview 冻结结果，确认原样写回（不再二次推导）', () => {
     setupConvWithTable();
     const sb = getCurrentAssistantTable();
-    const rid = sb.rows[0].id;
+    const rid = rowOf(sb.rows, 0).id;
     const mid = appendAssistant('{"rows":[{"画面":"新画面"}]}');
 
     setTableWorkspaceRows([rid]);
@@ -311,13 +313,13 @@ describe('tableWorkspaceState — acceptTablePreview 算结果 + confirm 原样�
 
     const after = getCurrentAssistantTable();
     expect(after.columns.map((c) => c.label)).toEqual(['景别', '画面']);
-    expect(after.rows[0].cells[1]).toBe('新画面');
+    expect(cellOf(after.rows, 0, 1)).toBe('新画面');
     expect(getTableWorkspace().preview).toBeNull();
   });
 
   it('cancelTablePreview → 只打 cancelled，正式表不动，预览清空', () => {
     const sb = setupConvWithTable();
-    const rowId = sb.rows[0].id;
+    const rowId = rowOf(sb.rows, 0).id;
     const mid = appendAssistant('{"rows":[{"景别":"特写"}]}');
 
     setTableWorkspaceRows([rowId]);
@@ -330,10 +332,10 @@ describe('tableWorkspaceState — acceptTablePreview 算结果 + confirm 原样�
 
     // 表格没变
     const after = getCurrentAssistantTable();
-    expect(after.rows[0].cells[0]).toBe('中景');
+    expect(cellOf(after.rows, 0, 0)).toBe('中景');
     expect(getTableWorkspace().preview).toBeNull();
     const msgs = getActiveConv()!.messages as Array<{ tableResolved?: string }>;
-    expect(msgs[msgs.length - 1].tableResolved).toBe('cancelled');
+    expect(at(msgs, msgs.length - 1).tableResolved).toBe('cancelled');
   });
 
   it('无预览时 confirm/cancel 为 no-op，不抛', () => {
@@ -483,11 +485,11 @@ describe('TD-11-10 防回潮：运行态不变量自检已接线 + 列合并单�
     // 注：归一仅 trim+空白折叠（大小写敏感，与原 buildPreviewResult 口径一致）
     const merged = mergeColumnsByLabel(existing, ['Name ', ' City']);
     expect(merged.length).toBe(3);
-    expect(merged[0].id).toBe('c1'); // 现有列 id/width 不动
-    expect(merged[1].id).toBe('c2');
-    expect(merged[2].label).toBe(' City'); // 来源 label 字面保留
-    expect(merged[2].id).not.toBe('c1'); // 新列拿到新 id（非复用）
-    expect(merged[2].id).not.toBe('c2');
+    expect(at(merged, 0).id).toBe('c1'); // 现有列 id/width 不动
+    expect(at(merged, 1).id).toBe('c2');
+    expect(at(merged, 2).label).toBe(' City'); // 来源 label 字面保留
+    expect(at(merged, 2).id).not.toBe('c1'); // 新列拿到新 id（非复用）
+    expect(at(merged, 2).id).not.toBe('c2');
   });
 });
 
@@ -495,7 +497,7 @@ describe('TD-11-11 防回潮：confirmTablePreview 失败绝不谎称 confirmed 
   it('F8 假成功修复：目标 tab 已删 → confirm 失败标 cancelled（非 confirmed），预览清空', () => {
     setupConvWithTable();
     const sb = getCurrentAssistantTable();
-    const rowId = sb.rows[0].id;
+    const rowId = rowOf(sb.rows, 0).id;
     const mid = appendAssistant('{"rows":[{"景别":"特写","画面":"新"}]}');
     setTableWorkspaceRows([rowId]);
     acceptTablePreview({
@@ -508,7 +510,7 @@ describe('TD-11-11 防回潮：confirmTablePreview 失败绝不谎称 confirmed 
     const res = confirmTablePreview();
     expect(res.ok).toBe(false);
     const msgs = getActiveConv()!.messages as Array<{ tableResolved?: string }>;
-    const last = msgs[msgs.length - 1];
+    const last = at(msgs, msgs.length - 1);
     expect(last.tableResolved).toBe('cancelled'); // 假成功已修：绝不谎称 confirmed
     expect(last.tableResolved).not.toBe('confirmed');
     expect(getTableWorkspace().preview).toBeNull();
