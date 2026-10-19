@@ -247,11 +247,17 @@ describe('buildSkillLibraryView · 组与三态', () => {
     });
 
     const byName = Object.fromEntries(view.groups.map((g) => [g.name, g]));
+    // 组名 → 组；名字写错 = 测试 fixture 与断言漂移，抛错比静默 undefined 好
+    const groupOf = (name: string) => {
+      const g = byName[name];
+      if (g === undefined) throw new Error(`组不存在：${name}`);
+      return g;
+    };
     // 组开关只有两态：有一个开着就算 on（"开了一半"不是第三种状态，开了几个看 onCount）
-    expect(byName['营销文案'].toggleState).toBe('on'); // a 开 b 关 ⇒ 这组在用
-    expect(byName['营销文案'].onCount).toBe(1);
-    expect(byName['素材处理'].toggleState).toBe('off'); // c 显式关 ⇒ 一个都没开
-    expect(byName['未分类'].toggleState).toBe('on'); // d 开
+    expect(groupOf('营销文案').toggleState).toBe('on'); // a 开 b 关 ⇒ 这组在用
+    expect(groupOf('营销文案').onCount).toBe(1);
+    expect(groupOf('素材处理').toggleState).toBe('off'); // c 显式关 ⇒ 一个都没开
+    expect(groupOf('未分类').toggleState).toBe('on'); // d 开
   });
 
   it('`_未分类` 恒排最后、显示为「未分组」；「已删除」收纳组排在它之后', () => {
@@ -313,8 +319,8 @@ describe('组语义 kind / 行预填 categoryInput（消费者不许比哨兵 ·
       indexRows: [{ id: 'a', category: '图片类', slug: '旧技能', name: '旧技能', content: '正文' }],
     });
 
-    expect(view.groups.at(-1)!.rows[0].editable).toBe(false);
-    expect(view.groups.at(-1)!.rows[0].categoryInput).toBe('');
+    expect(rowOf(at(view.groups, view.groups.length - 1).rows, 0).editable).toBe(false);
+    expect(rowOf(at(view.groups, view.groups.length - 1).rows, 0).categoryInput).toBe('');
   });
 });
 
@@ -361,13 +367,13 @@ describe('buildSkillPickerGroups（AI 面板下拉：与列表同语义，消费
     expect(groups.map((g) => g.kind)).toEqual(['official', 'normal', 'normal', 'normal']);
     expect(groups.map((g) => g.label)).toEqual(['官方', '图片类', '营销文案', '未分组']);
     // 消费者拿到的组**不含 `name`** ⇒ 想比哨兵也无从比起（改哨兵值不可能影响这里）
-    expect('name' in groups[0]).toBe(false);
+    expect('name' in at(groups, 0)).toBe(false);
   });
 
   it('行只带 `id` + `name`（选定只传 id；正文由冻结层按 id 现查）', () => {
     const groups = buildSkillPickerGroups([{ ...BUILTIN, builtin: true }], null, {});
 
-    expect(groups[0].items).toEqual([{ id: BUILTIN.id, name: BUILTIN.name }]);
+    expect(at(groups, 0).items).toEqual([{ id: BUILTIN.id, name: BUILTIN.name }]);
   });
 
   it('没有成员的组不出现（选用入口摆空组只是挡路）', () => {

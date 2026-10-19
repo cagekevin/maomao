@@ -191,7 +191,7 @@ describe('tableWorkspaceState — acceptTablePreview 算结果 + confirm 原样�
   it('未选中行 + AI 返回行 → append 末尾追加，原有行与列宽不丢（验收 3）', () => {
     setupConvWithTable();
     const sb = parsePasted('景别\t画面\n中景\t原1\n特写\t原2')!;
-    const col0 = sb.columns[0];
+    const col0 = colOf(sb.columns, 0);
     setCurrentAssistantTable({ ...sb, columns: [{ ...col0, width: 180 }, colOf(sb.columns, 1)] });
     const mid = appendAssistant('{"rows":[{"景别":"全景","画面":"新增"}]}');
 
@@ -216,7 +216,7 @@ describe('tableWorkspaceState — acceptTablePreview 算结果 + confirm 原样�
     // 先建会话 + 表，再覆盖成一张 3 行表：景别/画面（行序：中景-原1 / 特写-原2 / 全景-原3）
     setupConvWithTable();
     const sb = parsePasted('景别\t画面\n中景\t原1\n特写\t原2\n全景\t原3')!;
-    const row2 = sb.rows[1]; // 第 2 行：特写/原2
+    const row2 = rowOf(sb.rows, 1); // 第 2 行：特写/原2
     setCurrentAssistantTable(sb);
     const mid = appendAssistant('{"rows":[{"_rowIndex":2,"画面":"已更新"}]}');
 

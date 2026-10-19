@@ -90,14 +90,14 @@ describe('validateTabs 不变量校验（spec §七.L4）', () => {
     const c: AssistantTableTabs = { ...validTabs(), tabs: [{ ...t, columns: dupCols }] };
     expect(onlyErrors(c).some((v) => v.code === 'I2')).toBe(true);
 
-    const dupRows: TableRow[] = [t.rows[0], { ...t.rows[0] }]; // 拷贝整行（同 id）
+    const dupRows: TableRow[] = [rowOf(t.rows, 0), { ...rowOf(t.rows, 0) }]; // 拷贝整行（同 id）
     const r: AssistantTableTabs = { ...validTabs(), tabs: [{ ...t, rows: dupRows }] };
     expect(onlyErrors(r).some((v) => v.code === 'I3')).toBe(true);
   });
 
   it('错误注入·I1 tab id 重复 / I5 activeTabId 悬空：报 error', () => {
     const dup: AssistantTableTabs = {
-      tabs: [validTabs().tabs[0], { ...validTabs().tabs[0], columns: [], rows: [] }],
+      tabs: [at(validTabs().tabs, 0), { ...at(validTabs().tabs, 0), columns: [], rows: [] }],
       activeTabId: 'A',
     };
     expect(onlyErrors(dup).some((v) => v.code === 'I1')).toBe(true);
@@ -136,7 +136,7 @@ describe('validateTabs 不变量校验（spec §七.L4）', () => {
 
     // I6：两表复用同一 col id（表B 声明与表A 相同的 col id，行 cells 也自洽 → 只报 I6 warn、无 L1/无 I1 error）
     const base = validTabs();
-    const sharedCol = base.tabs[0].columns[0].id; // 取 base 真实列 id（避免跨 validTabs 两套随机 id）
+    const sharedCol = colOf(at(base.tabs, 0).columns, 0).id; // 取 base 真实列 id（避免跨 validTabs 两套随机 id）
     const reuseTab: TableTab = {
       id: 'B',
       name: '表B',
@@ -151,7 +151,7 @@ describe('validateTabs 不变量校验（spec §七.L4）', () => {
   });
 
   it('tabs 结构缺失：报 S6 error 不崩', () => {
-    expect(validateTabs(null as unknown as AssistantTableTabs)[0].code).toBe('S6');
+    expect(at(validateTabs(null as unknown as AssistantTableTabs), 0).code).toBe('S6');
   });
 });
 
@@ -174,8 +174,8 @@ describe('validateWorkspace 运行态校验（W/P 类）', () => {
 
   it('正常态：无违规', () => {
     const tabs = validTabs();
-    const rowId = tabs.tabs[0].rows[0].id;
-    const colId = tabs.tabs[0].columns[0].id;
+    const rowId = rowOf(at(tabs.tabs, 0).rows, 0).id;
+    const colId = colOf(at(tabs.tabs, 0).columns, 0).id;
     expect(validateWorkspace(ws({ selectedRowIds: [rowId] }), tabs)).toEqual([]);
     expect(validateWorkspace(ws({ focusedCell: { rowId, colId } }), tabs)).toEqual([]);
   });
