@@ -320,9 +320,16 @@ export const initialCharacterKeyframes = {};
 
 const cleanAspectPart = (value: number | string) =>
   String(Math.round(clamp(Number(value) || 1, 0.1, 100) * 100) / 100);
-export const customAspectParts = (value: number | string) => {
+/** 自定义画幅串 → [宽, 高]。元组返回 ⇒ 解构恒 number；非数字/缺失回退 16:9 */
+export const customAspectParts = (value: number | string): [number, number] => {
   const match = String(value || '').match(CUSTOM_ASPECT_PATTERN);
-  return match ? [Number(match[1]), Number(match[2])] : [16, 9];
+  if (!match) return [16, 9];
+  const width = Number(match[1]);
+  const height = Number(match[2]);
+  return [
+    Number.isFinite(width) && width > 0 ? width : 16,
+    Number.isFinite(height) && height > 0 ? height : 9,
+  ];
 };
 export const customAspectValue = (width: number | string, height: number | string) =>
   `custom:${cleanAspectPart(width)}:${cleanAspectPart(height)}`;
@@ -616,7 +623,8 @@ export function channelsToSnapshotKeys(
 
 // 读侧桥便捷入口：轨道可能是「已通道化结构」或「旧整快照数组」，统一吐整快照数组。
 export function snapshotKeysForTrack(
-  track: ChannelTracks | ChannelKey[],
+  // undefined 合法：轨道未建立（新对象/从未打点）⇒ 读侧返回空快照
+  track: ChannelTracks | ChannelKey[] | undefined,
   entityType: string = 'object',
 ): ChannelKey[] {
   return Array.isArray(track) ? track : channelsToSnapshotKeys(entityType, track || {});
@@ -625,7 +633,7 @@ export function snapshotKeysForTrack(
 // 统计一个轨道（通道结构或旧数组）的「已打点帧数」。
 // 与旧实现 `keyframes.length`（= 已打点帧数）语义一致，供「轨道是否有动画 / 是否清空」判断；
 // 同帧多通道只计一次（时间轴上每帧一个点）。
-export function countChannelKeyframes(channels: ChannelTracks | ChannelKey[]) {
+export function countChannelKeyframes(channels: ChannelTracks | ChannelKey[] | undefined) {
   if (Array.isArray(channels)) return channels.length;
   if (!channels || typeof channels !== 'object') return 0;
   return new Set(
@@ -1685,11 +1693,7 @@ export function cameraAtFrameWithPath(
         const position = [pos.x, pos.y, pos.z];
         const snapshot: { position: number[]; rotation?: number[] } = { position };
         if (camera.targetMode !== 'object') {
-          snapshot.rotation = cameraRotationToward(position, [
-            pos.x + tx,
-            pos.y + ty,
-            pos.z + tz,
-          ]);
+          snapshot.rotation = cameraRotationToward(position, [pos.x + tx, pos.y + ty, pos.z + tz]);
         }
         return { ...camera, ...snapshot };
       }

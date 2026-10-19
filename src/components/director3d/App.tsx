@@ -251,7 +251,8 @@ const nextPaint = () =>
 // ---- 本地类型（project.ts 未导出的形状，仅在本文件内用于类型标注）----
 interface Director3DAppProps {
   storageKey?: string | undefined;
-  onExport?: ((payload: { type: 'image' | 'video'; blob: Blob; fileName: string }) => void) | undefined;
+  onExport?:
+    ((payload: { type: 'image' | 'video'; blob: Blob; fileName: string }) => void) | undefined;
   onExit?: (() => void) | undefined;
   onThumbnail?: ((url: string) => void) | undefined;
 }
@@ -800,7 +801,7 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }: Dir
   const pathEditing = editMode === 'path';
   // 画线交互落点所在的水平高度：物件用其脚底高（object.position.y），摄像机用相机高度，避免贴地穿模
   const pathAnchorY = useMemo(() => {
-    if (selectedId === CAMERA_ID) return camera.position[1];
+    if (selectedId === CAMERA_ID) return camera.position[1] ?? 0; // 相机 Y（三元向量，缺项按 0）
     const object = animatedObjects.find((item) => item.id === selectedId);
     return object ? object.position?.[1] || 0 : 0;
   }, [animatedObjects, camera.position, selectedId]);
@@ -1365,8 +1366,11 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }: Dir
     );
     const remaining = persisted.filter((shot) => shot.id !== shotId);
     setShots(remaining);
-    if (shotId === activeShotId)
-      applyShotState(remaining[Math.min(sourceIndex, remaining.length - 1)]);
+    if (shotId === activeShotId) {
+      const nextShot = remaining[Math.min(sourceIndex, remaining.length - 1)];
+      // 删的是唯一镜头 ⇒ 无下一个可切（UI 已禁止删最后一条，不可达兜底）
+      if (nextShot !== undefined) applyShotState(nextShot);
+    }
     setToast(`已删除"${source.name}"`);
   };
 
@@ -1646,12 +1650,12 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }: Dir
     const source = objects.find((object) => object.id === selectedId);
     if (!source) return;
     const id = uid();
-    const position = source.position ?? [0, 0, 0];
+    const [px = 0, py = 0, pz = 0] = source.position ?? []; // position 恒三元（缺项按 0）
     const duplicate = {
       ...source,
       id,
       name: `${source.name} 副本`,
-      position: [position[0] + 0.6, position[1], position[2] + 0.6],
+      position: [px + 0.6, py, pz + 0.6],
     };
     setObjects((list) => [...list, duplicate]);
     // 复制轨道到副本：仅 transform.position 偏移 0.6 错开站位，动作/骨骼原样（tracks.js）

@@ -115,26 +115,21 @@ export function duplicateObjectTrack(
   offset: number = 0,
 ): Record<string, ChannelTracks> {
   const sourceTrack = tracks[target];
-  if (!countChannelKeyframes(sourceTrack)) return tracks;
+  if (sourceTrack === undefined || !countChannelKeyframes(sourceTrack)) return tracks;
   const duplicateTrack: ChannelTracks = {};
   for (const [channel, keys] of Object.entries(sourceTrack)) {
-    duplicateTrack[channel] = (Array.isArray(keys) ? keys : []).map((key: ChannelKey) =>
-      channel === 'transform'
-        ? {
-            ...key,
-            fields: {
-              ...key.fields,
-              position: offset
-                ? [
-                    (key.fields?.position as number[])[0] + offset,
-                    (key.fields?.position as number[])[1],
-                    (key.fields?.position as number[])[2] + offset,
-                  ]
-                : (key.fields?.position as number[]),
-            },
-          }
-        : key,
-    );
+    duplicateTrack[channel] = (Array.isArray(keys) ? keys : []).map((key: ChannelKey) => {
+      if (channel !== 'transform') return key;
+      const rawPosition = key.fields?.position as number[] | undefined;
+      const [px = 0, py = 0, pz = 0] = rawPosition ?? [];
+      return {
+        ...key,
+        fields: {
+          ...key.fields,
+          position: offset ? [px + offset, py, pz + offset] : (rawPosition ?? []),
+        },
+      };
+    });
   }
   return { ...tracks, [newId]: duplicateTrack };
 }
@@ -208,18 +203,15 @@ export function bakeCameraPath(
   // 先把所有路径帧摊成通道 key 映射（同帧多字段合并），再一次性 upsert —— 单次原子 batch。
   const pathKeys: ChannelTracks = {};
   for (const frame of bakedFrames) {
+    const [fx = 0, fy = 0, fz = 0] = frame.position; // position 恒为三元向量（缺项按 0，不可达）
     const u = (frame.frame - path.startFrame) / Math.max(1, path.endFrame - path.startFrame);
     const tangent = pathTangentAtFraction(path, u) || [0, 0, -1];
-    const targetPoint = [
-      frame.position[0] + tangent[0],
-      frame.position[1] + tangent[1],
-      frame.position[2] + tangent[2],
-    ];
+    const targetPoint = [fx + (tangent[0] ?? 0), fy + (tangent[1] ?? 0), fz + (tangent[2] ?? 0)];
     const snapshot: ChannelKey = {
       frame: frame.frame,
       interpolation: 'linear',
-      position: frame.position,
-      rotation: cameraRotationToward(frame.position, targetPoint),
+      position: [fx, fy, fz],
+      rotation: cameraRotationToward([fx, fy, fz], targetPoint),
       focalLength: camera.focalLength,
     };
     const keys = snapshotToChannelKeys('camera', snapshot, snapshot.frame, snapshot.interpolation);

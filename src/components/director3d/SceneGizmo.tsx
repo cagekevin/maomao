@@ -118,7 +118,8 @@ export default function SceneGizmo({ onReady }: SceneGizmoProps) {
 
   useEffect(() => {
     onReady?.((name) => {
-      jump(VIEW_DIRS[name] || VIEW_DIRS.perspective);
+      const dir = VIEW_DIRS[name] ?? VIEW_DIRS.perspective;
+      if (dir !== undefined) jump(dir); // 未知视图名 ⇒ 保持当前视角（常量表缺项兜底）
     });
     return () => onReady?.(null);
   }, [onReady, jump]);

@@ -128,6 +128,8 @@ export function VectorFields({
   onToggleScaleAxis,
 }: VectorFieldsProps) {
   const display = degrees ? value.map(radToDeg) : value;
+  // display 是 X/Y/Z 三元向量；解构默认值让 AxisSlider 恒拿 number（缺轴按 0）
+  const [displayX = 0, displayY = 0, displayZ = 0] = display;
   const settings = degrees
     ? { min: -180, max: 180, step: 1, unit: '°' }
     : kind === 'scale'
@@ -137,7 +139,7 @@ export function VectorFields({
     if (kind === 'scale' && scaleAxisLocks[index]) return;
     const copy = [...display];
     if (kind === 'scale' && proportionalScale) {
-      const baseline = Math.max(0.0001, Math.abs(display[index]));
+      const baseline = Math.max(0.0001, Math.abs(display[index] ?? 0));
       const ratio = next / baseline;
       display.forEach((current, axis) => {
         copy[axis] = scaleAxisLocks[axis] ? current : Math.max(0.05, current * ratio);
@@ -166,7 +168,7 @@ export function VectorFields({
         <AxisSlider
           label="X"
           title={title}
-          value={display[0]}
+          value={displayX}
           onChange={(value) => update(0, value)}
           accent="#d7675b"
           disabled={disabled}
@@ -177,7 +179,7 @@ export function VectorFields({
         <AxisSlider
           label="Y"
           title={title}
-          value={display[1]}
+          value={displayY}
           onChange={(value) => update(1, value)}
           accent="#76a96c"
           disabled={disabled}
@@ -188,7 +190,7 @@ export function VectorFields({
         <AxisSlider
           label="Z"
           title={title}
-          value={display[2]}
+          value={displayZ}
           onChange={(value) => update(2, value)}
           accent="#5d87c7"
           disabled={disabled}

@@ -19,7 +19,7 @@ function smoothDepthValues(
             const sampleX = x + offsetX;
             const sampleY = y + offsetY;
             if (sampleX >= 0 && sampleX < width && sampleY >= 0 && sampleY < height) {
-              sum += current[sampleY * width + sampleX];
+              sum += current[sampleY * width + sampleX] ?? 0; // 界内已判（不可达）
               count += 1;
             }
           }
@@ -73,8 +73,10 @@ function DepthMeshModel({ url, settings = {}, color, selected }: DepthMeshModelP
       let depthValues = new Float32Array(columns * rows);
       for (let index = 0; index < depthValues.length; index += 1) {
         const pixel = index * 4;
-        depthValues[index] =
-          (pixels[pixel] * 0.2126 + pixels[pixel + 1] * 0.7152 + pixels[pixel + 2] * 0.0722) / 255;
+        const r = pixels[pixel] ?? 0;
+        const g = pixels[pixel + 1] ?? 0;
+        const b = pixels[pixel + 2] ?? 0;
+        depthValues[index] = (r * 0.2126 + g * 0.7152 + b * 0.0722) / 255;
       }
       depthValues = smoothDepthValues(depthValues, columns, rows, smoothing);
 
@@ -83,7 +85,8 @@ function DepthMeshModel({ url, settings = {}, color, selected }: DepthMeshModelP
       for (let y = 0; y < rows; y += 1) {
         for (let x = 0; x < columns; x += 1) {
           const index = y * columns + x;
-          const normalizedDepth = invert ? 1 - depthValues[index] : depthValues[index];
+          const depth = depthValues[index] ?? 0; // 同长（不可达）
+          const normalizedDepth = invert ? 1 - depth : depth;
           const distance = near + normalizedDepth * (far - near);
           const halfHeight = Math.tan(fieldOfView / 2) * distance;
           const halfWidth = halfHeight * imageAspect;

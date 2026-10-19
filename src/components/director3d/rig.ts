@@ -196,7 +196,10 @@ export function normalizePoseId(pose = 'idle') {
 }
 
 export function presetDefinition(pose = 'idle') {
-  return RIG_PRESETS[normalizePoseId(pose)];
+  const preset = RIG_PRESETS[normalizePoseId(pose)];
+  // normalizePoseId 保证键恒存在；缺失 = 常量表被改坏（编程错误，必须响）
+  if (preset === undefined) throw new Error(`导演台：未知姿势预设「${pose}」`);
+  return preset;
 }
 
 export function presetPhase(pose = 'idle') {
@@ -213,7 +216,8 @@ export const RIG_PRESET_OPTIONS = Object.entries(RIG_PRESETS).map(([id, preset])
   preset.label,
 ]);
 
-export const RIG_PRESET_GROUPS = [
+/** 姿势分组。`poses` 用 [id, label] 元组 ⇒ 解构恒得 string（Inspector 的 applyPreset 不再判 undefined） */
+export const RIG_PRESET_GROUPS: Array<{ label: string; poses: Array<[string, string]> }> = [
   {
     label: '基础',
     poses: [
@@ -348,8 +352,11 @@ export function interpolateJointPose(
   const rightPose = cloneJointPose(right);
   const result: Record<string, number[]> = {};
   for (const { id } of JOINT_DEFINITIONS) {
-    result[id] = leftPose[id].map(
-      (value, index) => value + (rightPose[id][index] - value) * amount,
+    const leftValues = leftPose[id];
+    const rightValues = rightPose[id];
+    if (leftValues === undefined || rightValues === undefined) continue; // 缺关节：跳过（不可达）
+    result[id] = leftValues.map(
+      (value, index) => value + ((rightValues[index] ?? value) - value) * amount,
     );
   }
   return result;

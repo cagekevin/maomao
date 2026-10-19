@@ -193,9 +193,7 @@ function MixamoJointMarker({
         onSelectJoint?.(jointId);
       }}
       {...(onDrag !== undefined ? { onPointerMove: onDrag } : {})}
-      {...(onEndDrag !== undefined
-        ? { onPointerUp: onEndDrag, onPointerCancel: onEndDrag }
-        : {})}
+      {...(onEndDrag !== undefined ? { onPointerUp: onEndDrag, onPointerCancel: onEndDrag } : {})}
       renderOrder={8}
     >
       <sphereGeometry args={[isFineBone ? 0.012 : 0.022, 12, 8]} />
@@ -231,9 +229,7 @@ function MixamoIKHandle({
       ref={markerRef}
       onPointerDown={(event) => onBeginDrag?.(event, jointId)}
       {...(onDrag !== undefined ? { onPointerMove: onDrag } : {})}
-      {...(onEndDrag !== undefined
-        ? { onPointerUp: onEndDrag, onPointerCancel: onEndDrag }
-        : {})}
+      {...(onEndDrag !== undefined ? { onPointerUp: onEndDrag, onPointerCancel: onEndDrag } : {})}
     >
       <mesh scale={selected ? 1.18 : 1} renderOrder={10}>
         <octahedronGeometry args={[0.055, 0]} />
@@ -439,8 +435,12 @@ function MixamoPersonModel({
         right,
         up,
         lockHeight: Boolean(footLock && effectorId?.includes('Foot')),
+        // 链上的骨骼可能未加载（模型异步就位）⇒ 缺项不入表，后续按缺表跳过
         startQuaternions: Object.fromEntries(
-          chainIds.map((id) => [id, bones[id].quaternion.clone()]),
+          chainIds.flatMap((id) => {
+            const bone = bones[id];
+            return bone === undefined ? [] : [[id, bone.quaternion.clone()] as const];
+          }),
         ),
       };
       if (orbitControls) orbitControls.enabled = false;
@@ -510,8 +510,12 @@ function MixamoPersonModel({
           !drag.up
         )
           return;
-        for (const jointId of drag.chainIds)
-          bones[jointId].quaternion.copy(drag.startQuaternions[jointId]);
+        for (const jointId of drag.chainIds) {
+          const bone = bones[jointId];
+          const startQuat = drag.startQuaternions[jointId];
+          if (bone === undefined || startQuat === undefined) continue; // 骨骼/起始姿态缺失：跳过该关节
+          bone.quaternion.copy(startQuat);
+        }
         scene.updateMatrixWorld(true);
         const dx = event.clientX - drag.startX;
         const dy = event.clientY - drag.startY;
@@ -522,6 +526,7 @@ function MixamoPersonModel({
         if (drag.lockHeight) target.y = drag.startTarget.y;
 
         const effector = bones[drag.jointId];
+        if (effector === undefined) return; // 拖动目标骨骼未加载（不可达但必须响）
         const jointPosition = new THREE.Vector3();
         const endPosition = new THREE.Vector3();
         const currentDirection = new THREE.Vector3();
@@ -532,6 +537,7 @@ function MixamoPersonModel({
         for (let iteration = 0; iteration < 10; iteration += 1) {
           for (const jointId of drag.chainIds) {
             const joint = bones[jointId];
+            if (joint === undefined) continue; // 关节缺失：跳过该段
             joint.getWorldPosition(jointPosition);
             effector.getWorldPosition(endPosition);
             currentDirection.copy(endPosition).sub(jointPosition);
@@ -555,17 +561,15 @@ function MixamoPersonModel({
       const dx = event.clientX - drag.startX;
       const dy = event.clientY - drag.startY;
       if (!drag.startRotation) return;
+      const [srX = 0, srY = 0, srZ = 0] = drag.startRotation; // 三元欧拉角（缺项按 0）
       const twist = Boolean(event.shiftKey || event.nativeEvent?.shiftKey);
       const nextRotation = twist
-        ? [drag.startRotation[0], drag.startRotation[1], drag.startRotation[2] + dx * 0.012]
-        : [
-            drag.startRotation[0] - dy * 0.012,
-            drag.startRotation[1] + dx * 0.012,
-            drag.startRotation[2],
-          ];
+        ? [srX, srY, srZ + dx * 0.012]
+        : [srX - dy * 0.012, srY + dx * 0.012, srZ];
       const bone = bones[drag.jointId];
+      if (bone === undefined) return; // 骨骼未加载（WeakMap 键不接受 undefined）
       const sampled = sampledRotations.current.get(bone);
-      if (!bone || !sampled) return;
+      if (!sampled) return;
       const delta = new THREE.Quaternion().setFromEuler(
         new THREE.Euler(nextRotation[0] || 0, nextRotation[1] || 0, nextRotation[2] || 0, 'XYZ'),
       );
@@ -595,6 +599,7 @@ function MixamoPersonModel({
         const euler = new THREE.Euler();
         for (const jointId of drag.chainIds) {
           const bone = bones[jointId];
+          if (bone === undefined) continue; // 骨骼未加载（WeakMap 键不接受 undefined）
           const sampled = sampledRotations.current.get(bone);
           if (!sampled) continue;
           inverseSampled.copy(sampled).invert();
@@ -651,7 +656,8 @@ function MixamoPersonModel({
     [orbitControls],
   );
 
-  const scale = MIXAMO_BODY_SCALES[bodyType] || MIXAMO_BODY_SCALES.standard;
+  // 体型表缺项 ⇒ 回退 standard，再缺则等比 1（常量表被改坏时仍能渲染）
+  const scale = MIXAMO_BODY_SCALES[bodyType] ?? MIXAMO_BODY_SCALES.standard ?? [1, 1, 1];
   return (
     <group position={rig.root}>
       <group ref={modelRoot} scale={scale}>
@@ -679,18 +685,22 @@ function MixamoPersonModel({
           ))}
         {selected &&
           showBoneGizmo &&
-          Object.keys(IK_CHAINS).map((jointId) => (
-            <MixamoIKHandle
-              key={`ik-${jointId}`}
-              bone={bones[jointId]}
-              jointId={jointId}
-              selected={selectedJoint === jointId}
-              modelRoot={modelRoot as React.RefObject<THREE.Group>}
-              onBeginDrag={beginIKDrag}
-              onDrag={dragBone}
-              onEndDrag={endBoneDrag}
-            />
-          ))}
+          Object.keys(IK_CHAINS).flatMap((jointId) => {
+            const bone = bones[jointId];
+            if (bone === undefined) return []; // 该 IK 关节骨骼未加载：不出手柄
+            return [
+              <MixamoIKHandle
+                key={`ik-${jointId}`}
+                bone={bone}
+                jointId={jointId}
+                selected={selectedJoint === jointId}
+                modelRoot={modelRoot as React.RefObject<THREE.Group>}
+                onBeginDrag={beginIKDrag}
+                onDrag={dragBone}
+                onEndDrag={endBoneDrag}
+              />,
+            ];
+          })}
       </group>
     </group>
   );
