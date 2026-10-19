@@ -52,6 +52,8 @@ export function parseTimeCode({
         const parts = cleanTimeCode.split(':');
         if (parts.length !== 2) return null;
         const [minutes, seconds] = parts.map((part) => parseInt(part, 10));
+        // 长度校验在类型层不能推出「解构项必存在」，这里显式守卫（缺段 = 非法时间串）
+        if (minutes === undefined || seconds === undefined) return null;
         if (Number.isNaN(minutes) || Number.isNaN(seconds)) return null;
         if (minutes < 0 || seconds < 0 || seconds >= 60) return null;
         return minutes * 60 + seconds;
@@ -61,6 +63,7 @@ export function parseTimeCode({
         const parts = cleanTimeCode.split(':');
         if (parts.length !== 3) return null;
         const [hours, minutes, seconds] = parts.map((part) => parseInt(part, 10));
+        if (hours === undefined || minutes === undefined || seconds === undefined) return null;
         if (Number.isNaN(hours) || Number.isNaN(minutes) || Number.isNaN(seconds)) return null;
         if (hours < 0 || minutes < 0 || seconds < 0 || minutes >= 60 || seconds >= 60) return null;
         return hours * 3600 + minutes * 60 + seconds;
@@ -70,6 +73,13 @@ export function parseTimeCode({
         const parts = cleanTimeCode.split(':');
         if (parts.length !== 4) return null;
         const [hours, minutes, seconds, centiseconds] = parts.map((part) => parseInt(part, 10));
+        if (
+          hours === undefined ||
+          minutes === undefined ||
+          seconds === undefined ||
+          centiseconds === undefined
+        )
+          return null;
         if (
           Number.isNaN(hours) ||
           Number.isNaN(minutes) ||
@@ -94,6 +104,13 @@ export function parseTimeCode({
         const parts = cleanTimeCode.split(':');
         if (parts.length !== 4) return null;
         const [hours, minutes, seconds, frames] = parts.map((part) => parseInt(part, 10));
+        if (
+          hours === undefined ||
+          minutes === undefined ||
+          seconds === undefined ||
+          frames === undefined
+        )
+          return null;
         if (
           Number.isNaN(hours) ||
           Number.isNaN(minutes) ||
