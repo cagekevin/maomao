@@ -13,6 +13,7 @@
  * 注：#5/#6/#9（chatStream 相关）随 L3b 并入本文件。
  */
 import { describe, it, expect, beforeEach, vi, expectTypeOf } from 'vitest';
+import { at } from '../helpers/at';
 import type { GenerationResult } from '@/types/provider.ts';
 import type { RelayGenerationResult } from '@/components/generate/lib/relayProxy';
 import type { NodeGenerationResult } from '@/hooks/useNodeGeneration.ts';
@@ -57,7 +58,7 @@ describe('generate — capability 分流与唯一入口（#1）', () => {
     await api.generateImage({ provider: { id: 'p1' }, prompt: 'x', model: 'm' });
     expect(h.mockRelayGenerate).toHaveBeenCalledTimes(1);
     expect(h.mockRelayChat).not.toHaveBeenCalled();
-    const { intent } = h.mockRelayGenerate.mock.calls[0][0];
+    const { intent } = at(h.mockRelayGenerate.mock.calls, 0)[0];
     expect(intent.capability).toBe('image');
   });
 
@@ -71,7 +72,7 @@ describe('generate — capability 分流与唯一入口（#1）', () => {
     expect(h.mockRelayChat).toHaveBeenCalledTimes(1);
     expect(h.mockRelayChatStream).not.toHaveBeenCalled();
     expect(h.mockRelayGenerate).not.toHaveBeenCalled();
-    const intent = h.mockRelayChat.mock.calls[0][0];
+    const intent = at(h.mockRelayChat.mock.calls, 0)[0];
     expect(intent.capability).toBe('chat');
   });
 });
@@ -91,7 +92,7 @@ describe('generate — 三模态差异与信封（#2/#3 + 迁移）', () => {
       taskId: 'front-task-1',
     });
     expect(res).toEqual({ ok: true, url: 'http://127.0.0.1:18080/files/tasks/x.png' });
-    const { intent, timeoutMs } = h.mockRelayGenerate.mock.calls[0][0];
+    const { intent, timeoutMs } = at(h.mockRelayGenerate.mock.calls, 0)[0];
     expect(intent.capability).toBe('image');
     expect(intent.providerId).toBe('lovart');
     expect(intent.model).toBe('gpt-image-2-low');
@@ -118,7 +119,7 @@ describe('generate — 三模态差异与信封（#2/#3 + 迁移）', () => {
       taskId: 'front-task-1',
     });
     expect(res).toEqual({ ok: true, url: 'http://127.0.0.1:18080/files/tasks/v.mp4' });
-    const { intent, timeoutMs } = h.mockRelayGenerate.mock.calls[0][0];
+    const { intent, timeoutMs } = at(h.mockRelayGenerate.mock.calls, 0)[0];
     expect(intent.capability).toBe('video');
     expect(intent.size).toBe('16:9');
     expect(intent.resolution).toBe('1080p');
@@ -137,13 +138,13 @@ describe('generate — 三模态差异与信封（#2/#3 + 迁移）', () => {
       aspectRatio: 'Auto',
       size: '1K',
     });
-    expect(h.mockRelayGenerate.mock.calls[0][0].intent.size).toBeUndefined();
+    expect(at(h.mockRelayGenerate.mock.calls, 0)[0].intent.size).toBeUndefined();
   });
 
   it('video size=Auto → 不写 size；无 seconds → 不写 duration', async () => {
     h.mockRelayGenerate.mockResolvedValue({ ok: true, url: 'http://x/v.mp4' });
     await api.generateVideo({ provider: { id: 'p1' }, prompt: 'x', model: 'm', size: 'Auto' });
-    const intent = h.mockRelayGenerate.mock.calls[0][0].intent;
+    const intent = at(h.mockRelayGenerate.mock.calls, 0)[0].intent;
     expect(intent.size).toBeUndefined();
     expect(intent.duration).toBeUndefined();
   });
@@ -158,7 +159,7 @@ describe('generate — 三模态差异与信封（#2/#3 + 迁移）', () => {
       images: ['blob:x'],
     });
     expect(normalizeAssetUrlsForSend).toHaveBeenCalledWith(['blob:x']);
-    expect(h.mockRelayGenerate.mock.calls[0][0].intent.images).toEqual(['http://ref/a.png']);
+    expect(at(h.mockRelayGenerate.mock.calls, 0)[0].intent.images).toEqual(['http://ref/a.png']);
   });
 
   it('image relay 返 error → {ok:false, error}', async () => {
@@ -216,7 +217,7 @@ describe('generate — chat 消息与透传（迁移自 chatApi）', () => {
       messages: [{ role: 'user', content: 'hi' }],
     });
     expect(res).toEqual({ ok: true, content: '你好' });
-    const intent = h.mockRelayChat.mock.calls[0][0];
+    const intent = at(h.mockRelayChat.mock.calls, 0)[0];
     expect(intent.providerId).toBe('lovart');
     expect(intent.model).toBe('lovart-chat');
     expect(intent.messages).toEqual([{ role: 'user', content: 'hi' }]);
@@ -237,7 +238,7 @@ describe('generate — chat 消息与透传（迁移自 chatApi）', () => {
       messages: [],
       temperature: 0.7,
     });
-    const opts = h.mockRelayChat.mock.calls[0][1];
+    const opts = at(h.mockRelayChat.mock.calls, 0)[1];
     expect(opts.temperature).toBe(0.7);
   });
 
@@ -249,7 +250,9 @@ describe('generate — chat 消息与透传（迁移自 chatApi）', () => {
       messages: [{ role: 'user', content: 'hi' }],
     });
     expect(normalizeAssetUrlsForSend).not.toHaveBeenCalled();
-    expect(h.mockRelayChat.mock.calls[0][0].messages).toEqual([{ role: 'user', content: 'hi' }]);
+    expect(at(h.mockRelayChat.mock.calls, 0)[0].messages).toEqual([
+      { role: 'user', content: 'hi' },
+    ]);
   });
 
   it('有参考图 → normalizeAssetUrlsForSend + 图片块追加到末条 user 消息', async () => {
@@ -262,7 +265,7 @@ describe('generate — chat 消息与透传（迁移自 chatApi）', () => {
       images: ['blob:q'],
     });
     expect(normalizeAssetUrlsForSend).toHaveBeenCalledWith(['blob:q']);
-    const sent = h.mockRelayChat.mock.calls[0][0].messages;
+    const sent = at(h.mockRelayChat.mock.calls, 0)[0].messages;
     expect(sent).toHaveLength(1);
     expect(sent[0].content).toEqual([
       { type: 'text', text: 'hi' },
@@ -278,7 +281,7 @@ describe('generate — chat 消息与透传（迁移自 chatApi）', () => {
       messages: [{ role: 'user', content: 'hi' }],
       images: ['http://x/a.png'],
     });
-    const sent = h.mockRelayChat.mock.calls[0][0].messages;
+    const sent = at(h.mockRelayChat.mock.calls, 0)[0].messages;
     expect(sent[0].content).toBe('hi');
   });
 });
@@ -310,7 +313,7 @@ describe('别名函数共用 generate 实现（#10，防各自实现漂移）', 
       size: '2K',
       images: ['blob:x'],
     });
-    const { intent } = h.mockRelayGenerate.mock.calls[0][0];
+    const { intent } = at(h.mockRelayGenerate.mock.calls, 0)[0];
     expect(intent.size).toBe('1152x2048'); // 走 resolveImagePixel（仅 generate() 调用）
     expect(intent.images).toEqual(['http://ref/a.png']); // 走 normalizeAssetUrlsForSend（仅 generate() 调用）
   });
@@ -325,7 +328,7 @@ describe('别名函数共用 generate 实现（#10，防各自实现漂移）', 
       aspectRatio: '3:4',
       size: '888x1184',
     });
-    expect(h.mockRelayGenerate.mock.calls[0][0].intent.size).toBe('888x1184');
+    expect(at(h.mockRelayGenerate.mock.calls, 0)[0].intent.size).toBe('888x1184');
     // Auto + 手改像素：像素已确定，同样直给（Auto 只表示不锁比例标签）
     h.mockRelayGenerate.mockClear();
     await api.generateImage({
@@ -335,12 +338,12 @@ describe('别名函数共用 generate 实现（#10，防各自实现漂移）', 
       aspectRatio: 'Auto',
       size: '888x1184',
     });
-    expect(h.mockRelayGenerate.mock.calls[0][0].intent.size).toBe('888x1184');
+    expect(at(h.mockRelayGenerate.mock.calls, 0)[0].intent.size).toBe('888x1184');
   });
   it('generateVideo 时长转字符串只发生在 generate() 内；且**不再传 timeoutMs**（预算归后端 · S4′）', async () => {
     h.mockRelayGenerate.mockResolvedValue({ ok: true, url: 'http://x/v.mp4' });
     await api.generateVideo({ provider: { id: 'p1' }, prompt: 'x', model: 'm', seconds: 8 });
-    const { intent, timeoutMs } = h.mockRelayGenerate.mock.calls[0][0];
+    const { intent, timeoutMs } = at(h.mockRelayGenerate.mock.calls, 0)[0];
     expect(intent.duration).toBe('8');
     expect(timeoutMs).toBeUndefined();
   });
@@ -353,9 +356,9 @@ describe('别名函数共用 generate 实现（#10，防各自实现漂移）', 
       messages: [{ role: 'user', content: 'hi' }],
       images: ['blob:q'],
     });
-    const got = h.mockRelayChat.mock.calls[0][1];
+    const got = at(h.mockRelayChat.mock.calls, 0)[1];
     expect(got.timeoutMs).toBe(180000); // CHAT_TOTAL_TIMEOUT（任务总预算；S5′ 前误用段值 120s）
-    const intent = h.mockRelayChat.mock.calls[0][0];
+    const intent = at(h.mockRelayChat.mock.calls, 0)[0];
     expect(intent.capability).toBe('chat');
   });
 });

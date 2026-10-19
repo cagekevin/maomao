@@ -13,6 +13,7 @@
  * 行为测试只能覆盖你想到的路径，源码断言能拦住「又冒出一处直写」。
  */
 import { describe, it, expect } from 'vitest';
+import { at } from '../helpers/at';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -38,7 +39,7 @@ function fakeSetNodes() {
     },
     /** 对给定节点数组跑最后一次 updater，返回结果（便于断言写入了什么） */
     apply(ns: Node[]) {
-      return calls.length ? calls[calls.length - 1](ns) : ns;
+      return calls.length ? at(calls, calls.length - 1)(ns) : ns;
     },
   };
 }
@@ -50,13 +51,13 @@ describe('replaceNodeImage — 节点主图唯一写入口', () => {
     const s = fakeSetNodes();
     replaceNodeImage({ id: 'n1', dataUrl: 'http://x/new.png' }, s.setNodes);
     const out = s.apply([node('n1', { assetUrl: 'http://x/old.png', url: 'http://x/old.png' })]);
-    expect(out[0].data.assetUrl).toBe('http://x/new.png');
+    expect(at(out, 0).data.assetUrl).toBe('http://x/new.png');
     // 【2026-09-25 改判】原断言要求 `url` 原样保留（理由写"不动存量字段，读侧仍兜底"）—— 那条是在
     // **旧优先级**（`url > assetUrl`）下写的；保留旧 `url` 恰恰就是那条短路：存量带 `url` 的节点被编辑后
     // 仍解析出旧图（与 `contentId` 同一个病、另一个入口）。写新图 = 旧身份整体失效 ⇒ `url` 一并清。
-    expect(out[0].data.url).toBeUndefined();
+    expect(at(out, 0).data.url).toBeUndefined();
     // 端到端：显示解析必须落到**新图**（不是同义反复，走真实解析入口）
-    expect(resolveAssetDisplayUrl(out[0].data as object, buildContentUrlResolver([]))).toEqual({
+    expect(resolveAssetDisplayUrl(at(out, 0).data as object, buildContentUrlResolver([]))).toEqual({
       kind: 'ok',
       url: 'http://x/new.png',
     });
@@ -71,11 +72,11 @@ describe('replaceNodeImage — 节点主图唯一写入口', () => {
     replaceNodeImage({ id: 'n1', dataUrl: '/files/canvas/new.png' }, s.setNodes);
     const out = s.apply([node('n1', { contentId: 'sha1:old', assetUrl: '/files/web/old.jpg' })]);
     // ① 旧内容的身份必须失效
-    expect(out[0].data.contentId).toBeUndefined();
+    expect(at(out, 0).data.contentId).toBeUndefined();
     // ② 端到端：显示解析必须落到**新图**（用真实 resolver 验证优先级后果，不是同义反复）
     expect(
       resolveAssetDisplayUrl(
-        out[0].data as object,
+        at(out, 0).data as object,
         buildContentUrlResolver([{ contentId: 'sha1:old', url: '/files/web/old.jpg' }]),
       ),
     ).toEqual({ kind: 'ok', url: '/files/canvas/new.png' });
@@ -89,7 +90,7 @@ describe('replaceNodeImage — 节点主图唯一写入口', () => {
       s.setNodes,
     );
     const out = s.apply([node('n1', { contentId: 'sha1:old', assetUrl: '/files/web/old.jpg' })]);
-    expect(out[0].data.contentId).toBe('sha1:new');
+    expect(at(out, 0).data.contentId).toBe('sha1:new');
   });
 
   it('清空主图必须清三个字段（漏 contentId ⇒ 文本态节点仍显示旧图）', () => {
@@ -104,15 +105,15 @@ describe('replaceNodeImage — 节点主图唯一写入口', () => {
         assetType: 'image',
       }),
     ]);
-    expect(out[0].data.assetUrl).toBeUndefined();
-    expect(out[0].data.url).toBeUndefined();
-    expect(out[0].data.contentId).toBeUndefined();
-    expect(out[0].data.assetType).toBe('text');
-    expect(out[0].data.text).toBe('hi');
+    expect(at(out, 0).data.assetUrl).toBeUndefined();
+    expect(at(out, 0).data.url).toBeUndefined();
+    expect(at(out, 0).data.contentId).toBeUndefined();
+    expect(at(out, 0).data.assetType).toBe('text');
+    expect(at(out, 0).data.text).toBe('hi');
     // 端到端：清空后显示解析不得再读到旧图
     expect(
       resolveAssetDisplayUrl(
-        out[0].data as object,
+        at(out, 0).data as object,
         buildContentUrlResolver([{ contentId: 'sha1:old', url: '/files/web/old.jpg' }]),
       ),
     ).toEqual({ kind: 'missing' });
@@ -129,10 +130,10 @@ describe('replaceNodeImage — 节点主图唯一写入口', () => {
       s.setNodes,
     );
     const out = s.apply([node('n1', { assetUrl: 'o', url: 'o', assetType: 'image', text: 'x' })]);
-    expect(out[0].data.assetUrl).toBe('http://x/new.png');
-    expect(out[0].data.url).toBeUndefined(); // 旧身份字段一并失效（2026-09-25 改判，见上一条）
-    expect(out[0].data.assetType).toBeUndefined();
-    expect(out[0].data.text).toBeUndefined();
+    expect(at(out, 0).data.assetUrl).toBe('http://x/new.png');
+    expect(at(out, 0).data.url).toBeUndefined(); // 旧身份字段一并失效（2026-09-25 改判，见上一条）
+    expect(at(out, 0).data.assetType).toBeUndefined();
+    expect(at(out, 0).data.text).toBeUndefined();
   });
 
   it('不可变更新：其它字段与其它节点保持原引用，不原地 mutation', () => {
@@ -141,10 +142,10 @@ describe('replaceNodeImage — 节点主图唯一写入口', () => {
     const other = node('n2', { assetUrl: 'keep' });
     const target = node('n1', { assetUrl: 'o', keep: 1 });
     const out = s.apply([other, target]);
-    expect(out[0]).toBe(other);
-    expect(out[1]).not.toBe(target);
+    expect(at(out, 0)).toBe(other);
+    expect(at(out, 1)).not.toBe(target);
     expect(target.data.assetUrl).toBe('o'); // 入参未被修改
-    expect(out[1].data.keep).toBe(1); // 其它 data 字段保留
+    expect(at(out, 1).data.keep).toBe(1); // 其它 data 字段保留
   });
 
   it('dims 原样透传给 afterWrite（尺寸模型留给调用方，本函数不碰尺寸）', () => {

@@ -9,6 +9,8 @@
  *     读工具（read_canvas/list_nodes）透传 ctx；create_node 调用 ctx.addNodes 并返回新 id
  */
 import { describe, it, expect, vi } from 'vitest';
+import { at } from '../helpers/at';
+import { toolOf } from '../helpers/agentTools';
 import type { Node } from '@xyflow/react';
 
 const mkNode = (data: Record<string, unknown> = {}): Node => ({
@@ -93,7 +95,7 @@ describe('buildCanvasAgentTools', () => {
   it('read_canvas / list_nodes 透传 ctx', () => {
     const ctx = makeCtx({ getNodes: vi.fn(() => [{ id: 'z' }]) });
     const tools = buildCanvasAgentTools(ctx);
-    const r = tools.read_canvas({});
+    const r = toolOf(tools, 'read_canvas')({});
     expect(r.ok).toBe(true);
     expect(ctx.getNodes).toHaveBeenCalled();
   });
@@ -105,7 +107,7 @@ describe('buildCanvasAgentTools', () => {
       }),
     });
     const tools = buildCanvasAgentTools(ctx);
-    const res = tools.read_canvas({});
+    const res = toolOf(tools, 'read_canvas')({});
     expect(res.ok).toBe(false);
     expect(res.error).toContain('read_canvas');
   });
@@ -113,7 +115,7 @@ describe('buildCanvasAgentTools', () => {
   it('skill_read_file 是**异步**工具：无本轮 Skill 时如实拒绝（不静默回空内容）', async () => {
     const tools = buildCanvasAgentTools(makeCtx());
     // async 工具经注册表包装后仍是 Promise（runToolCalls 会 await）——此处显式 await 验证这一点
-    const res = await tools.skill_read_file({ path: 'references/风格.md' });
+    const res = await toolOf(tools, 'skill_read_file')({ path: 'references/风格.md' });
     expect(res.ok).toBe(false);
     expect(res.error).toContain('本轮没有启用 Skill');
   });
@@ -121,7 +123,10 @@ describe('buildCanvasAgentTools', () => {
   it('create_node 用合法 type → setNodes 追加节点并返回新 id', () => {
     const ctx = makeCtx();
     const tools = buildCanvasAgentTools(ctx);
-    const res = tools.create_node({
+    const res = toolOf(
+      tools,
+      'create_node',
+    )({
       type: 'textGenerateNode',
       prompt: '你好',
       position: { x: 1, y: 2 },
@@ -131,7 +136,7 @@ describe('buildCanvasAgentTools', () => {
     expect(ctx.setNodes).toHaveBeenCalled();
     // 断言「写」的行为而非 setNodes 的实现形式（host 走函数式更新）：传入当前节点数组，
     // 应追加正确 data 的新节点、且不影响既有节点。
-    const applyFn = ctx.setNodes.mock.calls[0][0] as (
+    const applyFn = at(ctx.setNodes.mock.calls, 0)[0] as (
       nodes: Record<string, unknown>[],
     ) => Record<string, unknown>[];
     expect(typeof applyFn).toBe('function');
@@ -147,13 +152,16 @@ describe('buildCanvasAgentTools', () => {
   it('create_node 对 textGenerateNode 传 text → 内容落生成区 data.text（而非抽屉 data.prompt）', () => {
     const ctx = makeCtx();
     const tools = buildCanvasAgentTools(ctx);
-    const res = tools.create_node({
+    const res = toolOf(
+      tools,
+      'create_node',
+    )({
       type: 'textGenerateNode',
       text: 'AI 回复内容',
       position: { x: 1, y: 2 },
     });
     expect(res.ok).toBe(true);
-    const applyFn = ctx.setNodes.mock.calls[0][0] as (
+    const applyFn = at(ctx.setNodes.mock.calls, 0)[0] as (
       nodes: Record<string, unknown>[],
     ) => Record<string, unknown>[];
     const result = applyFn([{ id: 'existing', data: {} }]);
@@ -165,12 +173,15 @@ describe('buildCanvasAgentTools', () => {
   it('create_node 对 textGenerateNode 仅传 prompt → 内容落抽屉区 data.prompt（AI 既有行为不变）', () => {
     const ctx = makeCtx();
     const tools = buildCanvasAgentTools(ctx);
-    const res = tools.create_node({
+    const res = toolOf(
+      tools,
+      'create_node',
+    )({
       type: 'textGenerateNode',
       prompt: '抽屉提示词',
       position: { x: 1, y: 2 },
     });
-    const applyFn = ctx.setNodes.mock.calls[0][0] as (
+    const applyFn = at(ctx.setNodes.mock.calls, 0)[0] as (
       nodes: Record<string, unknown>[],
     ) => Record<string, unknown>[];
     const result = applyFn([{ id: 'existing', data: {} }]);
@@ -181,7 +192,7 @@ describe('buildCanvasAgentTools', () => {
   it('create_node 用非法 type → ok:false 且给出可选类型', () => {
     const ctx = makeCtx();
     const tools = buildCanvasAgentTools(ctx);
-    const res = tools.create_node({ type: 'notExist' });
+    const res = toolOf(tools, 'create_node')({ type: 'notExist' });
     expect(res.ok).toBe(false);
     expect(res.error).toContain('未知节点类型');
   });
