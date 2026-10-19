@@ -12,6 +12,13 @@ import {
  * STORAGE_KEYS 结构检查
  * ════════════════════════════════════════════════════════════════ */
 
+function keyOf(name: string) {
+  const entry = STORAGE_KEYS[name];
+  // 登记表是索引签名：缺项 = 登记被删（编程错误），必须响而不是静默 undefined
+  if (entry === undefined) throw new Error(`STORAGE_KEYS 未登记：${name}`);
+  return entry;
+}
+
 describe('STORAGE_KEYS 结构完整性', () => {
   const REQUIRED_FIELDS = ['domain', 'store', 'backend', 'note'] as const;
 
@@ -144,7 +151,7 @@ describe('STORAGE_KEYS 内容验证', () => {
   });
 
   it('云同步台账键已登记（防覆盖保护的本地基线，不进云端）', () => {
-    const entry = STORAGE_KEYS.yimao_cloud_sync_ledger;
+    const entry = keyOf('yimao_cloud_sync_ledger');
     // 未登记 → contentStore.checkRegistered 在开发环境直接抛错（架构 P0-1 硬拦截）
     expect(entry, '台账键必须在 STORAGE_KEYS 登记').toBeTruthy();
     expect(entry.backend).toBe('local');
@@ -176,8 +183,8 @@ describe('STORAGE_KEYS 内容验证', () => {
   });
 
   it('账号 yimao_accounts 后端为 kv（R1/R6：走 KV 磁盘持久化 + 云同步）', () => {
-    expect(STORAGE_KEYS.yimao_accounts.backend).toBe('kv');
-    expect(STORAGE_KEYS.yimao_accounts.domain).toBe('account');
+    expect(keyOf('yimao_accounts').backend).toBe('kv');
+    expect(keyOf('yimao_accounts').domain).toBe('account');
   });
 
   it('包含 AI 会话动态键', () => {
@@ -186,8 +193,8 @@ describe('STORAGE_KEYS 内容验证', () => {
   });
 
   it('旧迁移键标记了 migration 字段', () => {
-    expect(STORAGE_KEYS.agent_conversations.migration).toBe('agent_conversations_{agentKey}');
-    expect(STORAGE_KEYS.agent_active_conversation_id.migration).toBe(
+    expect(keyOf('agent_conversations').migration).toBe('agent_conversations_{agentKey}');
+    expect(keyOf('agent_active_conversation_id').migration).toBe(
       'agent_active_conversation_id_{agentKey}',
     );
   });
