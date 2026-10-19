@@ -195,8 +195,8 @@ export function parsePasted(rawText: string, htmlText?: string): AssistantTable 
   if (!header.length) return null;
   const columns = header.map((label) => ({ id: newColId(), label }));
   const rows: TableRow[] = [];
-  for (let i = 1; i < grid.length; i++) {
-    const cellsArr = grid[i];
+  for (const [i, cellsArr] of grid.entries()) {
+    if (i === 0) continue; // 首行 = 表头（上方已消费）
     // 按下标对 column 顺序取；格子数不足补空，多余裁剪（与 normalize 同一对齐语义）
     const cells = columns.map((_, ci) => String(cellsArr[ci] ?? '').trim());
     if (!rowHasText(cells)) continue; // 跳过全空数据行（B-006 统一实现）
@@ -221,11 +221,15 @@ function parseHtmlTable(html: string): string[][] {
   const trRe = /<tr[^>]*>([\s\S]*?)<\/tr>/gi;
   let tr;
   while ((tr = trRe.exec(html)) !== null) {
+    const rowHtml = tr[1];
+    if (rowHtml === undefined) continue; // 无捕获组 = 正则写错，跳过而非静默产出空行
     const row: string[] = [];
     const cellRe = /<(?:th|td)[^>]*>([\s\S]*?)<\/(?:th|td)>/gi;
     let td;
-    while ((td = cellRe.exec(tr[1])) !== null) {
-      row.push(stripTags(td[1]));
+    while ((td = cellRe.exec(rowHtml)) !== null) {
+      const cellHtml = td[1];
+      if (cellHtml === undefined) continue;
+      row.push(stripTags(cellHtml));
     }
     if (row.length) rows.push(row);
   }
@@ -263,7 +267,8 @@ export function moveRow(sb: AssistantTable, rowId: string, dir: 'up' | 'down'): 
   const target = dir === 'up' ? idx - 1 : idx + 1;
   if (target < 0 || target >= sb.rows.length) return sb;
   const rows = sb.rows.slice();
-  const [moved] = rows.splice(idx, 1);
+  const moved = rows.splice(idx, 1)[0];
+  if (moved === undefined) return sb; // idx 已校验在界内，splice 必返回 1 项（不可达兜底）
   rows.splice(target, 0, moved);
   return { ...sb, rows };
 }
@@ -273,6 +278,7 @@ export function duplicateRow(sb: AssistantTable, rowId: string): AssistantTable 
   const idx = sb.rows.findIndex((r) => r.id === rowId);
   if (idx < 0) return sb;
   const src = sb.rows[idx];
+  if (src === undefined) return sb;
   const copy: TableRow = { id: newRowId(), cells: [...src.cells] };
   const rows = sb.rows.slice();
   rows.splice(idx + 1, 0, copy);
@@ -300,6 +306,7 @@ export function setCell(
   if (idx < 0) return sb; // 行不存在，幂等
   if (!Number.isInteger(colIndex) || colIndex < 0 || colIndex >= sb.columns.length) return sb; // 越界忽略
   const row = sb.rows[idx];
+  if (row === undefined) return sb; // idx 已校验在界内（不可达兜底）
   const value = String(text ?? '');
   if ((row.cells[colIndex] ?? '') === value) return sb; // 原值相同（含 undefined===''）→ 幂等
   const cells = row.cells.slice();
@@ -314,6 +321,7 @@ export function renameColumn(sb: AssistantTable, colId: string, label: string): 
   const trimmed = String(label ?? '').trim();
   if (!trimmed) return sb;
   const col = sb.columns[idx];
+  if (col === undefined) return sb; // idx 已校验在界内（不可达兜底）
   if (col.label === trimmed) return sb; // 相同幂等
   return { ...sb, columns: sb.columns.map((c, i) => (i === idx ? { ...c, label: trimmed } : c)) };
 }
@@ -348,6 +356,7 @@ export function setColumnWidth(sb: AssistantTable, colId: string, width: number)
   const w = Math.round(width);
   if (!Number.isFinite(w)) return sb;
   const col = sb.columns[idx];
+  if (col === undefined) return sb; // idx 已校验在界内（不可达兜底）
   if ((col.width ?? null) === w) return sb; // 相同幂等
   return { ...sb, columns: sb.columns.map((c, i) => (i === idx ? { ...c, width: w } : c)) };
 }
@@ -401,8 +410,8 @@ export function deleteColumn(sb: AssistantTable, colId: string): AssistantTable 
 /** 行 → { 列名: 值 }（按 columns 顺序；发给 AI / 序列化都用它，保证每值带列名） */
 export function rowToObj(sb: AssistantTable, row: TableRow): Record<string, string> {
   const obj: Record<string, string> = {};
-  for (let ci = 0; ci < sb.columns.length; ci++) {
-    obj[sb.columns[ci].label] = row.cells[ci] ?? '';
+  for (const [ci, col] of sb.columns.entries()) {
+    obj[col.label] = row.cells[ci] ?? '';
   }
   return obj;
 }
@@ -423,9 +432,9 @@ export function rowToText(
   const parts: string[] = [];
   const head: string[] = [];
   if (tableName && String(tableName).trim()) head.push(`表名：${String(tableName).trim()}`);
-  for (let ci = 0; ci < sb.columns.length; ci++) {
+  for (const [ci, col] of sb.columns.entries()) {
     const v = row.cells[ci] ?? '';
-    if (v) parts.push(`${sb.columns[ci].label}：${v}`);
+    if (v) parts.push(`${col.label}：${v}`);
   }
   const body = parts.join('\n');
   const gs = globalStyle && globalStyle.trim() ? globalStyle.trim() : '';
@@ -724,18 +733,19 @@ export function buildPreviewResult(
   const changed = new Set<string>();
   let updatedCount = 0;
   let appendedCount = 0;
-  for (let i = 0; i < rawRows.length; i++) {
-    const raw = rawRows[i];
+  for (const [i, raw] of rawRows.entries()) {
     if (!raw || typeof raw !== 'object') continue;
     const ti = targets[i];
-    if (ti !== null) {
+    // ti 为 null = AI 新行；undefined（targets 短于 rawRows）同按新行处理
+    const targetRow = ti === null || ti === undefined ? undefined : nextRows[ti];
+    if (targetRow !== undefined) {
       const obj = raw as Record<string, unknown>;
-      const cells = nextRows[ti].cells;
-      for (let ci = 0; ci < resultCols.length; ci++) {
-        const v = colValue(obj, resultCols[ci]);
+      const cells = targetRow.cells;
+      for (const [ci, col] of resultCols.entries()) {
+        const v = colValue(obj, col);
         if (v !== undefined) cells[ci] = v; // 只覆盖提及列，未提及保留原值
       }
-      changed.add(nextRows[ti].id); // 被 AI 覆盖的目标行 = 写回变化
+      changed.add(targetRow.id); // 被 AI 覆盖的目标行 = 写回变化
       updatedCount++;
     } else {
       const added = materialize(raw as Record<string, unknown>);
@@ -826,7 +836,8 @@ export function normalizeAssistantTabs(raw: unknown): AssistantTableTabs {
         .filter((t): t is TableTab => t !== null);
       if (tabs.length > 0) {
         let active = String(r.activeTabId ?? '');
-        if (!tabs.some((t) => t.id === active)) active = tabs[0].id;
+        const firstTab = tabs[0];
+        if (!tabs.some((t) => t.id === active) && firstTab !== undefined) active = firstTab.id;
         return { tabs, activeTabId: active };
       }
     }
@@ -843,7 +854,7 @@ export function getTab(tabs: AssistantTableTabs, tabId: string): TableTab | null
 /** 取当前活动 tab；无/异常回退第一个；再空 → null */
 export function getActiveTab(tabs: AssistantTableTabs): TableTab | null {
   if (!tabs || !Array.isArray(tabs.tabs) || tabs.tabs.length === 0) return null;
-  return getTab(tabs, tabs.activeTabId) ?? tabs.tabs[0];
+  return getTab(tabs, tabs.activeTabId) ?? tabs.tabs[0] ?? null;
 }
 
 /**
@@ -891,7 +902,9 @@ export function setTabGlobalStyle(
 /** 设置活动 tab；tabId 不存在回退第一个（保持恒有活动 tab） */
 export function setActiveTabId(tabs: AssistantTableTabs, tabId: string): AssistantTableTabs {
   if (!tabs || !Array.isArray(tabs.tabs) || tabs.tabs.length === 0) return tabs;
-  const active = tabs.tabs.some((t) => t.id === tabId) ? tabId : tabs.tabs[0].id;
+  const firstTab = tabs.tabs[0];
+  if (firstTab === undefined) return tabs;
+  const active = tabs.tabs.some((t) => t.id === tabId) ? tabId : firstTab.id;
   return { ...tabs, activeTabId: active };
 }
 
@@ -936,7 +949,9 @@ export function removeTab(tabs: AssistantTableTabs, tabId: string): AssistantTab
   let active = tabs.activeTabId;
   if (active === tabId || !next.some((t) => t.id === active)) {
     const fallbackIdx = Math.min(idx, next.length - 1);
-    active = next[fallbackIdx].id;
+    const fallback = next[fallbackIdx];
+    // next 非空（上方 tabs.length > 1 已保证删一个还剩 ≥1），索引必在界内
+    if (fallback !== undefined) active = fallback.id;
   }
   return { tabs: next, activeTabId: active };
 }
@@ -968,7 +983,8 @@ export function moveTab(
   if (!tabs || !Array.isArray(tabs.tabs)) return tabs;
   const arr = tabs.tabs.slice();
   if (fromIdx < 0 || fromIdx >= arr.length) return tabs;
-  const [moved] = arr.splice(fromIdx, 1);
+  const moved = arr.splice(fromIdx, 1)[0];
+  if (moved === undefined) return tabs; // fromIdx 已校验在界内（不可达兜底）
   const target = Math.max(0, Math.min(toIdx, arr.length));
   arr.splice(target, 0, moved);
   return { ...tabs, tabs: arr };
@@ -1000,8 +1016,10 @@ export function rangeToCells(sb: AssistantTable, range: CellRange): string[][] {
   const [c0, c1] = [Math.min(c, d), Math.max(c, d)];
   const out: string[][] = [];
   for (let i = r0; i <= r1; i++) {
+    const row = sb.rows[i];
+    if (row === undefined) break; // r0/r1 来自 findIndex，必在界内（不可达兜底）
     const line: string[] = [];
-    for (let j = c0; j <= c1; j++) line.push(String(sb.rows[i].cells[j] ?? ''));
+    for (let j = c0; j <= c1; j++) line.push(String(row.cells[j] ?? ''));
     out.push(line);
   }
   return out;
@@ -1024,18 +1042,20 @@ export function pasteCells(
   anchor: { rowId: string; colId: string },
   cells: string[][],
 ): AssistantTable {
-  if (!sb || !cells.length || !cells[0].length) return sb;
+  const firstRow = cells[0];
+  if (!sb || firstRow === undefined || firstRow.length === 0) return sb;
   const r0 = sb.rows.findIndex((r) => r.id === anchor.rowId);
   const c0 = sb.columns.findIndex((c) => c.id === anchor.colId);
   if (r0 < 0 || c0 < 0) return sb;
   const rows = sb.rows.map((r) => ({ ...r, cells: [...r.cells] }));
-  for (let i = 0; i < cells.length; i++) {
+  for (const [i, cellRow] of cells.entries()) {
     const ri = r0 + i;
-    if (ri >= rows.length) break;
-    for (let j = 0; j < cells[i].length; j++) {
+    const target = rows[ri];
+    if (target === undefined) break; // ri 越过行尾：越界只裁剪
+    for (const [j, cell] of cellRow.entries()) {
       const ci = c0 + j;
       if (ci >= sb.columns.length) break;
-      rows[ri].cells[ci] = String(cells[i][j] ?? '');
+      target.cells[ci] = String(cell);
     }
   }
   return { ...sb, rows };
@@ -1109,16 +1129,15 @@ export function copyRowsToTab(
     .filter((r) => set.has(r.id))
     .map((r) => {
       const map: Record<string, string> = {};
-      for (let ci = 0; ci < src.columns.length; ci++) {
-        map[src.columns[ci].label] = r.cells[ci] ?? '';
+      for (const [ci, col] of src.columns.entries()) {
+        map[col.label] = r.cells[ci] ?? '';
       }
       return map;
     });
   // 重塑进目标表列结构（未命中列留空、绝不静默丢值）
   const newRows: TableRow[] = srcRowsLabel.map((map) => {
     const cells: string[] = [];
-    for (let ci = 0; ci < resultCols.length; ci++) {
-      const col = resultCols[ci];
+    for (const [ci, col] of resultCols.entries()) {
       const direct = map[col.label];
       const norm = normalizeLabel(col.label);
       let v = direct;
@@ -1201,9 +1220,9 @@ export function replaceTextInTabs(
       let tabChanged = false;
       const rows = t.rows.map((r) => {
         const cells = [...r.cells];
-        for (let ci = 0; ci < cells.length; ci++) {
-          const res = replaceInCell(cells[ci], find, replace);
-          if (res.text !== cells[ci]) {
+        for (const [ci, cell] of cells.entries()) {
+          const res = replaceInCell(cell, find, replace);
+          if (res.text !== cell) {
             cells[ci] = res.text;
             total += res.changeCount;
             tabChanged = true;

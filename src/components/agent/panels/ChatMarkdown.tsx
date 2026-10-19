@@ -79,7 +79,10 @@ function InlineContent({ value }: { value: string }) {
       );
     } else if (raw.startsWith('[')) {
       const linkMatch = /^\[([^\]]+)\]\(([^)]+)\)$/.exec(raw);
-      const href = linkMatch ? resolveSafeHref(linkMatch[2]) : null;
+      // 捕获组 1/2 在匹配成功时必存在；TS 的 nua 不认，显式取局部变量收窄
+      const linkText = linkMatch?.[1] ?? raw;
+      const linkTarget = linkMatch?.[2];
+      const href = linkTarget === undefined ? null : resolveSafeHref(linkTarget);
       nodes.push(
         href ? (
           <a
@@ -89,10 +92,10 @@ function InlineContent({ value }: { value: string }) {
             rel="noopener noreferrer"
             className="font-medium text-blue-300 underline decoration-blue-300/35 underline-offset-2 hover:text-blue-200 hover:decoration-blue-200/70"
           >
-            {linkMatch?.[1]}
+            {linkText}
           </a>
         ) : (
-          <span key={`unsafe-link-${start}`}>{linkMatch?.[1] ?? raw}</span>
+          <span key={`unsafe-link-${start}`}>{linkText}</span>
         ),
       );
     } else if (raw.startsWith('**')) {
@@ -265,7 +268,8 @@ function isBlockStart(lines: string[], index: number): boolean {
   if (!line.trim()) return true;
   if (line.startsWith('```') || /^#{1,6}\s+/.test(line) || /^>\s?/.test(line)) return true;
   if (/^\s*(?:[-+*]|\d+\.)\s+/.test(line) || /^\s*(?:-{3,}|\*{3,})\s*$/.test(line)) return true;
-  return index + 1 < lines.length && line.includes('|') && isTableDivider(lines[index + 1]);
+  const next = lines[index + 1];
+  return next !== undefined && line.includes('|') && isTableDivider(next);
 }
 
 function ChatMarkdown({ value, onOpenImage }: ChatMarkdownProps) {
@@ -275,6 +279,7 @@ function ChatMarkdown({ value, onOpenImage }: ChatMarkdownProps) {
 
   while (index < lines.length) {
     const line = lines[index];
+    if (line === undefined) break; // index < lines.length 保证存在（不可达兜底）
     if (!line.trim()) {
       index += 1;
       continue;
@@ -284,25 +289,40 @@ function ChatMarkdown({ value, onOpenImage }: ChatMarkdownProps) {
     if (fence) {
       const code: string[] = [];
       index += 1;
-      while (index < lines.length && !/^```\s*$/.test(lines[index])) {
-        code.push(lines[index]);
+      while (index < lines.length) {
+        const inner = lines[index];
+        if (inner === undefined || /^```\s*$/.test(inner)) break;
+        code.push(inner);
         index += 1;
       }
       if (index < lines.length) index += 1;
-      blocks.push(<CodeBlock key={`code-${index}`} code={code.join('\n')} language={fence[1]} />);
+      const language = fence[1];
+      blocks.push(
+        <CodeBlock
+          key={`code-${index}`}
+          code={code.join('\n')}
+          {...(language === undefined ? {} : { language })}
+        />,
+      );
       continue;
     }
 
     const heading = /^(#{1,6})\s+(.+)$/.exec(line);
     if (heading) {
-      const level = heading[1].length;
+      const hashes = heading[1];
+      const headingText = heading[2];
+      if (hashes === undefined || headingText === undefined) {
+        index += 1; // 捕获组缺失 = 正则写错（不可达），跳过本行避免死循环
+        continue;
+      }
+      const level = hashes.length;
       const headingClasses =
         level === 1
           ? 'mt-3 mb-1.5 text-[15px] font-semibold'
           : level === 2
             ? 'mt-3 mb-1 text-[14px] font-semibold'
             : 'mt-2.5 mb-1 text-[13px] font-semibold';
-      const content = <InlineWithImages value={heading[2]} onOpenImage={onOpenImage} />;
+      const content = <InlineWithImages value={headingText} onOpenImage={onOpenImage} />;
       if (level === 1)
         blocks.push(
           <h1 key={`h-${index}`} className={headingClasses}>
@@ -331,12 +351,15 @@ function ChatMarkdown({ value, onOpenImage }: ChatMarkdownProps) {
       continue;
     }
 
-    if (index + 1 < lines.length && line.includes('|') && isTableDivider(lines[index + 1])) {
+    const divider = lines[index + 1];
+    if (divider !== undefined && line.includes('|') && isTableDivider(divider)) {
       const header = splitTableRow(line);
       const rows: string[][] = [];
       index += 2;
-      while (index < lines.length && lines[index].includes('|') && lines[index].trim()) {
-        rows.push(splitTableRow(lines[index]));
+      while (index < lines.length) {
+        const rowLine = lines[index];
+        if (rowLine === undefined || !rowLine.includes('|') || !rowLine.trim()) break;
+        rows.push(splitTableRow(rowLine));
         index += 1;
       }
       blocks.push(
@@ -370,12 +393,26 @@ function ChatMarkdown({ value, onOpenImage }: ChatMarkdownProps) {
 
     const listItem = /^\s*([-+*]|\d+\.)\s+(.+)$/.exec(line);
     if (listItem) {
-      const ordered = /\d+\./.test(listItem[1]);
+      const marker = listItem[1];
+      if (marker === undefined) {
+        index += 1; // 捕获组缺失 = 正则写错（不可达）
+        continue;
+      }
+      const ordered = /\d+\./.test(marker);
       const items: string[] = [];
       while (index < lines.length) {
-        const item = /^\s*([-+*]|\d+\.)\s+(.+)$/.exec(lines[index]);
-        if (!item || /\d+\./.test(item[1]) !== ordered) break;
-        items.push(item[2]);
+        const current = lines[index];
+        if (current === undefined) break;
+        const item = /^\s*([-+*]|\d+\.)\s+(.+)$/.exec(current);
+        const itemMarker = item?.[1];
+        const itemText = item?.[2];
+        if (
+          itemMarker === undefined ||
+          itemText === undefined ||
+          /\d+\./.test(itemMarker) !== ordered
+        )
+          break;
+        items.push(itemText);
         index += 1;
       }
       const children = items.map((item, itemIndex) => (
@@ -399,8 +436,10 @@ function ChatMarkdown({ value, onOpenImage }: ChatMarkdownProps) {
 
     if (/^>\s?/.test(line)) {
       const quote: string[] = [];
-      while (index < lines.length && /^>\s?/.test(lines[index])) {
-        quote.push(lines[index].replace(/^>\s?/, ''));
+      while (index < lines.length) {
+        const current = lines[index];
+        if (current === undefined || !/^>\s?/.test(current)) break;
+        quote.push(current.replace(/^>\s?/, ''));
         index += 1;
       }
       blocks.push(
@@ -417,8 +456,10 @@ function ChatMarkdown({ value, onOpenImage }: ChatMarkdownProps) {
 
     const paragraph: string[] = [line];
     index += 1;
-    while (index < lines.length && !isBlockStart(lines, index)) {
-      paragraph.push(lines[index]);
+    while (index < lines.length) {
+      const next = lines[index];
+      if (next === undefined || isBlockStart(lines, index)) break;
+      paragraph.push(next);
       index += 1;
     }
     blocks.push(

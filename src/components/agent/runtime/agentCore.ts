@@ -622,10 +622,13 @@ export function buildRequestMessages(
   // 详见函数头 JSDoc 的「过渡方案」说明。算 startIdx：定位最后一个 user（=本轮），
   // 再向前多回溯 historyTurns 个 user 的起点，确保带上最近 N 轮（含每轮 assistant 文字）。
   let lastUserIdx = -1;
-  for (let i = 0; i < messages.length; i++) {
-    if (messages[i].role === 'user') lastUserIdx = i;
+  let lastUser: agentChatMessage | null = null;
+  for (const [i, m] of messages.entries()) {
+    if (m.role === 'user') {
+      lastUserIdx = i;
+      lastUser = m;
+    }
   }
-  const lastUser = lastUserIdx >= 0 ? messages[lastUserIdx] : null;
   const currentHasAttachments =
     !!lastUser && lastUser.attachments && lastUser.attachments.length > 0;
 
@@ -635,19 +638,16 @@ export function buildRequestMessages(
   //    使最近 N 轮的 user + assistant 文字都能进上下文（tool 消息配对逻辑在后面逐条处理，不受影响）。
   let startIdx = lastUserIdx < 0 ? 0 : lastUserIdx;
   if (historyTurns > 0 && lastUserIdx >= 0) {
-    let count = 0;
-    for (let i = lastUserIdx; i >= 0; i--) {
-      if (messages[i].role === 'user') count++;
-      if (count >= historyTurns) {
-        startIdx = i;
-        break;
-      }
-      if (i === 0) startIdx = 0;
+    // 取「倒数第 historyTurns 个 user」的下标；user 不足 historyTurns 时回落到 0（全量回溯）
+    const userIdxes: number[] = [];
+    for (const [i, m] of messages.entries()) {
+      if (m.role === 'user') userIdxes.push(i);
     }
+    startIdx = userIdxes[userIdxes.length - historyTurns] ?? 0;
   }
   let droppedOrphanTools = 0; // 【B层】被丢弃的孤儿 tool 消息数（配对失败）
-  for (let i = startIdx; i < messages.length; i++) {
-    const m = messages[i];
+  for (const [i, m] of messages.entries()) {
+    if (i < startIdx) continue;
     if (m.role === 'user' && m.attachments && m.attachments.length > 0) {
       if (currentHasAttachments && i === lastUserIdx) {
         // 本轮：内联本轮全部媒体 content 块 + refCatalog/坐标（供 AI 引用）。
