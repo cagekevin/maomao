@@ -38,6 +38,9 @@
     "verbatimModuleSyntax": true,
     // 2026-10-19 · P3：471 处 eop 已清零，开关写回主配置。
     "exactOptionalPropertyTypes": true,
+    // 2026-10-20 · P4：src 869 + tests 1227 处已清零，开关写回主配置。
+    // 全量 3368 用例通过；此后 `arr[i]` 的 `T | undefined` 由编译器强制面对。
+    "noUncheckedIndexedAccess": true,
 
     "types": ["node", "vite/client", "vitest/globals"],
     "baseUrl": ".",
