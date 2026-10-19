@@ -10,6 +10,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { at } from '../helpers/at';
 
 // 隔离外部依赖（网络 / 模型 / toast），仅保留 scriptBoxPrompts（纯提示词拼接）
 vi.mock('../../src/components/generate/lib/generate.ts', async (importOriginal) => ({
@@ -236,19 +237,19 @@ describe('scriptBoxSchema · normalizeScriptBoxData（P0-0）', () => {
     expect(d.playbookLabel).toBe('');
     expect(Array.isArray(d.tailFrameAngleIds)).toBe(true);
     // shot 子字段补齐 P1-1 连续性默认
-    const s = d.shots[0];
+    const s = at(d.shots, 0);
     expect(s.usePrevShotVideoTail).toBe(false);
     expect(s.prevShotImageRefUrls).toEqual([]);
     expect(s.prevTailFrameVariants).toEqual([]);
     expect(s.selectedTailFrameVariantId).toBe('original');
     // asset 子字段：thumbnailUrl 缺省回退 assetUrl（P0-3）
-    expect(d.assets[0].thumbnailUrl).toBe('/files/a.png');
+    expect(at(d.assets, 0).thumbnailUrl).toBe('/files/a.png');
   });
   it('non-object 项兜底为空默认', () => {
     const d = normalizeScriptBoxData({ shots: [null, 'x'], assets: [undefined] });
     expect(d.shots.length).toBe(2);
-    expect(d.shots[1].usePrevShotVideoTail).toBe(false);
-    expect(d.assets[0].assetUrl).toBe('');
+    expect(at(d.shots, 1).usePrevShotVideoTail).toBe(false);
+    expect(at(d.assets, 0).assetUrl).toBe('');
   });
   it('默认值对象为全新引用（防共享突变）', () => {
     const a = defaultShotFields();
@@ -261,10 +262,22 @@ describe('scriptBoxSchema · normalizeScriptBoxData（P0-0）', () => {
   });
 });
 
+/**
+ * 引擎通过 `hooks.addNodes(nodes)` 交付的节点**最小形状**。
+ * 只声明测试真正读的字段（type / data），不复制生产节点类型 —— 复制会随生产漂移。
+ */
+type EmittedNode = {
+  id?: string;
+  type?: string;
+  data: Record<string, unknown>;
+};
+
 describe('scriptBoxEngine · 引擎编排', () => {
   function makeEngine(initial: any) {
     const store = { ...initial };
-    const addNodes = vi.fn();
+    // 泛型必须写 unknown[]：hooks 签名是 `(nodes: unknown[]) => void`，参数逆变，
+    // 写成 EmittedNode[] 会报 TS2322（接收方要求能装任意 unknown 元素）。
+    const addNodes = vi.fn<(nodes: unknown[]) => void>();
     const getData = vi.fn(
       () => store as unknown as import('@/components/scriptbox/scriptBoxSchema.ts').ScriptBoxData,
     );
@@ -350,7 +363,7 @@ describe('scriptBoxEngine · 引擎编排', () => {
     });
     await engine.onGenerateScript();
     expect(chatCompletions).toHaveBeenCalled();
-    const call = vi.mocked(chatCompletions).mock.calls[0][0];
+    const call = at(vi.mocked(chatCompletions).mock.calls, 0)[0];
     // 上游图片以 images 传给模型（转 image_url 内容块）
     expect(call.images).toEqual(['http://127.0.0.1:18080/files/p.png', '/files/q.png']);
     // 上游文本并入剧情
@@ -370,7 +383,7 @@ describe('scriptBoxEngine · 引擎编排', () => {
     });
     const { engine } = makeEngine({ story: 'no imgs' });
     await engine.onGenerateScript();
-    const call = vi.mocked(chatCompletions).mock.calls[0][0];
+    const call = at(vi.mocked(chatCompletions).mock.calls, 0)[0];
     expect(call.images).toEqual([]);
   });
 
@@ -398,7 +411,7 @@ describe('scriptBoxEngine · 引擎编排', () => {
     });
     engine.onConnectShot('s1', 'image');
     expect(addNodes).toHaveBeenCalledTimes(1);
-    const node = addNodes.mock.calls[0][0][0];
+    const node = at(at(addNodes.mock.calls, 0)[0], 0) as EmittedNode;
     expect(node.type).toBe('imageGenerateNode');
     expect(node.data.prompt).toBe('p');
     expect(store._edges.length).toBe(1);
@@ -415,7 +428,7 @@ describe('scriptBoxEngine · 引擎编排', () => {
     });
     // 生图下游
     engine.onConnectShot('s1', 'image');
-    const imgNode = addNodes.mock.calls[0][0][0];
+    const imgNode = at(at(addNodes.mock.calls, 0)[0], 0) as EmittedNode;
     expect(imgNode.type).toBe('imageGenerateNode');
     // 资产名带出为 label，供下游 PromptInput @名 匹配（docs/70）
     expect(imgNode.data.images).toMatchObject([
@@ -429,7 +442,7 @@ describe('scriptBoxEngine · 引擎编排', () => {
     // 生视频下游
     addNodes.mockClear();
     engine.onConnectShot('s1', 'video');
-    const vidNode = addNodes.mock.calls[0][0][0];
+    const vidNode = at(at(addNodes.mock.calls, 0)[0], 0) as EmittedNode;
     expect(vidNode.type).toBe('videoGenerateNode');
     expect(vidNode.data.images).toMatchObject([
       {
@@ -450,7 +463,7 @@ describe('scriptBoxEngine · 引擎编排', () => {
       assets,
     });
     engine.onConnectShot('s1', 'image');
-    const node = addNodes.mock.calls[0][0][0];
+    const node = at(at(addNodes.mock.calls, 0)[0], 0) as EmittedNode;
     expect(node.data.images).toEqual([]); // 快照：连线那一刻图片还没生成
 
     // 之后用户生成城堡图（assetUrl 补上）→ node.data.images 这份快照字段仍是空（不可变快照）。
@@ -476,7 +489,8 @@ describe('scriptBoxEngine · 引擎编排', () => {
     });
     // onConnectShots 内部逐个调 onConnectShot（forEach），每次 addNodes 1 个节点
     engine.onConnectShots(['s1', 's2'], 'video');
-    const allNodes = addNodes.mock.calls.flatMap((c) => c[0]);
+    // mock 泛型是 (nodes: unknown[]) => void ⇒ calls 是 [unknown[]][]，c[0] 才是节点数组
+    const allNodes = addNodes.mock.calls.flatMap((c) => at(c, 0)).map((n) => n as EmittedNode);
     expect(allNodes).toHaveLength(2);
     expect(allNodes.every((n) => n.type === 'videoGenerateNode')).toBe(true);
   });
@@ -487,7 +501,7 @@ describe('scriptBoxEngine · 引擎编排', () => {
     });
     engine.onConnectShots(['s1']);
     expect(addNodes).toHaveBeenCalledTimes(1);
-    expect(addNodes.mock.calls[0][0][0].type).toBe('imageGenerateNode');
+    expect((at(at(addNodes.mock.calls, 0)[0], 0) as EmittedNode).type).toBe('imageGenerateNode');
   });
 
   it('onConnectShots 未传/空数组 → 全部镜头（与批量生成逻辑一致）', async () => {
@@ -499,13 +513,13 @@ describe('scriptBoxEngine · 引擎编排', () => {
     });
     // 空数组 → 全部
     engine.onConnectShots([], 'image');
-    let allNodes = addNodes.mock.calls.flatMap((c) => c[0]);
+    let allNodes = addNodes.mock.calls.flatMap((c) => at(c, 0)).map((n) => n as EmittedNode);
     expect(allNodes).toHaveLength(2);
     expect(allNodes.every((n) => n.type === 'imageGenerateNode')).toBe(true);
     // 不传 → 全部
     addNodes.mockClear();
     engine.onConnectShots(undefined, 'video');
-    allNodes = addNodes.mock.calls.flatMap((c) => c[0]);
+    allNodes = addNodes.mock.calls.flatMap((c) => at(c, 0)).map((n) => n as EmittedNode);
     expect(allNodes).toHaveLength(2);
     expect(allNodes.every((n) => n.type === 'videoGenerateNode')).toBe(true);
   });
@@ -551,12 +565,12 @@ describe('scriptBoxEngine · 引擎编排', () => {
     });
     // image 下游
     engine.onConnectShot('s1', 'image');
-    const imgNode = addNodes.mock.calls[0][0][0];
+    const imgNode = at(at(addNodes.mock.calls, 0)[0], 0) as EmittedNode;
     expect(imgNode.data.aspectRatio).toBe('9:16');
     addNodes.mockClear();
     // video 下游
     engine.onConnectShot('s1', 'video');
-    const vidNode = addNodes.mock.calls[0][0][0];
+    const vidNode = at(at(addNodes.mock.calls, 0)[0], 0) as EmittedNode;
     expect(vidNode.data.size).toBe('9:16');
     expect(vidNode.data.selectedSeconds).toBe('7');
     expect(vidNode.data.durationFromScript).toBe(true);
@@ -571,7 +585,7 @@ describe('scriptBoxEngine · 引擎编排', () => {
       ],
     });
     engine.onConnectShot('s1', 'image');
-    expect(addNodes.mock.calls[0][0][0].data.aspectRatio).toBe('2:1');
+    expect((at(at(addNodes.mock.calls, 0)[0], 0) as EmittedNode).data.aspectRatio).toBe('2:1');
     addNodes.mockClear();
 
     const { engine: e2, addNodes: addNodes2 } = makeEngine({
@@ -581,7 +595,7 @@ describe('scriptBoxEngine · 引擎编排', () => {
       ],
     });
     e2.onConnectShot('s2', 'video');
-    expect(addNodes2.mock.calls[0][0][0].data.size).toBe('1:1');
+    expect((at(at(addNodes2.mock.calls, 0)[0], 0) as EmittedNode).data.size).toBe('1:1');
   });
 });
 
