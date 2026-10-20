@@ -103,7 +103,10 @@ describe('asyncGuard.loadImageWithTimeout（统一图片加载入口）', () => 
       onload: (() => void) | null;
       onerror: (() => void) | null;
     } = { src: '', crossOrigin: '', onload: null, onerror: null };
-    global.Image = vi.fn(() => img) as unknown as typeof Image;
+    vi.stubGlobal(
+      'Image',
+      vi.fn(() => img),
+    );
     const p = loadImageWithTimeout('http://x/a.png');
     must(img.onload, 'onload')();
     expect(await p).toBe(img);
@@ -116,7 +119,10 @@ describe('asyncGuard.loadImageWithTimeout（统一图片加载入口）', () => 
       onload: (() => void) | null;
       onerror: (() => void) | null;
     } = { src: '', crossOrigin: '', onload: null, onerror: null };
-    global.Image = vi.fn(() => img) as unknown as typeof Image;
+    vi.stubGlobal(
+      'Image',
+      vi.fn(() => img),
+    );
     const p = loadImageWithTimeout('http://x/a.png');
     must(img.onerror, 'onerror')();
     await expect(p).rejects.toThrow('图片加载失败');
@@ -130,7 +136,10 @@ describe('asyncGuard.loadImageWithTimeout（统一图片加载入口）', () => 
       onload: (() => void) | null;
       onerror: (() => void) | null;
     } = { src: '', crossOrigin: '', onload: null, onerror: null };
-    global.Image = vi.fn(() => img) as unknown as typeof Image;
+    vi.stubGlobal(
+      'Image',
+      vi.fn(() => img),
+    );
     const p = loadImageWithTimeout('http://x/a.png', { timeoutMs: 1000 });
     let settled = false;
     p.catch(() => {
@@ -148,7 +157,10 @@ describe('asyncGuard.loadImageWithTimeout（统一图片加载入口）', () => 
       onload: (() => void) | null;
       onerror: (() => void) | null;
     } = { src: '', crossOrigin: '', onload: null, onerror: null };
-    global.Image = vi.fn(() => img) as unknown as typeof Image;
+    vi.stubGlobal(
+      'Image',
+      vi.fn(() => img),
+    );
     loadImageWithTimeout('http://x/a.png');
     expect(img.crossOrigin).toBe('anonymous');
   });
@@ -162,7 +174,10 @@ describe('asyncGuard.loadImageWithTimeout（统一图片加载入口）', () => 
       onload: (() => void) | null;
       onerror: (() => void) | null;
     } = { src: '', crossOrigin: '', onload: null, onerror: null };
-    global.Image = vi.fn(() => img) as unknown as typeof Image;
+    vi.stubGlobal(
+      'Image',
+      vi.fn(() => img),
+    );
     loadImageWithTimeout('/files/a.png');
     expect(img.crossOrigin).toBeFalsy();
   });
@@ -174,7 +189,10 @@ describe('asyncGuard.loadImageWithTimeout（统一图片加载入口）', () => 
       onload: (() => void) | null;
       onerror: (() => void) | null;
     } = { src: '', crossOrigin: 'anonymous', onload: null, onerror: null };
-    global.Image = vi.fn(() => img) as unknown as typeof Image;
+    vi.stubGlobal(
+      'Image',
+      vi.fn(() => img),
+    );
     loadImageWithTimeout('/files/a.png', { crossOrigin: null });
     expect(img.crossOrigin).toBeFalsy();
   });

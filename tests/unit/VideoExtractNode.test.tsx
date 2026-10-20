@@ -19,6 +19,7 @@ import { must } from '../helpers/must';
 import 'react';
 import { at } from '../helpers/at';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { stubCreateElement } from '../helpers/dom';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { mocks } from './_nodeMocks.mjs';
 
@@ -159,7 +160,7 @@ function installMediaMocks() {
       video.dispatchEvent(new Event('seeked'));
     },
   });
-  createElSpy = vi.spyOn(document, 'createElement').mockImplementation(((tag: string) =>
+  createElSpy = stubCreateElement((tag) =>
     // 测试 mock 只实现被测用到的分支；返回形状与真实 createElement 不完全一致，收窄为原函数类型
     tag === 'video'
       ? (setTimeout(() => {
@@ -168,7 +169,8 @@ function installMediaMocks() {
         video)
       : tag === 'canvas'
         ? canvas
-        : origCreate(tag)) as unknown as typeof document.createElement);
+        : origCreate(tag),
+  );
   return { video, ctx };
 }
 
@@ -266,7 +268,7 @@ describe('VideoExtractNode — 抽帧完整流程', () => {
   it('加载失败（视频 onerror）→ 展示错误信息 + 分类记录（business）', async () => {
     const origCreate = document.createElement.bind(document);
     // 必须存入 createElSpy：beforeEach 统一 mockRestore，否则 spy 泄漏污染后续用例
-    createElSpy = vi.spyOn(document, 'createElement').mockImplementation(((tag: string) =>
+    createElSpy = stubCreateElement((tag) =>
       // 测试 mock 只实现被测用到的分支；返回形状与真实 createElement 不完全一致，收窄为原函数类型
       tag === 'video'
         ? (() => {
@@ -290,7 +292,8 @@ describe('VideoExtractNode — 抽帧完整流程', () => {
             }, 0);
             return v;
           })()
-        : origCreate(tag)) as unknown as typeof document.createElement);
+        : origCreate(tag),
+    );
     setup({ data: { videoUrl: 'http://x/bad.mp4', videoName: 'bad.mp4' } });
     fireEvent.click(screen.getByText('开始处理'));
     expect(await screen.findByText('无法加载视频')).toBeTruthy();
@@ -400,7 +403,7 @@ describe('VideoExtractNode — 结果落盘 node.data（刷新不丢）', () => 
   it('抽帧失败 → 只清空不写结果（data 无帧数组）', async () => {
     const origCreate = document.createElement.bind(document);
     // 存入 createElSpy，beforeEach 统一还原（防泄漏污染后续用例）
-    createElSpy = vi.spyOn(document, 'createElement').mockImplementation(((tag: string) =>
+    createElSpy = stubCreateElement((tag) =>
       // 测试 mock 只实现被测用到的分支；返回形状与真实 createElement 不完全一致，收窄为原函数类型
       tag === 'video'
         ? (() => {
@@ -424,7 +427,8 @@ describe('VideoExtractNode — 结果落盘 node.data（刷新不丢）', () => 
             }, 0);
             return v;
           })()
-        : origCreate(tag)) as unknown as typeof document.createElement);
+        : origCreate(tag),
+    );
     setup({ data: { videoUrl: 'http://x/bad.mp4', videoName: 'bad.mp4' } });
     fireEvent.click(screen.getByText('开始处理'));
     expect(await screen.findByText('无法加载视频')).toBeTruthy();

@@ -3,6 +3,7 @@
 // 【2026-09-30】原第 1 节 useAssetDegrade（lodLevel→hideMedia 映射，6 例）已删 ——
 // hook 随 lod 分档一起退役（docs/plan/139 §8.2），媒体隐藏不再是降级项。
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { fakeCanvas, stubCreateElement } from '../helpers/dom';
 import { renderHook, act } from '@testing-library/react';
 import { contentClearCache } from '../../src/components/base/core/contentStore.ts';
 
@@ -227,19 +228,12 @@ describe('imageCompress —— 压缩（含浏览器依赖，部分 mock）', ()
 
 // ── 辅助：mock jsdom 的 canvas（drawImage 为空操作，toDataURL 返回预设）──
 function setupCanvasMock(_w: any, _h: any, toDataUrlReturn: any) {
-  globalThis.document.createElement = vi.fn((tag) => {
-    if (tag === 'canvas') {
-      return {
-        width: 0,
-        height: 0,
-        getContext: () => ({
-          fillStyle: '',
-          fillRect: vi.fn(),
-          drawImage: vi.fn(),
-        }),
-        toDataURL: vi.fn(() => toDataUrlReturn),
-      } as unknown as HTMLCanvasElement;
-    }
-    return {} as unknown as HTMLElement;
-  }) as unknown as typeof document.createElement;
+  stubCreateElement((tag) =>
+    tag === 'canvas'
+      ? fakeCanvas({
+          context: { fillStyle: '', fillRect: vi.fn(), drawImage: vi.fn() },
+          toDataURL: () => toDataUrlReturn,
+        })
+      : {},
+  );
 }

@@ -10,6 +10,7 @@
  * 需 mock 返回可写像素缓冲。
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { stubCanvas2d } from '../helpers/dom';
 
 const { upscaleImage } = await import('../../src/components/image/lib/imageUpscale.ts');
 
@@ -49,29 +50,22 @@ function installImageMock() {
 let createdCanvases = [];
 function installCanvasMock() {
   createdCanvases = [];
-  HTMLCanvasElement.prototype.getContext = function (this: HTMLCanvasElement) {
-    const cw = this.width;
-    const ch = this.height;
+  stubCanvas2d((canvas) => {
+    const cw = canvas.width;
+    const ch = canvas.height;
     return {
-      fillStyle: '',
       fillRect() {},
       drawImage() {},
-      set imageSmoothingEnabled(_v) {},
-      get imageSmoothingEnabled() {
-        return true;
-      },
-      set imageSmoothingQuality(_v) {},
-      get imageSmoothingQuality() {
-        return 'high';
-      },
+      imageSmoothingEnabled: true,
+      imageSmoothingQuality: 'high',
       getImageData() {
         // 返回一个可写的像素缓冲（锐化要 putImageData 回写）
         const len = cw * ch * 4 || 16;
         return { data: new Uint8ClampedArray(len) };
       },
       putImageData() {},
-    } as unknown as CanvasRenderingContext2D;
-  } as unknown as typeof HTMLCanvasElement.prototype.getContext;
+    };
+  });
   HTMLCanvasElement.prototype.toDataURL = function (type) {
     return `data:${type || 'image/png'};base64,${btoa('fakeupscaled')}`;
   };

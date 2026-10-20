@@ -11,6 +11,7 @@
  * 在 jsdom 下需 mock fetch 使 blob 分支快速走 atob 兜底，避免 20s 超时挂起。
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { stubCanvas2d } from '../helpers/dom';
 
 const { compressImage } = await import('../../src/components/base/utils/imageCompress.ts');
 
@@ -48,13 +49,7 @@ function installImageMock() {
 
 // mock canvas：getContext 返回含 drawImage/fillRect 的 2d ctx；toDataURL 返回合法 JPEG dataURL
 function installCanvasMock() {
-  HTMLCanvasElement.prototype.getContext = function () {
-    return {
-      fillStyle: '',
-      fillRect() {},
-      drawImage() {},
-    } as unknown as CanvasRenderingContext2D;
-  } as unknown as typeof HTMLCanvasElement.prototype.getContext;
+  stubCanvas2d({ fillRect() {}, drawImage() {} });
   HTMLCanvasElement.prototype.toDataURL = function (type) {
     // 返回一段合法 data:image/jpeg;base64, 头 + 占位内容，供 dataUrlToBlob 解析
     return `data:${type || 'image/jpeg'};base64,${btoa('fakeimagedata')}`;

@@ -141,11 +141,14 @@ beforeEach(() => {
   connectedInputs = {};
   if (!global.IntersectionObserver) {
     // stub 只实现被测用到的 3 个方法，缺 root/thresholds/takeRecords 等成员 → cast 收尾
-    global.IntersectionObserver = class {
-      observe() {}
-      unobserve() {}
-      disconnect() {}
-    } as unknown as typeof IntersectionObserver;
+    vi.stubGlobal(
+      'IntersectionObserver',
+      class {
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      },
+    );
   }
 });
 

@@ -18,10 +18,11 @@ import { at } from '../helpers/at';
  */
 // 可控 creditSwitch：getX 读 __credit，setX 写 __credit（contentStore 的 contentGet/contentSet 也被 mock 到同一状态）
 let __creditState: any;
-vi.mock('../../src/components/base/core/contentStore.ts', async (importOriginal) => {
-  // importOriginal 在 vitest 类型里返回 unknown（类型限制），断言回具体模块命名空间以保留 .contentGet 等调用
-  const actual =
-    (await importOriginal()) as unknown as typeof import('../../src/components/base/core/contentStore.ts');
+vi.mock('../../src/components/base/core/contentStore.ts', async () => {
+  // `vi.importActual<T>` 泛型给出真模块类型 ⇒ 无需断言即可调用 .contentGet / .contentSet
+  const actual = await vi.importActual<
+    typeof import('../../src/components/base/core/contentStore.ts')
+  >('../../src/components/base/core/contentStore.ts');
   return {
     ...actual,
     contentGet: vi.fn((k) => (k === 'agent_credit_switch' ? __creditState : actual.contentGet(k))),
@@ -75,9 +76,10 @@ vi.mock('../../src/components/base/store/taskStore.ts', async (importOriginal) =
   runNodeGeneration: vi.fn(async () => ({ ok: true, resultUrl: 'http://r/x.png' })),
   isNodeRegistered: vi.fn(() => true),
 }));
-vi.mock('../../src/components/agent/canvas/canvasPlanExecutor.ts', async (importOriginal) => {
-  const actual =
-    (await importOriginal()) as unknown as typeof import('../../src/components/agent/canvas/canvasPlanExecutor.ts');
+vi.mock('../../src/components/agent/canvas/canvasPlanExecutor.ts', async () => {
+  const actual = await vi.importActual<
+    typeof import('../../src/components/agent/canvas/canvasPlanExecutor.ts')
+  >('../../src/components/agent/canvas/canvasPlanExecutor.ts');
   return {
     ...actual,
     executePlan: vi.fn(async (args) => ({

@@ -48,7 +48,7 @@ function stubFileReader() {
       this.onload?.();
     }
   }
-  globalThis.FileReader = StubFileReader as unknown as typeof FileReader;
+  vi.stubGlobal('FileReader', StubFileReader);
 }
 
 // API_BASE 在 config.ts 硬编码为 http://127.0.0.1:18080

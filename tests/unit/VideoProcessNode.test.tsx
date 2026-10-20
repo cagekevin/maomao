@@ -86,8 +86,7 @@ vi.mock('../../src/components/video/lib/videoEngine.ts', async (importOriginal) 
 }));
 // preserve 其余 httpClient 导出（deriveNodes 等依赖），仅把 network 请求 stub 成拒绝
 vi.mock('../../src/components/base/api/httpClient.ts', async (importOriginal) => {
-  const mod =
-    (await importOriginal()) as unknown as typeof import('../../src/components/base/api/httpClient.ts');
+  const mod = (await importOriginal()) as Record<string, unknown>;
   return { ...mod, httpRequest: vi.fn(() => Promise.reject(new Error('mock: no network'))) };
 });
 

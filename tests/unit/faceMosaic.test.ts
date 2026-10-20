@@ -8,6 +8,7 @@
  *  - MOSAIC_PALETTE 色板常量
  */
 import { vi, describe, it, expect } from 'vitest';
+import { fakeCanvas, stubCreateElement } from '../helpers/dom';
 import type { MosaicMode } from '../../src/components/image/faceMosaic/faceMosaic.ts';
 
 // mock mediapipe：不加载真实 wasm / 模型
@@ -57,12 +58,9 @@ function makeCtx() {
 function installOffscreenCanvasSpy() {
   const offscreen = makeCtx();
   const original = document.createElement.bind(document);
-  return vi.spyOn(document, 'createElement').mockImplementation(((tag: string) => {
-    if (tag === 'canvas') {
-      return { width: 0, height: 0, getContext: () => offscreen } as unknown as HTMLCanvasElement;
-    }
-    return original(tag);
-  }) as unknown as typeof document.createElement);
+  return stubCreateElement((tag) =>
+    tag === 'canvas' ? fakeCanvas({ context: offscreen }) : original(tag),
+  );
 }
 
 const SRC = { width: 100, height: 100 } as unknown as CanvasImageSource;

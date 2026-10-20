@@ -87,10 +87,11 @@ vi.mock('../../src/components/base/panels/FullscreenModal.tsx', () => ({
     open ? <div data-testid="fullscreen">{children}</div> : null,
 }));
 // 数据读写通道：真实 useScriptBoxEngine 负责注入回调副作用，仅把返回的 updateData 指向 h.updateData 以记录调用（StepNav 切步用）
-vi.mock('../../src/components/scriptbox/useScriptBoxEngine.ts', async (importOriginal) => {
-  // importOriginal 在 vitest 类型里返回 unknown（类型限制），断言回具体模块命名空间
-  const real =
-    (await importOriginal()) as unknown as typeof import('../../src/components/scriptbox/useScriptBoxEngine.ts');
+vi.mock('../../src/components/scriptbox/useScriptBoxEngine.ts', async () => {
+  // `vi.importActual<T>` 泛型直接给出真模块类型 ⇒ 无需任何断言即可读 .useScriptBoxEngine
+  const real = await vi.importActual<
+    typeof import('../../src/components/scriptbox/useScriptBoxEngine.ts')
+  >('../../src/components/scriptbox/useScriptBoxEngine.ts');
   return {
     ...real,
     useScriptBoxEngine: (nodeId: string, data: ScriptBoxNodeData) => {

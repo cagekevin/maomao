@@ -65,7 +65,7 @@ const triggerIntersect = (entries: any) => {
 
 beforeEach(() => {
   h.FakeIO.instances = [];
-  global.IntersectionObserver = h.FakeIO as unknown as typeof IntersectionObserver;
+  vi.stubGlobal('IntersectionObserver', h.FakeIO);
 });
 
 describe('LazyImage — 懒加载语义', () => {

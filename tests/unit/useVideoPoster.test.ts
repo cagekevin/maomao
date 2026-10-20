@@ -10,6 +10,7 @@
  */
 import { describe, it, expect, beforeEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
+import { stubCanvas2d } from '../helpers/dom';
 
 const { useVideoPoster } = await import('../../src/hooks/useVideoPoster.ts');
 
@@ -31,12 +32,7 @@ beforeEach(() => {
   // getContext 是多重载签名（2d/webgl/...），替身只覆盖 2d 分支，故集中断言一次。
   // 内层断言到明确的 CanvasRenderingContext2D：原写法 ReturnType<typeof getContext> 会取到
   // 最后一个重载（非 2d），语义其实不准。
-  HTMLCanvasElement.prototype.getContext = (() =>
-    ({
-      fillStyle: '',
-      fillRect() {},
-      drawImage() {},
-    }) as unknown as CanvasRenderingContext2D) as unknown as typeof HTMLCanvasElement.prototype.getContext;
+  stubCanvas2d({ fillRect() {}, drawImage() {} });
   HTMLCanvasElement.prototype.toDataURL = function (type) {
     return `data:${type || 'image/jpeg'};base64,${btoa('posterframe')}`;
   };
