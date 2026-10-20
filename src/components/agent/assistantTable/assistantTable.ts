@@ -694,7 +694,11 @@ export function buildPreviewResult(
 
   // ── 逐行定目标：_rowIndex（1 起）优先按行号；无则第 i 个 AI 行 → 第 i 个选中行；再无 → 追加 ──
   const selIds = (selectedRowIds || []).filter((id) => current.rows.some((r) => r.id === id));
-  const selectedRows = selIds.map((id) => current.rows.find((r) => r.id === id)!);
+  // selIds 已过滤「存在于 current.rows」；这里再取一次并跳过缺失（flatMap 天然丢弃）。
+  const selectedRows = selIds.flatMap((id) => {
+    const row = current.rows.find((r) => r.id === id);
+    return row ? [row] : [];
+  });
   const targets: Array<number | null> = rawRows.map((raw, i) => {
     if (raw && typeof raw === 'object') {
       const byIdx = extractRowIndex(raw);

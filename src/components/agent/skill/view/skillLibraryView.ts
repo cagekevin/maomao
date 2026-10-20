@@ -404,10 +404,13 @@ export function buildSkillLibraryView(input: {
     // 的位次全在 `orderOfGroup` 里 —— 视图层不认任何哨兵的位次，TD-11-74）
     .sort(compareSkillGroups)
     .map((name) => {
-      const bucket = groups.get(name)!;
+      const bucket = groups.get(name);
+      // 键来自 groups.keys() ⇒ 不该缺；缺了跳过该组（不拿 undefined 去 sort 崩整页）。
+      if (!bucket) return null;
       bucket.sort((a, b) => a.name.localeCompare(b.name, 'zh-Hans-CN'));
       return toGroup(name, bucket);
-    });
+    })
+    .filter((g): g is SkillGroupView => g !== null);
 
   return {
     groups: ordered,

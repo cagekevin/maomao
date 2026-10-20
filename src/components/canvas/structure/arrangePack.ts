@@ -122,6 +122,8 @@ export function packComponents(boxes: ArrangePackBox[], opts: ArrangePackOpts): 
       best = { perRow, ...packed };
     }
   }
-  const r = best!;
+  // 循环至少走一次即可选出方案；为空说明入参没有可排列的项 ⇒ 属调用前置不成立。
+  if (!best) throw new Error('自动排列失败：没有可用的打包方案');
+  const r = best;
   return { perRow: r.perRow, width: r.width, height: r.height, placements: r.placements };
 }

@@ -59,7 +59,9 @@ export interface TableHistoryRead {
  */
 export function undoTable(currentTabs: AssistantTableTabs): AssistantTableTabs | undefined {
   if (past.length === 0) return undefined;
-  const prev = past.pop()!;
+  // 上面已判长度；这里再判一次是类型兜底（取不到就当无可撤销，不拿 undefined 当快照返回）。
+  const prev = past.pop();
+  if (!prev) return undefined;
   future = [...future, currentTabs];
   emit();
   return prev;
@@ -68,7 +70,8 @@ export function undoTable(currentTabs: AssistantTableTabs): AssistantTableTabs |
 /** 重做一步：把 currentTabs 压入 past，返回 future 顶部快照。无可重做返回 undefined。 */
 export function redoTable(currentTabs: AssistantTableTabs): AssistantTableTabs | undefined {
   if (future.length === 0) return undefined;
-  const next = future.pop()!;
+  const next = future.pop();
+  if (!next) return undefined;
   past = [...past, currentTabs].slice(-MAX_STEPS);
   emit();
   return next;

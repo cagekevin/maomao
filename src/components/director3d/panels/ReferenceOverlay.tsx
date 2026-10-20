@@ -39,7 +39,10 @@ export function ReferenceOverlay({
     if (!editing) return;
     event.preventDefault();
     event.stopPropagation();
-    const bounds = event.currentTarget.parentElement!.getBoundingClientRect();
+    const parent = event.currentTarget.parentElement;
+    // 拖动坐标要相对容器；容器不在（事件目标已脱离 DOM）就放弃本次拖拽。
+    if (!parent) return;
+    const bounds = parent.getBoundingClientRect();
     dragRef.current = {
       pointerId: event.pointerId,
       startX: event.clientX,

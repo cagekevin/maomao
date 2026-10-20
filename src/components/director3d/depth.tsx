@@ -67,7 +67,9 @@ function DepthMeshModel({ url, settings = {}, color, selected }: DepthMeshModelP
       const canvas = document.createElement('canvas');
       canvas.width = columns;
       canvas.height = rows;
-      const context = canvas.getContext('2d', { willReadFrequently: true })!;
+      // 取不到 2D 上下文就无法读像素 ⇒ fail-loud（不返回全零深度图假装成功）。
+      const context = canvas.getContext('2d', { willReadFrequently: true });
+      if (!context) throw new Error('2D canvas context 不可用（无法生成深度图）');
       context.drawImage(image, 0, 0, columns, rows);
       const pixels = context.getImageData(0, 0, columns, rows).data;
       let depthValues = new Float32Array(columns * rows);

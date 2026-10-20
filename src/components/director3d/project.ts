@@ -2109,7 +2109,12 @@ export function referenceImageFromFile(file: File): Promise<string> {
         const canvas = document.createElement('canvas');
         canvas.width = Math.max(1, Math.round(image.naturalWidth * ratio));
         canvas.height = Math.max(1, Math.round(image.naturalHeight * ratio));
-        const context = canvas.getContext('2d')!;
+        const context = canvas.getContext('2d');
+        // 取不到上下文即编码无法进行；本回调在 Promise executor 之外 ⇒ 必须自己 reject。
+        if (!context) {
+          reject(new Error('2D canvas context 不可用（参考图编码失败）'));
+          return;
+        }
         context.fillStyle = '#e8e6df';
         context.fillRect(0, 0, canvas.width, canvas.height);
         context.drawImage(image, 0, 0, canvas.width, canvas.height);
@@ -2140,7 +2145,12 @@ export function referenceCanvasForExport(
       const canvas = document.createElement('canvas');
       canvas.width = width;
       canvas.height = height;
-      const context = canvas.getContext('2d')!;
+      const context = canvas.getContext('2d');
+      // 同上：回调在 Promise executor 之外，缺上下文必须 reject（不落一个空画布）。
+      if (!context) {
+        reject(new Error('2D canvas context 不可用（导出画面生成失败）'));
+        return;
+      }
       context.fillStyle = '#9b9c98';
       context.fillRect(0, 0, width, height);
       context.imageSmoothingEnabled = true;

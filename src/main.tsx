@@ -89,7 +89,10 @@ window.addEventListener('unhandledrejection', (e) =>
   reportGlobalError('unhandledRejection', e.reason),
 );
 
-ReactDOM.createRoot(document.getElementById('root')!).render(
+const rootElement = document.getElementById('root');
+// 挂载点是 index.html 的硬契约；缺了说明模板被改坏 ⇒ fail-loud（而不是让 React 报空容器）。
+if (!rootElement) throw new Error('index.html 缺少 #root 挂载点');
+ReactDOM.createRoot(rootElement).render(
   <React.StrictMode>
     <ErrorBoundary>
       <App />

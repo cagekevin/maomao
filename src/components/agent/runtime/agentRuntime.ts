@@ -393,7 +393,9 @@ async function resolveBody(
   }
 
   // ── 流式：SSE 逐块解析 ──
-  const reader = res.body!.getReader();
+  // 流式响应必须有 body；缺了即上游违约，fail-loud（不空读到结束假装成功）。
+  if (!res.body) throw new Error('流式响应缺少 body（上游协议违约）');
+  const reader = res.body.getReader();
   const decoder = new TextDecoder('utf-8');
   let buffer = '';
   const acc: SSEAccumulator = { content: '', reasoning: '', toolCalls: [] };

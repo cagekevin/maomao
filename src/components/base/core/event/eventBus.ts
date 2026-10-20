@@ -46,8 +46,13 @@ const listeners = new Map<string, Set<EventHandler>>(); // event -> Set<fn>
 /** 订阅事件，返回取消函数 */
 export function subscribe(event: string, fn: EventHandler): Unsubscribe {
   if (!event || typeof fn !== 'function') return () => {};
-  if (!listeners.has(event)) listeners.set(event, new Set<EventHandler>());
-  listeners.get(event)!.add(fn);
+  // 取一次再判（`has` + `get!` 是同一件事做两遍）。
+  let set = listeners.get(event);
+  if (!set) {
+    set = new Set<EventHandler>();
+    listeners.set(event, set);
+  }
+  set.add(fn);
   return () => {
     const set = listeners.get(event);
     if (set) {

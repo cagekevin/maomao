@@ -44,7 +44,9 @@ function AxisHead({
     const canvas = document.createElement('canvas');
     canvas.width = 64;
     canvas.height = 64;
-    const ctx = canvas.getContext('2d')!;
+    // 2D 上下文是画 gizmo 纹理的前提；拿不到即环境异常（由 ErrorBoundary 呈现，不画空纹理）。
+    const ctx = canvas.getContext('2d');
+    if (!ctx) throw new Error('2D canvas context 不可用（无法生成 gizmo 纹理）');
     ctx.beginPath();
     ctx.arc(32, 32, 16, 0, 2 * Math.PI);
     ctx.closePath();

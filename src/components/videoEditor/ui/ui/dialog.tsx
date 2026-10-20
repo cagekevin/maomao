@@ -225,8 +225,10 @@ function DialogContentImpl({
     }
 
     /* 焦点陷阱：在两端把 Tab 折回另一端（不靠"多插两个哨兵节点"，那会污染 DOM）。 */
-    const first = focusables[0]!;
-    const last = focusables[focusables.length - 1]!;
+    const first = focusables[0];
+    const last = focusables[focusables.length - 1];
+    // 上面已判非空；这里是类型兜底（取不到就不做焦点折返）。
+    if (!first || !last) return;
     const active = document.activeElement;
     if (event.shiftKey && (active === first || !node.contains(active))) {
       event.preventDefault();

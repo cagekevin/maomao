@@ -138,7 +138,9 @@ export function makeAssetDragProps(
     draggable: dragEnabled,
     onDragStart: (e: ReactDragEvent) => {
       if (!dragEnabled) return;
-      const url = asset.url!;
+      // `dragEnabled` 已含 `asset.url` 真值判断；这里取局部再判一次（类型兜底）。
+      const url = asset.url;
+      if (!url) return;
       const text = textCache.get(url);
       e.dataTransfer.setData('application/x-yimao-asset', assetPayload(asset, text));
       e.dataTransfer.effectAllowed = 'copy';

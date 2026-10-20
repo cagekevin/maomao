@@ -944,8 +944,13 @@ export async function contentKvSetCas(
  * @returns {() => void} 取消订阅函数
  */
 export function contentSubscribe(key: string, callback: ContentKeyListener): () => void {
-  if (!keyListeners.has(key)) keyListeners.set(key, new Set());
-  keyListeners.get(key)!.add(callback);
+  // 取一次再判（`has` + `get!` 是同一件事做两遍，且第二遍要靠 `!`）。
+  let set = keyListeners.get(key);
+  if (!set) {
+    set = new Set();
+    keyListeners.set(key, set);
+  }
+  set.add(callback);
   return () => {
     keyListeners.get(key)?.delete(callback);
   };

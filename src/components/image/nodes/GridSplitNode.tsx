@@ -481,7 +481,11 @@ function GridSplitNode({ id, data, selected }: GridSplitNodeProps) {
     const s = new Set();
     getEdges()
       .filter((e) => e.source === id && e.sourceHandle?.startsWith('cell-'))
-      .forEach((e) => s.add(parseInt(e.sourceHandle!.replace('cell-', ''), 10)));
+      .forEach((e) => {
+        const handle = e.sourceHandle;
+        if (!handle) return; // 上面的 filter 已判；这里取局部，避免再断言一次
+        s.add(parseInt(handle.replace('cell-', ''), 10));
+      });
     return s;
   }, [getEdges, id]);
 

@@ -90,9 +90,11 @@ export function useAnchoredPosition({
 
     const virtualRect = anchorRectRef?.current ?? null;
     const anchor = virtualRect === null ? anchorRef.current : null;
-    if (virtualRect === null && anchor === null) return;
+    // 一次算出锚点矩形，再判空（原先「两变量至少一个非空」无法被编译器窄化，只能 `anchor!`）。
+    const rect = virtualRect ?? (anchor ? anchor.getBoundingClientRect() : null);
+    if (!rect) return;
 
-    const a: AnchorRect = virtualRect ?? anchor!.getBoundingClientRect();
+    const a: AnchorRect = rect;
     const c = content.getBoundingClientRect();
     const vw = window.innerWidth;
     const vh = window.innerHeight;

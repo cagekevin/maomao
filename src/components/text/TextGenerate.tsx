@@ -223,8 +223,10 @@ function TextGenerate({ id, data, selected }: TextGenerateProps) {
         ? `你是一个智能内容拆分助手。请先仔细观察用户提供的图片内容，然后基于图片内容进行拆分。你必须将内容拆分成多个独立的部分，并返回一个严格的JSON对象，包含一个 items 数组，数组中的每个对象包含 title 和 content 两个字段。请直接返回纯JSON字符串，不要包含任何额外的解释文字或Markdown代码块。`
         : 'You are a helpful assistant.';
       progress?.(30, '上游生成中…');
+      // 生成必须有供应商；解析不到即前置不成立，fail-loud 到节点错误态。
+      if (!useProvider) throw new Error('未配置供应商，无法生成文本');
       const r = await chatCompletions({
-        provider: useProvider!,
+        provider: useProvider,
         messages: [
           { role: 'system', content: sysContent },
           { role: 'user', content: chipResolved.text || effectivePrompt || '' },

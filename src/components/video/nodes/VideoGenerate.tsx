@@ -242,10 +242,12 @@ function VideoGenerate({ id, data, selected }: VideoGenerateProps) {
       // 参考图 = 用户显式 @ 的芯片图（顺序对应 prompt 里的「图片N」）+ 其余连线上游图（去重）
       // 合并去重收口到唯一实现（TD-01-14：四节点曾各写一份且已漂移）
       const refUrls = mergeReferenceImageUrls(chipResolved.refImages, connectedImages);
+      // 生成必须有供应商；解析不到即前置不成立，fail-loud 到节点错误态。
+      if (!useProvider) throw new Error('未配置供应商，无法生成视频');
       // signal 支持真取消（Step C）
       return generateVideo(
         {
-          provider: useProvider!,
+          provider: useProvider,
           // 芯片解析后的纯文本（图片芯片已替换为「图片N」，文本芯片已替换为纯文本）
           prompt: chipResolved.text || effectivePrompt || '',
           model: modelId,

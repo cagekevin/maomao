@@ -204,7 +204,9 @@ function mosaic(
   const c = document.createElement('canvas');
   c.width = o;
   c.height = s;
-  const l = c.getContext('2d')!;
+  // 取不到上下文就无法生成马赛克块 ⇒ fail-loud（不静默少画一块）。
+  const l = c.getContext('2d');
+  if (!l) throw new Error('2D canvas context 不可用（无法生成马赛克）');
   l.imageSmoothingEnabled = false;
   l.drawImage(srcImg, box.x, box.y, box.w, box.h, 0, 0, o, s);
   ctx.save();

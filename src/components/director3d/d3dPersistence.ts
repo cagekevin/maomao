@@ -180,13 +180,16 @@ export async function externalizeProjectImages(
     return src;
   };
 
-  if (out?.reference && isProjectAssetUrl(out.reference.image)) {
-    out.reference.image = await maybeReplace(out.reference.image!);
+  if (out?.reference) {
+    const image = out.reference.image;
+    // 先取局部再判：`isProjectAssetUrl` 不窄化属性访问，旧写法只能靠 `!`。
+    if (image && isProjectAssetUrl(image)) out.reference.image = await maybeReplace(image);
   }
   if (Array.isArray(out?.shots)) {
     for (const shot of out.shots) {
-      if (shot && isProjectAssetUrl(shot.thumbnail)) {
-        shot.thumbnail = await maybeReplace(shot.thumbnail!);
+      const thumbnail = shot?.thumbnail;
+      if (thumbnail && isProjectAssetUrl(thumbnail)) {
+        shot.thumbnail = await maybeReplace(thumbnail);
       }
     }
   }

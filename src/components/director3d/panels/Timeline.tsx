@@ -245,7 +245,10 @@ export function Timeline({
     if (event.button !== 0) return;
     event.preventDefault();
     event.stopPropagation();
-    const rect = event.currentTarget.parentElement!.getBoundingClientRect(); // .track
+    const trackParent = event.currentTarget.parentElement; // .track
+    // 换算帧号要相对轨道容器；容器不在（事件目标已脱离 DOM）就放弃本次拖动。
+    if (!trackParent) return;
+    const rect = trackParent.getBoundingClientRect();
     const frameAt = (clientX: number) =>
       clamp(Math.round((clientX - rect.left) / pxPerFrame), 0, totalFrames);
     let raf: number | null = null;
@@ -280,7 +283,10 @@ export function Timeline({
     if (event.button !== 0) return;
     event.preventDefault();
     event.stopPropagation();
-    const rect = event.currentTarget.parentElement!.getBoundingClientRect();
+    const keyParent = event.currentTarget.parentElement;
+    // 同上：容器不在就放弃（不拿假矩形算框选）。
+    if (!keyParent) return;
+    const rect = keyParent.getBoundingClientRect();
     const isSelected = selection.some(
       (item) => item.kind === kind && item.trackId === trackId && item.frame === key.frame,
     );

@@ -266,10 +266,12 @@ function TemplateNode({ id, data, selected }: TemplateNodeProps) {
       // generateImage 只收 URL 数组（GenerateImageOptions.images: string[]）。
       // 合并去重收口到唯一实现（TD-01-14：四节点曾各写一份且已漂移）
       const refUrls = mergeReferenceImageUrls(chipResolved.refImages, refImages);
+      // 生成必须有供应商（provider 决定出站地址/密钥）；解析不到即前置不成立，fail-loud 到节点错误态。
+      if (!useProvider) throw new Error('未配置供应商，无法生成图片');
       return generateImage(
         {
           // 真执行器（换成你的 API）
-          provider: useProvider!,
+          provider: useProvider,
           // 芯片解析后的纯文本（图片芯片已替换为「图片N」，文本芯片已替换为纯文本）
           prompt: chipResolved.text || effectivePrompt || '',
           model: modelId,

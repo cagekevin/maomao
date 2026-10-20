@@ -222,8 +222,11 @@ export async function analyzeStorageByKeys(): Promise<{
     const bytes = byteLength(e.rawKey) + byteLength(e.value);
     totalBytes += bytes;
     // ④ 累加到对应 domain（首个出现时初始化）
-    if (!byDomain.has(domain)) byDomain.set(domain, { domain, bytes: 0, keys: 0, detail: [] });
-    const g = byDomain.get(domain)!;
+    let g = byDomain.get(domain);
+    if (!g) {
+      g = { domain, bytes: 0, keys: 0, detail: [] };
+      byDomain.set(domain, g);
+    }
     g.bytes += bytes;
     g.keys += 1;
     g.detail.push({ key: logical, bytes });

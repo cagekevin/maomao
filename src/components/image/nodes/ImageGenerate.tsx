@@ -394,9 +394,11 @@ function ImageGenerate({ id, data, selected }: ImageGenerateProps) {
         chipResolved.text || effectivePrompt || '',
         cameraSettings,
       );
+      // 生成必须有供应商；解析不到即前置不成立，fail-loud 到节点错误态。
+      if (!useProvider) throw new Error('未配置供应商，无法生成图片');
       return generateImage(
         {
-          provider: useProvider!,
+          provider: useProvider,
           // 芯片解析后的纯文本（图片芯片已替换为「图片N」，文本芯片已替换为纯文本）+ 摄影参数片段
           prompt: finalPrompt,
           model: modelId,

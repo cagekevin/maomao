@@ -62,7 +62,9 @@ export function useActiveAssistantTable(): ActiveAssistantTable {
     return normalizeAssistantTabs(rawTabs ?? null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rawTabs]);
-  const activeTab = getActiveTab(tabs)!;
+  const activeTab = getActiveTab(tabs);
+  // 不变量（本模块头注释）：normalizeAssistantTabs 兜底恒 ≥1 tab ⇒ 取不到说明归一被改坏。
+  if (!activeTab) throw new Error('活动表格 tab 缺失：normalizeAssistantTabs 应保证恒 ≥1');
   const table = useMemo<AssistantTable>(
     () =>
       activeTab ? { columns: activeTab.columns, rows: activeTab.rows } : { columns: [], rows: [] },
