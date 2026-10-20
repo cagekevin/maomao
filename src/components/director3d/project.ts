@@ -214,6 +214,15 @@ export interface ProjectObject {
   rotation?: number[];
   scale?: number[];
   color?: string;
+  /** 人物根节点位移（skeleton 通道；[x,y,z]） */
+  rigRoot?: number[] | undefined;
+  /** 人物关节旋转表（skeleton 通道；键 = rig.ts JOINT_DEFINITIONS 的 id） */
+  joints?: Record<string, number[]> | undefined;
+  /** 动作段起点（秒，action 通道派生量，不落库） */
+  motionStartTime?: number | undefined;
+  /** 对象级开关（objectState 层）：勾选即生效，永远沿基线走 */
+  footLock?: boolean | undefined;
+  continuousMotion?: boolean | undefined;
   [key: string]: unknown;
 }
 
@@ -556,7 +565,7 @@ export function snapshotToChannelKeys(
   frame: number,
   interpolation = 'smooth',
 ): ChannelTracks {
-  const definition = ENTITY_CHANNELS[entityType] ?? ENTITY_CHANNELS.object ?? {};
+  const definition = ENTITY_CHANNELS[entityType] ?? ENTITY_CHANNELS['object'] ?? {};
   const keys: ChannelTracks = {};
   for (const [channel, fields] of Object.entries(definition)) {
     const fieldValues: Record<string, unknown> = {};
@@ -582,7 +591,7 @@ export function channelsToSnapshotKeys(
   entityType: string,
   channels: ChannelTracks = {},
 ): ChannelKey[] {
-  const definition = ENTITY_CHANNELS[entityType] ?? ENTITY_CHANNELS.object ?? {};
+  const definition = ENTITY_CHANNELS[entityType] ?? ENTITY_CHANNELS['object'] ?? {};
   const fieldList = Object.values(definition).flat();
   const merged = new Map<
     number,
@@ -867,7 +876,7 @@ function normalizeCamera(camera: Partial<ProjectCamera> = {}): ProjectCamera {
 }
 
 // 摄像机通道字段归一化（M1）：迁移/幂等时统一规整通道内字段。
-// 字段清单见 ENTITY_CHANNELS.camera；新增通道字段时在此补一条归一化规则。
+// 字段清单见 ENTITY_CHANNELS['camera']；新增通道字段时在此补一条归一化规则。
 const normalizeCameraField = (field: string, value: unknown, fallbackCamera: ProjectCamera) => {
   if (field === 'position') return finiteVector3(value, fallbackCamera.position);
   if (field === 'rotation')
@@ -886,7 +895,7 @@ export function normalizeCameraKeyframes(
   // `{ transform: [{frame, interpolation, fields:{position, rotation}}], lens: [...] }`。
   // 旧数组：逐 key 经 snapshotToChannelKeys 拆成 transform/lens 后合并（幂等迁移，
   //   旧工程一次性升级、无数据丢失）；已通道化：逐通道归一化字段后原样返回（幂等）。
-  // 摄像机只有 transform（位移/旋转）+ lens（焦距）两通道，见 ENTITY_CHANNELS.camera。
+  // 摄像机只有 transform（位移/旋转）+ lens（焦距）两通道，见 ENTITY_CHANNELS['camera']。
   const channels: ChannelTracks = Array.isArray(keys)
     ? (Array.isArray(keys) ? keys.filter(Boolean) : []).reduce(
         (merged: ChannelTracks, key) =>
@@ -898,7 +907,7 @@ export function normalizeCameraKeyframes(
       )
     : keys || {};
   const result: ChannelTracks = {};
-  for (const [channel, fields] of Object.entries(ENTITY_CHANNELS.camera ?? {})) {
+  for (const [channel, fields] of Object.entries(ENTITY_CHANNELS['camera'] ?? {})) {
     const list = (Array.isArray(channels[channel]) ? channels[channel].filter(Boolean) : [])
       .map((key) => ({
         frame: normalizeFrameNumber(key.frame),
@@ -1061,14 +1070,15 @@ const normalizeObjectTrack = (
   entityType: string,
   pathFrames: number[] = [],
 ): ChannelTracks => {
-  const definition = ENTITY_CHANNELS[entityType] ?? ENTITY_CHANNELS.object ?? {};
+  const definition = ENTITY_CHANNELS[entityType] ?? ENTITY_CHANNELS['object'] ?? {};
   const pathFrameSet = new Set(pathFrames.map(normalizeFrameNumber));
   const channels: ChannelTracks = Array.isArray(track)
     ? track
         .filter(Boolean)
         .map((key) =>
           pathFrameSet.has(normalizeFrameNumber(key.frame))
-            ? { frame: key.frame, interpolation: key.interpolation, position: key.position }
+            ? // ChannelKey 的字段名由 PROPERTY_REGISTRY 派生（真字典）⇒ 方括号取值
+              { frame: key.frame, interpolation: key.interpolation, position: key['position'] }
             : key,
         )
         .reduce(
@@ -1590,7 +1600,7 @@ function synthesizeObjectState(
 ) {
   const result: ProjectObject = { ...object };
   // transform 通道：数值插值（对象/人物的 rotation 走普通 lerp，与旧 objectAtFrame 行为一致）
-  const transform = evaluateNumericChannel(channels?.transform || [], frame, {});
+  const transform = evaluateNumericChannel(channels?.['transform'] || [], frame, {});
   // 路径作为独立位置来源：启用时 position 唯一由路径给出
   const pathPosition = pathActive(path) ? pathPositionAtFrame(path, frame) : null;
   if (pathPosition) result.position = pathPosition;
@@ -1604,7 +1614,7 @@ function synthesizeObjectState(
     }
   }
   // action 通道（仅 person 注册）：状态段求值 + 派生上下文
-  const action = evaluateActionChannel(channels?.action || [], object, frame, fps);
+  const action = evaluateActionChannel(channels?.['action'] || [], object, frame, fps);
   if (action) {
     result.pose = action.pose;
     result.poseTime = action.poseTime;
@@ -1612,7 +1622,7 @@ function synthesizeObjectState(
     result.motionStartTime = action.motionStartTime;
   }
   // skeleton 通道（仅 person 注册）：骨骼插值/硬切由动作上下文决定
-  const skeleton = evaluateSkeletonChannel(channels?.skeleton || [], action, object, frame);
+  const skeleton = evaluateSkeletonChannel(channels?.['skeleton'] || [], action, object, frame);
   if (skeleton) {
     result.rigRoot = skeleton.rigRoot;
     result.joints = skeleton.joints;
@@ -1634,10 +1644,10 @@ export function cameraAtFrame(
     ? normalizeCameraKeyframes(keyframes, initialCamera)
     : keyframes || {};
   const result = { ...initialCamera, aspectRatio };
-  const transform = evaluateNumericChannel(channels.transform || [], frame, {
+  const transform = evaluateNumericChannel(channels['transform'] || [], frame, {
     angleFields: new Set(['rotation']),
   });
-  const lens = evaluateNumericChannel(channels.lens || [], frame, {});
+  const lens = evaluateNumericChannel(channels['lens'] || [], frame, {});
   if (transform) Object.assign(result, transform);
   if (lens) Object.assign(result, lens);
   return result;

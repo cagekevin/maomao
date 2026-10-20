@@ -284,12 +284,12 @@ export function normalizeScriptBoxData(raw: Record<string, unknown> = {}): Scrip
   const d = { ...base, ...raw } as ScriptBoxData;
 
   // shots 子字段归一化：旧 shot 缺 P1-1 新字段时补默认；非对象项给空 shot 兜底。
-  d.shots = (Array.isArray(raw.shots) ? raw.shots : []).map((s) =>
+  d.shots = (Array.isArray(raw['shots']) ? raw['shots'] : []).map((s) =>
     s && typeof s === 'object' ? { ...defaultShotFields(), ...s } : { ...defaultShotFields() },
   );
 
   // assets 子字段归一化：P0-3 thumbnailUrl 缺省回退 assetUrl（唯一回退点，UI 不再各自处理）。
-  d.assets = (Array.isArray(raw.assets) ? raw.assets : []).map((a) => {
+  d.assets = (Array.isArray(raw['assets']) ? raw['assets'] : []).map((a) => {
     if (!a || typeof a !== 'object') return { ...defaultAssetFields() };
     const norm = { ...defaultAssetFields(), ...a } as ScriptBoxAsset & {
       videoStatus?: string;
@@ -332,10 +332,10 @@ function isScriptBoxAssetValue(a: unknown): a is ScriptBoxAsset {
  */
 export function toScriptBoxData(raw: Record<string, unknown> = {}): ScriptBoxData {
   const d = normalizeScriptBoxData(raw);
-  d.shots = (Array.isArray(raw.shots) ? raw.shots : []).map((s) =>
+  d.shots = (Array.isArray(raw['shots']) ? raw['shots'] : []).map((s) =>
     isScriptBoxShotValue(s) ? s : defaultShotFields(),
   );
-  d.assets = (Array.isArray(raw.assets) ? raw.assets : []).map((a) =>
+  d.assets = (Array.isArray(raw['assets']) ? raw['assets'] : []).map((a) =>
     isScriptBoxAssetValue(a) ? a : defaultAssetFields(),
   );
   return d;

@@ -152,38 +152,40 @@ function normalizeItems(values: unknown[], source: PromptSource): Prompt[] {
   const seen = new Set<string>();
   const items: Prompt[] = [];
   values.forEach((value, index) => {
+    // 【P5 · A 类】rec 是远端 JSON 的不可信中间态（Record<string, unknown>）⇒ 一律方括号取值，
+    // 每次取值都过 stringValue / stringArray / optionalXxx 归一，不假装字段一定存在。
     const rec = asRecord(value);
-    const title = stringValue(rec.title).trim();
-    const prompt = stringValue(rec.prompt).trim();
+    const title = stringValue(rec['title']).trim();
+    const prompt = stringValue(rec['prompt']).trim();
     if (!title || !prompt) return;
-    const id = stringValue(rec.id).trim() || `${source.id}-${leftPad(index + 1)}`;
+    const id = stringValue(rec['id']).trim() || `${source.id}-${leftPad(index + 1)}`;
     if (seen.has(id)) return;
     seen.add(id);
-    const referenceAssetUrls = stringArray(rec.referenceAssetUrls).map((u) =>
+    const referenceAssetUrls = stringArray(rec['referenceAssetUrls']).map((u) =>
       absoluteUrl(source.url, u),
     );
     const coverUrl =
-      absoluteUrl(source.url, stringValue(rec.coverUrl)) || referenceAssetUrls[0] || '';
+      absoluteUrl(source.url, stringValue(rec['coverUrl'])) || referenceAssetUrls[0] || '';
     items.push({
       id,
       title,
       prompt,
-      description: stringValue(rec.description),
+      description: stringValue(rec['description']),
       coverUrl,
       referenceAssetUrls,
-      tags: stringArray(rec.tags),
-      preview: stringValue(rec.preview),
-      createdAt: stringValue(rec.createdAt),
-      updatedAt: stringValue(rec.updatedAt),
-      author: optionalString(rec.author),
-      sourceUrl: absoluteUrl(source.url, stringValue(rec.sourceUrl)),
-      imageMode: optionalString(rec.imageMode),
-      imageModel: optionalString(rec.imageModel),
-      imageSize: optionalString(rec.imageSize),
-      imageCount: optionalNumber(rec.imageCount),
+      tags: stringArray(rec['tags']),
+      preview: stringValue(rec['preview']),
+      createdAt: stringValue(rec['createdAt']),
+      updatedAt: stringValue(rec['updatedAt']),
+      author: optionalString(rec['author']),
+      sourceUrl: absoluteUrl(source.url, stringValue(rec['sourceUrl'])),
+      imageMode: optionalString(rec['imageMode']),
+      imageModel: optionalString(rec['imageModel']),
+      imageSize: optionalString(rec['imageSize']),
+      imageCount: optionalNumber(rec['imageCount']),
       sourceId: source.id,
       category: source.name,
-      githubUrl: absoluteUrl(source.url, stringValue(rec.sourceUrl)) || source.homepage,
+      githubUrl: absoluteUrl(source.url, stringValue(rec['sourceUrl'])) || source.homepage,
     });
   });
   return items;
@@ -233,11 +235,12 @@ function sourceSignature(source: PromptSource): string {
 function isSourceCache(v: unknown): v is SourceCache {
   if (!v || typeof v !== 'object') return false;
   const c = v as Record<string, unknown>;
+  // 【P5 · A 类】缓存值来自 localStorage，键名不可信 ⇒ 方括号访问。
   return (
-    Array.isArray(c.items) &&
-    typeof c.fetchedAt === 'number' &&
-    typeof c.signature === 'string' &&
-    typeof c.lastError === 'string'
+    Array.isArray(c['items']) &&
+    typeof c['fetchedAt'] === 'number' &&
+    typeof c['signature'] === 'string' &&
+    typeof c['lastError'] === 'string'
   );
 }
 

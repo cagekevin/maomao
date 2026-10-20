@@ -79,10 +79,9 @@ interface CustomPose {
 
 type InspectorCollapsedKey = 'person' | 'poseLibrary' | 'skeleton' | 'customPose';
 
+/** 选中对象视图：objectState 开关的真源已在 ProjectObject 登记，此处只补 Inspector 专属的编辑态字段 */
 interface InspectorSelectedObject extends ProjectObject {
   locked?: boolean;
-  continuousMotion?: boolean;
-  footLock?: boolean;
   proportionalScale?: boolean;
   scaleAxisLocks?: boolean[];
 }
