@@ -393,7 +393,7 @@ function buildCreateNode(
   ctx: CanvasAgentCtx,
   currentNodes: Node[],
 ): BuildCreateNodeResult {
-  const type = str(args.type);
+  const type = str(args['type']);
   // 【TD-11-83】agent 可创建的节点类型白名单 = **唯一真源** `CREATABLE_NODE_TYPES`（agentConfig）。
   // 用白名单而非 getPaletteNode：即使调色板里新增了剧本盒等类型，agent 也不会被允许创建。
   if (!type || !CREATABLE_NODE_TYPES.includes(type))
@@ -402,26 +402,26 @@ function buildCreateNode(
   // 此处按「可写任意字段的 data 容器」处理，便于下面按 type 补 text / aspectRatio / imageSize。
   const data: Record<string, unknown> = {
     ...defaultNodeData(type),
-    ...(args.label ? { label: args.label } : {}),
-    ...(args.prompt ? { prompt: args.prompt } : {}),
+    ...(args['label'] ? { label: args['label'] } : {}),
+    ...(args['prompt'] ? { prompt: args['prompt'] } : {}),
   };
   // textGenerateNode 内容落「生成区」（data.text，TextGenerate 主容器/AI 生成结果显示处），而非抽屉区（data.prompt）。
   // 显式传 text（按钮「发到画布」等）时写 data.text；AI 走 prompt（抽屉区）的历史行为保持不变。
-  if (type === 'textGenerateNode' && args.text !== undefined && args.text !== null) {
-    data.text = String(args.text);
+  if (type === 'textGenerateNode' && args['text'] !== undefined && args['text'] !== null) {
+    data['text'] = String(args['text']);
   }
   // 生图类节点：把 AI 传的 aspectRatio / resolution 写进 data（ImageGenerate 读 data.aspectRatio / data.imageSize）。
   // 之前这两个参数被忽略，导致「让 AI 建 9:16 节点」比例不生效。
   if (['imageGenerateNode', 'videoGenerateNode'].includes(type)) {
-    if (args.aspectRatio) data.aspectRatio = str(args.aspectRatio);
-    if (args.resolution) data.imageSize = normalizeResolution(str(args.resolution));
+    if (args['aspectRatio']) data['aspectRatio'] = str(args['aspectRatio']);
+    if (args['resolution']) data['imageSize'] = normalizeResolution(str(args['resolution']));
   }
   // 位置：优先用 LLM 显式传的 position；否则按参考项目（daxiong-canvas-plugins canvas-agent）
   // 的「空位自动计算」放新节点——有节点时在最右侧节点右侧水平追加、顶部对齐，避免重叠；
   // 画布无节点时才放视窗中心。这样 AI 建多个节点会自动横向排开，不乱叠。
   const vw = typeof window !== 'undefined' ? window.innerWidth : 0;
   const vh = typeof window !== 'undefined' ? window.innerHeight : 0;
-  const pos = args.position as { x?: unknown; y?: unknown } | undefined;
+  const pos = args['position'] as { x?: unknown; y?: unknown } | undefined;
   const position = pos
     ? { x: num(pos.x, 0), y: num(pos.y, 0) }
     : computeCreatePosition(currentNodes, ctx.screenToFlowPosition, vw, vh);
@@ -431,8 +431,8 @@ function buildCreateNode(
   if (type === 'imageGenerateNode') Object.assign(newNode, applyNodeTypeDefaults(newNode));
 
   let edges: Edge[] = [];
-  if (args.connectFrom) {
-    const src = currentNodes.find((n) => n.id === args.connectFrom);
+  if (args['connectFrom']) {
+    const src = currentNodes.find((n) => n.id === args['connectFrom']);
     if (src) {
       edges = [
         {
@@ -552,7 +552,7 @@ const batchCreateNodesTool = {
     required: ['nodes'],
   },
   execute(args: Record<string, unknown>, ctx: CanvasAgentCtx) {
-    if (!Array.isArray(args.nodes) || args.nodes.length === 0)
+    if (!Array.isArray(args['nodes']) || args['nodes'].length === 0)
       return { ok: false, error: 'nodes 数组为空' };
     const host = createAgentCanvasHost(ctx);
     // P11：批量建——先基于「虚拟节点数组」逐条构建（保持横向自动布局，与逐条 create_node 位置一致），
@@ -564,7 +564,7 @@ const batchCreateNodesTool = {
     const createdNodes = [];
     const newEdges = [];
     let lastError = null;
-    for (const one of args.nodes) {
+    for (const one of args['nodes']) {
       const built = buildCreateNode(one, ctx, virtual);
       if ('error' in built) {
         lastError = built.error;
@@ -604,7 +604,7 @@ const deleteNodeTool = {
   },
   execute(args: Record<string, unknown>, ctx: CanvasAgentCtx) {
     const host = createAgentCanvasHost(ctx);
-    const id = str(args.nodeId);
+    const id = str(args['nodeId']);
     const exists = host.getNodes().some((n) => n.id === id);
     if (!exists) return { ok: false, error: `节点不存在：${id}` };
     // R3：级联删除该节点及其子孙（删 group 不留孤儿子节点）
@@ -630,7 +630,7 @@ const batchDeleteNodesTool = {
     required: ['nodeIds'],
   },
   execute(args: Record<string, unknown>, ctx: CanvasAgentCtx) {
-    const ids = Array.isArray(args.nodeIds) ? args.nodeIds.map(String) : [];
+    const ids = Array.isArray(args['nodeIds']) ? args['nodeIds'].map(String) : [];
     if (!ids.length) return { ok: false, error: 'nodeIds 数组为空' };
     const host = createAgentCanvasHost(ctx);
     // R3：批量删除也级联删选中 group 的子孙节点
@@ -670,7 +670,7 @@ const updateNodeTool = {
   },
   execute(args: Record<string, unknown>, ctx: CanvasAgentCtx) {
     const host = createAgentCanvasHost(ctx);
-    const id = str(args.nodeId);
+    const id = str(args['nodeId']);
     const node = host.getNode(id);
     if (!node) return { ok: false, error: `节点不存在：${id}` };
     const patch: Record<string, unknown> = {};
@@ -679,10 +679,10 @@ const updateNodeTool = {
     }
     // 生图画质：LLM 传 resolution（720p/1080p/2K/4K）→ 映射到组件实际读取的 imageSize（1K/2K/4K）。
     // 否则写 data.resolution 组件不读，比例/画质改动对用户不可见。
-    if (patch.resolution !== undefined) {
-      const norm = normalizeResolution(patch.resolution);
-      if (norm) patch.imageSize = norm;
-      delete patch.resolution;
+    if (patch['resolution'] !== undefined) {
+      const norm = normalizeResolution(patch['resolution']);
+      if (norm) patch['imageSize'] = norm;
+      delete patch['resolution'];
     }
     if (Object.keys(patch).length === 0) return { ok: true, data: { id, unchanged: true } };
     host.updateNodeData(id, patch);
@@ -713,10 +713,10 @@ const updateNodeRawTool = {
   },
   execute(args: Record<string, unknown>, ctx: CanvasAgentCtx) {
     const host = createAgentCanvasHost(ctx);
-    const id = str(args.nodeId);
+    const id = str(args['nodeId']);
     const node = host.getNode(id);
     if (!node) return { ok: false, error: `节点不存在：${id}` };
-    const patch = args.patch && typeof args.patch === 'object' ? args.patch : null;
+    const patch = args['patch'] && typeof args['patch'] === 'object' ? args['patch'] : null;
     if (!patch || Object.keys(patch).length === 0) return { ok: false, error: 'patch 为空' };
     host.updateNodeData(id, patch);
     return { ok: true, data: { id, updated: Object.keys(patch) } };
@@ -773,8 +773,8 @@ const connectNodesTool = {
     // 【TD-11-8 收口 2026-09-11】原裸调 ctx.setEdges 绕过唯一入口 → 改走 agentCanvasHost.appendEdges
     // （写操作唯一入口红线，见 agent/index.ts:52；agentCanvasHost 已提供 appendEdges/removeEdges，无需裸调）。
     const host = createAgentCanvasHost(ctx);
-    const source = str(args.source);
-    const target = str(args.target);
+    const source = str(args['source']);
+    const target = str(args['target']);
     const built = buildConnect(args, ctx, host.getEdges());
     if (built.status === 'error') return { ok: false, error: built.error };
     if (built.status === 'already')
@@ -806,7 +806,7 @@ const batchConnectNodesTool = {
     required: ['connections'],
   },
   execute(args: Record<string, unknown>, ctx: CanvasAgentCtx) {
-    const list = Array.isArray(args.connections) ? args.connections : [];
+    const list = Array.isArray(args['connections']) ? args['connections'] : [];
     if (!list.length) return { ok: false, error: 'connections 为空' };
     // 【TD-11-8 收口】裸调 ctx.setEdges → agentCanvasHost.appendEdges（保留 P11 单次写回防渲染风暴）
     const host = createAgentCanvasHost(ctx);
@@ -847,15 +847,15 @@ const deleteEdgeTool = {
     // 【TD-11-8 收口】裸调 ctx.setEdges → agentCanvasHost.removeEdges（写操作唯一入口）
     const host = createAgentCanvasHost(ctx);
     const edges = host.getEdges();
-    if (args.edgeId) {
-      if (!edges.some((e) => e.id === args.edgeId))
-        return { ok: false, error: `连线不存在：${args.edgeId}` };
-      host.removeEdges(args.edgeId as string);
-      return { ok: true, data: { edgeId: args.edgeId } };
+    if (args['edgeId']) {
+      if (!edges.some((e) => e.id === args['edgeId']))
+        return { ok: false, error: `连线不存在：${args['edgeId']}` };
+      host.removeEdges(args['edgeId'] as string);
+      return { ok: true, data: { edgeId: args['edgeId'] } };
     }
-    if (args.source && args.target) {
-      const edge = edges.find((e) => e.source === args.source && e.target === args.target);
-      if (!edge) return { ok: false, error: `未找到 ${args.source}→${args.target} 的连线` };
+    if (args['source'] && args['target']) {
+      const edge = edges.find((e) => e.source === args['source'] && e.target === args['target']);
+      if (!edge) return { ok: false, error: `未找到 ${args['source']}→${args['target']} 的连线` };
       host.removeEdges(edge.id);
       return { ok: true, data: { edgeId: edge.id } };
     }
@@ -877,7 +877,7 @@ const listNodesTool = {
     const nodes = ctx.getNodes().map((n) => ({
       id: n.id,
       type: n.type,
-      label: n.data?.label || '',
+      label: n.data?.['label'] || '',
       position: n.position || { x: 0, y: 0 },
     }));
     return { ok: true, data: { nodes } };
@@ -933,7 +933,7 @@ const skillReadFileTool = {
     required: ['path'],
   },
   async execute(args: Record<string, unknown>) {
-    const r = await readSkillResource(args.path, args.skill);
+    const r = await readSkillResource(args['path'], args['skill']);
     if (!r.ok) return { ok: false, error: r.error };
     // truncated 也要回给模型：否则它会把截断版当全文用（例如漏掉文件后半段的规则）
     return {
@@ -955,7 +955,7 @@ const getNodeDetailsTool = {
     required: ['nodeId'],
   },
   execute(args: Record<string, unknown>, ctx: CanvasAgentCtx) {
-    const id = str(args.nodeId);
+    const id = str(args['nodeId']);
     const node = ctx.getNodes().find((n) => n.id === id);
     if (!node) return { ok: false, error: `节点不存在：${id}` };
     return { ok: true, data: { id, type: node.type, data: node.data, position: node.position } };
@@ -977,15 +977,15 @@ const readCanvasTool = {
     const nodes = ctx.getNodes().map((n) => ({
       id: n.id,
       type: n.type,
-      label: n.data?.label || '',
-      prompt: n.data?.prompt || '',
-      text: n.data?.text || '',
+      label: n.data?.['label'] || '',
+      prompt: n.data?.['prompt'] || '',
+      text: n.data?.['text'] || '',
       position: n.position || { x: 0, y: 0 },
       // 生成结果（打通 Agent 感知：读完画布即可看到哪个节点已出图/出视频/出音频，供多步编排）
-      assetUrl: n.data?.assetUrl || undefined,
-      videoUrl: n.data?.videoUrl || undefined,
-      audioUrl: n.data?.audioUrl || undefined,
-      resultUrl: n.data?.resultUrl || undefined,
+      assetUrl: n.data?.['assetUrl'] || undefined,
+      videoUrl: n.data?.['videoUrl'] || undefined,
+      audioUrl: n.data?.['audioUrl'] || undefined,
+      resultUrl: n.data?.['resultUrl'] || undefined,
     }));
     const edges = ctx.getEdges().map((e) => ({
       id: e.id,
@@ -1076,7 +1076,7 @@ const triggerGenerationTool = {
     required: ['nodeId'],
   },
   execute: async (args: Record<string, unknown>, ctx: CanvasAgentCtx) => {
-    const id = str(args.nodeId);
+    const id = str(args['nodeId']);
     const node = ctx.getNodes().find((n) => n.id === id);
     if (!node) {
       // 兜底自愈（2026-08-21）：LLM 可能自猜节点 id（如 imageGenerateNode_1）导致不存在。
@@ -1302,7 +1302,7 @@ const executePlanTool = {
       //   再让 LLM 扛超大 JSON）；兜底来源②execute_plan 本次参数 args.generations。
       //   二者皆空 → 明确错误透传并给出引导（error 级日志，不静默，透传真实原因），杜绝「有意图却无计划的可执行源」被静默吞掉。
       const pending = getPendingGenerations();
-      const argsGens = Array.isArray(args.generations) ? args.generations : [];
+      const argsGens = Array.isArray(args['generations']) ? args['generations'] : [];
       const pendingUsed = Array.isArray(pending) && pending.length > 0;
       const hasPlanSource = pendingUsed || argsGens.length > 0;
       if (!hasPlanSource) {
@@ -1328,10 +1328,10 @@ const executePlanTool = {
       //     【更新 2026-09-05】执行模型已收敛恒 auto（direct/step-confirm 已删）：
       //     上述「直接生图/分步确认/完全自主」历史成因仅剩 auto 一种；闸仍通用、判定不变（只看 creditSwitch）。
       const creditHit = getCreditSwitch();
-      const autoRun = creditHit ? false : args.auto_run !== false;
+      const autoRun = creditHit ? false : args['auto_run'] !== false;
       // 【模型锁定】用面板生图参数区（getGenParams）作为默认；LLM 显式传 model 则优先。
       const panel = getGenParams();
-      const model = str(args.model) || panel.model;
+      const model = str(args['model']) || panel.model;
       // workflow 贯穿（对齐大雄）：执行开始 → running；执行结束 → completed/failed。状态写入当前对话 workflow。
       patchCurrentWorkflow({ status: 'running', updatedAt: Date.now() });
       // 【参考图解析】本轮用户参考图池（useAgentChat.send 时写入）+ 跨轮回退。
@@ -1339,8 +1339,8 @@ const executePlanTool = {
       //   让"改上一张图"在本轮无图时也能执行（跨轮图记忆靠执行层反查，不进 LLM 上下文）。
       let refPool = getCurrentReferenceImages();
       if (!Array.isArray(refPool) || refPool.length === 0) refPool = getLastUserReferenceImages();
-      const globalRefs = Array.isArray(args.referenceImages)
-        ? args.referenceImages.filter(Boolean)
+      const globalRefs = Array.isArray(args['referenceImages'])
+        ? args['referenceImages'].filter(Boolean)
         : [];
       // 【对齐大雄 direct_refs + agentCurrentImageMap + agentForceNoStaleLastOutputs】参考图解析优先级：
       //   ① 独立步骤（非依赖前序）且带 direct_refs → 直接用 direct_refs（引用历史图/上一轮生成图 url），
@@ -1408,8 +1408,8 @@ const executePlanTool = {
       // 【统一风格契约 global_contract】（对齐大雄）：取阶段1/本次的契约，把三字段逐字锁到每个 generation 的 prompt 头部，
       // 保证电商套图（13张同品牌）每步都带统一风格/负面提示词。
       const gc = (
-        args.global_contract && typeof args.global_contract === 'object'
-          ? args.global_contract
+        args['global_contract'] && typeof args['global_contract'] === 'object'
+          ? args['global_contract']
           : getCurrentGlobalContract() || {}
       ) as {
         visual_positioning?: string;
@@ -1432,12 +1432,12 @@ const executePlanTool = {
           }))
         : resolvedGens;
       const artifactTable =
-        Array.isArray(args.artifacts) && args.artifacts.length
-          ? args.artifacts
+        Array.isArray(args['artifacts']) && args['artifacts'].length
+          ? args['artifacts']
           : getCurrentArtifacts() || [];
       // 【TASK-012】套图/融合兜底需要用户原文（seriesHint/fusionIntent）。优先 LLM 带 user_text，否则用阶段1策划 plan_text 兜底。
       const userText = String(
-        args.user_text || getCurrentMemory()?.lastPlan?.plan_text || '',
+        args['user_text'] || getCurrentMemory()?.lastPlan?.['plan_text'] || '',
       ).trim();
       // 【TASK-009 进度日志】executor 逐步 onLog → 收集进 logs，随结果返回，供 useAgentChat 渲染折叠「执行摘要」（对齐大雄 workflowLogs）
       const logs: unknown[] = [];
@@ -1563,7 +1563,7 @@ const executePlanTool = {
       setCurrentMemory({
         ...mem,
         lastPlan: {
-          plan_text: args.plan_text || mem?.lastPlan?.plan_text || '',
+          plan_text: args['plan_text'] || mem?.lastPlan?.['plan_text'] || '',
           generations: gens,
           ts: Date.now(),
         },
@@ -1655,13 +1655,13 @@ const focusNodeTool = {
     required: ['nodeId'],
   },
   execute(args: Record<string, unknown>, ctx: CanvasAgentCtx) {
-    const id = str(args.nodeId);
+    const id = str(args['nodeId']);
     const node = ctx.getNodes().find((n) => n.id === id);
     if (!node) return { ok: false, error: `节点不存在：${id}` };
     const pos = node.position || { x: 0, y: 0 };
     const w = (node.measured?.width ?? 0) / 2;
     const h = (node.measured?.height ?? 0) / 2;
-    const zoom = num(args.zoom, 1.0);
+    const zoom = num(args['zoom'], 1.0);
     ctx.setCenter?.(pos.x + w, pos.y + h, { zoom: zoom <= 0 ? 1.0 : zoom, duration: 300 });
     return { ok: true, data: { id, centered: { x: pos.x, y: pos.y }, zoom } };
   },
@@ -1689,7 +1689,7 @@ const undoAiTool = {
     createAgentCanvasHost(ctx).restoreNodesAndEdges(snap);
     return {
       ok: true,
-      data: { reverted: snap.action || '上一步操作', remaining: getActiveAiUndoStack().length },
+      data: { reverted: snap['action'] || '上一步操作', remaining: getActiveAiUndoStack().length },
     };
   },
 };
@@ -1728,8 +1728,8 @@ const memorySuggestTool = {
     required: ['kind', 'content'],
   },
   execute(args: Record<string, unknown>) {
-    const kind = String(args.kind || '');
-    const rawContent = String(args.content || '').trim();
+    const kind = String(args['kind'] || '');
+    const rawContent = String(args['content'] || '').trim();
     // 【脱敏】写入前统一脱敏（复用 projectMemoryStore.sanitizeMemoryContent，纯函数）
     const content = sanitizeMemoryContent(rawContent);
     if (!PROJECT_MEMORY_KINDS.includes(kind))
