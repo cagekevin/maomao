@@ -21,7 +21,7 @@ import { json, parseJsonBody, sendError } from '../utils/helpers.js';
 import { externalizeBase64InValue } from '../utils/base64Externalize.js';
 
 export async function handleKvGet(
-  req: IncomingMessage,
+  _req: IncomingMessage,
   res: ServerResponse,
   url: URL,
 ): Promise<void> {
@@ -95,7 +95,7 @@ export async function handleKvSet(req: IncomingMessage, res: ServerResponse): Pr
  * 轻量：只读 `<key>_version`，不拉整包（3s 冲突轮询专用）。key 不存在/不可解析 → 0。
  */
 export async function handleKvVersion(
-  req: IncomingMessage,
+  _req: IncomingMessage,
   res: ServerResponse,
   url: URL,
 ): Promise<void> {
@@ -151,7 +151,7 @@ export async function handleKvKeys(
  * 现由 handler 一次性保证：`<key>` 与 `<key>_version` 同删（调用方只删一次即可、无需补删）。
  */
 export async function handleKvDelete(
-  req: IncomingMessage,
+  _req: IncomingMessage,
   res: ServerResponse,
   url: URL,
 ): Promise<void> {

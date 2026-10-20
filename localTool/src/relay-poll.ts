@@ -142,6 +142,9 @@ type _TaskStatusAllRegistered = _AssertTrue<
 type _TaskStatusNoExtraMember = _AssertTrue<
   Exclude<RelayTaskStatusValue, RelayTaskStatus['status']> extends never ? true : false
 >;
+// noUnusedLocals 下纯类型别名不消费会报 TS6196：用变量 + `void` 消费（与前端 agentCore 同款写法）。
+const _taskStatusCoverage: [_TaskStatusAllRegistered, _TaskStatusNoExtraMember] = [true, true];
+void _taskStatusCoverage;
 
 /**
  * 解析某平台 capability 对应的异步调用协议（方案① per-provider 自定义协议）。

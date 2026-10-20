@@ -140,7 +140,7 @@ export async function handleGenerateSubmit(
 
 /** GET /api/generate/:frontTaskId —— attach 查询进度/结果。 */
 export async function handleGenerateGet(
-  req: IncomingMessage,
+  _req: IncomingMessage,
   res: ServerResponse,
   url: URL,
 ): Promise<void> {

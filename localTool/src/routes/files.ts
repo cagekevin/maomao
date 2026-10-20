@@ -5,7 +5,6 @@
 
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { openExternal } from '../utils/openExternal.js';
-import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { getUploadDir, getDb, queryOne } from '../db/database.js';
@@ -473,7 +472,7 @@ async function doSaveRemoteUrl(subfolder: string, fileUrl: string): Promise<Save
 
 // ── read ──
 export async function handleRead(
-  req: IncomingMessage,
+  _req: IncomingMessage,
   res: ServerResponse,
   url: URL,
 ): Promise<void> {
@@ -501,7 +500,7 @@ export async function handleRead(
 
 // ── thumbnail ──
 export async function handleThumbnail(
-  req: IncomingMessage,
+  _req: IncomingMessage,
   res: ServerResponse,
   url: URL,
 ): Promise<void> {
@@ -652,7 +651,7 @@ export async function handleMove(req: IncomingMessage, res: ServerResponse): Pro
 
 // ── open ──
 export async function handleOpen(
-  req: IncomingMessage,
+  _req: IncomingMessage,
   res: ServerResponse,
   url: URL,
 ): Promise<void> {
@@ -676,7 +675,7 @@ export async function handleOpen(
 
 // ── open-dir ──
 export async function handleOpenDir(
-  req: IncomingMessage,
+  _req: IncomingMessage,
   res: ServerResponse,
   url: URL,
 ): Promise<void> {
@@ -717,7 +716,7 @@ export async function handleOpenDir(
 
 // ── list ──
 export async function handleList(
-  req: IncomingMessage,
+  _req: IncomingMessage,
   res: ServerResponse,
   url: URL,
 ): Promise<void> {

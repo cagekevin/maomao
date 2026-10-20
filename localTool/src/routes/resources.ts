@@ -500,7 +500,7 @@ export function resourceVisibleForProject(
 }
 
 export async function handleResourcesGet(
-  req: IncomingMessage,
+  _req: IncomingMessage,
   res: ServerResponse,
   url: URL,
 ): Promise<void> {
@@ -542,7 +542,7 @@ export async function handleResourcesGet(
 }
 
 export async function handleResourcesDelete(
-  req: IncomingMessage,
+  _req: IncomingMessage,
   res: ServerResponse,
   url: URL,
 ): Promise<void> {
@@ -667,7 +667,7 @@ export async function applyResourceContextMove(opts: {
  * 用法：POST /api/resources/rename?id=<id>&name=<新名>
  */
 export async function handleResourcesRename(
-  req: IncomingMessage,
+  _req: IncomingMessage,
   res: ServerResponse,
   url: URL,
 ): Promise<void> {

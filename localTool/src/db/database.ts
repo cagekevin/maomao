@@ -51,9 +51,6 @@ const BACKUP_EXPORT_KEEP = 7; // 保留最近 N 份 JSON 导出
 const DAILY_BACKUP_INTERVAL = 24 * 60 * 60 * 1000; // 每日自动备份间隔（24h）
 let _backupTimer: ReturnType<typeof setTimeout> | null = null;
 
-/** 每天这个时刻触发一次结构化导出（本地凌晨 3:00，近似，足够兜底） */
-const _DAILY_EXPORT_HOUR = 3;
-
 export async function getDb(): Promise<SqlJsDatabase> {
   if (_db) return _db;
   // 并发首次初始化串行化：同一 promise，后续并发请求 await 同一初始化，避免各自建库竞态

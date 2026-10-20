@@ -288,7 +288,7 @@ export function upsertTask(
 }
 
 export async function handleTasksGet(
-  req: IncomingMessage,
+  _req: IncomingMessage,
   res: ServerResponse,
   url: URL,
 ): Promise<void> {
@@ -358,7 +358,7 @@ export async function handleTasksBatchSave(
 }
 
 export async function handleTasksDelete(
-  req: IncomingMessage,
+  _req: IncomingMessage,
   res: ServerResponse,
   url: URL,
 ): Promise<void> {
@@ -396,7 +396,7 @@ export async function handleTasksBatchDelete(
   return json(res, { code: 0, data: { deleted, requested: body.ids.length } });
 }
 
-export async function handleTasksClear(req: IncomingMessage, res: ServerResponse): Promise<void> {
+export async function handleTasksClear(_req: IncomingMessage, res: ServerResponse): Promise<void> {
   const db = await getDb();
   const result = run(db, 'DELETE FROM tasks');
   debouncedSaveDb();

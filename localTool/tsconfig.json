@@ -10,6 +10,15 @@
     "noPropertyAccessFromIndexSignature": true,
     "noUncheckedIndexedAccess": true,
     "exactOptionalPropertyTypes": true,
+    // 2026-10-20 · P7：把「与根同口径」补全 —— 其余四项实测代价 20 处未使用形参/常量，
+    // 已清零（`req` → `_req`、删除未用常量、编译期断言类型别名用 `void` 消费）。
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "allowUnreachableCode": false,
+    "allowUnusedLabels": false,
+    "verbatimModuleSyntax": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,

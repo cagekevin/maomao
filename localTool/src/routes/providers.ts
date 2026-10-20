@@ -173,7 +173,7 @@ export async function handleProviderProbeAsync(
 
 /** POST /api/providers/:id/fetch-models —— 委托 ai-relay 拉模型 → 前端 image/chat/video_models。 */
 export async function handleProviderFetchModels(
-  req: IncomingMessage,
+  _req: IncomingMessage,
   res: ServerResponse,
   url: URL,
 ): Promise<void> {
