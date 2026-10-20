@@ -137,6 +137,8 @@ const GATES = {
   // ⚠️ 原 `strict-src` 行已于 2026-09-24 删除：该闸并入 `type-check`（tsconfig 早已
   //   `noImplicitAny: true` ⇒ 两条 tsc 命令等价），见 `gates.manifest.json::_design.tsc`。
   // ⚠️ 原 `gates` 行已于 2026-09-24 删除：该闸（申诉口三问）**并入本闸**，其判据见下方「1c」节。
+  // 2026-10-20 · P7：非空断言基线闸（扫 src + tests 的 `!` 存量，新增即红）。
+  nonnull: { roots: ['src', 'tests'], selfCheck: 'own', why: '' },
   events: { roots: ['src'], selfCheck: 'own', why: '' },
   arch: {
     roots: ['src'],
