@@ -413,7 +413,7 @@ describe('scriptBoxEngine · 引擎编排', () => {
     expect(addNodes).toHaveBeenCalledTimes(1);
     const node = at(at(addNodes.mock.calls, 0)[0], 0) as EmittedNode;
     expect(node.type).toBe('imageGenerateNode');
-    expect(node.data.prompt).toBe('p');
+    expect(node.data['prompt']).toBe('p');
     expect(store._edges.length).toBe(1);
     expect(store._edges[0].source).toBe('node-1');
     expect(store._edges[0].sourceHandle).toBe('shot-s1');
@@ -431,27 +431,27 @@ describe('scriptBoxEngine · 引擎编排', () => {
     const imgNode = at(at(addNodes.mock.calls, 0)[0], 0) as EmittedNode;
     expect(imgNode.type).toBe('imageGenerateNode');
     // 资产名带出为 label，供下游 PromptInput @名 匹配（docs/70）
-    expect(imgNode.data.images).toMatchObject([
+    expect(imgNode.data['images']).toMatchObject([
       {
         id: 'script-asset-asset-城堡',
         url: 'http://127.0.0.1:18080/files/城堡.png',
         label: '城堡',
       },
     ]);
-    expect(imgNode.data.refImages).toBeUndefined(); // 不再使用 refImages 命名
+    expect(imgNode.data['refImages']).toBeUndefined(); // 不再使用 refImages 命名
     // 生视频下游
     addNodes.mockClear();
     engine.onConnectShot('s1', 'video');
     const vidNode = at(at(addNodes.mock.calls, 0)[0], 0) as EmittedNode;
     expect(vidNode.type).toBe('videoGenerateNode');
-    expect(vidNode.data.images).toMatchObject([
+    expect(vidNode.data['images']).toMatchObject([
       {
         id: 'script-asset-asset-城堡',
         url: 'http://127.0.0.1:18080/files/城堡.png',
         label: '城堡',
       },
     ]);
-    expect(vidNode.data.refImages).toBeUndefined();
+    expect(vidNode.data['refImages']).toBeUndefined();
   });
 
   // ── 连线早于资产生图：data.images 是连线时快照，但实时连线链路会自愈补上 ──
@@ -464,7 +464,7 @@ describe('scriptBoxEngine · 引擎编排', () => {
     });
     engine.onConnectShot('s1', 'image');
     const node = at(at(addNodes.mock.calls, 0)[0], 0) as EmittedNode;
-    expect(node.data.images).toEqual([]); // 快照：连线那一刻图片还没生成
+    expect(node.data['images']).toEqual([]); // 快照：连线那一刻图片还没生成
 
     // 之后用户生成城堡图（assetUrl 补上）→ node.data.images 这份快照字段仍是空（不可变快照）。
     // ⚠️ 但这不是"永不补"：onConnectShot 同时建了 scriptBoxNode 的 shot- 边，
@@ -472,7 +472,7 @@ describe('scriptBoxEngine · 引擎编排', () => {
     //    connected.images 走 useConnectedInputs 实时从 scriptBoxNode.data.assets 重新 collectAssets ——
     //    资产生成后被实时链路自动补上，无需重连。（engine 单测无法触达 hook，故仅断言快照字段不变）
     store.assets = [{ id: 'asset-城堡', name: '城堡', assetUrl: '/files/x.png' }];
-    expect(node.data.images).toEqual([]);
+    expect(node.data['images']).toEqual([]);
   });
 
   // ── P0-①：onConnectShots 支持 target，批量建对应下游类型 ──
@@ -566,14 +566,14 @@ describe('scriptBoxEngine · 引擎编排', () => {
     // image 下游
     engine.onConnectShot('s1', 'image');
     const imgNode = at(at(addNodes.mock.calls, 0)[0], 0) as EmittedNode;
-    expect(imgNode.data.aspectRatio).toBe('9:16');
+    expect(imgNode.data['aspectRatio']).toBe('9:16');
     addNodes.mockClear();
     // video 下游
     engine.onConnectShot('s1', 'video');
     const vidNode = at(at(addNodes.mock.calls, 0)[0], 0) as EmittedNode;
-    expect(vidNode.data.size).toBe('9:16');
-    expect(vidNode.data.selectedSeconds).toBe('7');
-    expect(vidNode.data.durationFromScript).toBe(true);
+    expect(vidNode.data['size']).toBe('9:16');
+    expect(vidNode.data['selectedSeconds']).toBe('7');
+    expect(vidNode.data['durationFromScript']).toBe(true);
   });
 
   it('onConnectShot 宽高比 custom 用 customAspectRatio；4:4 归一为 1:1', async () => {
@@ -585,7 +585,7 @@ describe('scriptBoxEngine · 引擎编排', () => {
       ],
     });
     engine.onConnectShot('s1', 'image');
-    expect((at(at(addNodes.mock.calls, 0)[0], 0) as EmittedNode).data.aspectRatio).toBe('2:1');
+    expect((at(at(addNodes.mock.calls, 0)[0], 0) as EmittedNode).data['aspectRatio']).toBe('2:1');
     addNodes.mockClear();
 
     const { engine: e2, addNodes: addNodes2 } = makeEngine({
@@ -595,7 +595,7 @@ describe('scriptBoxEngine · 引擎编排', () => {
       ],
     });
     e2.onConnectShot('s2', 'video');
-    expect((at(at(addNodes2.mock.calls, 0)[0], 0) as EmittedNode).data.size).toBe('1:1');
+    expect((at(at(addNodes2.mock.calls, 0)[0], 0) as EmittedNode).data['size']).toBe('1:1');
   });
 });
 

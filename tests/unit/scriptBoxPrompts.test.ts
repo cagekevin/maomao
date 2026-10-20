@@ -33,7 +33,7 @@ describe('剧本盒纯函数 §2.7/2.17', () => {
     const r = ZgPrompt('character', '蓝发少女', '皮克斯');
     expect(r).toContain('[视觉风格：皮克斯]');
     expect(r).toContain('蓝发少女');
-    expect(r).toContain(ASSET_TEMPLATES.character); // 默认模板
+    expect(r).toContain(ASSET_TEMPLATES['character']); // 默认模板
   });
 
   it('ZgPrompt：描述无句号自动补句号', () => {
@@ -43,7 +43,7 @@ describe('剧本盒纯函数 §2.7/2.17', () => {
 
   it('ZgPrompt：未知 category 回退 character', () => {
     const r = ZgPrompt('unknown', 'x', '');
-    expect(r).toContain(ASSET_TEMPLATES.character);
+    expect(r).toContain(ASSET_TEMPLATES['character']);
   });
 
   it('dialogueText：台词/旁白格式化', () => {
@@ -366,10 +366,10 @@ describe('剧本盒纯函数 §2.7/2.17', () => {
     expect(cats.has('scene')).toBe(true);
     expect(cats.has('prop')).toBe(true);
     // ScriptAsset 带 [key:string]:unknown 索引签名，prompt/has 经此皆为 unknown，故用 String 收窄
-    expect(assets.every((a: ScriptAsset) => String(a.prompt).includes('[视觉风格：皮克斯]'))).toBe(
-      true,
-    );
-    expect(assets.every((a: ScriptAsset) => a.has === false)).toBe(true);
+    expect(
+      assets.every((a: ScriptAsset) => String(a['prompt']).includes('[视觉风格：皮克斯]')),
+    ).toBe(true);
+    expect(assets.every((a: ScriptAsset) => a['has'] === false)).toBe(true);
   });
 
   it('IMAGE_GEN_TYPES 含 4 种（keyframe/grid4/grid9/topdown）', () => {

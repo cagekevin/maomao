@@ -24,7 +24,7 @@ const h = vi.hoisted(() => ({
   queryMediaRefs: vi.fn(async (source: string, query: Record<string, unknown>) => {
     // 素材库根（精确 `migrated`）会返回一条**目录条目** —— 旧实现正是被这一步补齐的分类清单
     // 反推回拉取动作的；这里如实造出来，确保探针打的是真实触发路径。
-    if (source === 'library' && query?.folderExact) {
+    if (source === 'library' && query?.['folderExact']) {
       return [
         {
           ref: 'library:f1',

@@ -290,10 +290,10 @@ describe('barrel 契约（#8 · 2026-09-19 裁判裁定更新）', () => {
   it('base/api 桶不再导出生成门面（横切层禁指向业务域），门面改由 generate/lib/generate 提供', async () => {
     const barrel = await import('@/components/base/api/index.ts');
     // 内部 generate 实现仍不得从桶泄出
-    expect((barrel as Record<string, unknown>).generate).toBeUndefined();
+    expect((barrel as Record<string, unknown>)['generate']).toBeUndefined();
     // 生成链路 / AI 中继 4 件已整片迁 generate/lib（TASK-031 §四-A-11）：
     // 桶若 re-export 它们，横切层 base/api 就会反向依赖业务域 generate ⇒ 架构闸规则 2 报红。
-    expect((barrel as Record<string, unknown>).generateImage).toBeUndefined();
+    expect((barrel as Record<string, unknown>)['generateImage']).toBeUndefined();
     const gen = await import('@/components/generate/lib/generate.ts');
     expect(typeof gen.generateImage).toBe('function');
     expect(typeof gen.generateVideo).toBe('function');

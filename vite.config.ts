@@ -55,10 +55,9 @@ function packageName(id: string): string | null {
  * 代理目标若与页面实际调用的后端不一致，dev 下会出现「API 通、模型 404」的静默分叉，故按同一 env 取。
  */
 const DEV_ENV = loadEnv('development', rootDir, '');
-const LOCAL_TOOL_ORIGIN = (DEV_ENV.VITE_API_BASE || `http://127.0.0.1:${LOCAL_TOOL_PORT}`).replace(
-  /\/+$/,
-  '',
-);
+const LOCAL_TOOL_ORIGIN = (
+  DEV_ENV['VITE_API_BASE'] || `http://127.0.0.1:${LOCAL_TOOL_PORT}`
+).replace(/\/+$/, '');
 
 export default defineConfig({
   plugins: [react()],

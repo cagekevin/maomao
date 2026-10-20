@@ -17,10 +17,10 @@ describe('withNodeSize — 尺寸「三写不变量」唯一实现（TD-04-28）
     const patch = withNodeSize({ id: 'g', type: 'group', style: { background: '#fff' } }, 300, 200);
     expect(patch.width).toBe(300);
     expect(patch.height).toBe(200);
-    expect(patch.style.width).toBe(300);
-    expect(patch.style.height).toBe(200);
+    expect(patch.style['width']).toBe(300);
+    expect(patch.style['height']).toBe(200);
     // 既有 style 其余键保留
-    expect(patch.style.background).toBe('#fff');
+    expect(patch.style['background']).toBe('#fff');
   });
 
   it('不含 initial* —— 已有节点不需要（不覆盖已测量的 initial）', () => {
@@ -89,7 +89,7 @@ describe('applyNodeTypeDefaults — 节点结构默认补齐', () => {
 
   it('group 缺 data.name → 补 label「编组」（name 已收敛为全画布通用 label）', () => {
     const r = applyNodeTypeDefaults({ id: 'g', type: 'group', data: {}, position: { x: 0, y: 0 } });
-    expect((r.data as Record<string, unknown>).label).toBe('编组');
+    expect((r.data as Record<string, unknown>)['label']).toBe('编组');
   });
 
   it('group 有 data.name → 源头收敛进 label 并清除遗留 name', () => {
@@ -100,9 +100,9 @@ describe('applyNodeTypeDefaults — 节点结构默认补齐', () => {
       position: { x: 0, y: 0 },
     });
     const d = r.data as Record<string, unknown>;
-    expect(d.label).toBe('我的组');
+    expect(d['label']).toBe('我的组');
     // 遗留 name 应被迁移清除（「名字双字段」在数据模型层消亡，非末端兼容保留）
-    expect(d.name).toBeUndefined();
+    expect(d['name']).toBeUndefined();
   });
 
   it('group 同时有 label/name → label 优先且 name 清除', () => {
@@ -113,8 +113,8 @@ describe('applyNodeTypeDefaults — 节点结构默认补齐', () => {
       position: { x: 0, y: 0 },
     });
     const d = r.data as Record<string, unknown>;
-    expect(d.label).toBe('新名');
-    expect(d.name).toBeUndefined();
+    expect(d['label']).toBe('新名');
+    expect(d['name']).toBeUndefined();
   });
 
   it('group 的 expandedWidth/expandedHeight 为死字段 → 忽略，仍用默认 300×200', () => {

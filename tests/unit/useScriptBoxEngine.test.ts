@@ -169,8 +169,8 @@ describe('useScriptBoxEngine', () => {
       imgGenLoading: false,
       tailFrameVariantsLoading: false,
     });
-    expect(at(out.data.shots, 1).promptLoading).toBeUndefined(); // 干净镜头不被改写
-    expect(at(out.data.assets, 0).loading).toBe(false);
+    expect(at(out.data.shots, 1)['promptLoading']).toBeUndefined(); // 干净镜头不被改写
+    expect(at(out.data.assets, 0)['loading']).toBe(false);
   });
 
   it('挂载时无执行态残留 → 不写回（避免每次挂载多一次 setNodes）', () => {

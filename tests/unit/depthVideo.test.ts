@@ -147,12 +147,12 @@ describe('A6 下游节点规格 buildDepthChildSpec + 命名', () => {
       'scene_depth.mp4',
     );
     expect(spec.type).toBe('assetNode');
-    expect(spec.data.assetType).toBe('video');
-    expect(spec.data.assetUrl).toBe(
+    expect(spec.data['assetType']).toBe('video');
+    expect(spec.data['assetUrl']).toBe(
       'http://127.0.0.1:18080/files/canvas/video-process/x_depth.mp4',
     );
-    expect(spec.data.expanded).toBe(true);
-    expect(spec.data.label).toBe('scene_depth.mp4');
+    expect(spec.data['expanded']).toBe(true);
+    expect(spec.data['label']).toBe('scene_depth.mp4');
   });
   it('命名 ${stripExt(name)}_depth.${ext}，不覆盖源名', () => {
     expect(depthOutputName('scene.mp4', 'mp4')).toBe('scene_depth.mp4');

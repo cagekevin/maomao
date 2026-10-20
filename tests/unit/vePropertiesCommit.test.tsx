@@ -149,7 +149,7 @@ describe('属性面板两段提交契约（TD-22-20 测试网）', () => {
         updates: { updates: Record<string, unknown> }[];
         pushHistory?: boolean;
       };
-      return [at(a.updates, 0).updates.fontSize, a.pushHistory === true] as const;
+      return [at(a.updates, 0).updates['fontSize'], a.pushHistory === true] as const;
     });
     expect(seq).toEqual([
       [initial + 5, false],
@@ -174,7 +174,7 @@ describe('属性面板两段提交契约（TD-22-20 测试网）', () => {
         updates: { updates: Record<string, unknown> }[];
         pushHistory?: boolean;
       };
-      return [at(a.updates, 0).updates.fontSize, a.pushHistory === true] as const;
+      return [at(a.updates, 0).updates['fontSize'], a.pushHistory === true] as const;
     });
     expect(seq).toEqual([
       [initial + 4, false],
@@ -248,7 +248,10 @@ describe('组① 其余数字字段：提交序 + 值域换算（TD-22-20）', (
 
     // 注意：面板经 `updateTransform` 写库 ⇒ updates 是**整个 transform 展开**后的对象
     //（`{ transform: { ...ref.element.transform, ...transformUpdates } }`），不是 `{ position }`。
-    const xs = seq().map(([u, h]) => [(u.transform as { position: { x: number } }).position.x, h]);
+    const xs = seq().map(([u, h]) => [
+      (u['transform'] as { position: { x: number } }).position.x,
+      h,
+    ]);
     expect(xs).toEqual([
       [12.5, false],
       [element.transform.position.x, false],
@@ -264,7 +267,10 @@ describe('组① 其余数字字段：提交序 + 值域换算（TD-22-20）', (
     fireEvent.change(input, { target: { value: '7.25' } });
     fireEvent.blur(input);
 
-    const ys = seq().map(([u, h]) => [(u.transform as { position: { y: number } }).position.y, h]);
+    const ys = seq().map(([u, h]) => [
+      (u['transform'] as { position: { y: number } }).position.y,
+      h,
+    ]);
     expect(ys).toEqual([
       [7.25, false],
       [element.transform.position.y, false],
@@ -280,7 +286,7 @@ describe('组① 其余数字字段：提交序 + 值域换算（TD-22-20）', (
     fireEvent.change(input, { target: { value: '150' } });
     fireEvent.blur(input);
 
-    const scales = seq().map(([u, h]) => [(u.transform as { scale: number }).scale, h]);
+    const scales = seq().map(([u, h]) => [(u['transform'] as { scale: number }).scale, h]);
     expect(scales).toEqual([
       [1.5, false],
       [element.transform.scale, false],
@@ -296,7 +302,7 @@ describe('组① 其余数字字段：提交序 + 值域换算（TD-22-20）', (
     fireEvent.change(input, { target: { value: '45.5' } });
     fireEvent.blur(input);
 
-    const rotations = seq().map(([u, h]) => [(u.transform as { rotate: number }).rotate, h]);
+    const rotations = seq().map(([u, h]) => [(u['transform'] as { rotate: number }).rotate, h]);
     expect(rotations).toEqual([
       [45.5, false],
       [element.transform.rotate, false],
@@ -464,7 +470,7 @@ describe('组②c 描边 / 阴影（对象字段）（TD-22-20）', () => {
     fireEvent.change(slider, { target: { value: '8' } });
     fireEvent.pointerUp(slider);
 
-    const widths = seq().map(([u, h]) => [(u.stroke as { width: number }).width, h]);
+    const widths = seq().map(([u, h]) => [(u['stroke'] as { width: number }).width, h]);
     expect(widths).toEqual([
       [8, false],
       [4, false],
@@ -478,7 +484,7 @@ describe('组②c 描边 / 阴影（对象字段）（TD-22-20）', () => {
 
     fireEvent.change(picker, { target: { value: '#ff3b30' } });
 
-    const colors = seq().map(([u, h]) => [(u.stroke as { color: string }).color, h]);
+    const colors = seq().map(([u, h]) => [(u['stroke'] as { color: string }).color, h]);
     expect(colors).toEqual([
       ['#ff3b30', false],
       ['#000000', false],
@@ -493,7 +499,7 @@ describe('组②c 描边 / 阴影（对象字段）（TD-22-20）', () => {
     fireEvent.change(slider, { target: { value: '7' } });
     fireEvent.pointerUp(slider);
 
-    const xs = seq().map(([u, h]) => [(u.shadow as { offsetX: number }).offsetX, h]);
+    const xs = seq().map(([u, h]) => [(u['shadow'] as { offsetX: number }).offsetX, h]);
     expect(xs).toEqual([
       [7, false],
       [2, false],
@@ -508,7 +514,7 @@ describe('组②c 描边 / 阴影（对象字段）（TD-22-20）', () => {
     fireEvent.change(slider, { target: { value: '12' } });
     fireEvent.pointerUp(slider);
 
-    const blurs = seq().map(([u, h]) => [(u.shadow as { blur: number }).blur, h]);
+    const blurs = seq().map(([u, h]) => [(u['shadow'] as { blur: number }).blur, h]);
     expect(blurs).toEqual([
       [12, false],
       [4, false],
@@ -522,7 +528,7 @@ describe('组②c 描边 / 阴影（对象字段）（TD-22-20）', () => {
 
     fireEvent.change(picker, { target: { value: '#00ff00' } });
 
-    const colors = seq().map(([u, h]) => [(u.shadow as { color: string }).color, h]);
+    const colors = seq().map(([u, h]) => [(u['shadow'] as { color: string }).color, h]);
     expect(colors).toEqual([
       ['#00ff00', false],
       ['#000000', false],
@@ -583,7 +589,10 @@ describe('组③ video 面板 6 个字段（TD-22-20）', () => {
     fireEvent.change(input, { target: { value: '12.5' } });
     fireEvent.blur(input);
 
-    const xs = seq().map(([u, h]) => [(u.transform as { position: { x: number } }).position.x, h]);
+    const xs = seq().map(([u, h]) => [
+      (u['transform'] as { position: { x: number } }).position.x,
+      h,
+    ]);
     expect(xs).toEqual([
       [12.5, false],
       [element.transform.position.x, false],
@@ -599,7 +608,10 @@ describe('组③ video 面板 6 个字段（TD-22-20）', () => {
     fireEvent.change(input, { target: { value: '7.25' } });
     fireEvent.blur(input);
 
-    const ys = seq().map(([u, h]) => [(u.transform as { position: { y: number } }).position.y, h]);
+    const ys = seq().map(([u, h]) => [
+      (u['transform'] as { position: { y: number } }).position.y,
+      h,
+    ]);
     expect(ys).toEqual([
       [7.25, false],
       [element.transform.position.y, false],
@@ -615,7 +627,7 @@ describe('组③ video 面板 6 个字段（TD-22-20）', () => {
     fireEvent.change(input, { target: { value: '150' } });
     fireEvent.blur(input);
 
-    const scales = seq().map(([u, h]) => [(u.transform as { scale: number }).scale, h]);
+    const scales = seq().map(([u, h]) => [(u['transform'] as { scale: number }).scale, h]);
     expect(scales).toEqual([
       [1.5, false],
       [element.transform.scale, false],
@@ -631,7 +643,7 @@ describe('组③ video 面板 6 个字段（TD-22-20）', () => {
     fireEvent.change(input, { target: { value: '45.5' } });
     fireEvent.blur(input);
 
-    const rotations = seq().map(([u, h]) => [(u.transform as { rotate: number }).rotate, h]);
+    const rotations = seq().map(([u, h]) => [(u['transform'] as { rotate: number }).rotate, h]);
     expect(rotations).toEqual([
       [45.5, false],
       [element.transform.rotate, false],
@@ -647,7 +659,7 @@ describe('组③ video 面板 6 个字段（TD-22-20）', () => {
     fireEvent.change(input, { target: { value: '42' } });
     fireEvent.blur(input);
 
-    const opacities = seq().map(([u, h]) => [u.opacity as number, h]);
+    const opacities = seq().map(([u, h]) => [u['opacity'] as number, h]);
     expect(opacities).toEqual([
       [0.42, false],
       [element.opacity, false],
@@ -663,7 +675,10 @@ describe('组③ video 面板 6 个字段（TD-22-20）', () => {
     fireEvent.change(input, { target: { value: '2' } });
     fireEvent.blur(input);
 
-    const rates = seq().map(([u, h]) => [[u.playbackRate as number, u.duration as number], h]);
+    const rates = seq().map(([u, h]) => [
+      [u['playbackRate'] as number, u['duration'] as number],
+      h,
+    ]);
     expect(rates).toEqual([
       [[2, element.duration * (1 / 2)], false],
       [[1, element.duration * (1 / 1)], false],
@@ -744,7 +759,10 @@ describe('组④ sticker / audio 面板（TD-22-20）', () => {
     fireEvent.change(input, { target: { value: '12.5' } });
     fireEvent.blur(input);
 
-    const xs = seq().map(([u, h]) => [(u.transform as { position: { x: number } }).position.x, h]);
+    const xs = seq().map(([u, h]) => [
+      (u['transform'] as { position: { x: number } }).position.x,
+      h,
+    ]);
     expect(xs).toEqual([
       [12.5, false],
       [element.transform.position.x, false],
@@ -760,7 +778,7 @@ describe('组④ sticker / audio 面板（TD-22-20）', () => {
     fireEvent.change(input, { target: { value: '150' } });
     fireEvent.blur(input);
 
-    const scales = seq().map(([u, h]) => [(u.transform as { scale: number }).scale, h]);
+    const scales = seq().map(([u, h]) => [(u['transform'] as { scale: number }).scale, h]);
     expect(scales).toEqual([
       [1.5, false],
       [element.transform.scale, false],
@@ -776,7 +794,7 @@ describe('组④ sticker / audio 面板（TD-22-20）', () => {
     fireEvent.change(input, { target: { value: '42' } });
     fireEvent.blur(input);
 
-    const opacities = seq().map(([u, h]) => [u.opacity as number, h]);
+    const opacities = seq().map(([u, h]) => [u['opacity'] as number, h]);
     expect(opacities).toEqual([
       [0.42, false],
       [element.opacity, false],
@@ -792,7 +810,7 @@ describe('组④ sticker / audio 面板（TD-22-20）', () => {
 
     fireEvent.change(picker, { target: { value: '#ff3b30' } });
 
-    const colors = seq().map(([u, h]) => [u.color as string, h]);
+    const colors = seq().map(([u, h]) => [u['color'] as string, h]);
     expect(colors).toEqual([
       ['#ff3b30', false],
       [element.color ?? '#000000', false],
@@ -808,7 +826,7 @@ describe('组④ sticker / audio 面板（TD-22-20）', () => {
     fireEvent.change(input, { target: { value: '150' } });
     fireEvent.blur(input);
 
-    const volumes = seq().map(([u, h]) => [u.volume as number, h]);
+    const volumes = seq().map(([u, h]) => [u['volume'] as number, h]);
     expect(volumes).toEqual([
       [1.5, false],
       [element.volume, false],
@@ -824,7 +842,10 @@ describe('组④ sticker / audio 面板（TD-22-20）', () => {
     fireEvent.change(input, { target: { value: '2' } });
     fireEvent.blur(input);
 
-    const rates = seq().map(([u, h]) => [[u.playbackRate as number, u.duration as number], h]);
+    const rates = seq().map(([u, h]) => [
+      [u['playbackRate'] as number, u['duration'] as number],
+      h,
+    ]);
     expect(rates).toEqual([
       [[2, element.duration * (1 / 2)], false],
       [[1, element.duration * (1 / 1)], false],

@@ -332,7 +332,7 @@ describe('VideoGenerate — 提示词与素材', () => {
     ) as HTMLTextAreaElement;
     fireEvent.change(ta, { target: { value: '日落航拍' } });
     // P2：prompt 持续输入经 debouncedPatch（200ms）防抖写回 node.data
-    return waitFor(() => expect(nodeData().prompt).toBe('日落航拍'));
+    return waitFor(() => expect(nodeData()['prompt']).toBe('日落航拍'));
   });
 
   it('点击素材 @插入 → 提示词追加 @素材A 并落盘', () => {
@@ -343,7 +343,7 @@ describe('VideoGenerate — 提示词与素材', () => {
     ) as HTMLTextAreaElement;
     expect(ta.value).toBe('@素材A ');
     // P2：插入后提示词经防抖写回 node.data
-    return waitFor(() => expect(nodeData().prompt).toBe('@素材A '));
+    return waitFor(() => expect(nodeData()['prompt']).toBe('@素材A '));
   });
 
   it('断开素材连线 → setEdges 过滤该来源节点到本节点的边', () => {
@@ -388,12 +388,12 @@ describe('VideoGenerate — 下载 / 删除 / 展开', () => {
     // 主显示区：.group\/display 容器
     const display = container.querySelector('.group\\/display')!;
     fireEvent.click(display);
-    expect(nodeData().expanded).toBe(false);
+    expect(nodeData()['expanded']).toBe(false);
   });
 
   it('data.expanded=false 时初始为收起态，点击后展开', () => {
     setup({ expanded: false });
-    expect(nodeData().expanded).toBe(false);
+    expect(nodeData()['expanded']).toBe(false);
   });
 });
 
@@ -402,6 +402,6 @@ describe('VideoGenerate — 生成成功回填 node.data（真相源契约）', 
     setup();
     // 点生成 → mock start 走 run → onSuccess({url})；断言结果写回 node.data
     fireEvent.click(screen.getByText('生成'));
-    await waitFor(() => expect(nodeData().videoUrl).toBe('http://gen.local/v.mp4'));
+    await waitFor(() => expect(nodeData()['videoUrl']).toBe('http://gen.local/v.mp4'));
   });
 });

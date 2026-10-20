@@ -91,7 +91,7 @@ describe('validateConversation · 错误注入（I2/S1/S3/S4/P4）', () => {
 
   it('S3：creditGate 形状非法 → error', () => {
     const conv = validConv();
-    (conv as Record<string, unknown>).creditGate = { pending: false, gens: [], map: {} };
+    (conv as Record<string, unknown>)['creditGate'] = { pending: false, gens: [], map: {} };
     expect(errs(validateConversation(conv))).toContain('S3');
   });
 
@@ -119,8 +119,8 @@ describe('validateConversation · 错误注入（I2/S1/S3/S4/P4）', () => {
       messages: [{ id: 'm1', role: 'assistant', content: '完整内容', streaming: true }],
     });
     const m = conv?.messages[0] as Record<string, unknown> | undefined;
-    expect(m?.streaming).toBe(false);
-    expect(m?.content).toBe('完整内容');
+    expect(m?.['streaming']).toBe(false);
+    expect(m?.['content']).toBe('完整内容');
   });
 
   it('P4 自愈：含 streaming:true 残留的会话经 normalizeConversation 后不再触发 P4 警告', () => {

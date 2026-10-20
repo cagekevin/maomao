@@ -27,7 +27,7 @@ describe('externalizeInlineData — 内联资源外置', () => {
       .mockResolvedValue({ ok: true, url: 'http://localhost/files/canvas/abc.png' });
     const r = await externalizeInlineData({ assetUrl: 'data:image/png;base64,xxx' }, { save });
     expect(save).toHaveBeenCalledWith('data:image/png;base64,xxx');
-    expect(r.data.assetUrl).toBe('http://localhost/files/canvas/abc.png');
+    expect(r.data['assetUrl']).toBe('http://localhost/files/canvas/abc.png');
     expect(r.converted).toBe(1);
     expect(r.failed).toBe(0);
   });
@@ -36,7 +36,7 @@ describe('externalizeInlineData — 内联资源外置', () => {
     const save = vi.fn().mockResolvedValue({ ok: false, message: '本地服务未启动' });
     const dataUrl = 'data:image/png;base64,keepme';
     const r = await externalizeInlineData({ url: dataUrl }, { save });
-    expect(r.data.url).toBe(dataUrl); // 保留原图
+    expect(r.data['url']).toBe(dataUrl); // 保留原图
     expect(r.converted).toBe(0);
     expect(r.failed).toBe(1);
     // 【2026-09-17 新增】失败原因**不再被吞**（原来只剩一个数字，用户与开发者都得不到原因）。
@@ -47,7 +47,7 @@ describe('externalizeInlineData — 内联资源外置', () => {
     const dataUrl = 'data:image/png;base64,xyz';
     const save = vi.fn().mockResolvedValue({ ok: true, url: dataUrl });
     const r = await externalizeInlineData({ url: dataUrl }, { save });
-    expect(r.data.url).toBe(dataUrl);
+    expect(r.data['url']).toBe(dataUrl);
     expect(r.failed).toBe(1);
   });
 
@@ -58,7 +58,7 @@ describe('externalizeInlineData — 内联资源外置', () => {
       { save },
     );
     expect(save).toHaveBeenCalledTimes(2);
-    expect(r.data.images).toEqual([{ url: 'http://x/1.png' }, { url: 'http://x/1.png' }]);
+    expect(r.data['images']).toEqual([{ url: 'http://x/1.png' }, { url: 'http://x/1.png' }]);
     expect(r.converted).toBe(2);
   });
 

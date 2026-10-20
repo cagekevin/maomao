@@ -50,7 +50,7 @@ describe('useStoreSelector — 无关字段变更不触发重渲染', () => {
   it('订阅 s.a，只改 s.b → 不重渲染；改 s.a 才重渲染', () => {
     const store = createStore({ a: 1, b: 1 });
     const onRender = vi.fn();
-    render(<Probe store={store} selector={(s) => s.a} onRender={onRender} />);
+    render(<Probe store={store} selector={(s) => s['a']} onRender={onRender} />);
     expect(onRender).toHaveBeenCalledTimes(1);
 
     act(() => store.setState({ a: 1, b: 2 })); // 无关字段变更
@@ -66,7 +66,7 @@ describe('useStoreSelector — 新对象浅比较防无限重渲', () => {
   it('selector 每次返回新对象（{a: s.a}），a 不变 → 不重渲染', () => {
     const store = createStore({ a: 1, b: 1 });
     const onRender = vi.fn();
-    render(<Probe store={store} selector={(s) => ({ a: s.a })} onRender={onRender} />);
+    render(<Probe store={store} selector={(s) => ({ a: s['a'] })} onRender={onRender} />);
     expect(onRender).toHaveBeenCalledTimes(1);
 
     // b 变更：selector 仍返回 {a:1}（新对象，浅比较相等）→ 应返回旧引用，不重渲染
@@ -82,7 +82,7 @@ describe('useStoreSelector — 新对象浅比较防无限重渲', () => {
   it('订阅数组字段（引用不变则复用旧引用）', () => {
     const store = createStore({ list: [1, 2, 3] });
     const onRender = vi.fn();
-    render(<Probe store={store} selector={(s) => s.list} onRender={onRender} />);
+    render(<Probe store={store} selector={(s) => s['list']} onRender={onRender} />);
     expect(onRender).toHaveBeenCalledTimes(1);
 
     act(() => store.setState({ list: [1, 2, 3] })); // 新数组但元素相同（浅比较相等）
@@ -136,7 +136,7 @@ describe('useStoreSelector — selector 闭包捕获值变化时取最新（TD-0
         useStoreSelector(
           store.subscribe,
           store.getState,
-          (s) => (s.items as Record<string, number>)[id],
+          (s) => (s['items'] as Record<string, number>)[id],
         ),
       { initialProps: { id: 'a' } },
     );
@@ -153,7 +153,7 @@ describe('useStoreSelector — selector 闭包捕获值变化时取最新（TD-0
     function Probe() {
       renders += 1;
       // 内联箭头：每次渲染身份都不同；返回新对象 ⇒ 必须靠缓存 + 浅比较挡住重渲
-      useStoreSelector(store.subscribe, store.getState, (s) => ({ v: s.n }));
+      useStoreSelector(store.subscribe, store.getState, (s) => ({ v: s['n'] }));
       return null;
     }
     render(<Probe />);

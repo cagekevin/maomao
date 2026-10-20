@@ -149,7 +149,7 @@ describe('pickProjectSource — 源选择与迁移判定', () => {
     const pick = pickProjectSource(null, { shots: [{ id: 'ls' }] });
     expect(pick.from).toBe('local');
     expect(pick.migrateToKv).toBe(true);
-    expect(at(pick.project!.shots!, 0).id).toBe('ls');
+    expect(at(pick.project!.shots!, 0)['id']).toBe('ls');
   });
   it('都空 → null，不回写', () => {
     const pick = pickProjectSource(null, null);

@@ -85,11 +85,11 @@ describe('buildCanvasAgentTools', () => {
 
   it('返回工具 Map，含 create_node/delete_node/read_canvas/list_nodes/generate_node', () => {
     const tools = buildCanvasAgentTools(makeCtx());
-    expect(typeof tools.create_node).toBe('function');
-    expect(typeof tools.delete_node).toBe('function');
-    expect(typeof tools.read_canvas).toBe('function');
-    expect(typeof tools.list_nodes).toBe('function');
-    expect(typeof tools.generate_node).toBe('function');
+    expect(typeof tools['create_node']).toBe('function');
+    expect(typeof tools['delete_node']).toBe('function');
+    expect(typeof tools['read_canvas']).toBe('function');
+    expect(typeof tools['list_nodes']).toBe('function');
+    expect(typeof tools['generate_node']).toBe('function');
   });
 
   it('read_canvas / list_nodes 透传 ctx', () => {
@@ -143,10 +143,12 @@ describe('buildCanvasAgentTools', () => {
     const result = applyFn([{ id: 'existing', data: {} }]);
     expect(
       result.some(
-        (n) => n.id === res.data.id && (n.data as Record<string, unknown>).prompt === '你好',
+        (n) =>
+          n['id'] === res['data']['id'] &&
+          (n['data'] as Record<string, unknown>)['prompt'] === '你好',
       ),
     ).toBe(true);
-    expect(result.some((n) => n.id === 'existing')).toBe(true);
+    expect(result.some((n) => n['id'] === 'existing')).toBe(true);
   });
 
   it('create_node 对 textGenerateNode 传 text → 内容落生成区 data.text（而非抽屉 data.prompt）', () => {
@@ -165,9 +167,9 @@ describe('buildCanvasAgentTools', () => {
       nodes: Record<string, unknown>[],
     ) => Record<string, unknown>[];
     const result = applyFn([{ id: 'existing', data: {} }]);
-    const created = result.find((n) => n.id === res.data.id);
-    expect((created!.data as Record<string, unknown>).text).toBe('AI 回复内容');
-    expect((created!.data as Record<string, unknown>).prompt).toBeUndefined();
+    const created = result.find((n) => n['id'] === res.data['id']);
+    expect((created!['data'] as Record<string, unknown>)['text']).toBe('AI 回复内容');
+    expect((created!['data'] as Record<string, unknown>)['prompt']).toBeUndefined();
   });
 
   it('create_node 对 textGenerateNode 仅传 prompt → 内容落抽屉区 data.prompt（AI 既有行为不变）', () => {
@@ -185,8 +187,8 @@ describe('buildCanvasAgentTools', () => {
       nodes: Record<string, unknown>[],
     ) => Record<string, unknown>[];
     const result = applyFn([{ id: 'existing', data: {} }]);
-    const created = result.find((n) => n.id === res.data.id);
-    expect((created!.data as Record<string, unknown>).prompt).toBe('抽屉提示词');
+    const created = result.find((n) => n['id'] === res.data['id']);
+    expect((created!['data'] as Record<string, unknown>)['prompt']).toBe('抽屉提示词');
   });
 
   it('create_node 用非法 type → ok:false 且给出可选类型', () => {
@@ -212,7 +214,7 @@ describe('CREATABLE_NODE_TYPES — AI 可建类型白名单唯一真源（TD-11-
       JSON.stringify(buildCanvasAgentToolSchemas()),
     );
     const tool = tools.find(
-      (x) => (x.function as { name?: string } | undefined)?.name === toolName,
+      (x) => (x['function'] as { name?: string } | undefined)?.name === toolName,
     );
     const found = path
       .split('.')

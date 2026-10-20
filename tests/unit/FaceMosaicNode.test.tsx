@@ -155,7 +155,7 @@ describe('FaceMosaicNode — 模式/强度/颜色写回 data', () => {
   it('切换模式 → 写回 data.mode（并显示颜色面板 when grid）', () => {
     setup();
     fireEvent.click(screen.getByText('网格'));
-    expect(lastData().mode).toBe('grid');
+    expect(lastData()['mode']).toBe('grid');
     // grid/bar 模式才显示颜色选择
     expect(document.querySelectorAll('button[style*="background"]').length).toBeGreaterThan(0);
   });
@@ -163,7 +163,7 @@ describe('FaceMosaicNode — 模式/强度/颜色写回 data', () => {
   it('切换为模糊 → 无颜色面板', () => {
     setup();
     fireEvent.click(screen.getByText('模糊'));
-    expect(lastData().mode).toBe('blur');
+    expect(lastData()['mode']).toBe('blur');
     expect(document.querySelectorAll('button[style*="background"]')).toHaveLength(0);
   });
 
@@ -171,7 +171,7 @@ describe('FaceMosaicNode — 模式/强度/颜色写回 data', () => {
     setup();
     const range = document.querySelector('input[type="range"]')!;
     fireEvent.change(range, { target: { value: '0.8' } });
-    expect(lastData().strength).toBe(0.8);
+    expect(lastData()['strength']).toBe(0.8);
     expect(screen.getByText('80%')).toBeTruthy();
   });
 
@@ -181,7 +181,7 @@ describe('FaceMosaicNode — 模式/强度/颜色写回 data', () => {
     const swatches = document.querySelectorAll('button[style*="background"]');
     // 色板第二个是 #ffffff
     fireEvent.click(at(Array.from(swatches), 1));
-    expect(lastData().color).toBe('#ffffff');
+    expect(lastData()['color']).toBe('#ffffff');
   });
 });
 
@@ -199,8 +199,8 @@ describe('FaceMosaicNode — AI打码', () => {
       });
       expect(spawnedNodes()).toHaveLength(1);
       const spawned = at(spawnedNodes(), 0);
-      expect(spawned.data.assetUrl).toBe('http://local/mosaic.png');
-      expect(spawned.data.label).toBe('马赛克 1');
+      expect(spawned.data['assetUrl']).toBe('http://local/mosaic.png');
+      expect(spawned.data['label']).toBe('马赛克 1');
       // 结果信息（「共 <span>2</span> 张人脸」被拆分，跨元素匹配）
       expect(screen.getByText('1 张')).toBeTruthy();
       expect(screen.getByText(/张人脸/)).toBeTruthy();
@@ -260,7 +260,7 @@ describe('FaceMosaicNode — 手动打码', () => {
     await waitFor(() => {
       expect(h.uploadMock).toHaveBeenCalled();
       expect(spawnedNodes()).toHaveLength(1);
-      expect(at(spawnedNodes(), 0).data.label).toBe('手动打码');
+      expect(at(spawnedNodes(), 0).data['label']).toBe('手动打码');
       expect(screen.getByText('1 张')).toBeTruthy();
     });
   });

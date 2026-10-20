@@ -66,20 +66,20 @@ describe('CustomHandle — 变体与定位', () => {
   it('left 端口：target Handle + left 定位 + 外偏移', () => {
     setup({ position: 'left' });
     expect(h.handleProps).toHaveLength(1);
-    expect(at(h.handleProps, 0).type).toBe('target');
-    expect(at(h.handleProps, 0).position).toBe('left');
-    expect(at(h.handleProps, 0).id).toBeUndefined();
+    expect(at(h.handleProps, 0)['type']).toBe('target');
+    expect(at(h.handleProps, 0)['position']).toBe('left');
+    expect(at(h.handleProps, 0)['id']).toBeUndefined();
   });
 
   it('right 端口：source Handle + right 定位 + 外偏移', () => {
     setup({ position: 'right' });
-    expect(at(h.handleProps, 0).type).toBe('source');
-    expect(at(h.handleProps, 0).position).toBe('right');
+    expect(at(h.handleProps, 0)['type']).toBe('source');
+    expect(at(h.handleProps, 0)['position']).toBe('right');
   });
 
   it('可传 handleId 与自定义 top', () => {
     const { wrap } = setup({ position: 'right', handleId: 'out-1', top: '60%' });
-    expect(at(h.handleProps, 0).id).toBe('out-1');
+    expect(at(h.handleProps, 0)['id']).toBe('out-1');
     expect(wrap.style.top).toBe('calc(60% - 24px)');
   });
 
@@ -90,12 +90,12 @@ describe('CustomHandle — 变体与定位', () => {
 
   it('Handle 本体透明铺满端口区域（视觉由 CSS 伪元素提供）', () => {
     setup({ position: 'left' });
-    const s = at(h.handleProps, 0).style as unknown as Record<string, unknown>;
-    expect(s.opacity).toBe(0);
-    expect(s.background).toBe('transparent');
-    expect(s.border).toBe(0);
-    expect(s.width).toBe('100%');
-    expect(s.height).toBe('100%');
+    const s = at(h.handleProps, 0)['style'] as unknown as Record<string, unknown>;
+    expect(s['opacity']).toBe(0);
+    expect(s['background']).toBe('transparent');
+    expect(s['border']).toBe(0);
+    expect(s['width']).toBe('100%');
+    expect(s['height']).toBe('100%');
   });
 });
 

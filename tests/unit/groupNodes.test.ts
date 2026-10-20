@@ -50,8 +50,8 @@ describe('编组算法 §2.2', () => {
     expect(group).toBeTruthy();
     expect(group.id).toBe(r.groupId);
     // 显示名唯一字段 = data.label（建组源头不写 data.name，防「名字双字段」回潮）
-    expect(group.data.label).toBe('编组');
-    expect(group.data.name).toBeUndefined();
+    expect(group.data['label']).toBe('编组');
+    expect(group.data['name']).toBeUndefined();
     // 父节点必须先于子节点声明（unshift 到开头）
     expect(at(r.nodes!, 0).type).toBe('group');
     const childA = r.nodes!.find((n) => n.id === 'a')!;
@@ -248,9 +248,9 @@ describe('R3 duplicateSelectedWithEdges 克隆子图（保留组关系 + 连线�
     };
     const { clones } = duplicateSelectedWithEdges([base], [], ['v']);
     const clone = at(clones, 0);
-    clone.data.loading = false; // 模拟克隆体把「进行中」置为干净
+    clone.data['loading'] = false; // 模拟克隆体把「进行中」置为干净
     expect(base.data.loading).toBe(true); // 原节点不受克隆体 patch 影响
-    expect(clone.data.loading).toBe(false);
+    expect(clone.data['loading']).toBe(false);
   });
 });
 

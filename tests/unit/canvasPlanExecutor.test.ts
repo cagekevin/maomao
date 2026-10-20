@@ -108,10 +108,10 @@ describe('多步编排执行器 executePlan §2.5/2.6', () => {
     expect(ctx.nodes()).toHaveLength(2);
     expect(ctx.nodes().every((n) => n.type === 'imageGenerateNode')).toBe(true);
     // 比例归一：square→1:1，story→9:16
-    expect(at(ctx.nodes(), 0).data.aspectRatio).toBe('1:1');
-    expect(at(ctx.nodes(), 1).data.aspectRatio).toBe('9:16');
+    expect(at(ctx.nodes(), 0).data['aspectRatio']).toBe('1:1');
+    expect(at(ctx.nodes(), 1).data['aspectRatio']).toBe('9:16');
     // 每个节点生成结果已写回 assetUrl
-    expect(ctx.nodes().every((n) => n.data.assetUrl === 'http://r/ok.png')).toBe(true);
+    expect(ctx.nodes().every((n) => n.data['assetUrl'] === 'http://r/ok.png')).toBe(true);
     expect(r.entries).toHaveLength(2);
     expect(
       r.entries.every((e) => e.status === 'completed' && e.resultUrl === 'http://r/ok.png'),
@@ -174,7 +174,7 @@ describe('多步编排执行器 executePlan §2.5/2.6', () => {
     // 未触发（未注册 / 并发上限）按「待生成」处理，不算失败
     expect(at(r.entries, 0).status).toBe('ready');
     expect(at(r.entries, 0).error).toBe('');
-    expect(at(ctx.nodes(), 0).data.assetUrl).toBeUndefined();
+    expect(at(ctx.nodes(), 0).data['assetUrl']).toBeUndefined();
   });
 
   it('autoRun=false：只建节点不触发，status=ready', async () => {
@@ -185,7 +185,7 @@ describe('多步编排执行器 executePlan §2.5/2.6', () => {
       generations: [{ id: 'g1', prompt: '猫' }],
     });
     expect(ctx.nodes()).toHaveLength(1);
-    expect(at(ctx.nodes(), 0).data.assetUrl).toBeUndefined();
+    expect(at(ctx.nodes(), 0).data['assetUrl']).toBeUndefined();
     expect(at(r.entries, 0).status).toBe('ready');
     expect(r.workflow.status).toBe('ready');
     expect(runNodeGeneration).not.toHaveBeenCalled();
@@ -198,7 +198,7 @@ describe('多步编排执行器 executePlan §2.5/2.6', () => {
       generations: [{ id: 'g1', prompt: '猫' }],
       referenceImages: ['http://r/ref.png'],
     });
-    const imgs = at(ctx.nodes(), 0)!.data.images as Array<{ url: string }>;
+    const imgs = at(ctx.nodes(), 0)!.data['images'] as Array<{ url: string }>;
     expect(imgs).toHaveLength(1);
     expect(at(imgs, 0).url).toBe('http://r/ref.png');
   });
@@ -218,16 +218,16 @@ describe('多步编排执行器 executePlan §2.5/2.6', () => {
       r.entries.map((e) => [e.id, ctx.nodes().find((n) => n.id === e.nodeId)]),
     ) as Record<string, Node>;
     // 节点按 label 建索引；两个 label 是本用例的 fixture 契约，缺了就是计划执行漏建节点
-    const explicitNode = byId.explicit;
-    const inheritNode = byId.inherit;
+    const explicitNode = byId['explicit'];
+    const inheritNode = byId['inherit'];
     if (explicitNode === undefined || inheritNode === undefined) {
       throw new Error('byId 缺 explicit/inherit 节点');
     }
-    expect(explicitNode.data.aspectRatio).toBe('3:4'); // portrait→3:4
-    expect(explicitNode.data.imageSize).toBe('4K');
-    expect(explicitNode.data.selectedModel).toBe('gpt-image-2');
-    expect(inheritNode.data.aspectRatio).toBe('16:9'); // landscape→16:9
-    expect(inheritNode.data.imageSize).toBe('2K');
+    expect(explicitNode.data['aspectRatio']).toBe('3:4'); // portrait→3:4
+    expect(explicitNode.data['imageSize']).toBe('4K');
+    expect(explicitNode.data['selectedModel']).toBe('gpt-image-2');
+    expect(inheritNode.data['aspectRatio']).toBe('16:9'); // landscape→16:9
+    expect(inheritNode.data['imageSize']).toBe('2K');
   });
 });
 
@@ -373,7 +373,7 @@ describe('TASK-007 2.4 中文参数写法归一', () => {
         { id: 'd', prompt: '鱼', ratio: '竖屏' },
       ],
     });
-    const byId = Object.fromEntries(ctx.nodes().map((n) => [n.data.label, n]));
+    const byId = Object.fromEntries(ctx.nodes().map((n) => [n.data['label'], n]));
     expect(byId['步骤 1'].data.aspectRatio).toBe('9:16');
     expect(byId['步骤 2'].data.aspectRatio).toBe('16:9');
     expect(byId['步骤 3'].data.aspectRatio).toBe('1:1');
@@ -390,7 +390,7 @@ describe('TASK-007 2.4 中文参数写法归一', () => {
         { id: 'c', prompt: '鸟', quality: '低画质' },
       ],
     });
-    const byId = Object.fromEntries(ctx.nodes().map((n) => [n.data.label, n]));
+    const byId = Object.fromEntries(ctx.nodes().map((n) => [n.data['label'], n]));
     expect(byId['步骤 1'].data.quality).toBe('high');
     expect(byId['步骤 2'].data.quality).toBe('medium');
     expect(byId['步骤 3'].data.quality).toBe('low');
@@ -403,9 +403,9 @@ describe('TASK-007 2.4 中文参数写法归一', () => {
       generations: [{ id: 'a', prompt: '猫', ratio: 'square', resolution: '2K', quality: 'high' }],
     });
     const n = at(ctx.nodes(), 0).data;
-    expect(n.aspectRatio).toBe('1:1');
-    expect(n.imageSize).toBe('2K');
-    expect(n.quality).toBe('high');
+    expect(n['aspectRatio']).toBe('1:1');
+    expect(n['imageSize']).toBe('2K');
+    expect(n['quality']).toBe('high');
   });
 });
 

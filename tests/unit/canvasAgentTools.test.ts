@@ -208,7 +208,7 @@ describe('画布 Agent 工具层 §2.5', () => {
     });
     expect(r.ok).toBe(true);
     const node = ctx.getNodes().find((n) => n.id === r.data!.id)!;
-    expect(node.data.label).toBe('测试');
+    expect(node.data['label']).toBe('测试');
     expect(node.position).toEqual({ x: 10, y: 20 });
   });
 
@@ -251,10 +251,10 @@ describe('画布 Agent 工具层 §2.5', () => {
     expect(r.ok).toBe(true);
     const node = ctx.getNodes().find((n) => n.id === r.data!.id)!;
     // 比例写入 data.aspectRatio（ImageGenerate 组件读取）
-    expect(node.data.aspectRatio).toBe('9:16');
+    expect(node.data['aspectRatio']).toBe('9:16');
     // 分辨率 1080p 映射到 data.imageSize=1K（组件读取 imageSize 而非 resolution）
-    expect(node.data.imageSize).toBe('1K');
-    expect(node.data.resolution).toBeUndefined();
+    expect(node.data['imageSize']).toBe('1K');
+    expect(node.data['resolution']).toBeUndefined();
   });
 
   it('create_node imageGenerateNode resolution=4K 映射到 imageSize=4K；1440p→2K', () => {
@@ -267,7 +267,7 @@ describe('画布 Agent 工具层 §2.5', () => {
       type: 'imageGenerateNode',
       resolution: '4K',
     });
-    expect(c1.getNodes().find((n) => n.id === r4.data!.id)!.data.imageSize).toBe('4K');
+    expect(c1.getNodes().find((n) => n.id === r4.data!.id)!.data['imageSize']).toBe('4K');
     const c2 = makeCtx();
     const r2 = toolOf(
       buildCanvasAgentTools(c2),
@@ -276,7 +276,7 @@ describe('画布 Agent 工具层 §2.5', () => {
       type: 'imageGenerateNode',
       resolution: '1440p',
     });
-    expect(c2.getNodes().find((n) => n.id === r2.data!.id)!.data.imageSize).toBe('2K');
+    expect(c2.getNodes().find((n) => n.id === r2.data!.id)!.data['imageSize']).toBe('2K');
   });
 
   it('create_node 非生图节点不写 aspectRatio/resolution', () => {
@@ -292,8 +292,8 @@ describe('画布 Agent 工具层 §2.5', () => {
       resolution: '1080p',
     });
     const node = ctx.getNodes().find((n) => n.id === r.data!.id)!;
-    expect(node.data.aspectRatio).toBeUndefined();
-    expect(node.data.imageSize).toBeUndefined();
+    expect(node.data['aspectRatio']).toBeUndefined();
+    expect(node.data['imageSize']).toBeUndefined();
   });
 
   it('create_node 有选中节点时放在其右侧 +100、顶部对齐（对齐参考项目 viewportAnchor）', () => {
@@ -552,8 +552,8 @@ describe('画布 Agent 工具层 §2.5', () => {
     const before = at(ctx.getNodes(), 0);
     const r = toolOf(t, 'update_node')({ nodeId: 'a', label: '新' });
     const after = at(ctx.getNodes(), 0);
-    expect(after.data.label).toBe('新');
-    expect(after.data.prompt).toBe('keep');
+    expect(after.data['label']).toBe('新');
+    expect(after.data['prompt']).toBe('keep');
     expect(after).not.toBe(before);
     expect(r.data.updated).toContain('label');
   });
@@ -563,8 +563,8 @@ describe('画布 Agent 工具层 §2.5', () => {
     const t = buildCanvasAgentTools(ctx);
     const r = toolOf(t, 'update_node')({ nodeId: 'a', prompt: 'P', evilField: 'x' });
     expect(r.ok).toBe(true);
-    expect(at(ctx.getNodes(), 0).data.evilField).toBeUndefined();
-    expect(at(ctx.getNodes(), 0).data.prompt).toBe('P');
+    expect(at(ctx.getNodes(), 0).data['evilField']).toBeUndefined();
+    expect(at(ctx.getNodes(), 0).data['prompt']).toBe('P');
   });
 
   it('update_node_any_field 合并任意字段', () => {
@@ -575,7 +575,7 @@ describe('画布 Agent 工具层 §2.5', () => {
       'update_node_any_field',
     )({ nodeId: 'a', patch: { custom: 1, assetUrl: '/f.png' } });
     expect(r.ok).toBe(true);
-    expect(at(ctx.getNodes(), 0).data.custom).toBe(1);
+    expect(at(ctx.getNodes(), 0).data['custom']).toBe(1);
   });
 
   it('connect_nodes 去重 + 端点校验', () => {
@@ -849,7 +849,7 @@ describe('画布 Agent 工具层 §2.5', () => {
     const ctx = makeCtx();
     const t = buildCanvasAgentTools(ctx);
     // 包一层 try：工具不存在时 buildCanvasAgentTools 的 map 里没有该 key → 返回 undefined 调用报错
-    const r = t.call_no_such_tool
+    const r = t['call_no_such_tool']
       ? toolOf(t, 'call_no_such_tool')({})
       : { ok: false, error: '未知工具' };
     expect(r.ok).toBe(false);

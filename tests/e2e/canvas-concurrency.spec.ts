@@ -210,7 +210,7 @@ async function makeSeedDataUrl(page: Page): Promise<string> {
 /** 读快照里测试节点的 data.assetUrl（缺节点返回 null）。 */
 async function testNodeAssetUrl(request: APIRequestContext, key: string): Promise<string | null> {
   const snap = ((await kvSnapshot(request, key)) || {}) as Record<string, unknown>;
-  const nodes = (Array.isArray(snap.nodes) ? snap.nodes : []) as Array<{
+  const nodes = (Array.isArray(snap['nodes']) ? snap['nodes'] : []) as Array<{
     id?: string;
     data?: { assetUrl?: unknown };
   }>;
@@ -226,8 +226,8 @@ async function seedTestImageNode(
   key: string,
 ): Promise<void> {
   const snap = ((await kvSnapshot(request, key)) || {}) as Record<string, unknown>;
-  const nodes = (Array.isArray(snap.nodes) ? snap.nodes : []) as Record<string, unknown>[];
-  if (nodes.some((n) => n?.id === TEST_NODE_ID)) return; // 幂等：上次跑残留则复用
+  const nodes = (Array.isArray(snap['nodes']) ? snap['nodes'] : []) as Record<string, unknown>[];
+  if (nodes.some((n) => n?.['id'] === TEST_NODE_ID)) return; // 幂等：上次跑残留则复用
   const dataUrl = await makeSeedDataUrl(page);
   nodes.push({
     id: TEST_NODE_ID,
@@ -240,7 +240,12 @@ async function seedTestImageNode(
   const res = await request.post(`${LT}/api/kv/set`, {
     data: {
       key,
-      value: { ...snap, schemaVersion: snap.schemaVersion || 1, nodes, edges: snap.edges || [] },
+      value: {
+        ...snap,
+        schemaVersion: snap['schemaVersion'] || 1,
+        nodes,
+        edges: snap['edges'] || [],
+      },
     },
   });
   expect(res.ok(), '种子节点写入失败').toBeTruthy();
@@ -250,7 +255,7 @@ async function seedTestImageNode(
 async function removeTestNode(request: APIRequestContext, key: string): Promise<void> {
   try {
     const snap = ((await kvSnapshot(request, key)) || {}) as Record<string, unknown>;
-    const nodes = (Array.isArray(snap.nodes) ? snap.nodes : []).filter(
+    const nodes = (Array.isArray(snap['nodes']) ? snap['nodes'] : []).filter(
       (n) => (n as { id?: string })?.id !== TEST_NODE_ID,
     );
     await request.post(`${LT}/api/kv/set`, { data: { key, value: { ...snap, nodes } } });
@@ -402,7 +407,7 @@ test.describe('画布并发写入 · 同源双实例（场景 2/4/5）', () => {
 
 test.describe('画布并发写入 · 跨源（打包版 18080 ↔ 开发口 5180）', () => {
   test.skip(
-    process.env.E2E_CROSS_ORIGIN !== '1',
+    process.env['E2E_CROSS_ORIGIN'] !== '1',
     '需本机 127.0.0.1:18080 起着打包版页面；设 E2E_CROSS_ORIGIN=1 启用（docs/118 §6.2 场景 3）',
   );
 

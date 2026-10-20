@@ -800,7 +800,7 @@ describe('AgentPanel — 技能索引读不到（TD-11-66：降级允许，静�
     // 而测试的 contentSubscribe 桩是 `subscribeCbs[key] = cb`（后者覆盖前者）⇒ 只有 ENABLED_KEY 直达 resync
     h.setSkillsError('agent_skills 不是合法 JSON');
     act(() => {
-      h.subscribeCbs.agent_skill_enabled?.();
+      h.subscribeCbs['agent_skill_enabled']?.();
     });
 
     // 【剔 id 的前提是"我确实读到了索引"】读失败时 `list` 只剩内置 ⇒ 若照旧按 known 剔，

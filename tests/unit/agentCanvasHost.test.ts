@@ -46,7 +46,7 @@ describe('agentCanvasHost.updateNodeData — 字典 GC（Agent 写回路径）',
     // Agent 经 update_node_any_field 写入不带胶囊的新 prompt
     host.updateNodeData('n1', { prompt: '改造后的提示词' });
     const data = at(ctx.current(), 0).data as Record<string, unknown>;
-    expect(data.creativePresets).toEqual({});
+    expect(data['creativePresets']).toEqual({});
   });
 
   it('写非 chip 字段 → 字典原引用不动（无谓重建）', () => {
@@ -60,7 +60,7 @@ describe('agentCanvasHost.updateNodeData — 字典 GC（Agent 写回路径）',
     ]);
     const host = createAgentCanvasHost(ctx);
     host.updateNodeData('n1', { assetUrl: '/x.png' });
-    expect((at(ctx.current(), 0).data as Record<string, unknown>).creativePresets).toBe(dict);
+    expect((at(ctx.current(), 0).data as Record<string, unknown>)['creativePresets']).toBe(dict);
   });
 
   it('无 creativePresets 的节点不受影响（通用路径零副作用）', () => {
@@ -68,7 +68,7 @@ describe('agentCanvasHost.updateNodeData — 字典 GC（Agent 写回路径）',
     const host = createAgentCanvasHost(ctx);
     host.updateNodeData('n1', { prompt: 'y' });
     const data = at(ctx.current(), 0).data as Record<string, unknown>;
-    expect(data.prompt).toBe('y');
+    expect(data['prompt']).toBe('y');
     expect('creativePresets' in data).toBe(false);
   });
 });

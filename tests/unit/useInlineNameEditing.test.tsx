@@ -102,7 +102,7 @@ describe('useInlineNameEditing · 行为等价', () => {
   it('已连引擎 → openCreate 开输入条且初值为默认名', () => {
     const { result } = renderHook(() => useInlineNameEditing(base()));
     act(() => result.current.openCreate());
-    expect(inputProps(result.current.renderInputs())?.value).toBe(DEFAULT_NEW_FOLDER_NAME);
+    expect(inputProps(result.current.renderInputs())?.['value']).toBe(DEFAULT_NEW_FOLDER_NAME);
   });
 
   it('失焦提交：仍是默认名 ⇒ **不**建目录；已改名 ⇒ 建', async () => {
@@ -111,16 +111,16 @@ describe('useInlineNameEditing · 行为等价', () => {
 
     act(() => result.current.openCreate());
     await act(async () => {
-      await (inputProps(result.current.renderInputs())?.onBlurCommit as () => Promise<void>)();
+      await (inputProps(result.current.renderInputs())?.['onBlurCommit'] as () => Promise<void>)();
     });
     expect(h.createFolder, '默认名失焦不应建目录').not.toHaveBeenCalled();
 
     act(() => result.current.openCreate());
     act(() =>
-      (inputProps(result.current.renderInputs())?.onChange as (v: string) => void)('新目录'),
+      (inputProps(result.current.renderInputs())?.['onChange'] as (v: string) => void)('新目录'),
     );
     await act(async () => {
-      await (inputProps(result.current.renderInputs())?.onBlurCommit as () => Promise<void>)();
+      await (inputProps(result.current.renderInputs())?.['onBlurCommit'] as () => Promise<void>)();
     });
     expect(createFolderPath).toHaveBeenCalledWith('新目录');
   });
@@ -129,9 +129,11 @@ describe('useInlineNameEditing · 行为等价', () => {
     const setItems = vi.fn();
     const { result } = renderHook(() => useInlineNameEditing(base({ setItems })));
     act(() => result.current.openRename(ITEM));
-    act(() => (inputProps(result.current.renderInputs())?.onChange as (v: string) => void)('新名'));
+    act(() =>
+      (inputProps(result.current.renderInputs())?.['onChange'] as (v: string) => void)('新名'),
+    );
     await act(async () => {
-      await (inputProps(result.current.renderInputs())?.onCommit as () => Promise<void>)();
+      await (inputProps(result.current.renderInputs())?.['onCommit'] as () => Promise<void>)();
     });
     expect(h.renameResource).toHaveBeenCalledWith('n1', '新名');
     expect(setItems, '应就地改列表').toHaveBeenCalled();
@@ -155,7 +157,7 @@ describe('useInlineNameEditing · props 引用稳定（memo(InlineNameInput) 可
 
     rerender();
     const third = inputProps(result.current.renderInputs());
-    expect(third?.onCommit, '第 3 次渲染后 onCommit 引用变了').toBe(first?.onCommit);
-    expect(third?.onCancel, '第 3 次渲染后 onCancel 引用变了').toBe(first?.onCancel);
+    expect(third?.['onCommit'], '第 3 次渲染后 onCommit 引用变了').toBe(first?.['onCommit']);
+    expect(third?.['onCancel'], '第 3 次渲染后 onCancel 引用变了').toBe(first?.['onCancel']);
   });
 });

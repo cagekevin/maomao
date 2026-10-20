@@ -107,8 +107,8 @@ describe('reloadSkillsFromDisk（磁盘 → 缓存）', () => {
       name: '漫画生成',
       description: '生成分镜式漫画页',
     });
-    expect(at(list, 0).content).toBe('正文内容');
-    expect(String(at(list, 0).contentHash)).not.toBe('');
+    expect(at(list, 0)['content']).toBe('正文内容');
+    expect(String(at(list, 0)['contentHash'])).not.toBe('');
   });
 
   it('缺 frontmatter id ⇒ 不猜身份：不纳入 + 如实列出', async () => {
@@ -142,7 +142,7 @@ describe('reloadSkillsFromDisk（磁盘 → 缓存）', () => {
     await reloadSkillsFromDisk();
 
     const list = readSkillList().list as Array<Record<string, unknown>>;
-    expect(at(list, 0).aliases).toEqual(['skill_old']);
+    expect(at(list, 0)['aliases']).toEqual(['skill_old']);
   });
 
   it('内容未变 ⇒ changed=false（不做无意义写盘）', async () => {
@@ -273,9 +273,9 @@ describe('migrateSkillsToDiskIfNeeded（localStorage → 磁盘，一次性）',
 
     const list = readSkillList().list as Array<Record<string, unknown>>;
     expect(list).toHaveLength(1);
-    expect(at(list, 0).id).not.toBe('skill_1700000000000');
-    expect(at(list, 0).aliases).toEqual(['skill_1700000000000']);
-    expect(at(list, 0).content).toBe('执行 XX');
+    expect(at(list, 0)['id']).not.toBe('skill_1700000000000');
+    expect(at(list, 0)['aliases']).toEqual(['skill_1700000000000']);
+    expect(at(list, 0)['content']).toBe('执行 XX');
   });
 
   it('落盘失败 ⇒ 该条原样保留（不清不覆盖）+ 如实上报', async () => {
@@ -289,7 +289,7 @@ describe('migrateSkillsToDiskIfNeeded（localStorage → 磁盘，一次性）',
     expect(r.ok).toBe(false);
     expect(r.failures).toEqual([{ id: 'skill_1', message: '目录不存在' }]);
     const list = readSkillList().list as Array<Record<string, unknown>>;
-    expect(at(list, 0).id).toBe('skill_1'); // 旧条目还在，用户仍能用
+    expect(at(list, 0)['id']).toBe('skill_1'); // 旧条目还在，用户仍能用
   });
 
   it('缓存形状违约（非数组）⇒ 不迁（避免把残缺列表固化到磁盘）', async () => {

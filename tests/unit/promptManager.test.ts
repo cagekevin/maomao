@@ -165,7 +165,7 @@ describe('cards mapping', () => {
 
 describe('分类元信息', () => {
   it('TYPE_LABEL / CATEGORY_OPTIONS 结构正确', () => {
-    expect(pm.TYPE_LABEL.text).toBe('文本');
+    expect(pm.TYPE_LABEL['text']).toBe('文本');
     expect(pm.CATEGORY_OPTIONS.map((o) => o.value)).toEqual(['', 'text', 'image', 'video']);
   });
 });

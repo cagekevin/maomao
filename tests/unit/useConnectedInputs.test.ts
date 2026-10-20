@@ -274,7 +274,7 @@ describe('管线契约 getNodeOutput', () => {
     // 断言实现一变必红：若有人把 getNodeOutput 里的 `if (out)` 改回 `|| {}`，
     // 声明返回 undefined 会被当空产出 → 通用兜底被屏蔽 → 上一条断言立刻变红。
     const d = { assetUrl: '/files/out.png' };
-    const scriptBoxOutput = NODE_OUTPUTS.scriptBoxNode;
+    const scriptBoxOutput = NODE_OUTPUTS['scriptBoxNode'];
     if (scriptBoxOutput === undefined) throw new Error('NODE_OUTPUTS 缺 scriptBoxNode');
     expect(scriptBoxOutput(d, 'output')).toBeUndefined();
     expect(scriptBoxOutput(d, undefined)).toBeUndefined();

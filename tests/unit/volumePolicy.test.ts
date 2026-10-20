@@ -113,9 +113,9 @@ describe('volumePolicy · 整包预算', () => {
     const r = applyConversationBudget(convs, 100);
     // 预算 100 字节内必先剥离 streaming，且不被截断正文（正文很短）
     const kept = r.conversations![0]!.messages!;
-    expect(kept.some((m) => m.streaming)).toBe(false);
+    expect(kept.some((m) => m['streaming'])).toBe(false);
     // 非瞬时用户消息应保留
-    expect(kept.some((m) => m.role === 'user')).toBe(true);
+    expect(kept.some((m) => m['role'] === 'user')).toBe(true);
   });
   it('超预算截断超大正文降到预算内', () => {
     const huge = 'x'.repeat(100000);

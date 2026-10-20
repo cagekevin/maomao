@@ -347,7 +347,7 @@ describe('cloudSync — 防覆盖保护：云端包解析（GAS 两种回包形�
     expect(snap.rev).toBe(7);
     expect(snap.updatedAt).toBe(111);
     expect(snap.data).toEqual({ app_settings: { a: 1 } });
-    expect(snap.data.__meta).toBeUndefined();
+    expect(snap.data['__meta']).toBeUndefined();
   });
 
   it('形态B（GAS 只回 data 内容）：rev/updatedAt 从 data.__meta 兜底取回', () => {

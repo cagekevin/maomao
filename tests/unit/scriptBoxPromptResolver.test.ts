@@ -108,7 +108,7 @@ describe('resolveImageGenSys / resolveAssetTemplates', () => {
       },
     });
     expect(resolveImageGenSys('pb3', 'keyframe').sys).toBe('定制关键帧段');
-    expect(resolveAssetTemplates('pb3').character).toBe('定制角色模板');
+    expect(resolveAssetTemplates('pb3')['character']).toBe('定制角色模板');
     // 未配置的类型回退到该 playbook 的 keyframe，而非 manga
     expect(resolveImageGenSys('pb3', 'grid9').sys).toBe('定制关键帧段');
   });

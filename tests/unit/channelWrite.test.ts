@@ -269,7 +269,7 @@ describe('M4-C5 batch 原子性（路径 bake 先删旧帧再整批插新）', (
     expect(frames).toEqual([0, 24, 120, 240]); // 旧路径帧 0/60 被删，新增 120/240，手动帧 24 保留
     expect(channelOf(trackOf(batchResult!, 'actor-lead'), 'action')).toHaveLength(1);
     const leadAction = at(channelOf(trackOf(batchResult!, 'actor-lead'), 'action'), 0);
-    expect(leadAction.fields!.pose).toBe('run'); // 手动动作帧不丢
+    expect(leadAction.fields!['pose']).toBe('run'); // 手动动作帧不丢
   });
 });
 
@@ -280,21 +280,21 @@ describe('M4-C2/C6 混合 legacy 轨迁移', () => {
     const migrated = migrateMixed();
     // 手动帧拆出三通道；路径帧绝不产生 action/skeleton key（M3-C5）
     expect(Object.keys(migrated).sort()).toEqual(['action', 'skeleton', 'transform']);
-    expect(migrated.action).toHaveLength(1);
-    expect(migrated.skeleton).toHaveLength(1);
+    expect(migrated['action']).toHaveLength(1);
+    expect(migrated['skeleton']).toHaveLength(1);
 
     const transform = channelOf(migrated, 'transform');
     // ①路径帧无姿态残留：fields 只有 position（剥掉 pose/joints/rigRoot/rotation/scale）
     for (const pathFrame of [0, 60, 120, 180, 240]) {
       const key = transform.find((k) => k.frame === pathFrame);
       expect(Object.keys(key!.fields!)).toEqual(['position']);
-      expect(key!.fields!.position).toEqual([(pathFrame * 10) / 240, 0, 0]);
+      expect(key!.fields!['position']).toEqual([(pathFrame * 10) / 240, 0, 0]);
     }
     // ②手动帧字段完整迁入 transform 通道
     const manualTransform = transform.find((k) => k.frame === 24);
     expect(Object.keys(manualTransform!.fields!).sort()).toEqual(['position', 'rotation', 'scale']);
-    expect(manualTransform!.fields!.position).toEqual([100, 0, 100]);
-    expect(manualTransform!.fields!.scale).toEqual([1.2, 1, 1]);
+    expect(manualTransform!.fields!['position']).toEqual([100, 0, 100]);
+    expect(manualTransform!.fields!['scale']).toEqual([1.2, 1, 1]);
     // ②手动帧完整迁入 action/skeleton 通道（continuousMotion 是 objectState，不落通道，见 47）
     expect(at(channelOf(migrated, 'action'), 0)).toEqual({
       frame: 24,
@@ -302,7 +302,7 @@ describe('M4-C2/C6 混合 legacy 轨迁移', () => {
       fields: { pose: 'run', poseTime: 0.6 },
     });
     // cloneJointPose 恒返回全部登记关节（缺失补零），runJoints 注入值应在其中
-    expect(at(channelOf(migrated, 'skeleton'), 0).fields!.joints).toEqual(
+    expect(at(channelOf(migrated, 'skeleton'), 0).fields!['joints']).toEqual(
       cloneJointPose(runJoints),
     );
   });

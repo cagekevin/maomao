@@ -51,11 +51,11 @@ describe('replaceNodeImage — 节点主图唯一写入口', () => {
     const s = fakeSetNodes();
     replaceNodeImage({ id: 'n1', dataUrl: 'http://x/new.png' }, s.setNodes);
     const out = s.apply([node('n1', { assetUrl: 'http://x/old.png', url: 'http://x/old.png' })]);
-    expect(at(out, 0).data.assetUrl).toBe('http://x/new.png');
+    expect(at(out, 0).data['assetUrl']).toBe('http://x/new.png');
     // 【2026-09-25 改判】原断言要求 `url` 原样保留（理由写"不动存量字段，读侧仍兜底"）—— 那条是在
     // **旧优先级**（`url > assetUrl`）下写的；保留旧 `url` 恰恰就是那条短路：存量带 `url` 的节点被编辑后
     // 仍解析出旧图（与 `contentId` 同一个病、另一个入口）。写新图 = 旧身份整体失效 ⇒ `url` 一并清。
-    expect(at(out, 0).data.url).toBeUndefined();
+    expect(at(out, 0).data['url']).toBeUndefined();
     // 端到端：显示解析必须落到**新图**（不是同义反复，走真实解析入口）
     expect(resolveAssetDisplayUrl(at(out, 0).data as object, buildContentUrlResolver([]))).toEqual({
       kind: 'ok',
@@ -72,7 +72,7 @@ describe('replaceNodeImage — 节点主图唯一写入口', () => {
     replaceNodeImage({ id: 'n1', dataUrl: '/files/canvas/new.png' }, s.setNodes);
     const out = s.apply([node('n1', { contentId: 'sha1:old', assetUrl: '/files/web/old.jpg' })]);
     // ① 旧内容的身份必须失效
-    expect(at(out, 0).data.contentId).toBeUndefined();
+    expect(at(out, 0).data['contentId']).toBeUndefined();
     // ② 端到端：显示解析必须落到**新图**（用真实 resolver 验证优先级后果，不是同义反复）
     expect(
       resolveAssetDisplayUrl(
@@ -90,7 +90,7 @@ describe('replaceNodeImage — 节点主图唯一写入口', () => {
       s.setNodes,
     );
     const out = s.apply([node('n1', { contentId: 'sha1:old', assetUrl: '/files/web/old.jpg' })]);
-    expect(at(out, 0).data.contentId).toBe('sha1:new');
+    expect(at(out, 0).data['contentId']).toBe('sha1:new');
   });
 
   it('清空主图必须清三个字段（漏 contentId ⇒ 文本态节点仍显示旧图）', () => {
@@ -105,11 +105,11 @@ describe('replaceNodeImage — 节点主图唯一写入口', () => {
         assetType: 'image',
       }),
     ]);
-    expect(at(out, 0).data.assetUrl).toBeUndefined();
-    expect(at(out, 0).data.url).toBeUndefined();
-    expect(at(out, 0).data.contentId).toBeUndefined();
-    expect(at(out, 0).data.assetType).toBe('text');
-    expect(at(out, 0).data.text).toBe('hi');
+    expect(at(out, 0).data['assetUrl']).toBeUndefined();
+    expect(at(out, 0).data['url']).toBeUndefined();
+    expect(at(out, 0).data['contentId']).toBeUndefined();
+    expect(at(out, 0).data['assetType']).toBe('text');
+    expect(at(out, 0).data['text']).toBe('hi');
     // 端到端：清空后显示解析不得再读到旧图
     expect(
       resolveAssetDisplayUrl(
@@ -130,10 +130,10 @@ describe('replaceNodeImage — 节点主图唯一写入口', () => {
       s.setNodes,
     );
     const out = s.apply([node('n1', { assetUrl: 'o', url: 'o', assetType: 'image', text: 'x' })]);
-    expect(at(out, 0).data.assetUrl).toBe('http://x/new.png');
-    expect(at(out, 0).data.url).toBeUndefined(); // 旧身份字段一并失效（2026-09-25 改判，见上一条）
-    expect(at(out, 0).data.assetType).toBeUndefined();
-    expect(at(out, 0).data.text).toBeUndefined();
+    expect(at(out, 0).data['assetUrl']).toBe('http://x/new.png');
+    expect(at(out, 0).data['url']).toBeUndefined(); // 旧身份字段一并失效（2026-09-25 改判，见上一条）
+    expect(at(out, 0).data['assetType']).toBeUndefined();
+    expect(at(out, 0).data['text']).toBeUndefined();
   });
 
   it('不可变更新：其它字段与其它节点保持原引用，不原地 mutation', () => {
@@ -144,8 +144,8 @@ describe('replaceNodeImage — 节点主图唯一写入口', () => {
     const out = s.apply([other, target]);
     expect(at(out, 0)).toBe(other);
     expect(at(out, 1)).not.toBe(target);
-    expect(target.data.assetUrl).toBe('o'); // 入参未被修改
-    expect(at(out, 1).data.keep).toBe(1); // 其它 data 字段保留
+    expect(target.data['assetUrl']).toBe('o'); // 入参未被修改
+    expect(at(out, 1).data['keep']).toBe(1); // 其它 data 字段保留
   });
 
   it('dims 原样透传给 afterWrite（尺寸模型留给调用方，本函数不碰尺寸）', () => {
@@ -235,7 +235,8 @@ describe('源码护栏 — 图片写回只有一个门', () => {
       'AssetNode 渲染必须经唯一入口 resolveAssetDisplayUrl（不得回退内联 assetUrl || url）',
     ).toBe(true);
     expect(
-      /typeof d\.assetUrl === 'string'/.test(
+      // 【P5】源码已按 noPropertyAccessFromIndexSignature 改成方括号取值 ⇒ 护栏锁新写法
+      /typeof d\[['"]assetUrl['"]\] === 'string'/.test(
         readSrc('src/components/base/utils/media/assetUrl.ts'),
       ),
       'resolveAssetDisplayUrl 必须保留 assetUrl 存量兜底（无 resourceId/url 时退回 assetUrl）',

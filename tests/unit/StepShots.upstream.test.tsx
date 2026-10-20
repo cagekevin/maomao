@@ -75,7 +75,7 @@ describe('StepShots — 上游接入素材区（在剧情上方）', () => {
     });
     const strip = screen.getByTestId('upstream-strip');
     expect(strip).toBeTruthy();
-    expect(strip.dataset.readonly).toBe('true');
+    expect(strip.dataset['readonly']).toBe('true');
     expect(screen.getByTestId('strip-imgs').textContent).toBe('1');
     expect(screen.getByTestId('strip-texts').textContent).toBe('1');
     // 位于剧情 textarea 之前（顺序断言）

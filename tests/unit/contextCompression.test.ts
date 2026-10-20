@@ -74,7 +74,7 @@ describe('compressToSummary —— 压缩入库（记 T2~T4）', () => {
     const [opts] = at(vi.mocked(chatApi.chatCompletions).mock.calls, 0);
     // 上下文压缩是内部工具调用，走同步快路径；stream 已被删（原传 stream:true 会把同步变 SSE，
     // 与 withTimeout 的非流式解析冲突），此处断言不携带该字段。
-    expect((opts as unknown as Record<string, unknown>).stream).toBeUndefined();
+    expect((opts as unknown as Record<string, unknown>)['stream']).toBeUndefined();
   });
 
   it('LLM 失败 → 返回 null（不抛错、不动旧摘要）', async () => {

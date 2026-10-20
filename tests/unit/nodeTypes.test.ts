@@ -41,9 +41,13 @@ describe('NodePalette.buildNodeTypeComponents（nodeTypes 单源化）', () => {
   it('含顶部快捷 HIDDEN 节点（textGenerateNode/imageGenerateNode/videoGenerateNode）', () => {
     // src 侧 `const map = {}` 推断为 {} （①类偏宽）；测试侧按实际用法收敛为索引签名类型
     const map = buildNodeTypeComponents() as Record<string, unknown>;
-    expect(isReactComponent(map.textGenerateNode), 'textGenerateNode 非合法组件类型').toBe(true);
-    expect(isReactComponent(map.imageGenerateNode), 'imageGenerateNode 非合法组件类型').toBe(true);
-    expect(isReactComponent(map.videoGenerateNode), 'videoGenerateNode 非合法组件类型').toBe(true);
+    expect(isReactComponent(map['textGenerateNode']), 'textGenerateNode 非合法组件类型').toBe(true);
+    expect(isReactComponent(map['imageGenerateNode']), 'imageGenerateNode 非合法组件类型').toBe(
+      true,
+    );
+    expect(isReactComponent(map['videoGenerateNode']), 'videoGenerateNode 非合法组件类型').toBe(
+      true,
+    );
   });
 
   it('每个 palette 目录项都有 component 字段（单源前提，重依赖为 lazy 包装）', () => {

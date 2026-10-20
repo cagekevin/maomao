@@ -29,12 +29,12 @@ beforeEach(() => {
 describe('wfStart — 起步', () => {
   it('默认：进 planning、记 startedAt（数字时间戳）', () => {
     const patch = wfStart();
-    expect(patch.status).toBe('planning');
-    expect(typeof patch.startedAt).toBe('number');
+    expect(patch['status']).toBe('planning');
+    expect(typeof patch['startedAt']).toBe('number');
   });
 
   it('支持覆盖字段（如 status: running）', () => {
-    expect(wfStart({ status: 'running' }).status).toBe('running');
+    expect(wfStart({ status: 'running' })['status']).toBe('running');
   });
 
   it('不携带 steerQueue——留由 patchCurrentWorkflow 保持既有队列', () => {

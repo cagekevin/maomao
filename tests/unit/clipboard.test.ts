@@ -274,7 +274,7 @@ describe('clipboard — buildNodesFromClipboard（粘贴节点组重建）', () 
       nodes: [{ id: 'a', type: 'assetNode', data: { label: 'L' }, position: { x: 0, y: 0 } }],
     };
     const r = buildNodesFromClipboard(JSON.stringify(src), { x: 0, y: 0 })!;
-    at(r.nodes, 0).data.label = 'MUTATED';
+    at(r.nodes, 0).data['label'] = 'MUTATED';
     expect(at(src.nodes, 0).data.label).toBe('L');
   });
 });

@@ -46,8 +46,8 @@ vi.mock('../../src/components/base/api/localToolApi.ts', async (importOriginal) 
   ...((await importOriginal()) as Record<string, unknown>),
   fetchResources: vi.fn(async (params: Record<string, unknown> = {}) => {
     h.calls.push(params);
-    const page = Number(params.page ?? 1);
-    const pageSize = Number(params.pageSize ?? 20);
+    const page = Number(params['page'] ?? 1);
+    const pageSize = Number(params['pageSize'] ?? 20);
     const start = (page - 1) * pageSize;
     return {
       code: 0,
@@ -116,13 +116,13 @@ describe('ResourceLibrary（素材库 tab）— 翻页', () => {
 
     // 首屏：请求第 1 页（20 条），第 21 条不在当前页
     await screen.findByText('素材1');
-    expect(at(h.calls, 0).page).toBe(1);
+    expect(at(h.calls, 0)['page']).toBe(1);
     expect(screen.queryByText('素材21')).toBeNull();
 
     fireEvent.click(screen.getByText('下一页'));
 
     await waitFor(() => {
-      expect(h.calls.some((c) => c.page === 2)).toBe(true);
+      expect(h.calls.some((c) => c['page'] === 2)).toBe(true);
     });
     // 替换而非追加：第 2 页首条出现、第 1 页首条消失
     expect(await screen.findByText('素材21')).toBeTruthy();

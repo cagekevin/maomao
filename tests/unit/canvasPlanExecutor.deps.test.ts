@@ -78,7 +78,7 @@ describe('TASK-012 依赖批改写调用层补全', () => {
     });
     // 独立批产品定稿先建（nodes[0]），依赖批主图（nodes[1]）的 data.images 应为空（不写用户参考图）
     const mainNode = at(ctx.nodes(), 1);
-    expect(mainNode.data.images).toBeUndefined();
+    expect(mainNode.data['images']).toBeUndefined();
     // 产品定稿节点被连线到主图（靠连线挂产品定稿）
     expect(ctx.edges()).toHaveLength(1);
   });
@@ -95,9 +95,9 @@ describe('TASK-012 依赖批改写调用层补全', () => {
     });
     const mainNode = at(ctx.nodes(), 1);
     // 被改写为 product_reference：prompt 含产品一致性约束特征
-    expect(mainNode.data.prompt).toContain('严格参考图1');
+    expect(mainNode.data['prompt']).toContain('严格参考图1');
     // use_attachments 生效：data.images 为空
-    expect(mainNode.data.images).toBeUndefined();
+    expect(mainNode.data['images']).toBeUndefined();
   });
 
   it('缺口 2：userText 含「5主图+8详情页」数量表达 → 强制 product_reference（最常见电商套图表达）', async () => {
@@ -112,8 +112,8 @@ describe('TASK-012 依赖批改写调用层补全', () => {
     });
     const mainNode = at(ctx.nodes(), 1);
     // 被改写为 product_reference：prompt 含产品一致性约束特征
-    expect(mainNode.data.prompt).toContain('严格参考图1');
-    expect(mainNode.data.images).toBeUndefined();
+    expect(mainNode.data['prompt']).toContain('严格参考图1');
+    expect(mainNode.data['images']).toBeUndefined();
   });
 
   it('缺口 3：userText 含"融合"但无 fusion 步 → 自动追加融合步', async () => {
@@ -129,7 +129,7 @@ describe('TASK-012 依赖批改写调用层补全', () => {
     // 自动追加一个融合依赖步 → 共 3 个节点（2 独立 + 1 融合）
     expect(ctx.nodes()).toHaveLength(3);
     const fusionNode = at(ctx.nodes(), 2);
-    expect(fusionNode.data.prompt).toContain('融合');
+    expect(fusionNode.data['prompt']).toContain('融合');
     // 融合步连线到两个独立节点
     expect(ctx.edges().filter((e) => e.target === fusionNode.id)).toHaveLength(2);
   });
@@ -159,7 +159,7 @@ describe('TASK-012 依赖批改写调用层补全', () => {
       ],
     });
     const fusionNode = at(ctx.nodes(), 1);
-    expect(fusionNode.data.prompt).toContain('融合');
-    expect(fusionNode.data.prompt).toContain('参考');
+    expect(fusionNode.data['prompt']).toContain('融合');
+    expect(fusionNode.data['prompt']).toContain('参考');
   });
 });

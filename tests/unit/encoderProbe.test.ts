@@ -27,15 +27,15 @@ let savedVideoEncoder: unknown;
 beforeEach(() => {
   // 每个用例拿一份全新模块（清掉模块级 memo），互不污染
   vi.resetModules();
-  savedVideoEncoder = (globalThis as Record<string, unknown>).VideoEncoder;
+  savedVideoEncoder = (globalThis as Record<string, unknown>)['VideoEncoder'];
 });
 afterEach(() => {
-  (globalThis as Record<string, unknown>).VideoEncoder = savedVideoEncoder;
+  (globalThis as Record<string, unknown>)['VideoEncoder'] = savedVideoEncoder;
 });
 
 describe('probeEncoders — 判别联合（不得退化成 boolean）', () => {
   it('WebCodecs 缺失 → missing:webcodecs，且不查编码器', async () => {
-    (globalThis as Record<string, unknown>).VideoEncoder = undefined;
+    (globalThis as Record<string, unknown>)['VideoEncoder'] = undefined;
     const { probeEncoders } = await import('../../src/components/director3d/encoderProbe.ts');
     const port = fakePort('avc', 'aac');
     const r = await probeEncoders(REQ, port);
@@ -44,14 +44,14 @@ describe('probeEncoders — 判别联合（不得退化成 boolean）', () => {
   });
 
   it('有 WebCodecs 但候选视频编码器都不可用 → missing:video', async () => {
-    (globalThis as Record<string, unknown>).VideoEncoder = function () {};
+    (globalThis as Record<string, unknown>)['VideoEncoder'] = function () {};
     const { probeEncoders } = await import('../../src/components/director3d/encoderProbe.ts');
     const r = await probeEncoders(REQ, fakePort(null, 'aac'));
     expect(r).toEqual({ ok: false, missing: 'video' });
   });
 
   it('视频可用且未请求音频 → ok，audioCodec=null', async () => {
-    (globalThis as Record<string, unknown>).VideoEncoder = function () {};
+    (globalThis as Record<string, unknown>)['VideoEncoder'] = function () {};
     const { probeEncoders } = await import('../../src/components/director3d/encoderProbe.ts');
     const port = fakePort('avc', 'aac');
     const r = await probeEncoders(REQ, port);
@@ -60,14 +60,14 @@ describe('probeEncoders — 判别联合（不得退化成 boolean）', () => {
   });
 
   it('视频可用、请求音频但不可用 → missing:audio', async () => {
-    (globalThis as Record<string, unknown>).VideoEncoder = function () {};
+    (globalThis as Record<string, unknown>)['VideoEncoder'] = function () {};
     const { probeEncoders } = await import('../../src/components/director3d/encoderProbe.ts');
     const r = await probeEncoders({ ...REQ, audioCodecs: ['aac'] as never }, fakePort('avc', null));
     expect(r).toEqual({ ok: false, missing: 'audio' });
   });
 
   it('视频 + 音频都可用 → ok，两者都带出', async () => {
-    (globalThis as Record<string, unknown>).VideoEncoder = function () {};
+    (globalThis as Record<string, unknown>)['VideoEncoder'] = function () {};
     const { probeEncoders } = await import('../../src/components/director3d/encoderProbe.ts');
     const r = await probeEncoders(
       { ...REQ, audioCodecs: ['aac'] as never },
@@ -79,7 +79,7 @@ describe('probeEncoders — 判别联合（不得退化成 boolean）', () => {
 
 describe('probeEncoders — memo（默认端口，UA + 请求参数为键）', () => {
   it('同参数重复调用返回同一个结果对象（不重复 configure）', async () => {
-    (globalThis as Record<string, unknown>).VideoEncoder = undefined;
+    (globalThis as Record<string, unknown>)['VideoEncoder'] = undefined;
     const { probeEncoders } = await import('../../src/components/director3d/encoderProbe.ts');
     const a = await probeEncoders(REQ);
     const b = await probeEncoders(REQ);

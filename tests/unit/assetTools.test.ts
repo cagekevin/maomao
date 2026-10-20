@@ -93,7 +93,7 @@ describe('nodePrefs —— 节点上次参数记忆', () => {
       a.result.current.set({ model: 'a2' });
     });
     // 修改 textGenerateNode 不影响 assetNode 的内存状态
-    expect(b.result.current.prefs.model).toBe('img');
+    expect(b.result.current.prefs['model']).toBe('img');
     // 持久化时仅写入各自 type 的 key（set 才落盘，默认值不单独落盘）
     const stored = JSON.parse(prefsMem.get('yimao_node_prefs'));
     expect(stored.textGenerateNode.model).toBe('a2');

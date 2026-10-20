@@ -186,7 +186,7 @@ describe('TemplateNode', () => {
     const cfg = getGenConfig();
     expect(cfg).toBeTruthy();
     act(() => cfg.onRecover({ resultUrl: 'http://127.0.0.1:18080/files/tasks/x.png' }));
-    expect(nodeData()!.assetUrl).toBe('http://127.0.0.1:18080/files/tasks/x.png');
+    expect(nodeData()!['assetUrl']).toBe('http://127.0.0.1:18080/files/tasks/x.png');
   });
 });
 
@@ -207,24 +207,28 @@ describe('TemplateNode · ModelSelect prop 引用稳定性（TD-04-53）', () =>
 
   it('父组件重渲而无关 state 未变时，onChange 仍是同一引用（memo 可命中）', () => {
     const { rerender } = setup({ data: STABLE_DATA });
-    const first = cap.modelSelect?.onChange;
+    const first = cap.modelSelect?.['onChange'];
     expect(typeof first, 'ModelSelect 必须收到 onChange').toBe('function');
 
     rerender(<TemplateNode id="t1" data={STABLE_DATA} selected={false} />);
-    expect(cap.modelSelect?.onChange, '第 2 次渲染后 onChange 引用变了 ⇒ memo 恒失效').toBe(first);
+    expect(cap.modelSelect?.['onChange'], '第 2 次渲染后 onChange 引用变了 ⇒ memo 恒失效').toBe(
+      first,
+    );
 
     rerender(<TemplateNode id="t1" data={STABLE_DATA} selected={false} />);
-    expect(cap.modelSelect?.onChange, '第 3 次渲染后 onChange 引用变了 ⇒ memo 恒失效').toBe(first);
+    expect(cap.modelSelect?.['onChange'], '第 3 次渲染后 onChange 引用变了 ⇒ memo 恒失效').toBe(
+      first,
+    );
   });
 
   it('models 来自 useGenerateNode 的稳定产出（同一引用跨渲染）', () => {
     const { rerender } = setup({ data: STABLE_DATA });
-    const firstModels = cap.modelSelect?.models;
+    const firstModels = cap.modelSelect?.['models'];
     expect(Array.isArray(firstModels), 'ModelSelect 必须收到 models 数组').toBe(true);
 
     rerender(<TemplateNode id="t1" data={STABLE_DATA} selected={false} />);
     expect(
-      cap.modelSelect?.models,
+      cap.modelSelect?.['models'],
       'models 引用变了 ⇒ memo(ModelSelect) 恒失效（根在 useGenerateNode）',
     ).toBe(firstModels);
   });

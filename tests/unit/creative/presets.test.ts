@@ -80,7 +80,7 @@ describe('creativePresets —— normalizeChipFieldWrite（I1 接线点 · TD-05
   it('写 prompt 且含胶囊 → 裁掉孤儿项', () => {
     const data = { prompt: '@{cp_style-643:暖阳}', creativePresets: dict };
     const out = normalizeChipFieldWrite(data, { prompt: '@{cp_style-643:暖阳}' });
-    expect(Object.keys(out.creativePresets as object)).toEqual(['cp_style-643']);
+    expect(Object.keys(out['creativePresets'] as object)).toEqual(['cp_style-643']);
     // 纯函数：入参不被修改
     expect(Object.keys(dict)).toHaveLength(2);
   });
@@ -103,7 +103,7 @@ describe('creativePresets —— normalizeChipFieldWrite（I1 接线点 · TD-05
       creativePresets: dict,
     };
     const out = normalizeChipFieldWrite(data, { text: '@{cp_style-999:孤儿}' });
-    expect(Object.keys(out.creativePresets as object).sort()).toEqual([
+    expect(Object.keys(out['creativePresets'] as object).sort()).toEqual([
       'cp_style-643',
       'cp_style-999',
     ]);
@@ -112,7 +112,7 @@ describe('creativePresets —— normalizeChipFieldWrite（I1 接线点 · TD-05
   it('胶囊全删 → 字典清空', () => {
     const data = { prompt: '', creativePresets: dict };
     const out = normalizeChipFieldWrite(data, { prompt: '' });
-    expect(out.creativePresets).toEqual({});
+    expect(out['creativePresets']).toEqual({});
   });
 });
 

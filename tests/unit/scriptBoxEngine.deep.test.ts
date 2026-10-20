@@ -268,7 +268,7 @@ describe('剧本盒引擎深度业务 §2.7', () => {
     await eng.onGenerateShotPrompts(['s1']);
     expect(showToast).toHaveBeenCalledWith('超时', undefined);
     const last = patches[patches.length - 1];
-    expect(at<Record<string, unknown>>(last.shots ?? [], 0).promptLoading).toBe(false);
+    expect(at<Record<string, unknown>>(last.shots ?? [], 0)['promptLoading']).toBe(false);
   });
 
   // ── onGenerateAllAssetImages：选中集 / 全量无图 ──
@@ -438,7 +438,7 @@ describe('剧本盒引擎深度业务 §2.7', () => {
     const eng = createScriptBoxEngine(ctx());
     await eng.onGenerateShotImage('s1', 'keyframe');
     const last = patches[patches.length - 1];
-    expect(at<Record<string, unknown>>(last.shots ?? [], 0).imgGen).toMatchObject({
+    expect(at<Record<string, unknown>>(last.shots ?? [], 0)['imgGen']).toMatchObject({
       type: 'keyframe',
       label: '关键帧',
       prompt: '关键帧画面提示词',
@@ -472,13 +472,13 @@ describe('剧本盒引擎深度业务 §2.7', () => {
     await eng.onGenerateScript();
     const last = patches[patches.length - 1];
     const shot = at<Record<string, unknown>>(last.shots ?? [], 0);
-    expect(shot.id).toBe('sb-1-shot-0');
-    expect(shot.index).toBe(1);
-    expect(shot.duration).toBe('5s');
-    expect(shot.grid).toBe(0);
-    expect(shot.connImg).toBe(false);
+    expect(shot['id']).toBe('sb-1-shot-0');
+    expect(shot['index']).toBe(1);
+    expect(shot['duration']).toBe('5s');
+    expect(shot['grid']).toBe(0);
+    expect(shot['connImg']).toBe(false);
     // 资产 prompt 走 ZgPrompt
-    expect(at<Record<string, unknown>>(last.assets ?? [], 0).prompt).toContain(
+    expect(at<Record<string, unknown>>(last.assets ?? [], 0)['prompt']).toContain(
       '[视觉风格：皮克斯]',
     );
   });

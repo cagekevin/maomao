@@ -168,8 +168,8 @@ describe('TextGenerate 上游文本/图片合并（修复点）', () => {
       messages: Array<{ role: string; [k: string]: unknown }>;
     };
     const userMsg = call.messages.find((m) => m.role === 'user');
-    expect(userMsg!.content).toContain('改写成小红书风格');
-    expect(userMsg!.content).toContain('原始文案：今天天气好');
+    expect(userMsg!['content']).toContain('改写成小红书风格');
+    expect(userMsg!['content']).toContain('原始文案：今天天气好');
   });
 
   it('上游有文本但本地为空时，校验通过', async () => {
@@ -183,7 +183,7 @@ describe('TextGenerate 上游文本/图片合并（修复点）', () => {
         messages: Array<{ role: string; [k: string]: unknown }>;
       }
     ).messages.find((m) => m.role === 'user');
-    expect(userMsg!.content).toContain('产品卖点');
+    expect(userMsg!['content']).toContain('产品卖点');
   });
 
   it('多个上游文本节点合并', async () => {
@@ -202,9 +202,9 @@ describe('TextGenerate 上游文本/图片合并（修复点）', () => {
         messages: Array<{ role: string; [k: string]: unknown }>;
       }
     ).messages.find((m) => m.role === 'user');
-    expect(userMsg!.content).toContain('汇总');
-    expect(userMsg!.content).toContain('段落A');
-    expect(userMsg!.content).toContain('段落B');
+    expect(userMsg!['content']).toContain('汇总');
+    expect(userMsg!['content']).toContain('段落A');
+    expect(userMsg!['content']).toContain('段落B');
   });
 
   it('上游图片节点合并进 images 参考图', async () => {
@@ -221,7 +221,7 @@ describe('TextGenerate 上游文本/图片合并（修复点）', () => {
     };
     expect(call.images).toEqual(['http://up/a.png']);
     const userMsg = call.messages.find((m) => m.role === 'user');
-    expect(userMsg!.content).toContain('看图说话');
+    expect(userMsg!['content']).toContain('看图说话');
   });
 
   it('本地与上游皆为空时，提示请输入提示词或文本', () => {
@@ -244,9 +244,9 @@ describe('TextGenerate 上游文本/图片合并（修复点）', () => {
     };
     // 芯片被解析为显式垫图引用（图片 → [img=图片N]），绝不把 @{id:label|url} 噪音原样发给 LLM
     const userMsg = call.messages.find((m) => m.role === 'user');
-    expect(userMsg!.content).not.toContain('@{i1');
-    expect(userMsg!.content).not.toContain('http%3A');
-    expect(userMsg!.content).toContain('[img=图片1]');
+    expect(userMsg!['content']).not.toContain('@{i1');
+    expect(userMsg!['content']).not.toContain('http%3A');
+    expect(userMsg!['content']).toContain('[img=图片1]');
     // 芯片图被提取进参考图，供 LLM 看图理解
     expect(call.images).toContain('http://up/ref.png');
   });

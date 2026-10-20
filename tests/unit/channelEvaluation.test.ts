@@ -415,7 +415,7 @@ describe('M2-C7 骨骼决策消费动作通道派生上下文', () => {
       channels,
       snapshotToChannelKeys('person', at(legacyPersonKeys, 1), 24, 'linear'),
     );
-    const actionOnly = channels.action === undefined ? {} : { action: channels.action }; // 无 action 通道 ⇒ 空表
+    const actionOnly = channels['action'] === undefined ? {} : { action: channels['action'] }; // 无 action 通道 ⇒ 空表
     const atFrame = objectAtFrame(personIdle, actionOnly, 12, FPS);
     // 动作字段被接管
     expect(atFrame.pose).toBe('walk');
@@ -451,7 +451,7 @@ describe('47 三层注册表：objectState 沿基线不被关键帧覆盖', () =
       channels,
       snapshotToChannelKeys('person', { pose: 'walk', poseTime: 0.4 }, 0, 'smooth'),
     );
-    channels.action = [
+    channels['action'] = [
       {
         frame: 0,
         interpolation: 'smooth',
@@ -478,7 +478,7 @@ describe('47 三层注册表：objectState 沿基线不被关键帧覆盖', () =
 
 describe('47 三层注册表：派生的 ENTITY_CHANNELS 与 OBJECT_STATE_FIELDS', () => {
   it('continuousMotion/footLock 被收进 OBJECT_STATE_FIELDS.person，且不在任何 ENTITY_CHANNELS 通道', () => {
-    expect(OBJECT_STATE_FIELDS.person).toEqual(
+    expect(OBJECT_STATE_FIELDS['person']).toEqual(
       expect.arrayContaining(['continuousMotion', 'footLock']),
     );
     const channelFields = Object.values(channelsOf('person')).flat();
@@ -487,9 +487,11 @@ describe('47 三层注册表：派生的 ENTITY_CHANNELS 与 OBJECT_STATE_FIELDS
   });
 
   it('camera 的 targetMode/targetId 归 objectState；派生命中化通道仅 animatable（47 §3）', () => {
-    expect(OBJECT_STATE_FIELDS.camera).toEqual(expect.arrayContaining(['targetMode', 'targetId']));
-    expect(channelsOf('camera').transform ?? []).toEqual(['position', 'rotation']);
-    expect(channelsOf('camera').lens ?? []).toEqual(['focalLength']);
-    expect(channelsOf('camera').lens ?? []).not.toContain('targetMode');
+    expect(OBJECT_STATE_FIELDS['camera']).toEqual(
+      expect.arrayContaining(['targetMode', 'targetId']),
+    );
+    expect(channelsOf('camera')['transform'] ?? []).toEqual(['position', 'rotation']);
+    expect(channelsOf('camera')['lens'] ?? []).toEqual(['focalLength']);
+    expect(channelsOf('camera')['lens'] ?? []).not.toContain('targetMode');
   });
 });

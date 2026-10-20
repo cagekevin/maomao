@@ -249,7 +249,7 @@ describe('importSkillText（导入不丢作者写的东西）', () => {
     expect(md).toContain('x-author: 张三'); // 未知字段不许丢
     expect(md).toMatch(/---\n\n正文第一行$/); // 正文里不再带 frontmatter
     const list = readSkillList().list as Array<Record<string, unknown>>;
-    expect(at(list, 0).name).toBe('导入的技能');
+    expect(at(list, 0)['name']).toBe('导入的技能');
   });
 
   it('没有 frontmatter ⇒ 用文件名当名称（去掉白名单扩展名），全文当正文', async () => {

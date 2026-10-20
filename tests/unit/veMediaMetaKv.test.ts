@@ -94,7 +94,7 @@ describe('剪辑素材元数据：载体 = KV 单键（TD-02-35）', () => {
 
     const table = tableOf(MEDIA_KEY);
     expect(table, '元数据必须落在 KV 侧的表键上').toBeTruthy();
-    const cell = table.a1;
+    const cell = table['a1'];
     if (cell === undefined) throw new Error('元数据表缺 a1 单元格');
     expect(cell.id).toBe('a1');
   });

@@ -75,10 +75,10 @@ describe('backupStore — 导出 exportAll', () => {
     const backup = await exportAll();
     expect(backup.version).toBe(3);
     expect(backup.type).toBe('yimao-backup');
-    expect(backup.ls.projects).toEqual([{ id: 'p1', name: 'P1' }]);
-    expect(backup.ls.app_settings).toEqual({ theme: 'dark' });
-    expect(backup.ls.yimao_node_prefs).toEqual({ textGenerateNode: { model: 'x' } });
-    expect(backup.canvas.p1).toEqual({ nodes: [{ id: 'n1' }], edges: [] });
+    expect(backup.ls['projects']).toEqual([{ id: 'p1', name: 'P1' }]);
+    expect(backup.ls['app_settings']).toEqual({ theme: 'dark' });
+    expect(backup.ls['yimao_node_prefs']).toEqual({ textGenerateNode: { model: 'x' } });
+    expect(backup.canvas['p1']).toEqual({ nodes: [{ id: 'n1' }], edges: [] });
     expect(typeof backup.exportedAt).toBe('string');
   });
 
@@ -101,7 +101,7 @@ describe('backupStore — 导出 exportAll', () => {
 
     expect(getCurrentProject).toHaveBeenCalled();
     expect(Object.keys(backup.canvas)).toEqual(['p2']);
-    expect(backup.canvas.p2).toEqual({ nodes: [{ id: 'n2' }], edges: [] });
+    expect(backup.canvas['p2']).toEqual({ nodes: [{ id: 'n2' }], edges: [] });
   });
 
   it('项目枚举以 projectStore 内存真相为准（防抖窗内新建项目不漏备，TD-15-2）', async () => {
@@ -118,7 +118,7 @@ describe('backupStore — 导出 exportAll', () => {
     // p2 的画布被导出（旧实现只读 ls.projects 副本 → 漏 p2）
     expect(backup.canvas).toEqual({ p2: { nodes: [{ id: 'n2' }], edges: [] } });
     // 备份包内项目列表同时补上 p2（枚举与列表同源，导入后自洽）
-    expect(backup.ls.projects).toEqual([
+    expect(backup.ls['projects']).toEqual([
       { id: 'p1', name: 'P1' },
       { id: 'p2', name: '新项目' },
     ]);
@@ -150,9 +150,9 @@ describe('backupStore — 导出 exportAll', () => {
 
     const backup = await exportAll();
 
-    expect(backup.kv.video_editor_projects_p1).toEqual([{ id: 'e1', name: '片子' }]);
-    expect(backup.kv.video_editor_active_project_p1).toBe('e1');
-    expect(backup.kv.video_editor_project_p1_e1).toEqual({ id: 'e1', tracks: [] });
+    expect(backup.kv['video_editor_projects_p1']).toEqual([{ id: 'e1', name: '片子' }]);
+    expect(backup.kv['video_editor_active_project_p1']).toBe('e1');
+    expect(backup.kv['video_editor_project_p1_e1']).toEqual({ id: 'e1', tracks: [] });
     expect(backup.kv['director3d-project']).toEqual({ scene: 1 });
     expect(backup.kv['director3d-project-node9']).toEqual({ scene: 2 });
   });
@@ -167,7 +167,7 @@ describe('backupStore — 导出 exportAll', () => {
 
     const backup = await exportAll();
 
-    expect(backup.canvas.p1).toEqual({ nodes: [{ id: 'n1' }], edges: [] });
+    expect(backup.canvas['p1']).toEqual({ nodes: [{ id: 'n1' }], edges: [] });
     expect(backup.accounts).toEqual([{ id: 'a1' }]);
     expect(backup.kv['canvas-state-v1-p1']).toBeUndefined(); // 画布走 canvas 段（保 sanitize 写路径）
     expect(backup.kv['yimao_accounts']).toBeUndefined(); // 账号走 accounts 段
@@ -181,7 +181,7 @@ describe('backupStore — 导出 exportAll', () => {
     kvStore.set('yimao_accounts', [{ id: 'acc1', name: '环境1' }]);
     const backup = await exportAll();
     expect(backup.accounts).toEqual([{ id: 'acc1', name: '环境1' }]);
-    expect(backup.ls.yimao_accounts).toBeUndefined(); // KV 后端键不进 ls
+    expect(backup.ls['yimao_accounts']).toBeUndefined(); // KV 后端键不进 ls
   });
 
   it('备份清单由 contracts.ts getLocalKeys() 统一生成，新增登记键自动进备份（无手写清单漂移）', async () => {
@@ -190,9 +190,9 @@ describe('backupStore — 导出 exportAll', () => {
     contentSet('agent_input_mode', 'agent');
     contentSet('canvasAgentGenParams', { model: 'x', ratio: '1:1' });
     const backup = await exportAll();
-    expect(backup.ls.agent_panel_width).toBe('320');
-    expect(backup.ls.agent_input_mode).toBe('agent');
-    expect(backup.ls.canvasAgentGenParams).toEqual({ model: 'x', ratio: '1:1' });
+    expect(backup.ls['agent_panel_width']).toBe('320');
+    expect(backup.ls['agent_input_mode']).toBe('agent');
+    expect(backup.ls['canvasAgentGenParams']).toEqual({ model: 'x', ratio: '1:1' });
   });
 });
 

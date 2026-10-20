@@ -24,8 +24,8 @@ describe('nodeDataSchema.defaultNodeData', () => {
 
   it('非输入面板节点不注入 expanded', () => {
     const d = defaultNodeData('gridSplitNode');
-    expect(d.expanded).toBeUndefined();
-    expect(d.rows).toBe(3);
+    expect(d['expanded']).toBeUndefined();
+    expect(d['rows']).toBe(3);
   });
 
   it('未登记 data 的类型只返回注入结果（不凭空造字段）', () => {
@@ -47,12 +47,12 @@ describe('nodeDataSchema.defaultNodeData', () => {
     const a = defaultNodeData('imageBoxNode');
     const b = defaultNodeData('imageBoxNode');
     expect(a).not.toBe(b);
-    expect(a.images).not.toBe(b.images);
-    (a.images as unknown[]).push('polluted');
-    expect((b.images as unknown[]).length).toBe(0);
+    expect(a['images']).not.toBe(b['images']);
+    (a['images'] as unknown[]).push('polluted');
+    expect((b['images'] as unknown[]).length).toBe(0);
     // 默认值真源本身也不得被污染
     expect(NODE_DATA_DEFAULTS.imageBoxNode, 'NODE_DATA_DEFAULTS 应登记 imageBoxNode').toBeDefined();
-    expect((NODE_DATA_DEFAULTS.imageBoxNode?.images as unknown[]).length).toBe(0);
+    expect((NODE_DATA_DEFAULTS.imageBoxNode?.['images'] as unknown[]).length).toBe(0);
   });
 
   it('登记表的每个类型都能解析出对象（键名与真源一致，防登记名拼错）', () => {

@@ -158,12 +158,12 @@ describe('M3-C2/C5 路径烘焙只产出 position，绝不写姿态快照 / 不�
 
   it('transform 每个 key 的 fields 只有 position，无 pose/joints/rigRoot/rotation/scale（M3-C2）', () => {
     const track = bakeTrackFromPath(straightPath);
-    expect(track.transform).toHaveLength(5);
-    const transform = track.transform;
+    expect(track['transform']).toHaveLength(5);
+    const transform = track['transform'];
     if (transform === undefined) throw new Error('bakeTrackFromPath 未产出 transform 通道');
     for (const key of transform) {
       expect(Object.keys(key.fields!)).toEqual(['position']);
-      expect(key.fields!.position).toHaveLength(3);
+      expect(key.fields!['position']).toHaveLength(3);
       expect(key.interpolation).toBe('linear');
     }
   });
@@ -171,7 +171,7 @@ describe('M3-C2/C5 路径烘焙只产出 position，绝不写姿态快照 / 不�
   it('普通物体（box）烘焙同样只产出 position', () => {
     const track = bakeTrackFromPath(straightPath, 'box');
     expect(Object.keys(track)).toEqual(['transform']);
-    expect(Object.keys(at(track.transform ?? [], 0).fields!)).toEqual(['position']);
+    expect(Object.keys(at(track['transform'] ?? [], 0).fields!)).toEqual(['position']);
   });
 });
 

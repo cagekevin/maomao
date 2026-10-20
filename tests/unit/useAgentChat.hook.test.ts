@@ -322,8 +322,8 @@ function toolCallDelta(
   { id, name, args }: { id?: string; name?: string; args?: string } = {},
 ) {
   const fn: Record<string, unknown> = {};
-  if (name !== undefined) fn.name = name;
-  if (args !== undefined) fn.arguments = args;
+  if (name !== undefined) fn['name'] = name;
+  if (args !== undefined) fn['arguments'] = args;
   return { choices: [{ delta: { tool_calls: [{ index, id, function: fn }] } }] };
 }
 
@@ -411,8 +411,8 @@ describe('useAgentChat · 真实模式 SSE 编排', () => {
       category: '电商',
       slug: '套图',
     });
-    expect(typeof at(bound, 0).contentHash).toBe('string');
-    expect(String(at(bound, 0).contentHash)).toBeTruthy();
+    expect(typeof at(bound, 0)['contentHash']).toBe('string');
+    expect(String(at(bound, 0)['contentHash'])).toBeTruthy();
 
     // ② 同源：请求里的块② 与留痕出自同一份冻结结果（正文一字不差）
     const sentBody = JSON.parse(at(fetchMock.mock.calls, 0)[1].body);
@@ -1061,10 +1061,10 @@ describe('useAgentChat · buildRequestMessages 深度（请求体组装）', () 
     const out = buildRequestMessages(msgs as agentChatMessage[], '', false) as AssembledMsg[];
     const a = out.find((m) => m.role === 'assistant')!;
     const t = out.find((m) => m.role === 'tool')!;
-    expect(a.tool_calls).toEqual([
+    expect(a['tool_calls']).toEqual([
       { id: 'c9', type: 'function', function: { name: 'create_node', arguments: '{"x":1}' } },
     ]);
-    expect(t.tool_call_id).toBe('c9');
+    expect(t['tool_call_id']).toBe('c9');
   });
 
   it('空 messages：enhance=true 仍至少注入 system（画布准则 + 执行模型分流段，LLM 永远有规则）', () => {
@@ -1415,11 +1415,11 @@ describe('useAgentChat · 阶段1D 薄壳化（sending/activeId 订阅 store）'
     expect(typeof result.current.saveAttachments).toBe('function');
     expect(typeof result.current.closeAwaitingConfirm).toBe('function');
     // 收窄：store 写操作不再透传给 UI（防回潮——恢复了就直接改会话状态）
-    expect((result.current as Record<string, unknown>).setCurrentSnapshot).toBeUndefined();
-    expect((result.current as Record<string, unknown>).setAwaitingConfirm).toBeUndefined();
-    expect((result.current as Record<string, unknown>).setCurrentAssistantTable).toBeUndefined();
-    expect((result.current as Record<string, unknown>).setCurrentGlobalContract).toBeUndefined();
-    expect((result.current as Record<string, unknown>).markMessageTableResolved).toBeUndefined();
+    expect((result.current as Record<string, unknown>)['setCurrentSnapshot']).toBeUndefined();
+    expect((result.current as Record<string, unknown>)['setAwaitingConfirm']).toBeUndefined();
+    expect((result.current as Record<string, unknown>)['setCurrentAssistantTable']).toBeUndefined();
+    expect((result.current as Record<string, unknown>)['setCurrentGlobalContract']).toBeUndefined();
+    expect((result.current as Record<string, unknown>)['markMessageTableResolved']).toBeUndefined();
   });
 
   it('【TD-17】saveDraft 写入当前对话草稿快照（唯一真源，随会话落盘）', () => {

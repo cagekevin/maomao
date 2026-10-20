@@ -432,8 +432,8 @@ describe('contentGetSnapshot', () => {
     contentSet('projects', [{ id: 'p1' }]);
     contentSet('app_settings', { performanceMode: true });
     const snapshot = contentGetSnapshot();
-    expect(snapshot.projects).toEqual([{ id: 'p1' }]);
-    expect(snapshot.app_settings).toEqual({ performanceMode: true });
+    expect(snapshot['projects']).toEqual([{ id: 'p1' }]);
+    expect(snapshot['app_settings']).toEqual({ performanceMode: true });
   });
 
   it('快照不包含动态键（pattern: true）', () => {
