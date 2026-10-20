@@ -145,10 +145,10 @@ export function deleteProviderConfigFile(id: string): boolean {
  */
 export function readConfiguredBaseUrl(providerId: string): string | undefined {
   const file = readProviderConfigFile(providerId);
-  return typeof (file as { base_url?: unknown } | null)?.base_url === 'string' &&
-    (file as { base_url: string }).base_url!.trim()
-    ? (file as { base_url: string }).base_url
-    : undefined;
+  // 存储值不可信：先按 `in` 收窄取值，再判 string + trim。三次 `as` + `!` 换成一次运行期收窄。
+  const baseUrl =
+    file !== null && typeof file === 'object' && 'base_url' in file ? file['base_url'] : undefined;
+  return typeof baseUrl === 'string' && baseUrl.trim() ? baseUrl : undefined;
 }
 
 /**

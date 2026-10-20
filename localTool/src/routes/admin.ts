@@ -378,8 +378,10 @@ export async function handleAdminStorageHealth(
   const groups = new Map<string, typeof files>();
   for (const f of files) {
     const key = `${f.size}|${f.name}`;
-    if (!groups.has(key)) groups.set(key, []);
-    groups.get(key)!.push(f);
+    // has + get! 两次查表收成一次：桶已存在就追加，否则建桶（去掉非空断言）
+    const bucket = groups.get(key);
+    if (bucket) bucket.push(f);
+    else groups.set(key, [f]);
   }
   const duplicates = Array.from(groups.values())
     .filter((g) => g.length >= 2)

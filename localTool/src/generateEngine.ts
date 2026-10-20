@@ -96,7 +96,7 @@ function makeTimeoutSignal(
     () => controller.abort(new Error(`生成超时（${Math.round(timeoutMs / 1000)}s）`)),
     timeoutMs,
   );
-  const onExternalAbort = () => controller.abort(external!.reason ?? new Error('请求已取消'));
+  const onExternalAbort = () => controller.abort(external?.reason ?? new Error('请求已取消'));
   external?.addEventListener('abort', onExternalAbort, { once: true });
   return {
     signal: controller.signal,

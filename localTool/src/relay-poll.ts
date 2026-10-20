@@ -750,8 +750,12 @@ function registerHandle(frontTaskId: string, handle: PollHandle, overrideMs?: nu
         }
         return;
       }
+      // 非 direct 分支必然持有协议快照（direct 分支在上面已 return）⇒ 缺失即不变量破裂，
+      // fail-loud 比 `handle.poll!` 更早暴露（后者会在 protocol 内部以 TypeError 形式炸，且丢了根因）。
+      const poll = handle.poll;
+      if (!poll) throw new Error('relay-poll 不变量破裂：非 direct 分支缺少 handle.poll');
       const r = await protocol.pollModelProtocolOnce(
-        handle.poll!,
+        poll,
         handle.apiKey,
         undefined,
         handle.baseUrl,

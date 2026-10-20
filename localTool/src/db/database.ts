@@ -189,7 +189,9 @@ function pruneByPrefix(dir: string, prefix: string, keep: number): void {
       .filter((f) => f.startsWith(prefix))
       .sort(); // 文件名带日期时间戳，字典序即时间序
     while (files.length > keep) {
-      const oldest = files.shift()!;
+      // shift() 的返回值按签名可能为空（与循环条件无关，编译器不认）⇒ 取项即判缺
+      const oldest = files.shift();
+      if (oldest === undefined) break;
       try {
         fs.unlinkSync(path.join(dir, oldest));
       } catch {
