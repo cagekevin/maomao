@@ -44,6 +44,10 @@ export interface ScriptBoxShot extends Shot {
   selectedTailFrameVariantId?: string | undefined;
   tailFrameVariantsLoading?: boolean | undefined;
   tailFrameVariantsError?: string | undefined;
+  /** 关键帧/宫格等 AI 生图结果（运行时写入，属本表固定字段） */
+  imgGen?: ScriptBoxImgGen | undefined;
+  /** 该 shot 连出的 videoGenerateNode 持久化的视频地址（尾帧抽取读取） */
+  videoUrl?: string | undefined;
 }
 
 /** 单个 asset 子字段（含 P0-3 assetUrl / thumbnailUrl 分离） */
@@ -72,10 +76,71 @@ export type ScriptBoxUpdateData = (
   patch: Record<string, unknown> | ((latest: ScriptBoxData) => Record<string, unknown>),
 ) => void;
 
+/**
+ * 上游接入图片（`useConnectedInputs` → `node.data.upstreamImages`，由 ScriptBoxNode 同步）。
+ * 键固定，来源是连线节点的投影，故显式登记而非留在索引签名里。
+ */
+export interface ScriptBoxUpstreamImage {
+  id?: string | undefined;
+  url?: string | undefined;
+  label?: string | undefined;
+  sourceNodeId?: string | undefined;
+}
+
+/** 上游接入文本条目（`node.data.upstreamTexts`，与 upstreamImages 同源同批写入）。 */
+export interface ScriptBoxUpstreamText {
+  id?: string | undefined;
+  label?: string | undefined;
+  text?: unknown;
+  sourceNodeId?: string | undefined;
+}
+
+/** 本片模型设置（GearSettings 写回 `node.data.assetModelSettings`）。 */
+export interface ScriptBoxAssetModelSettings {
+  globalModel?: string | undefined;
+  globalAspectRatio?: string | undefined;
+  globalSize?: string | undefined;
+}
+
+/** 关键帧/四宫格等 AI 生图结果（运行时挂到 `shot.imgGen`）。 */
+export interface ScriptBoxImgGen {
+  type?: string | undefined;
+  label: string;
+  prompt: string;
+  ts: number;
+}
+
+/**
+ * 已连线下游条目（运行时写入 `node.data.connected`）。
+ * 值来自持久化快照 ⇒ 读取方必须逐条守卫（见 StepPrompt 的 ConnectedItem 过滤），
+ * 故此处**有意声明为 unknown[]**，不假装每条都合法。
+ */
+export type ScriptBoxConnectedEntry = unknown;
+
 /** 剧本盒节点 data 完整形状 */
 export interface ScriptBoxData extends ScriptBoxTop {
   shots: ScriptBoxShot[];
   assets: ScriptBoxAsset[];
+  /** 生成剧本时写回的项目名（StepShots 标题/导出用） */
+  projectName?: string | undefined;
+  /** 本片文本模型（新字段；旧数据只有 selectedModel，读取方需双读） */
+  textModel?: string | undefined;
+  /** 本片文本模型（历史字段，与 textModel 同步写入，保留向后兼容） */
+  selectedModel?: string | undefined;
+  /** 本片生图模型 / 比例 / 尺寸 */
+  assetModelSettings?: ScriptBoxAssetModelSettings | undefined;
+  /** 上游连入的图片（ScriptBoxNode 同步） */
+  upstreamImages?: ScriptBoxUpstreamImage[] | undefined;
+  /** 上游连入的文本条目（ScriptBoxNode 同步） */
+  upstreamTexts?: ScriptBoxUpstreamText[] | undefined;
+  /** 已连线的下游节点（运行时写入；读取需守卫） */
+  connected?: ScriptBoxConnectedEntry[] | undefined;
+  /** 步骤1 生成中遮罩（发起请求置位、结束复位） */
+  genMask?: boolean | undefined;
+  /** 生成中已生成字数（标题栏计时展示） */
+  genChars?: number | undefined;
+  /** 资产区全局选中数（派生值，随 assets 写回） */
+  pickedCount?: number | undefined;
   [key: string]: unknown;
 }
 
