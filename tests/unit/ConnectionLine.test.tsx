@@ -42,16 +42,13 @@ describe('ConnectionLine — 始终渲染（性能模式不降拖拽线）', () 
 
   function setup(props: Partial<React.ComponentProps<typeof ConnectionLine>> = {}) {
     return render(
-      React.createElement(
-        ConnectionLine as unknown as React.ComponentType<Record<string, unknown>>,
-        {
-          fromX: 0,
-          fromY: 0,
-          toX: 100,
-          toY: 100,
-          ...props,
-        },
-      ),
+      React.createElement(ConnectionLine, {
+        fromX: 0,
+        fromY: 0,
+        toX: 100,
+        toY: 100,
+        ...props,
+      }),
     );
   }
 

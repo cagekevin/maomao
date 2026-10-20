@@ -4,10 +4,9 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import ErrorBoundary from '../../src/components/base/ui/feedback/ErrorBoundary.tsx';
 
 /** 抛错的子组件：渲染时 throw，模拟「节点内容渲染崩溃」 */
-function Boom() {
+function Boom(): never {
   throw new Error('节点内容模拟崩溃');
 }
-const BoomAny = Boom as unknown as React.ComponentType;
 
 /** 正常子组件 */
 function Fine() {
@@ -23,7 +22,7 @@ describe('ErrorBoundary §架构地基', () => {
     const onError = vi.fn();
     render(
       <ErrorBoundary variant="node" onError={onError}>
-        <BoomAny />
+        <Boom />
       </ErrorBoundary>,
     );
     // 节点内错误框（NodeShell 用）
@@ -48,7 +47,7 @@ describe('ErrorBoundary §架构地基', () => {
   it('full 粒度（默认）：children 崩溃 → 渲染全屏崩溃页（根级 main.jsx 用）', () => {
     render(
       <ErrorBoundary>
-        <BoomAny />
+        <Boom />
       </ErrorBoundary>,
     );
     expect(screen.getByText('画面出错了')).toBeTruthy();
@@ -81,7 +80,7 @@ describe('ErrorBoundary §架构地基', () => {
     // 用户看到的是与首次崩溃一模一样的一张图 ⇒ 观感"点了没反应"。此用例锁"失败可见"。
     render(
       <ErrorBoundary variant="node">
-        <BoomAny />
+        <Boom />
       </ErrorBoundary>,
     );
     expect(screen.queryByText(/已重试/)).toBeNull(); // 首次崩溃：不提"重试"
@@ -95,7 +94,7 @@ describe('ErrorBoundary §架构地基', () => {
   it('【TD-16-37】full 粒度重试仍失败：只陈述本组件生产的事实，不替生产者解释原因', () => {
     render(
       <ErrorBoundary>
-        <BoomAny />
+        <Boom />
       </ErrorBoundary>,
     );
     fireEvent.click(screen.getByText('重新载入'));

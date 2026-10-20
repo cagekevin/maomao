@@ -16,6 +16,7 @@
  * 这两条断言被打破 = 该 bug 回归。
  */
 import { describe, it, expect } from 'vitest';
+import { fakeDragEvent } from '../helpers/events';
 import { renderHook } from '@testing-library/react';
 import type { DragEvent as ReactDragEvent } from 'react';
 import type {
@@ -64,7 +65,7 @@ describe('useResourceCardDragProps — 文件卡片', () => {
     expect(props.draggable).toBe(true);
 
     const dt = fakeDataTransfer();
-    props.onDragStart({ dataTransfer: dt } as unknown as ReactDragEvent);
+    props.onDragStart(fakeDragEvent({ dataTransfer: dt }));
 
     // 缺了 asset 这条 → 画布认不出素材 → 误判成网页图 → 重复下载进 uploads/web
     expect(dt.data['application/x-yimao-asset']).toBeTruthy();
@@ -75,7 +76,7 @@ describe('useResourceCardDragProps — 文件卡片', () => {
     const { cardDragProps } = renderCardProps();
     const dt = fakeDataTransfer();
     const p = cardDragProps(ASSET) as ImageCardProps;
-    p.onDragStart({ dataTransfer: dt } as unknown as ReactDragEvent);
+    p.onDragStart(fakeDragEvent({ dataTransfer: dt }));
 
     const payload = JSON.parse(dt.data['application/x-yimao-asset']);
     expect(payload.url).toBe(ASSET.url);

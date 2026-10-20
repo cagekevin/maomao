@@ -8,7 +8,8 @@
  *   - 可编辑目标（input/textarea）右键被忽略（isEditableTarget 守卫）
  */
 import { must } from '../helpers/must';
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
+import { fakeMouseEvent } from '../helpers/events';
 import { renderHook, act } from '@testing-library/react';
 import type { MouseEvent as ReactMouseEvent } from 'react';
 import type { Node } from '@xyflow/react';
@@ -25,13 +26,7 @@ function makeEvent({
   clientX = 5,
   clientY = 6,
 }: { target?: EventTarget | null; clientX?: number; clientY?: number } = {}): ReactMouseEvent {
-  return {
-    clientX,
-    clientY,
-    preventDefault: vi.fn(),
-    stopPropagation: vi.fn(),
-    target: target || document.createElement('div'),
-  } as unknown as ReactMouseEvent;
+  return fakeMouseEvent({ clientX, clientY, target: target || document.createElement('div') });
 }
 
 describe('useContextMenu', () => {

@@ -21,7 +21,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { at } from '../helpers/at';
 import { renderHook, act } from '@testing-library/react';
-import type { ClipboardEvent as ReactClipboardEvent, DragEvent as ReactDragEvent } from 'react';
+import type { ClipboardEvent as ReactClipboardEvent } from 'react';
+import { fakeClipboardEvent, fakeDragEvent } from '../helpers/events';
 
 const uploadMock = vi.fn(async (file, _folder) => ({
   ok: true,
@@ -121,7 +122,7 @@ describe('useAssetDropPaste — onPaste（万全之策）', () => {
       clipboardData: { items: [] },
     };
     await act(async () => {
-      await result.current.onPaste(e as unknown as ReactClipboardEvent);
+      await result.current.onPaste(fakeClipboardEvent(e));
     });
     // 补充路径（read() 异步）不依赖 e.preventDefault（异步期调用无效），只需验证节点被正确建立
     expect(uploadMock).toHaveBeenCalled();
@@ -141,7 +142,7 @@ describe('useAssetDropPaste — onPaste（万全之策）', () => {
       clipboardData: { items: [] },
     };
     await act(async () => {
-      await result.current.onPaste(e as unknown as ReactClipboardEvent);
+      await result.current.onPaste(fakeClipboardEvent(e));
     });
     expect(opts.addNode).toHaveBeenCalledWith('assetNode', expect.any(Object), {
       assetUrl: 'http://ext/cat.png',
@@ -159,7 +160,7 @@ describe('useAssetDropPaste — onPaste（万全之策）', () => {
       clipboardData: { items: [] },
     };
     await act(async () => {
-      await result.current.onPaste(e as unknown as ReactClipboardEvent);
+      await result.current.onPaste(fakeClipboardEvent(e));
     });
     expect(opts.addNode).toHaveBeenCalledWith('textGenerateNode', expect.any(Object), {
       text: 'hello world',
@@ -179,7 +180,7 @@ describe('useAssetDropPaste — onPaste（万全之策）', () => {
       clipboardData: { items: [] },
     };
     await act(async () => {
-      await result.current.onPaste(e as unknown as ReactClipboardEvent);
+      await result.current.onPaste(fakeClipboardEvent(e));
     });
     expect(opts.onPasteNodeGroup).toHaveBeenCalledWith(json, expect.any(Object));
   });
@@ -199,7 +200,7 @@ describe('useAssetDropPaste — onPaste（万全之策）', () => {
       clipboardData: { items: [] },
     };
     await act(async () => {
-      await result.current.onPaste(e as unknown as ReactClipboardEvent);
+      await result.current.onPaste(fakeClipboardEvent(e));
     });
     expect(opts.addNode).toHaveBeenCalledWith('assetNode', expect.any(Object), {
       assetUrl: 'http://x/1.png',
@@ -222,7 +223,7 @@ describe('useAssetDropPaste — onPaste（万全之策）', () => {
     ce.setAttribute('contenteditable', 'true');
     const e = { preventDefault: vi.fn(), target: ce, clipboardData: { items: [] } };
     await act(async () => {
-      await result.current.onPaste(e as unknown as ReactClipboardEvent);
+      await result.current.onPaste(fakeClipboardEvent(e));
     });
     expect(opts.addNode).not.toHaveBeenCalled();
   });
@@ -235,7 +236,7 @@ describe('useAssetDropPaste — onPaste（万全之策）', () => {
     ce.setAttribute('contenteditable', 'true');
     const e = { preventDefault: vi.fn(), target: ce, clipboardData: { items: [] } };
     await act(async () => {
-      await result.current.onPaste(e as unknown as ReactClipboardEvent);
+      await result.current.onPaste(fakeClipboardEvent(e));
     });
     expect(opts.addNode).not.toHaveBeenCalled();
   });
@@ -255,7 +256,7 @@ describe('useAssetDropPaste — onPaste（万全之策）', () => {
       },
     };
     await act(async () => {
-      await result.current.onPaste(e as unknown as ReactClipboardEvent);
+      await result.current.onPaste(fakeClipboardEvent(e));
     });
     expect(opts.addNode).toHaveBeenCalledWith('textGenerateNode', expect.any(Object), {
       text: 'fallback text',
@@ -278,7 +279,7 @@ describe('useAssetDropPaste — onPaste（万全之策）', () => {
       },
     };
     await act(async () => {
-      await result.current.onPaste(e as unknown as ReactClipboardEvent);
+      await result.current.onPaste(fakeClipboardEvent(e));
     });
     expect(uploadMock).toHaveBeenCalledWith(file, 'canvas/drop');
     expect(opts.addNode).toHaveBeenCalledWith('assetNode', expect.any(Object), {
@@ -303,7 +304,7 @@ describe('useAssetDropPaste — onPaste（万全之策）', () => {
       },
     };
     await act(async () => {
-      await result.current.onPaste(e as unknown as ReactClipboardEvent);
+      await result.current.onPaste(fakeClipboardEvent(e));
     });
     expect(opts.addNode).toHaveBeenCalledWith('assetNode', expect.any(Object), {
       assetUrl: 'http://local/ev.png',
@@ -322,7 +323,7 @@ describe('useAssetDropPaste — onPaste（万全之策）', () => {
       clipboardData: { getData: () => null, files: [], items: [] },
     };
     await act(async () => {
-      await result.current.onPaste(e as unknown as ReactClipboardEvent);
+      await result.current.onPaste(fakeClipboardEvent(e));
     });
     expect(opts.addNode).not.toHaveBeenCalled();
     expect(toastMock).toHaveBeenCalled();
@@ -348,7 +349,7 @@ describe('useAssetDropPaste — onPaste（万全之策）', () => {
       },
     };
     await act(async () => {
-      await result.current.onPaste(e as unknown as ReactClipboardEvent);
+      await result.current.onPaste(fakeClipboardEvent(e));
     });
     expect(opts.onPasteNodeGroup).toHaveBeenCalledWith(json, expect.any(Object));
   });
@@ -365,7 +366,7 @@ describe('useAssetDropPaste — onPaste（万全之策）', () => {
       clipboardData: { items: [] },
     };
     await act(async () => {
-      await result.current.onPaste(e as unknown as ReactClipboardEvent);
+      await result.current.onPaste(fakeClipboardEvent(e));
     });
     expect(readMock).not.toHaveBeenCalled();
     expect(opts.addNode).not.toHaveBeenCalled();
@@ -391,7 +392,7 @@ describe('useAssetDropPaste — onPaste（万全之策）', () => {
       },
     };
     await act(async () => {
-      await result.current.onPaste(e as unknown as ReactClipboardEvent);
+      await result.current.onPaste(fakeClipboardEvent(e));
     });
     expect(opts.onPasteNodeGroup).not.toHaveBeenCalled();
     expect(opts.addNode).not.toHaveBeenCalled();
@@ -410,7 +411,7 @@ describe('useAssetDropPaste — onPaste（万全之策）', () => {
       },
     };
     await act(async () => {
-      await result.current.onPaste(e as unknown as ReactClipboardEvent);
+      await result.current.onPaste(fakeClipboardEvent(e));
     });
     expect(opts.addNode).not.toHaveBeenCalled();
   });
@@ -424,15 +425,15 @@ describe('useAssetDropPaste — onPaste（万全之策）', () => {
   //       A 粘贴到 textarea 走原生插入；
   //       B（整个节点组 JSON）**只在画布上**放行建节点组 —— 焦点在编辑区时归编辑区（ADR-0029）。
   // ════════════════════════════════════════════════════════════════
-  function plainEvent(text: any, target: any): ReactClipboardEvent {
-    return {
+  function plainEvent(text: string, target: EventTarget): ReactClipboardEvent {
+    return fakeClipboardEvent({
       preventDefault: vi.fn(),
       target,
       clipboardData: {
-        getData: (k: any) => (k === 'text/plain' ? text : null),
+        getData: (k: string) => (k === 'text/plain' ? text : null),
         items: [{ kind: 'string', type: 'text/plain', getAsString: () => {} }],
       },
-    } as unknown as ReactClipboardEvent;
+    });
   }
 
   it('复制文本节点里的文字 → 粘贴到画布：建 textGenerateNode 且内容被 sanitize 清洗（去缩进/空行）', async () => {
@@ -504,7 +505,7 @@ describe('useAssetDropPaste — onPaste（万全之策）', () => {
           k === 'text/uri-list' ? 'https://www.qq.com/img/cat.png' : k === 'text/plain' ? '' : '',
       },
     };
-    result.current.onDrop(e as unknown as ReactDragEvent);
+    result.current.onDrop(fakeDragEvent(e));
     // 直接用原网络 URL 建节点（不做下载/本地化，保持简单；不加 label）
     expect(opts.addNode).toHaveBeenCalledWith(
       'assetNode',
@@ -524,7 +525,7 @@ describe('useAssetDropPaste — onPaste（万全之策）', () => {
         getData: (k: any) => (k === 'text/uri-list' ? 'hello world' : k === 'text/plain' ? '' : ''),
       },
     };
-    result.current.onDrop(e as unknown as ReactDragEvent);
+    result.current.onDrop(fakeDragEvent(e));
     expect(opts.addNode).toHaveBeenCalledWith('textGenerateNode', expect.any(Object), {
       text: 'hello world',
       expanded: false,
@@ -542,7 +543,7 @@ describe('useAssetDropPaste — onPaste（万全之策）', () => {
           k === 'text/uri-list' ? '' : k === 'text/plain' ? 'https://cdn/x/1.jpg' : '',
       },
     };
-    result.current.onDrop(e as unknown as ReactDragEvent);
+    result.current.onDrop(fakeDragEvent(e));
     expect(opts.addNode).toHaveBeenCalledWith(
       'assetNode',
       { x: 0, y: 0 },
@@ -557,7 +558,7 @@ describe('useAssetDropPaste — onPaste（万全之策）', () => {
       preventDefault: vi.fn(),
       dataTransfer: { files: [], getData: () => '' },
     };
-    result.current.onDrop(e as unknown as ReactDragEvent);
+    result.current.onDrop(fakeDragEvent(e));
     expect(opts.addNode).not.toHaveBeenCalled();
   });
 });
@@ -586,7 +587,7 @@ describe('useAssetDropPaste — 网页图后台本地化（web 目录）', () =>
         getData: (k: any) => (k === 'text/uri-list' ? 'https://x/cat.png' : ''),
       },
     };
-    result.current.onDrop(e as unknown as ReactDragEvent);
+    result.current.onDrop(fakeDragEvent(e));
     // 立即用原 URL 建节点（无 label）
     expect(opts.addNode).toHaveBeenCalledWith(
       'assetNode',
@@ -619,7 +620,7 @@ describe('useAssetDropPaste — 网页图后台本地化（web 目录）', () =>
         getData: (k: any) => (k === 'text/uri-list' ? 'https://x/cat.png' : ''),
       },
     };
-    result.current.onDrop(e as unknown as ReactDragEvent);
+    result.current.onDrop(fakeDragEvent(e));
     await act(async () => {});
     expect(patchNodeData).not.toHaveBeenCalled();
     expect(opts.addNode).toHaveBeenCalledWith(
@@ -641,7 +642,7 @@ describe('useAssetDropPaste — 网页图后台本地化（web 目录）', () =>
         getData: (k: any) => (k === 'text/uri-list' ? 'https://x/cat.png' : ''),
       },
     };
-    result.current.onDrop(e as unknown as ReactDragEvent);
+    result.current.onDrop(fakeDragEvent(e));
     await act(async () => {});
     expect(patchNodeData).not.toHaveBeenCalled();
   });
@@ -656,7 +657,7 @@ describe('useAssetDropPaste — 网页图后台本地化（web 目录）', () =>
         getData: (k: any) => (k === 'text/uri-list' ? 'https://x/cat.png' : ''),
       },
     };
-    result.current.onDrop(e as unknown as ReactDragEvent);
+    result.current.onDrop(fakeDragEvent(e));
     expect(opts.addNode).toHaveBeenCalledWith(
       'assetNode',
       { x: 0, y: 0 },

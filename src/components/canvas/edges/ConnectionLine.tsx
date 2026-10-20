@@ -12,7 +12,15 @@ import CometParticles from '@/components/canvas/edges/CometParticles';
  * 且拖拽线同时只有 1 条，渲染成本可忽略。
  * 性能模式的边降级只作用于**正式边**（`.react-flow__edge` 限定，见 index.css）。
  */
-function ConnectionLine({ fromX, fromY, toX, toY }: ConnectionLineComponentProps) {
+/**
+ * 本组件只消费四个端点坐标；`ConnectionLineComponentProps` 的其余成员（fromNode/fromHandle/
+ * connectionLineType/…）一个都不用。原先照搬完整类型，导致测试必须伪造 8 个用不到的字段
+ * 才能渲染（只能靠 `as unknown as ComponentType<Record<string, unknown>>` 绕过）。
+ * 收窄成 `Pick` 后：xyflow 传全量仍安全（函数参数逆变），测试只给真正用到的坐标。
+ */
+type ConnectionLineProps = Pick<ConnectionLineComponentProps, 'fromX' | 'fromY' | 'toX' | 'toY'>;
+
+function ConnectionLine({ fromX, fromY, toX, toY }: ConnectionLineProps) {
   const [path] = getBezierPath({
     sourceX: fromX,
     sourceY: fromY,

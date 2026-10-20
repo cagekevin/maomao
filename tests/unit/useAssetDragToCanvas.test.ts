@@ -9,8 +9,8 @@
  *   - useAssetDragToCanvas()：返回 { assetDragProps }，等价于 makeAssetDragProps
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { fakeDragEvent } from '../helpers/events';
 import { renderHook, waitFor } from '@testing-library/react';
-import type { DragEvent as ReactDragEvent } from 'react';
 
 const {
   makeAssetDragProps,
@@ -49,7 +49,7 @@ describe('makeAssetDragProps', () => {
     expect(props.draggable).toBeTruthy();
     const dt = fakeDataTransfer();
     // 只喂被测用到的 dataTransfer 字段（踩坑记录 #11 的 DOM mock 收尾惯例）
-    props.onDragStart({ dataTransfer: dt } as unknown as ReactDragEvent);
+    props.onDragStart(fakeDragEvent({ dataTransfer: dt }));
     const parsed = JSON.parse(dt.getData('application/x-yimao-asset'));
     expect(parsed).toMatchObject({ url: 'http://x/y.png', name: '图', type: 'image' });
     expect(dt.effectAllowed).toBe('copy');
@@ -60,7 +60,7 @@ describe('makeAssetDragProps', () => {
     expect(props.draggable).toBeFalsy();
     const dt = fakeDataTransfer();
     // 只喂被测用到的 dataTransfer 字段（踩坑记录 #11 的 DOM mock 收尾惯例）
-    props.onDragStart({ dataTransfer: dt } as unknown as ReactDragEvent);
+    props.onDragStart(fakeDragEvent({ dataTransfer: dt }));
     expect(dt.getData('application/x-yimao-asset')).toBeFalsy();
   });
 
@@ -74,7 +74,7 @@ describe('makeAssetDragProps', () => {
     const props = makeAssetDragProps({ url: 'http://x/t.txt', name: '文', type: 'text' });
     const dt = fakeDataTransfer();
     // 只喂被测用到的 dataTransfer 字段（踩坑记录 #11 的 DOM mock 收尾惯例）
-    props.onDragStart({ dataTransfer: dt } as unknown as ReactDragEvent);
+    props.onDragStart(fakeDragEvent({ dataTransfer: dt }));
     // 初次仅有 url/name/type
     const first = JSON.parse(dt.getData('application/x-yimao-asset'));
     expect(first.text).toBeUndefined();
@@ -135,7 +135,7 @@ describe('useAssetDragToCanvas', () => {
     expect(props.draggable).toBeTruthy();
     const dt = fakeDataTransfer();
     // 只喂被测用到的 dataTransfer 字段（踩坑记录 #11 的 DOM mock 收尾惯例）
-    props.onDragStart({ dataTransfer: dt } as unknown as ReactDragEvent);
+    props.onDragStart(fakeDragEvent({ dataTransfer: dt }));
     expect(JSON.parse(dt.getData('application/x-yimao-asset')).url).toBe('http://x/y.png');
   });
 });
