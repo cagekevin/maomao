@@ -1,3 +1,4 @@
+import { must } from '../helpers/must';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { at } from '../helpers/at';
 
@@ -62,6 +63,11 @@ function mockFetchOnce({
   return fetchMock;
 }
 
+/** tool_call.function 在用例前提里一定存在；缺了直接 throw（不用 `!`）。 */
+function fnOf<T extends { function?: unknown }>(toolCall: T): NonNullable<T['function']> {
+  return must(toolCall.function, 'toolCall.function');
+}
+
 describe('agentRuntime.roundTrip —— 非流式工具开关 (§6.3)', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
@@ -71,10 +77,11 @@ describe('agentRuntime.roundTrip —— 非流式工具开关 (§6.3)', () => {
   });
 
   it('【§6.3 默认】非流式模型 + 开关=false → 请求体不含 tools/tool_choice', async () => {
-    let captured;
+    let captured: Record<string, unknown> | undefined;
     mockFetchOnce({
       assertBody: (b) => {
-        captured = b;
+        // assertBody 的入参是 unknown（mock 边界）⇒ 一次收窄落到 Record 视图，后续按索引读。
+        captured = b as Record<string, unknown>;
       },
       jsonResp: { choices: [{ message: { content: '普通对话', role: 'assistant' } }] },
     });
@@ -85,18 +92,19 @@ describe('agentRuntime.roundTrip —— 非流式工具开关 (§6.3)', () => {
       new AbortController().signal,
       ctx.onStream,
     );
-    expect(captured!.tools).toBeUndefined();
-    expect(captured!.tool_choice).toBeUndefined();
-    expect(captured!.stream).toBe(false);
+    expect(must(captured, 'captured')['tools']).toBeUndefined();
+    expect(must(captured, 'captured')['tool_choice']).toBeUndefined();
+    expect(must(captured, 'captured')['stream']).toBe(false);
     expect(r.content).toBe('普通对话');
-    expect(r.tool_calls!).toBeUndefined();
+    expect(r.tool_calls).toBeUndefined();
   });
 
   it('【§6.3 开开关】非流式模型 + 开关=true → 请求体含 tools/tool_choice，且响应 tool_calls 被回填', async () => {
-    let captured;
+    let captured: Record<string, unknown> | undefined;
     mockFetchOnce({
       assertBody: (b) => {
-        captured = b;
+        // assertBody 的入参是 unknown（mock 边界）⇒ 一次收窄落到 Record 视图，后续按索引读。
+        captured = b as Record<string, unknown>;
       },
       jsonResp: {
         choices: [
@@ -123,10 +131,10 @@ describe('agentRuntime.roundTrip —— 非流式工具开关 (§6.3)', () => {
       new AbortController().signal,
       ctx.onStream,
     );
-    expect(Array.isArray(captured!.tools)).toBe(true);
-    expect(captured!.tool_choice).toBe('auto');
-    expect(r.tool_calls!).toBeDefined();
-    expect(at(r.tool_calls!, 0).function!.name).toBe('show_plan_for_confirm');
+    expect(Array.isArray(must(captured, 'captured')['tools'])).toBe(true);
+    expect(must(captured, 'captured')['tool_choice']).toBe('auto');
+    expect(r.tool_calls).toBeDefined();
+    expect(fnOf(at(must(r.tool_calls, 'tool_calls'), 0)).name).toBe('show_plan_for_confirm');
   });
 
   it('【§6.3 开开关但无 tool_calls】非流式 + 开关=true → 响应无 tool_calls 时不回填', async () => {
@@ -141,7 +149,7 @@ describe('agentRuntime.roundTrip —— 非流式工具开关 (§6.3)', () => {
       ctx.onStream,
     );
     expect(r.content).toBe('纯文本');
-    expect(r.tool_calls!).toBeUndefined();
+    expect(r.tool_calls).toBeUndefined();
   });
 
   it('【TD-18-21】非流式响应体读取失败 → 抛错（不伪装成空回复）+ logger 留痕（文案来自生产者）', async () => {
@@ -166,7 +174,7 @@ describe('agentRuntime.roundTrip —— 非流式工具开关 (§6.3)', () => {
   });
 
   it('【§6.3 流式默认】流式模型 → 请求体含 tools（无论开关），走 SSE', async () => {
-    let captured;
+    let captured: Record<string, unknown> | undefined;
     // 流式响应：构造可读流
     const streamText = 'data: {"choices":[{"delta":{"content":"hello"}}]}\n\n';
     const fetchMock = vi.fn(async (_url, opts) => {
@@ -220,8 +228,8 @@ describe('agentRuntime.roundTrip —— 非流式工具开关 (§6.3)', () => {
       new AbortController().signal,
       ctx.onStream,
     );
-    expect(Array.isArray(captured!.tools)).toBe(true);
-    expect(captured!.stream).toBe(true);
+    expect(Array.isArray(must(captured, 'captured')['tools'])).toBe(true);
+    expect(must(captured, 'captured')['stream']).toBe(true);
     expect(r.content).toBe('hello');
   });
 
@@ -317,9 +325,11 @@ describe('agentRuntime.roundTrip —— 非流式工具开关 (§6.3)', () => {
       new AbortController().signal,
       ctx.onStream,
     );
-    expect(Array.isArray(r.tool_calls!)).toBe(true);
-    expect(at(r.tool_calls!, 0).function!.name).toBe('create_node');
-    expect(at(r.tool_calls!, 0).function!.arguments).toBe('{"nodeType":"textGenerateNode"}');
+    expect(Array.isArray(r.tool_calls)).toBe(true);
+    expect(fnOf(at(must(r.tool_calls, 'tool_calls'), 0)).name).toBe('create_node');
+    expect(fnOf(at(must(r.tool_calls, 'tool_calls'), 0)).arguments).toBe(
+      '{"nodeType":"textGenerateNode"}',
+    );
   });
 
   // ── 【TD-16-50】坏 chunk 不得伪装成功（此前静默蒸发 → 用户见空回复）──────────────

@@ -1,14 +1,13 @@
 {
   "_comment": "非空断言存量基线（唯一账本）。只允许通过 `node scripts/check-nonnull.mjs --update` 下调；禁止手改数字。",
-  "generatedAt": "2026-10-20T05:07:29.936Z",
-  "total": 243,
+  "generatedAt": "2026-10-20T05:10:46.065Z",
+  "total": 226,
   "byFile": {
     "tests/unit/agentLogic.test.ts": 7,
     "tests/unit/AgentMessage.test.tsx": 2,
     "tests/unit/agentMessages.test.ts": 3,
     "tests/unit/agentModelStore.test.ts": 4,
     "tests/unit/AgentPanel.test.tsx": 2,
-    "tests/unit/agentRuntime.test.ts": 17,
     "tests/unit/assistantTable.memory.test.ts": 3,
     "tests/unit/assistantTable.test.ts": 2,
     "tests/unit/canvasAgentTools.test.ts": 10,
