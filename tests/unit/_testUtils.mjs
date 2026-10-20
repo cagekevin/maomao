@@ -43,11 +43,14 @@ import { vi } from 'vitest';
  *  这里把首次读到的文本缓存下来，`text()` / `json()` 都基于缓存 ⇒ 一个实例可服务多次调用。
  *  注意：这只影响"桩的可复用性"，生产代码仍按单读语义使用真 Response。 */
 class ReusableJsonResponse extends Response {
+  /** @type {string | undefined} */
   #text;
+  /** @override */
   async text() {
     if (this.#text === undefined) this.#text = await super.text();
     return this.#text;
   }
+  /** @override */
   async json() {
     return JSON.parse(await this.text());
   }
