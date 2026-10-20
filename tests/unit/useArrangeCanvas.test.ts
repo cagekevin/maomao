@@ -8,6 +8,14 @@
  */
 import { describe, it, expect, vi } from 'vitest';
 import { renderHook } from '@testing-library/react';
+import { must } from '../helpers/must';
+
+/** 按 id 取节点（缺了即用例前提不成立 ⇒ throw，不拿 undefined 继续）。 */
+function requireNode<T extends { id: string }>(nodes: T[], id: string): T {
+  const node = nodes.find((n) => n.id === id);
+  if (!node) throw new Error(`缺少节点：${id}`);
+  return node;
+}
 
 const GROUP_PAD = 40; // 与 useArrangeCanvas.js 中 group 外接矩形留白保持一致
 
@@ -50,8 +58,8 @@ describe('useArrangeCanvas', () => {
 
     // 返回数量一致
     expect(res.nodes).toHaveLength(2);
-    const a = res.nodes.find((n) => n.id === 'a')!;
-    const b = res.nodes.find((n) => n.id === 'b')!;
+    const a = requireNode(res.nodes, 'a');
+    const b = requireNode(res.nodes, 'b');
     // 布局后都收到有效 position（number）
     expect(typeof a.position.x).toBe('number');
     expect(typeof a.position.y).toBe('number');
@@ -100,17 +108,17 @@ describe('useArrangeCanvas', () => {
       },
     ];
     const res = result.current.arrange({ nodes, edges: [] });
-    const g = res.nodes.find((n) => n.id === 'g')!;
-    const c = res.nodes.find((n) => n.id === 'c')!;
+    const g = requireNode(res.nodes, 'g');
+    const c = requireNode(res.nodes, 'c');
     expect(c).toBeDefined();
     expect(c.parentId).toBe('g');
     // 子节点相对父框坐标原样保留（组内摆放不动）
     expect(c.position).toEqual({ x: 10, y: 10 });
     // 父框写回测量尺寸到 style + width/height（NodeShell 读 width 优先 → 必须同写，防错位）
-    expect(g.style!.width).toBeGreaterThan(0);
-    expect(g.style!.height).toBeGreaterThan(0);
-    expect(g.width).toBe(g.style!.width);
-    expect(g.height).toBe(g.style!.height);
+    expect(must(g.style, 'style').width).toBeGreaterThan(0);
+    expect(must(g.style, 'style').height).toBeGreaterThan(0);
+    expect(g.width).toBe(must(g.style, 'style').width);
+    expect(g.height).toBe(must(g.style, 'style').height);
   });
 
   it('有编组时组当整体：子节点相对坐标原样保留，不重排组内摆放', () => {
@@ -156,9 +164,9 @@ describe('useArrangeCanvas', () => {
     ];
     const res = result.current.arrange({ nodes, edges: [] });
 
-    const g = res.nodes.find((n) => n.id === 'g')!;
-    const c1 = res.nodes.find((n) => n.id === 'c1')!;
-    const c2 = res.nodes.find((n) => n.id === 'c2')!;
+    const g = requireNode(res.nodes, 'g');
+    const c1 = requireNode(res.nodes, 'c1');
+    const c2 = requireNode(res.nodes, 'c2');
     // 编组关系保持
     expect(c1.parentId).toBe('g');
     expect(c2.parentId).toBe('g');
@@ -166,11 +174,11 @@ describe('useArrangeCanvas', () => {
     expect(c1.position).toEqual({ x: 10, y: 40 });
     expect(c2.position).toEqual({ x: 233, y: 175 });
     // 父框写回真实外接矩形尺寸（含 40 留白）：宽 = (233+120)-10 + 80 = 423
-    expect(g.style!.width).toBeCloseTo(120 + 233 - 10 + GROUP_PAD * 2, 0);
-    expect(g.style!.height).toBeGreaterThan(0);
+    expect(must(g.style, 'style').width).toBeCloseTo(120 + 233 - 10 + GROUP_PAD * 2, 0);
+    expect(must(g.style, 'style').height).toBeGreaterThan(0);
     // width/height 与 style 同步（否则 NodeShell 根 div 与 ReactFlow wrapper 尺寸错位）
-    expect(g.width).toBe(g.style!.width);
-    expect(g.height).toBe(g.style!.height);
+    expect(g.width).toBe(must(g.style, 'style').width);
+    expect(g.height).toBe(must(g.style, 'style').height);
   });
 
   it('不跳变：整理后第一个顶层节点位置与原位置一致（整体最小平移）', () => {
@@ -196,11 +204,11 @@ describe('useArrangeCanvas', () => {
     ];
     const edges = [{ id: 'e1', source: 'a', target: 'b' }];
     const res = result.current.arrange({ nodes, edges });
-    const a = res.nodes.find((n) => n.id === 'a')!;
+    const a = requireNode(res.nodes, 'a');
     // 锚点节点整理前后位置不变，画布不漂移回原点
     expect(a.position).toEqual({ x: 4321, y: 8765 });
     // 另一个节点随整体平移，仍与 a 保持合理相对关系（未放到原点附近）
-    const b = res.nodes.find((n) => n.id === 'b')!;
+    const b = requireNode(res.nodes, 'b');
     expect(b.position.x).toBeGreaterThan(4000);
   });
 
@@ -224,10 +232,14 @@ describe('useArrangeCanvas', () => {
     });
     const byId = (id: string) => wide.nodes.find((n) => n.id === id);
     // 三者在同一行（y 相等），横向按 420+180 递增
-    expect(byId('p2')!.position.y).toBe(byId('p1')!.position.y);
-    expect(byId('p3')!.position.y).toBe(byId('p1')!.position.y);
-    expect(byId('p2')!.position.x - byId('p1')!.position.x).toBe(420 + 180);
-    expect(byId('p3')!.position.x - byId('p2')!.position.x).toBe(420 + 180);
+    expect(must(byId('p2'), 'byId').position.y).toBe(must(byId('p1'), 'byId').position.y);
+    expect(must(byId('p3'), 'byId').position.y).toBe(must(byId('p1'), 'byId').position.y);
+    expect(must(byId('p2'), 'byId').position.x - must(byId('p1'), 'byId').position.x).toBe(
+      420 + 180,
+    );
+    expect(must(byId('p3'), 'byId').position.x - must(byId('p2'), 'byId').position.x).toBe(
+      420 + 180,
+    );
 
     // 极窄视窗（竖屏）→ packComponents 选 perRow=1 纵向堆叠（x 相等、y 递增）
     const narrow = result.current.arrange({
@@ -237,9 +249,9 @@ describe('useArrangeCanvas', () => {
       maxZoom: 1,
     });
     const nBy = (id: string) => narrow.nodes.find((n) => n.id === id);
-    expect(nBy('p2')!.position.x).toBe(nBy('p1')!.position.x);
-    expect(nBy('p3')!.position.x).toBe(nBy('p1')!.position.x);
-    expect(nBy('p2')!.position.y - nBy('p1')!.position.y).toBe(420 + 120);
-    expect(nBy('p3')!.position.y - nBy('p2')!.position.y).toBe(420 + 120);
+    expect(must(nBy('p2'), 'nBy').position.x).toBe(must(nBy('p1'), 'nBy').position.x);
+    expect(must(nBy('p3'), 'nBy').position.x).toBe(must(nBy('p1'), 'nBy').position.x);
+    expect(must(nBy('p2'), 'nBy').position.y - must(nBy('p1'), 'nBy').position.y).toBe(420 + 120);
+    expect(must(nBy('p3'), 'nBy').position.y - must(nBy('p2'), 'nBy').position.y).toBe(420 + 120);
   });
 });

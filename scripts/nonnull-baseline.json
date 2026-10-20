@@ -1,7 +1,7 @@
 {
   "_comment": "非空断言存量基线（唯一账本）。只允许通过 `node scripts/check-nonnull.mjs --update` 下调；禁止手改数字。",
-  "generatedAt": "2026-10-20T04:32:28.690Z",
-  "total": 578,
+  "generatedAt": "2026-10-20T04:35:48.300Z",
+  "total": 545,
   "byFile": {
     "tests/unit/addNodeConcurrency.test.tsx": 2,
     "tests/unit/agentLogic.test.ts": 19,
@@ -68,7 +68,6 @@
     "tests/unit/TextGenerate.upstream.test.tsx": 12,
     "tests/unit/tracks.test.ts": 13,
     "tests/unit/useAgentChat.hook.test.ts": 30,
-    "tests/unit/useArrangeCanvas.test.ts": 33,
     "tests/unit/useCanvasAgentTools.test.ts": 3,
     "tests/unit/useCanvasHistory.test.ts": 3,
     "tests/unit/useConnectedInputs.test.ts": 9,
