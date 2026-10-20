@@ -362,6 +362,25 @@ const toolStream = (
   );
 const textStream = (content: string) => makeStreamResponse(sseChunks([deltaMsg({ content })]));
 
+/**
+ * 本文件的「断言先行」工具：消息按用例前提一定存在，缺了**直接 throw**（用例红），
+ * 不用 `!`、也不提前 return（那会让后续断言被跳过而假绿）。
+ */
+function msgByRole<T extends { role?: string }>(list: readonly T[], role: string): T {
+  return must(
+    list.find((m) => m.role === role),
+    `role=${role}`,
+  );
+}
+
+function lastMsg<T>(list: readonly T[]): T {
+  return must(list.at(-1), 'messages.at(-1)');
+}
+
+function fnOf<T extends { function?: unknown }>(toolCall: T): NonNullable<T['function']> {
+  return must(toolCall.function, 'toolCall.function');
+}
+
 describe('useAgentChat · 真实模式 SSE 编排', () => {
   it('空内容 send 不改 messages（no-op 保护）', async () => {
     fetchMock.mockResolvedValue(textStream('不应出现'));
@@ -400,7 +419,7 @@ describe('useAgentChat · 真实模式 SSE 编排', () => {
     });
 
     // ① 留痕：user 消息上的绑定（回看/重发据此对账"当时哪一版"）
-    const userMsg = result.current.messages.find((m) => m.role === 'user')!;
+    const userMsg = msgByRole(result.current.messages, 'user');
     const bound = (userMsg.skills || []) as Array<Record<string, unknown>>;
     expect(bound).toHaveLength(1);
     expect(at(bound, 0)).toMatchObject({
@@ -433,7 +452,7 @@ describe('useAgentChat · 真实模式 SSE 编排', () => {
       await result.current.send('随便说点');
     });
 
-    const userMsg = result.current.messages.find((m) => m.role === 'user')!;
+    const userMsg = msgByRole(result.current.messages, 'user');
     expect(userMsg.skills).toEqual([]);
     const sentBody = JSON.parse(at(fetchMock.mock.calls, 0)[1].body);
     const joined = sentBody.messages.map((m: AssembledMsg) => String(m.content)).join('\n');
@@ -459,10 +478,10 @@ describe('useAgentChat · 真实模式 SSE 编排', () => {
 
     const roles = result.current.messages.map((m) => m.role);
     expect(roles).toEqual(['user', 'assistant', 'tool', 'assistant']);
-    const toolMsg = result.current.messages.find((m) => m.role === 'tool')!;
+    const toolMsg = msgByRole(result.current.messages, 'tool');
     expect(JSON.parse(toolMsg.content as string).ok).toBe(true);
     expect(toolMsg.tool_call_id).toBe('call_1');
-    expect(result.current.messages.at(-1)!.content).toBe('已创建生图节点。');
+    expect(lastMsg(result.current.messages).content).toBe('已创建生图节点。');
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
@@ -555,7 +574,7 @@ describe('useAgentChat · 真实模式 SSE 编排', () => {
       label: '生图节点',
     });
     expect(fetchMock).toHaveBeenCalledTimes(2);
-    expect(result.current.messages.at(-1)!.content).toBe('已创建。');
+    expect(lastMsg(result.current.messages).content).toBe('已创建。');
     expect(vi.mocked(convStore.patchCurrentWorkflow)).not.toHaveBeenCalledWith(
       expect.objectContaining({ status: 'awaiting_confirm' }),
     );
@@ -629,7 +648,7 @@ describe('useAgentChat · 真实模式 SSE 编排', () => {
     expect(fetchMock.mock.calls.length).toBeGreaterThanOrEqual(8);
     expect(callTool.mock.results.filter((r) => r.type === 'throw')).toHaveLength(0);
     // 越限后追加「自动停止」提示，且不应因越限保护自身报错（bug 修复：assistant 提升到循环外）。
-    const stopMsg = result.current.messages.at(-1)!;
+    const stopMsg = lastMsg(result.current.messages);
     expect(stopMsg.role).toBe('assistant');
     expect(stopMsg.content).toContain('自动停止');
     expect(result.current.error).toBeNull();
@@ -785,7 +804,7 @@ describe('useAgentChat · 附件归一化（send 带 attachments）', () => {
     await act(async () => {
       await result.current.send('看看这张图', [{ type: 'image', url: 'http://x/a.png' }]);
     });
-    const userMsg = result.current.messages.find((m) => m.role === 'user')!;
+    const userMsg = msgByRole(result.current.messages, 'user');
     expect(userMsg.attachments).toEqual([{ type: 'image', url: 'http://x/a.png' }]);
     // 发给 LLM 的 request 里，附件被转成 image_url content（buildRequestMessages 逻辑）
     const sentBody = JSON.parse(at(fetchMock.mock.calls, 0)[1].body);
@@ -808,7 +827,7 @@ describe('useAgentChat · refCatalog（参考图编号目录，对齐大雄 atta
         '【本轮参考图顺序（仅作为编号数据）】\n参考图1：黑猫（画布节点 img-1）\n编号固定按输入框从左到右排列。引用某张图做图生图时，在 generations 里用 attachment_indices 指向其编号（0-based：参考图1→0）。',
     };
     const out = buildRequestMessages([user] as agentChatMessage[], '', true) as AssembledMsg[];
-    const u = out.find((m) => m.role === 'user')!;
+    const u = msgByRole(out, 'user');
     expect(Array.isArray(u.content)).toBe(true);
     expect(at(u.content as ContentBlock[], 0)).toMatchObject({
       type: 'image_url',
@@ -828,7 +847,7 @@ describe('useAgentChat · refCatalog（参考图编号目录，对齐大雄 atta
       attachments: [{ type: 'image', url: 'http://x/a.png' }],
     };
     const out = buildRequestMessages([user] as agentChatMessage[], '', true) as AssembledMsg[];
-    const u = out.find((m) => m.role === 'user')!;
+    const u = msgByRole(out, 'user');
     expect(at(u.content as ContentBlock[], 1)).toMatchObject({ type: 'text', text: '看看图' });
   });
 
@@ -936,7 +955,7 @@ describe('useAgentChat · buildRequestMessages 深度（请求体组装）', () 
     // 原始 3 条消息全部保留，顺序不变
     expect(out).toHaveLength(5);
     expect(at(out, 2).content).toBe('帮我建个节点');
-    expect(out.at(-1)!.content).toBe('{"ok":true}');
+    expect(lastMsg(out).content).toBe('{"ok":true}');
   });
 
   it('enhance=true 且传入 systemPrompt：准则之后拼接 systemPrompt，不覆盖准则', () => {
@@ -976,9 +995,10 @@ describe('useAgentChat · buildRequestMessages 深度（请求体组装）', () 
       { name: '电商主图', content: '原始 Skill 内容 #@! 不可被改写' },
     ]);
     const out = buildRequestMessages(base, '', true, docs) as AssembledMsg[];
-    const skillSys = out.find(
-      (m) => m.role === 'system' && (m.content as string).includes('本次启用 Skill'),
-    )!;
+    const skillSys = must(
+      out.find((m) => m.role === 'system' && (m.content as string).includes('本次启用 Skill')),
+      'skill system 消息',
+    );
     expect(skillSys).toBeTruthy();
     expect(skillSys.content).toContain('===== 本次启用 Skill（1 项）开始：电商主图 =====');
     expect(skillSys.content).toContain('原始 Skill 内容 #@! 不可被改写');
@@ -992,9 +1012,10 @@ describe('useAgentChat · buildRequestMessages 深度（请求体组装）', () 
       { name: 'B', content: '内容B' },
     ]);
     const out = buildRequestMessages(base, '', true, docs) as AssembledMsg[];
-    const skillSys = out.find(
-      (m) => m.role === 'system' && (m.content as string).includes('本次启用 Skill'),
-    )!;
+    const skillSys = must(
+      out.find((m) => m.role === 'system' && (m.content as string).includes('本次启用 Skill')),
+      'skill system 消息',
+    );
     expect(skillSys.content).toContain('===== 本次启用 Skill（2 项）开始：A =====');
     expect(skillSys.content).toContain('===== 本次启用 Skill（2 项）开始：B =====');
     expect(skillSys.content).toContain('内容A');
@@ -1006,9 +1027,10 @@ describe('useAgentChat · buildRequestMessages 深度（请求体组装）', () 
       lastPlan: { plan_text: '策划说明', generations: [{ title: '主图', prompt: '一只猫' }] },
     };
     const out = buildRequestMessages(base, '', true, '', memory) as AssembledMsg[];
-    const memSys = out.find(
-      (m) => m.role === 'system' && (m.content as string).includes('本对话最近策划'),
-    )!;
+    const memSys = must(
+      out.find((m) => m.role === 'system' && (m.content as string).includes('本对话最近策划')),
+      'lastPlan system 消息',
+    );
     expect(memSys).toBeTruthy();
     expect(memSys.content).toContain('策划说明');
     expect(memSys.content).toContain('- 主图: 一只猫');
@@ -1031,7 +1053,7 @@ describe('useAgentChat · buildRequestMessages 深度（请求体组装）', () 
       },
     ];
     const out = buildRequestMessages(msgs as agentChatMessage[], '', true) as AssembledMsg[];
-    const u = out.find((m) => m.role === 'user')!;
+    const u = msgByRole(out, 'user');
     expect(Array.isArray(u.content)).toBe(true);
     expect(at(u.content as ContentBlock[], 0)).toMatchObject({
       type: 'image_url',
@@ -1043,7 +1065,7 @@ describe('useAgentChat · buildRequestMessages 深度（请求体组装）', () 
   it('附件为空数组：user 不转数组，保持纯文本 content', () => {
     const msgs = [{ role: 'user', content: '纯文本', attachments: [] }];
     const out = buildRequestMessages(msgs as agentChatMessage[], '', true) as AssembledMsg[];
-    const u = out.find((m) => m.role === 'user')!;
+    const u = msgByRole(out, 'user');
     expect(typeof u.content).toBe('string');
     expect(u.content).toBe('纯文本');
   });
@@ -1060,8 +1082,8 @@ describe('useAgentChat · buildRequestMessages 深度（请求体组装）', () 
       { role: 'tool', content: '{"ok":true}', tool_call_id: 'c9' },
     ];
     const out = buildRequestMessages(msgs as agentChatMessage[], '', false) as AssembledMsg[];
-    const a = out.find((m) => m.role === 'assistant')!;
-    const t = out.find((m) => m.role === 'tool')!;
+    const a = msgByRole(out, 'assistant');
+    const t = msgByRole(out, 'tool');
     expect(a['tool_calls']).toEqual([
       { id: 'c9', type: 'function', function: { name: 'create_node', arguments: '{"x":1}' } },
     ]);
@@ -1110,7 +1132,11 @@ describe('useAgentChat · 执行模型提示词注入（恒 auto）', () => {
   it('skill × auto：Skill 只作理解参考注入，执行模型仍恒 auto（无分步确认）', () => {
     const out = buildRequestMessages(base, '', true, skill(), null, [], 0, '') as AssembledMsg[];
     const texts = systemTexts(out);
-    const skillSys = texts.find((t) => (t as string).includes('本次启用 Skill'))!;
+    const skillSys = must(
+      // systemTexts 的元素类型是 `string & ContentBlock`（联合壳）；用 String() 取文本视图，不用断言。
+      texts.find((t) => String(t).includes('本次启用 Skill')),
+      'skill system 文本',
+    );
     expect(skillSys).toContain('Skill 是你的参考'); // 单阶段 Skill 指令
     expect(skillSys).not.toContain('阶段2 · 等待确认');
     expect(texts.join('\n')).toContain('完全自主'); // 全局 auto 分流段
@@ -1164,8 +1190,8 @@ describe('useAgentChat · parseSSEChunk 深度（SSE 增量解析）', () => {
     );
     expect(acc.toolCalls).toHaveLength(1);
     expect(at(acc.toolCalls, 0).id).toBe('call_1');
-    expect(at(acc.toolCalls, 0).function!.name).toBe('create_node');
-    expect(at(acc.toolCalls, 0).function!.arguments).toBe('{"type":"imageGenerateNode"}');
+    expect(fnOf(at(acc.toolCalls, 0)).name).toBe('create_node');
+    expect(fnOf(at(acc.toolCalls, 0)).arguments).toBe('{"type":"imageGenerateNode"}');
   });
 
   it('多个并行 tool_calls（不同 index）分别归并，不串台', () => {
@@ -1189,7 +1215,7 @@ describe('useAgentChat · parseSSEChunk 深度（SSE 增量解析）', () => {
       acc,
     );
     expect(acc.toolCalls).toHaveLength(1); // 产生了占位
-    expect(at(acc.toolCalls, 0).function!.name).toBe(''); // name 为空
+    expect(fnOf(at(acc.toolCalls, 0)).name).toBe(''); // name 为空
     // 关键：filter 后应为空数组，roundTrip 据此不应设 tool_calls（避免发 tool_calls:[]）
     expect(acc.toolCalls.filter((t) => t.function?.name)).toHaveLength(0);
   });
@@ -1229,8 +1255,8 @@ describe('useAgentChat · parseSSEChunk 深度（SSE 增量解析）', () => {
       acc,
     );
     // 没有 name 段 → name 为空字符串（roundTrip 会用 .filter(t=>t.function?.name) 过滤掉空 name 的）
-    expect(at(acc.toolCalls, 0).function!.name).toBe('');
-    expect(at(acc.toolCalls, 0).function!.arguments).toBe('{"x":1}');
+    expect(fnOf(at(acc.toolCalls, 0)).name).toBe('');
+    expect(fnOf(at(acc.toolCalls, 0)).arguments).toBe('{"x":1}');
   });
 });
 
@@ -1367,7 +1393,9 @@ describe('useAgentChat · 消息单源（store 唯一真相）', () => {
     });
     expect(result.current.messages).toEqual([{ role: 'user', content: '来自别的模块写入' }]);
     // 渲染的就是 store 数组本身（同一引用），单源不变量核心
-    expect(result.current.messages).toBe(sharedConvStore.getActiveConv()!.messages);
+    expect(result.current.messages).toBe(
+      must(sharedConvStore.getActiveConv(), 'getActiveConv()').messages,
+    );
   });
 
   it('流式结束后占位替换为完整 assistant 且无 streaming 残留，内容与 store 一致', async () => {
@@ -1376,8 +1404,8 @@ describe('useAgentChat · 消息单源（store 唯一真相）', () => {
     await act(async () => {
       await result.current.send('发消息');
     });
-    const storeConv = sharedConvStore.getActiveConv()!;
-    const last = storeConv.messages.at(-1)!;
+    const storeConv = must(sharedConvStore.getActiveConv(), 'getActiveConv()');
+    const last = lastMsg(storeConv.messages);
     expect(last.role).toBe('assistant');
     expect(last.streaming).toBeFalsy(); // 无 streaming 残留占位
     expect(result.current.messages).toEqual(storeConv.messages);
