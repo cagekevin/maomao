@@ -1145,7 +1145,9 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
       } else if (mode === 'concat') {
         const blobs = [];
         for (const [i, clip] of clips.entries()) {
-          const blob = await httpRequest(clip.url!, {
+          // 片段地址是下载的必要条件；缺了无法继续（不拿空串去请求，也不静默跳过导致成片少段）。
+          if (!clip.url) throw new Error(`第 ${i + 1} 个片段缺少视频地址，无法拼接`);
+          const blob = await httpRequest(clip.url, {
             parseJson: false,
             retries: 0,
             timeoutMs: VIDEO_DOWNLOAD_TIMEOUT,
@@ -1188,9 +1190,11 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
           onProgress: (p: number) => updateNodeRuntime(id, { progress: Math.round(p * 100) }),
         };
         let opts: ProcessVideoOptions;
-        if (mode === 'trim')
-          opts = { mode, start: clip!.sourceStart, end: clip!.sourceEnd, ...baseOpts };
-        else if (mode === 'extractAudio') opts = { mode, format: audioFormat, ...baseOpts };
+        if (mode === 'trim') {
+          // 裁剪必须拿到首个片段（外层预检已保证 clips 非空）；缺了即数据不成立，fail-loud。
+          if (!clip) throw new Error('裁剪缺少片段数据');
+          opts = { mode, start: clip.sourceStart, end: clip.sourceEnd, ...baseOpts };
+        } else if (mode === 'extractAudio') opts = { mode, format: audioFormat, ...baseOpts };
         else if (mode === 'sizeFrameRate')
           opts = {
             mode,
@@ -1372,8 +1376,10 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
         if (selectedClipId !== clip.id) {
           setSelectedClipId(clip.id);
           const srcT = sourceTimeAt(t, clip);
-          if (videoRef.current.src !== clip.url) {
-            videoRef.current.src = clip.url!;
+          const clipUrl = clip.url;
+          // 无地址的片段不切换播放源（预检阶段已挡住无地址片段，这里是渲染兜底）。
+          if (clipUrl && videoRef.current && videoRef.current.src !== clipUrl) {
+            videoRef.current.src = clipUrl;
             const setTime = () => {
               if (videoRef.current) {
                 videoRef.current.currentTime = srcT;

@@ -84,7 +84,8 @@ interface RunToolLog {
 export interface RoundTripCtx {
   model: string;
   toolSchemas: Array<{ function?: { name?: string } | null } | null | undefined>;
-  provider: GenerationProvider;
+  // 【可缺省】未配供应商时仍可发（统一生成入口由后端取默认配置）；内部一律 `provider?.x` 读。
+  provider: GenerationProvider | null | undefined;
   logger: AgentLogger;
   loadAgentChatModel: () => { streamMode?: string } | null | undefined;
   parseAgentError: (res: Response, fallback?: string) => Promise<string>;

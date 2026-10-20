@@ -359,10 +359,14 @@ export function parseSSEChunk(line: string, acc: SSEAccumulator): SSEChunkOutcom
         type: 'function',
         function: { name: '', arguments: '' },
       };
-      const call = acc.toolCalls[idx]!;
+      const call = acc.toolCalls[idx];
+      // 上一行 `||=` 刚建好；取不到说明累加器被外部改坏 ⇒ 跳过该 delta（不崩整条流）。
+      if (!call) continue;
       if (tc.id) call.id = tc.id;
-      if (tc.function?.name) call.function!.name += tc.function.name;
-      if (tc.function?.arguments) call.function!.arguments += tc.function.arguments;
+      // `function` 在 OpenAI 类型里可选；本处已保证有（建时写入 / 缺则补空壳）。
+      call.function ??= { name: '', arguments: '' };
+      if (tc.function?.name) call.function.name += tc.function.name;
+      if (tc.function?.arguments) call.function.arguments += tc.function.arguments;
     }
   }
   return { kind: 'consumed' };

@@ -30,6 +30,19 @@ import {
   AGENT_MSG_MAX,
 } from './conversationState.ts';
 import type { Conversation } from './conversationState.ts';
+
+/**
+ * 归一化「本模块自己构造的对话对象」。
+ *
+ * `normalizeConversation(raw: unknown)` 只对**非对象**返回 null；本文件的入参都是对象字面量，
+ * 返回 null 只可能是内部逻辑被改坏 ⇒ 原写法 `normalizeConversation({...})!` 掩盖了这一点。
+ * 这里 fail-loud：真出问题时立刻暴露，而不是把 null 当 Conversation 传下去。
+ */
+function normalizedConversation(input: Record<string, unknown>): Conversation {
+  const conv = normalizeConversation(input);
+  if (!conv) throw new Error('新建对话归一化失败：输入不是对象（内部逻辑被改坏）');
+  return conv;
+}
 import { getCurrentSnapshot, normalizeSkillIds } from './conversationSnapshot.ts';
 import type { ConversationSnapshot } from './conversationSnapshot.ts';
 import { logger } from '@/components/base/core/log/logger';
@@ -90,13 +103,13 @@ export function ensureActiveConversation(): string {
     materializeAssistantTabs(); // SSOT-7：切到既有会话即固化表格 id，防跨侧读造两套 id
     return first.id;
   }
-  const conv = normalizeConversation({
+  const conv = normalizedConversation({
     id: agentUid('ac'),
     title: '对话',
     messages: [],
     skills: [],
     draft: '',
-  })!;
+  });
   commit({ conversations: [conv], activeId: conv.id });
   materializeAssistantTabs(); // SSOT-7：新会话即落空表基线，杜绝「读时才造 id」
   return conv.id;
@@ -117,13 +130,13 @@ export function applyConversation(id: string): ConversationSnapshot {
     conv = active;
   }
   if (!conv) {
-    conv = normalizeConversation({
+    conv = normalizedConversation({
       id: agentUid('ac'),
       title: '对话',
       messages: [],
       skills: [],
       draft: '',
-    })!;
+    });
     commit({ conversations: [conv], activeId: conv.id });
   }
   markHydrated(); // 已从存储恢复，此后允许落盘
@@ -135,13 +148,13 @@ export function applyConversation(id: string): ConversationSnapshot {
 /** 新建对话：把当前对话先落盘，再建空对话并设为当前，返回新对话 id 与快照 */
 export function newConversation(): { id: string; snapshot: ConversationSnapshot } {
   const st = getState();
-  const conv = normalizeConversation({
+  const conv = normalizedConversation({
     id: agentUid('ac'),
     title: '新对话',
     messages: [],
     skills: [],
     draft: '',
-  })!;
+  });
   commit({ conversations: [conv, ...st.conversations], activeId: conv.id });
   materializeAssistantTabs(); // SSOT-7：新对话即落空表基线，杜绝「读时才造 id」
   return { id: conv.id, snapshot: getCurrentSnapshot() };
@@ -166,13 +179,13 @@ export function deleteConversation(id: string): {
     materializeAssistantTabs(); // SSOT-7：删后切到剩余会话，同样要固化表格 id
     return { activeId: next.id, snapshot: getCurrentSnapshot() };
   }
-  const conv = normalizeConversation({
+  const conv = normalizedConversation({
     id: agentUid('ac'),
     title: '新对话',
     messages: [],
     skills: [],
     draft: '',
-  })!;
+  });
   commit({ conversations: [conv], activeId: conv.id });
   materializeAssistantTabs(); // SSOT-7：删空后新建的会话，新建必未落盘
   return { activeId: conv.id, snapshot: getCurrentSnapshot() };
@@ -208,7 +221,7 @@ export function importLegacy({
   if (getState().conversations.length > 0) return null; // 已有对话，不迁移
   const msgs = messages as Record<string, unknown>[];
   const firstUser = msgs.find((m) => m['role'] === 'user' && m['content']);
-  const conv = normalizeConversation({
+  const conv = normalizedConversation({
     id: agentUid('ac'),
     title: firstUser?.['content'] ? String(firstUser['content']).slice(0, 30) : '对话',
     messages: msgs.slice(-AGENT_MSG_MAX),
@@ -219,7 +232,7 @@ export function importLegacy({
     workflow: null,
     pending: null,
     memory: emptyMemory(),
-  })!;
+  });
   markHydrated();
   commit({ conversations: [conv], activeId: conv.id });
   materializeAssistantTabs(); // SSOT-7：旧数据迁移新建的会话，新建必未落盘

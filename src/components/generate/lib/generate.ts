@@ -301,7 +301,9 @@ export function chatCompletions(opts: ChatCompletionsOptions): Promise<GenerateR
  *  - 中止（signal.aborted）原样上抛，不做错误归一，避免把取消误判成失败。
  */
 export async function chatStream(opts: {
-  provider: GenerationProvider;
+  // 【可缺省】未配供应商时走统一入口、`providerId` 由后端/默认兜底（本函数内部已 `provider?.id || 'lovart'`）；
+  // 声明处认下 undefined，避免调用方用 `provider!` 硬过。
+  provider: GenerationProvider | null | undefined;
   model: string;
   messages: relayChatMessage[];
   tools?: unknown[] | undefined;

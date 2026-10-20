@@ -531,11 +531,13 @@ export function useAgentChat({
       signal: AbortSignal,
       onStream?: (delta: StreamDelta) => void,
     ) => {
+      // provider 是可选的（未配供应商时走统一生成入口、由后端取默认）；`RoundTripCtx` 已按可选声明，
+      // 内部日志也是 `provider?.id || ''` —— 故这里直传，不做「必须有供应商」的强断言。
       return agentRuntimeRoundTrip(
         {
           model,
           toolSchemas,
-          provider: provider!,
+          provider,
           logger,
           loadAgentChatModel,
           parseAgentError,
@@ -591,7 +593,9 @@ export function useAgentChat({
     lastSummaryCompressTsRef.current = now;
     const prevSummary = getCurrentMemory()?.summary || '';
     const conversationId = getActiveConversationId();
-    compressToSummary({ provider: provider!, model, messages, previousSummary: prevSummary })
+    // 无供应商时请求根本发不出去，压缩没有意义（不是「静默失败」，是前置条件不成立）。
+    if (!provider) return;
+    compressToSummary({ provider, model, messages, previousSummary: prevSummary })
       .then((summary) => {
         if (!summary) return;
         // 只写回本对话（防竞态：若用户已切走对话则不覆盖别人的 summary）
@@ -783,18 +787,21 @@ export function useAgentChat({
           if (action === 'force' && !forcedCompressed) {
             forcedCompressed = true;
             logger.info('AI助手', '[预算] 触发强制压缩', { round });
-            const summary = await compressToSummary({
-              provider: provider!,
-              model,
-              messages: getCurrentSnapshot().messages as Parameters<
-                typeof compressToSummary
-              >[0]['messages'],
-              previousSummary: getCurrentMemory()?.summary || '',
-            });
-            if (summary) {
-              setCurrentMemory({ ...getCurrentMemory(), summary });
-              lastSummaryCompressTsRef.current = Date.now(); // 刚压缩过，压制收尾节流的重复压缩
-              contextMessages = makeContextMessages(); // 用新摘要重新组装（更小）
+            // 无供应商时发送会在下面 fail-loud，这里跳过压缩（属前置条件不成立，不是失败）。
+            if (provider) {
+              const summary = await compressToSummary({
+                provider,
+                model,
+                messages: getCurrentSnapshot().messages as Parameters<
+                  typeof compressToSummary
+                >[0]['messages'],
+                previousSummary: getCurrentMemory()?.summary || '',
+              });
+              if (summary) {
+                setCurrentMemory({ ...getCurrentMemory(), summary });
+                lastSummaryCompressTsRef.current = Date.now(); // 刚压缩过，压制收尾节流的重复压缩
+                contextMessages = makeContextMessages(); // 用新摘要重新组装（更小）
+              }
             }
           } else if (action === 'precompress' && !forcedCompressed) {
             logger.debug('AI助手', '[预算] 触发后台预压缩', { round }, { module: 'agent' });
@@ -843,7 +850,11 @@ export function useAgentChat({
 
           // 执行工具并回填结果（TASK-006 #1：await 异步工具，确保回填真实结果而非 Promise）。
           // 返回 creditHeld：本轮是否「execute_plan 命中积分闸」（awaited:'credit'）。
-          const { creditHeld } = await runToolCalls(assistant.tool_calls, (tc) => tc.id!);
+          // 工具调用 id 是协议必填字段（结果按 id 回填）；缺失说明上游违约 ⇒ fail-loud，不拿空串错配。
+          const { creditHeld } = await runToolCalls(assistant.tool_calls, (tc) => {
+            if (!tc.id) throw new Error('工具调用缺少 id（上游协议违约）');
+            return tc.id;
+          });
 
           // 门禁停循环（仅两类「本轮真走到待确认临界点」才停）——
           //   ① 分步确认（show_plan_for_confirm）→ awaitingConfirm=true。

@@ -246,8 +246,9 @@ export default function ImageEditor({
         const bmp = await createImageBitmap(cvs);
         drawSnapshotsRef.current.push(bmp);
         if (drawSnapshotsRef.current.length > 10) {
-          const dropped = drawSnapshotsRef.current.shift()!;
-          releaseQuietly(() => dropped.close?.());
+          // 上面刚 push 且长度 > 10 ⇒ shift 必有值；取不到说明并发改动了队列，跳过释放。
+          const dropped = drawSnapshotsRef.current.shift();
+          if (dropped) releaseQuietly(() => dropped.close?.());
         }
         setUndoSteps(drawSnapshotsRef.current.length);
       } catch (e) {
@@ -567,7 +568,8 @@ export default function ImageEditor({
       queueSnapshot();
       const d = drawCvsRef.current;
       const ctx = d?.getContext('2d');
-      if (ctx) {
+      // 画布与上下文都要有（`ctx` 来自 `d?.` ⇒ 不能只判 ctx）。
+      if (d && ctx) {
         if (tool === 'pencil') {
           ctx.beginPath();
           ctx.moveTo(x, y);
@@ -580,7 +582,7 @@ export default function ImageEditor({
           ctx.beginPath();
           ctx.arc(x, y, lineWidth * 3, 0, Math.PI * 2);
           ctx.clip();
-          ctx.clearRect(0, 0, d!.width, d!.height);
+          ctx.clearRect(0, 0, d.width, d.height);
           ctx.restore();
         }
       }

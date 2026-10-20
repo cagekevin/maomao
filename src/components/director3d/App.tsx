@@ -1225,7 +1225,11 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }: Dir
   // 镜头缩略图唯一入口：从监视器画面截取。监视器小窗默认关闭时无画面可截（缩略图保持原样），
   // 打开监视器后即可正常更新。绘制逻辑收敛到 thumbnails.js（纯函数），此处仅以 ref 注入命令式取数，
   // 解耦跨组件取画布边界。刻意不为此创建额外 WebGL 上下文——避免每次镜头操作挂载/销毁画布导致黑屏。
-  const thumbnailFromMonitor = () => thumbnailFromCanvas(monitorCanvasRef.current!);
+  const thumbnailFromMonitor = (): string => {
+    const canvas = monitorCanvasRef.current;
+    // 监视器小窗关着时没有画布 ⇒ 无画面可截，返回空串（调用方统一走 `thumbnail || 原缩略图`）。
+    return canvas ? thumbnailFromCanvas(canvas) : '';
+  };
 
   const liveShotRecord = (shot: DirectorShot, thumbnail = shot?.thumbnail || '') => ({
     ...shot,
@@ -1518,14 +1522,11 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }: Dir
         delete next[id];
         return next;
       }
+      const target = objects.find((object) => object.id === id);
+      // 对象已不存在 ⇒ 没有可取的帧状态，落回 drafts（下一行 `source ? … : drafts` 已按缺省处理）。
       const source =
         drafts[id] ||
-        objectAtFrame(
-          objects.find((object) => object.id === id)!,
-          characterKeyframes[id],
-          currentFrame,
-          fps,
-        );
+        (target ? objectAtFrame(target, characterKeyframes[id], currentFrame, fps) : null);
       return source ? { ...drafts, [id]: { ...source, ...patch } } : drafts;
     });
     setObjects((list) =>
@@ -1731,7 +1732,9 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }: Dir
     // 通道结构下逐通道整体平移该帧，保证各通道同帧一致（tracks.js）
     if (kind === 'camera')
       setKeyframes((channels) => moveCameraFrame(channels, fromFrame, toFrame));
-    else setCharacterKeyframes((tracks) => moveObjectFrame(tracks, trackId!, fromFrame, toFrame));
+    // trackId 只在对象轨道上有（camera 轨道走上面的分支）；缺失即调用方给错了 kind，不做事。
+    else if (trackId)
+      setCharacterKeyframes((tracks) => moveObjectFrame(tracks, trackId, fromFrame, toFrame));
     setSelectedKeyframe({ kind, trackId, frame: toFrame });
     seekToFrame(toFrame);
     setToast(`关键帧已移动到第 ${toFrame} 帧`);
@@ -1779,10 +1782,9 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }: Dir
     const normalized = normalizeInterpolation(value);
     if (kind === 'camera')
       setKeyframes((channels) => setCameraInterpolation(channels, frame, normalized));
-    else
-      setCharacterKeyframes((tracks) =>
-        setObjectInterpolation(tracks, trackId!, frame, normalized),
-      );
+    // 同上：trackId 仅对象轨道有；缺失即调用方给错了 kind。
+    else if (trackId)
+      setCharacterKeyframes((tracks) => setObjectInterpolation(tracks, trackId, frame, normalized));
   };
   const copySelectedKeyframe = () => {
     if (!selectedKeyframeInfo) return;
