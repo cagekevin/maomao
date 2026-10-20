@@ -15,6 +15,7 @@
  *  - toast/contentSet/downloadUrl/clipboard/previewUrl 用 hoisted mock 断言副作用。
  *  - 抽帧流程通过 spy document.createElement 注入 fake video/canvas。
  */
+import { must } from '../helpers/must';
 import 'react';
 import { at } from '../helpers/at';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -377,7 +378,9 @@ describe('VideoExtractNode — 结果落盘 node.data（刷新不丢）', () => 
     const finalCall = calls.find((c) => c.extractedImages?.length === 9);
     expect(finalCall).toBeTruthy();
     expect(
-      finalCall!.extractedImages!.every((f: string) => f === 'data:image/jpeg;base64,frame'),
+      must(finalCall, 'finalCall').extractedImages!.every(
+        (f: string) => f === 'data:image/jpeg;base64,frame',
+      ),
     ).toBe(true);
   });
 

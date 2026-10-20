@@ -9,6 +9,7 @@
  * 运行：vitest run tests/unit/scriptBoxEngine.test.js
  */
 
+import { must } from '../helpers/must';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { at } from '../helpers/at';
 
@@ -368,8 +369,8 @@ describe('scriptBoxEngine · 引擎编排', () => {
     expect(call.images).toEqual(['http://127.0.0.1:18080/files/p.png', '/files/q.png']);
     // 上游文本并入剧情
     const userMsg = call.messages.find((m) => m.role === 'user');
-    expect(userMsg!.content).toContain('为产品拍一支广告');
-    expect(userMsg!.content).toContain('产品是一款无线耳机');
+    expect(must(userMsg, 'userMsg').content).toContain('为产品拍一支广告');
+    expect(must(userMsg, 'userMsg').content).toContain('产品是一款无线耳机');
     // story 只写回用户手填部分，上游文本留在 upstreamStory（只读素材区展示，避免重复）
     expect(store.story).toBe('为产品拍一支广告');
     expect(store.upstreamStory).toBe('产品是一款无线耳机');

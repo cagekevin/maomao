@@ -3,6 +3,7 @@
  * useNodeRename 单测（收口：8 处逐字重复的「标题改名 → 写回 data.label」）。
  * 用 vi.mock 隔离 @xyflow/react（仅取 useReactFlow().setNodes），不依赖真实 ReactFlowProvider。
  */
+import { must } from '../helpers/must';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 
@@ -30,7 +31,7 @@ describe('useNodeRename — 写回 data.label', () => {
     act(() => result.current('新名'));
     expect(typeof updater).toBe('function');
 
-    const next = updater!(ns) as typeof ns;
+    const next = must(updater, 'updater')(ns) as typeof ns;
     expect(next).not.toBe(ns);
     expect(next[0]).toEqual({ id: 'n1', data: { label: '新名', prompt: 'p' } });
     expect(next[1]).toBe(ns[1]); // 其它节点元素引用不动
@@ -45,7 +46,7 @@ describe('useNodeRename — 写回 data.label', () => {
     const { result } = renderHook(() => useNodeRename('missing'));
 
     act(() => result.current('新名'));
-    const next = updater!(ns) as typeof ns;
+    const next = must(updater, 'updater')(ns) as typeof ns;
     expect(next).toEqual(ns);
     expect(next[0]).toBe(ns[0]);
   });

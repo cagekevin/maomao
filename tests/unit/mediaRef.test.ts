@@ -6,6 +6,7 @@
  *   - providers：canvas 映射（复用 getNodeMedia + 过滤无媒体）/ library 映射（复用它 detectAssetType）
  *   - canvasNodesBridge：写/读快照 / **源码级：不 import 存储**
  */
+import { must } from '../helpers/must';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { at } from '../helpers/at';
 import type { Node } from '@xyflow/react';
@@ -119,7 +120,7 @@ describe('generatedSource：分类 = 可引用媒体域（TD-02-49）', () => {
       await import('../../src/components/base/media/providers/generatedSource');
     const { MEDIA_REF_TYPES } = await import('../../src/components/base/media/mediaRefTypes');
     const { ASSET_TYPE_META } = await import('../../src/types/asset');
-    const cats = generatedSourceProvider.categories!();
+    const cats = must(generatedSourceProvider.categories, 'categories')();
     // 【为什么锁这条】原先本清单是**手抄**的 ['image','video','audio']，与 GeneratedView 的面板筛选
     // （text）早漂移却互称"同口径"。现派生自唯一真源（资产类型目录的 mediaRef 标记）⇒ 新增类型自动跟上。
     expect(cats.map((c) => c.key)).toEqual(['all', ...MEDIA_REF_TYPES]);

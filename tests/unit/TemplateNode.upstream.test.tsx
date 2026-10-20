@@ -3,6 +3,7 @@
  * 覆盖：上游文本/图片节点连线后文字与图片合并进生图请求；
  * 多上游节点合并；上游有文本但本地 prompt 为空时校验通过。
  */
+import { must } from '../helpers/must';
 import 'react';
 import { at } from '../helpers/at';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -181,7 +182,7 @@ describe('TemplateNode 上游文本/图片合并（修复点）', () => {
   it('上游有文本但本地 prompt 为空时，校验通过', async () => {
     connectedInputs = { images: [], texts: [{ id: 't1', text: '电商主图', sourceNodeId: 's1' }] };
     setup({ prompt: '' });
-    expect(genConfig!.validate()).toBe('');
+    expect(must(genConfig, 'genConfig').validate()).toBe('');
     fireEvent.click(screen.getByText('生成'));
     await waitFor(() => expect(mockGenerateImage).toHaveBeenCalled());
     expect(
@@ -231,6 +232,6 @@ describe('TemplateNode 上游文本/图片合并（修复点）', () => {
   it('本地与上游皆为空时，提示请输入提示词', () => {
     connectedInputs = { images: [], texts: [] };
     setup({ prompt: '' });
-    expect(genConfig!.validate()).toBe('请输入提示词');
+    expect(must(genConfig, 'genConfig').validate()).toBe('请输入提示词');
   });
 });

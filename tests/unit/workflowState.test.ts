@@ -9,6 +9,7 @@
  *   - wfNextSteer：队列出队（FIFO），有下一条 → planning 续跑，无 → 维持终态
  * 策略：mock conversationStore.getCurrentWorkflow；patch 为纯返回值，不落盘。
  */
+import { must } from '../helpers/must';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { at } from '../helpers/at';
 
@@ -119,7 +120,7 @@ describe('wfNextSteer — 队列出队', () => {
       updatedAt: 0,
     });
     const { next, patch } = wfNextSteer('completed');
-    expect(next!.text).toBe('续');
+    expect(must(next, 'next').text).toBe('续');
     expect(patch.steerQueue).toHaveLength(1);
     expect(at(patch.steerQueue, 0).text).toBe('再');
     expect(patch.status).toBe('planning');

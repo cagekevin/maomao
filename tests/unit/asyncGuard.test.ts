@@ -1,3 +1,4 @@
+import { must } from '../helpers/must';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   withTimeout,
@@ -104,7 +105,7 @@ describe('asyncGuard.loadImageWithTimeout（统一图片加载入口）', () => 
     } = { src: '', crossOrigin: '', onload: null, onerror: null };
     global.Image = vi.fn(() => img) as unknown as typeof Image;
     const p = loadImageWithTimeout('http://x/a.png');
-    img.onload!();
+    must(img.onload, 'onload')();
     expect(await p).toBe(img);
   });
 
@@ -117,7 +118,7 @@ describe('asyncGuard.loadImageWithTimeout（统一图片加载入口）', () => 
     } = { src: '', crossOrigin: '', onload: null, onerror: null };
     global.Image = vi.fn(() => img) as unknown as typeof Image;
     const p = loadImageWithTimeout('http://x/a.png');
-    img.onerror!();
+    must(img.onerror, 'onerror')();
     await expect(p).rejects.toThrow('图片加载失败');
   });
 

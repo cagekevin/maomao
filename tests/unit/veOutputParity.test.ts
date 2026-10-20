@@ -20,6 +20,7 @@
  * 【为什么用 video 元素而不是 image】`ImageNode` 构造即 `new Image()`（DOM），
  * node 环境下会抛未处理的 rejection；`VideoNode` 构造是同步的（取帧在 render 期）。
  */
+import { must } from '../helpers/must';
 import { describe, expect, it } from 'vitest';
 import { at } from '../helpers/at';
 import type { MediaAsset } from '../../src/components/videoEditor/types/mediaAssets';
@@ -584,9 +585,9 @@ describe('导出选中片段：显式选中优先于 hidden（不得出「全黑
     expect(clip).not.toBeNull();
 
     const scene = buildScene({
-      tracks: clip!.tracks,
+      tracks: must(clip, 'clip').tracks,
       mediaAssets: VIDEO_ASSETS,
-      duration: clip!.duration,
+      duration: must(clip, 'clip').duration,
       settings: SETTINGS,
     });
 

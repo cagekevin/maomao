@@ -3,6 +3,7 @@
  * 覆盖：预设加载/种子数据、全量保存、新建模板、最近使用、卡片映射/搜索/分类。
  * 严格基于 src/components/base/promptManager.js 真实导出编写。
  */
+import { must } from '../helpers/must';
 import { beforeEach, afterEach, describe, it, expect, vi } from 'vitest';
 import { at } from '../helpers/at';
 import {
@@ -69,7 +70,7 @@ describe('loadPresets / savePresets', () => {
     const list = pm.loadPresets();
     expect(at(list, 0).id).toBeTruthy();
     const reread = readStored(STORAGE_KEY);
-    expect(reread![0].id).toBeTruthy();
+    expect(must(reread, 'reread')[0].id).toBeTruthy();
   });
 });
 

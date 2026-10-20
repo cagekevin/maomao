@@ -11,6 +11,7 @@
  * 不变量：同一 tick 的 N 次 addNode 必须产出 N 个节点；任一处回退到旧写法（不就地同步 ref）
  * 即爆红。
  */
+import { must } from '../helpers/must';
 import { describe, it, expect } from 'vitest';
 import { useRef, useEffect, useState } from 'react';
 import { render, act } from '@testing-library/react';
@@ -79,7 +80,7 @@ describe('addNode 同一 tick 批量调用并发安全', () => {
       />,
     );
     act(() => {
-      for (let i = 0; i < 5; i++) holder.addNode!();
+      for (let i = 0; i < 5; i++) must(holder.addNode, 'addNode')();
     });
     expect(latestCount).toBe(6);
   });
@@ -98,7 +99,7 @@ describe('addNode 同一 tick 批量调用并发安全', () => {
       />,
     );
     act(() => {
-      for (let i = 0; i < 5; i++) holder.addNode!();
+      for (let i = 0; i < 5; i++) must(holder.addNode, 'addNode')();
     });
     expect(latestCount).toBeLessThan(6);
   });

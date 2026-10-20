@@ -8,6 +8,7 @@
  *   - buildCanvasAgentTools(ctx)：返回工具 Map；写工具异常被包成 {ok:false,error} 不冒泡；
  *     读工具（read_canvas/list_nodes）透传 ctx；create_node 调用 ctx.addNodes 并返回新 id
  */
+import { must } from '../helpers/must';
 import { describe, it, expect, vi } from 'vitest';
 import { at } from '../helpers/at';
 import { toolOf } from '../helpers/agentTools';
@@ -168,8 +169,10 @@ describe('buildCanvasAgentTools', () => {
     ) => Record<string, unknown>[];
     const result = applyFn([{ id: 'existing', data: {} }]);
     const created = result.find((n) => n['id'] === res.data['id']);
-    expect((created!['data'] as Record<string, unknown>)['text']).toBe('AI 回复内容');
-    expect((created!['data'] as Record<string, unknown>)['prompt']).toBeUndefined();
+    expect((must(created, 'created')['data'] as Record<string, unknown>)['text']).toBe(
+      'AI 回复内容',
+    );
+    expect((must(created, 'created')['data'] as Record<string, unknown>)['prompt']).toBeUndefined();
   });
 
   it('create_node 对 textGenerateNode 仅传 prompt → 内容落抽屉区 data.prompt（AI 既有行为不变）', () => {
@@ -188,7 +191,9 @@ describe('buildCanvasAgentTools', () => {
     ) => Record<string, unknown>[];
     const result = applyFn([{ id: 'existing', data: {} }]);
     const created = result.find((n) => n['id'] === res.data['id']);
-    expect((created!['data'] as Record<string, unknown>)['prompt']).toBe('抽屉提示词');
+    expect((must(created, 'created')['data'] as Record<string, unknown>)['prompt']).toBe(
+      '抽屉提示词',
+    );
   });
 
   it('create_node 用非法 type → ok:false 且给出可选类型', () => {
