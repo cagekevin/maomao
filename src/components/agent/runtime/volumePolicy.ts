@@ -80,7 +80,10 @@ const BUDGET_MAX_ITER: number = 8;
 /** 超预算后逐层剥离的可丢弃字段名（按代价从低到高，先丢无用户语义的瞬时数据） */
 
 /** 截断字符串到 max 字符，超长补省略标记（保留语义可读性；纯函数） */
-export function truncateTo(str: string, max: number): string {
+export function truncateTo(str: string, max: number): string;
+export function truncateTo(str: null, max: number): null;
+export function truncateTo(str: undefined, max: number): undefined;
+export function truncateTo(str: string | null | undefined, max: number): string | null | undefined {
   if (typeof str !== 'string' || str.length <= max) return str;
   const head = Math.max(0, max - '…[已截断]'.length);
   return str.slice(0, head) + '…[已截断]';

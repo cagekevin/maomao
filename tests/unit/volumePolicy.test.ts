@@ -37,8 +37,8 @@ describe('volumePolicy · truncateTo', () => {
     expect(truncateTo('abc', 10)).toBe('abc');
   });
   it('非字符串原样返回', () => {
-    expect(truncateTo(undefined as unknown as string, 10)).toBe(undefined);
-    expect(truncateTo(null as unknown as string, 10)).toBe(null);
+    expect(truncateTo(undefined, 10)).toBe(undefined);
+    expect(truncateTo(null, 10)).toBe(null);
   });
   it('超长补省略标记', () => {
     const out = truncateTo('x'.repeat(100), 10);

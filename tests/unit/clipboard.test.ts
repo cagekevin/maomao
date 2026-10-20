@@ -38,8 +38,8 @@ const BOM = '﻿'; // BOM
 describe('clipboard — sanitizePastedText（纯函数）', () => {
   it('空值/假值返回空串', () => {
     expect(sanitizePastedText('')).toBe('');
-    expect(sanitizePastedText(null as unknown as string)).toBe('');
-    expect(sanitizePastedText(undefined as unknown as string)).toBe('');
+    expect(sanitizePastedText(null)).toBe('');
+    expect(sanitizePastedText(undefined)).toBe('');
   });
 
   it('去除零宽/不可见字符（BOM/零宽空格/LRM/RLM/软连字符）', () => {

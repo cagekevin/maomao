@@ -102,7 +102,7 @@ describe('taskStore P1-E 单节点互斥锁（claimNodeRun/releaseNodeRun）', (
   });
 
   it('无 nodeId 不锁（视为可占）', () => {
-    expect(claimNodeRun(undefined as unknown as string)).toEqual({ ok: true });
+    expect(claimNodeRun(undefined)).toEqual({ ok: true });
     expect(claimNodeRun('')).toEqual({ ok: true });
   });
 });

@@ -36,7 +36,7 @@ type ClipResult = { ok: boolean; msg: string };
  * @param {string} raw 原始文本
  * @returns {string} 清洗后的纯文本
  */
-export function sanitizePastedText(raw: string): string {
+export function sanitizePastedText(raw: unknown): string {
   if (!raw) return '';
   return (
     String(raw)

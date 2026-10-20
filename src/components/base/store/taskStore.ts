@@ -612,7 +612,7 @@ export interface NodeRunClaim {
   inFlight?: boolean;
 }
 /** 占单节点互斥锁。返回 { ok:true } 取得；或 { ok:false, inFlight:true } 同节点生成中。 */
-export function claimNodeRun(nodeId: string): NodeRunClaim {
+export function claimNodeRun(nodeId: string | null | undefined): NodeRunClaim {
   if (!nodeId) return { ok: true };
   if (nodeRunning.has(nodeId)) return { ok: false, inFlight: true };
   nodeRunning.set(nodeId, true);
