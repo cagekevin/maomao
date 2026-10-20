@@ -98,9 +98,17 @@ function SceneObject({
   const appliedGroundRequest = useRef<string | null>(null);
   const { controls: orbitControls } = useThreeTyped();
   const invalidate = useThree((state) => state.invalidate);
-  const scaleAxisLocks = Array.isArray(data['scaleAxisLocks'])
-    ? data['scaleAxisLocks']
-    : [false, false, false];
+  // node.data 的派生值统一提为局部常量：依赖数组里不再出现 `data['xxx']` 这类复杂表达式
+  // （react-hooks/exhaustive-deps 无法静态校验），回调体内也不再各自重复索引访问。
+  const objectId = data.id;
+  const objectLocked = Boolean(data['locked']);
+  const proportionalScale = Boolean(data['proportionalScale']);
+  const rawScaleAxisLocks = data['scaleAxisLocks'];
+  // 缺省时给的是新数组 ⇒ 用 useMemo 固定引用，否则每次渲染都会让下游回调重建
+  const scaleAxisLocks = useMemo(
+    () => (Array.isArray(rawScaleAxisLocks) ? rawScaleAxisLocks : [false, false, false]),
+    [rawScaleAxisLocks],
+  );
   const stateAnimationTime = Math.max(
     0,
     animationTime -
@@ -109,9 +117,9 @@ function SceneObject({
   useEffect(() => {
     if (
       !groundRequest ||
-      groundRequest.id !== data.id ||
+      groundRequest.id !== objectId ||
       !groupRef.current ||
-      data['locked'] ||
+      objectLocked ||
       preview
     )
       return;
@@ -123,18 +131,16 @@ function SceneObject({
     if (!Number.isFinite(bounds.min.y)) return;
     appliedGroundRequest.current = requestKey;
     object.position.y -= bounds.min.y;
-    onUpdate?.(data.id, { position: object.position.toArray() });
-  }, [data.id, data['locked'], groundRequest, onUpdate, preview]);
+    onUpdate?.(objectId, { position: object.position.toArray() });
+  }, [objectId, objectLocked, groundRequest, onUpdate, preview]);
   const syncTransform = useCallback(() => {
     const object = groupRef.current;
     if (!object) return;
     let nextScale: number[] = object.scale.toArray();
     if (transformMode === 'scale' && scaleTransformStart.current) {
       const baseline = scaleTransformStart.current;
-      const locks = Array.isArray(data['scaleAxisLocks'])
-        ? data['scaleAxisLocks']
-        : [false, false, false];
-      if (data['proportionalScale']) {
+      const locks = scaleAxisLocks;
+      if (proportionalScale) {
         const changedAxis = nextScale
           .map((value, axis) => ({
             axis,
@@ -155,18 +161,18 @@ function SceneObject({
         );
       object.scale.fromArray(nextScale);
     }
-    onUpdate?.(data.id, {
+    onUpdate?.(objectId, {
       position: object.position.toArray(),
       rotation: [object.rotation.x, object.rotation.y, object.rotation.z],
       scale: nextScale,
     });
-  }, [data.id, data['proportionalScale'], data['scaleAxisLocks'], onUpdate, transformMode]);
+  }, [objectId, proportionalScale, scaleAxisLocks, onUpdate, transformMode]);
   const beginObjectInteraction = useCallback(
     (event: ThreeEvent<PointerEvent>) => {
       if (shouldKeepCurrentSelection(event, selectedId, selected, transformMode)) return;
       event.stopPropagation();
-      onSelect?.(data.id);
-      if (data['locked']) return;
+      onSelect?.(objectId);
+      if (objectLocked) return;
       if (!selected || transformMode !== 'rotate' || !groupRef.current) return;
       event.nativeEvent?.stopImmediatePropagation?.();
       (event.target as Element | null)?.setPointerCapture?.(event.pointerId);
@@ -183,7 +189,7 @@ function SceneObject({
       if (orbitControls) orbitControls.enabled = false;
       document.body.style.cursor = 'grabbing';
     },
-    [data.id, data['locked'], onSelect, orbitControls, selected, selectedId, transformMode],
+    [objectId, objectLocked, onSelect, orbitControls, selected, selectedId, transformMode],
   );
   const rotateObjectFromSurface = useCallback(
     (event: ThreeEvent<PointerEvent>) => {
