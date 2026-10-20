@@ -5,6 +5,7 @@
  * uploadConfig（无本地数据边界）、downloadConfig（云端无数据边界）。
  * 策略：node 环境；mock fetch 让 callGateway 走通；providerApi/projectsApi 用 stub。
  */
+import { must } from '../helpers/must';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { at } from '../helpers/at';
 import { jsonResp, createKvMem } from './_testUtils.mjs';
@@ -336,13 +337,13 @@ describe('cloudSync — uploadConfig / downloadConfig 边界', () => {
 
 describe('cloudSync — 防覆盖保护：云端包解析（GAS 两种回包形态）', () => {
   it('形态A（完整包）：取外层 rev/updatedAt，data 剔除 __meta', () => {
-    const snap = normalizeCloudPayload({
+    const snap = must(normalizeCloudPayload({
       type: 'cloud_config',
       version: 5,
       rev: 7,
       updatedAt: 111,
       data: { app_settings: { a: 1 }, __meta: { rev: 7, updatedAt: 111 } },
-    })!;
+    }), 'normalizeCloudPayload');
     expect(snap.hasMeta).toBe(true);
     expect(snap.rev).toBe(7);
     expect(snap.updatedAt).toBe(111);
@@ -351,10 +352,10 @@ describe('cloudSync — 防覆盖保护：云端包解析（GAS 两种回包形�
   });
 
   it('形态B（GAS 只回 data 内容）：rev/updatedAt 从 data.__meta 兜底取回', () => {
-    const snap = normalizeCloudPayload({
+    const snap = must(normalizeCloudPayload({
       app_settings: { a: 1 },
       __meta: { rev: 3, updatedAt: 222 },
-    })!;
+    }), 'normalizeCloudPayload');
     expect(snap.hasMeta).toBe(false);
     expect(snap.rev).toBe(3);
     expect(snap.updatedAt).toBe(222);
@@ -362,7 +363,7 @@ describe('cloudSync — 防覆盖保护：云端包解析（GAS 两种回包形�
   });
 
   it('无版本信息的旧包 → rev/updatedAt 归 0（表示「不知道」，不做新旧判断）', () => {
-    const snap = normalizeCloudPayload({ type: 'cloud_config', version: 5, data: { a: 1 } })!;
+    const snap = must(normalizeCloudPayload({ type: 'cloud_config', version: 5, data: { a: 1 } }), 'normalizeCloudPayload');
     expect(snap.rev).toBe(0);
     expect(snap.updatedAt).toBe(0);
   });
@@ -515,11 +516,11 @@ describe('cloudSync — 防覆盖保护：弹窗文案', () => {
 
   it('下载无冲突 → null（静默下载）；有冲突 → 列条目清单', () => {
     expect(describeDownloadConflict({ conflicts: [], cloudOnly: [], localOnly: [] })).toBeNull();
-    const copy = describeDownloadConflict({
+    const copy = must(describeDownloadConflict({
       conflicts: [{ key: 'app_settings', label: '应用设置' }],
       cloudOnly: [],
       localOnly: [],
-    })!;
+    }), 'describeDownloadConflict');
     expect(copy.title).toContain('1 项');
     expect(copy.items).toEqual(['应用设置']);
     expect(copy.danger).toBe(true);

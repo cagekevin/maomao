@@ -378,7 +378,7 @@ describe('VideoExtractNode — 结果落盘 node.data（刷新不丢）', () => 
     const finalCall = calls.find((c) => c.extractedImages?.length === 9);
     expect(finalCall).toBeTruthy();
     expect(
-      must(finalCall, 'finalCall').extractedImages!.every(
+      must(must(finalCall, 'finalCall').extractedImages, 'must').every(
         (f: string) => f === 'data:image/jpeg;base64,frame',
       ),
     ).toBe(true);

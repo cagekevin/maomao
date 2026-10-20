@@ -3,6 +3,7 @@
  * 审计建议 P1：多图输入、切图逻辑、参数变更重渲染。
  * 覆盖三种拼接模式切换、网格预设/自定义、多图输入填充格子、无图校验禁用。
  */
+import { must } from '../helpers/must';
 import 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
@@ -74,7 +75,7 @@ describe('GridMergeNode — 模式切换', () => {
 describe('GridMergeNode — 多图输入与校验', () => {
   it('无上游图 → grid 模式「开始合成」禁用', () => {
     setup();
-    const btn = screen.getByText('开始合成').closest('button')!;
+    const btn = must(screen.getByText('开始合成').closest('button'), 'screen');
     expect(btn).toBeTruthy();
     expect(btn.disabled).toBe(true);
   });
@@ -96,7 +97,7 @@ describe('GridMergeNode — 多图输入与校验', () => {
   it('多图输入 → 开始合成由禁用变为可用', () => {
     mocks.setConnectedInputs({ images: [{ id: 'a', url: 'http://img/a.png' }], texts: [] });
     setup();
-    const btn = screen.getByText('开始合成').closest('button')!;
+    const btn = must(screen.getByText('开始合成').closest('button'), 'screen');
     expect(btn.disabled).toBe(false);
   });
 });

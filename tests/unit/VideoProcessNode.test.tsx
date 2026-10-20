@@ -7,6 +7,7 @@
  *  - useConnectedInputs 本地可控（images 里放 .mp4），验证上游视频自动取链并显示名称。
  *  - 断言以稳定文本/标签为主，不依赖 videoEngine 真实处理（处理链路已由 videoEngine 独立契约测试覆盖）。
  */
+import { must } from '../helpers/must';
 import 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
@@ -181,7 +182,7 @@ describe('VideoProcessNode — 视频来源', () => {
 describe('VideoProcessNode — 校验与错误态', () => {
   it('无视频时 trim 模式「开始处理」禁用（不可点）', () => {
     setup();
-    const btn = screen.getByText('开始处理').closest('button')!;
+    const btn = must(screen.getByText('开始处理').closest('button'), 'screen');
     expect(btn).toBeTruthy();
     expect(btn.disabled).toBe(true);
   });

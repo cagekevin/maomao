@@ -62,7 +62,7 @@ describe('loadPresets / savePresets', () => {
     const list = pm.loadPresets();
     expect(list.find((x) => x.id === 'my1')).toBeTruthy();
     expect(list.length).toBe(1);
-    expect(readStored(STORAGE_KEY)![0].id).toBe('my1');
+    expect(must(readStored(STORAGE_KEY), 'readStored')[0].id).toBe('my1');
   });
 
   it('旧数据缺 id 时被补齐并写回', () => {
@@ -92,7 +92,7 @@ describe('saveAndNotify', () => {
     const list = [{ id: 'n1', title: 't', type: 'text', prompt: 'p', enabled: true }];
     pm.saveAndNotify(list);
     expect(handler).toHaveBeenCalledWith(list);
-    expect(readStored(STORAGE_KEY)![0].id).toBe('n1');
+    expect(must(readStored(STORAGE_KEY), 'readStored')[0].id).toBe('n1');
     unsub();
   });
 });

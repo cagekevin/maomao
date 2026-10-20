@@ -119,7 +119,7 @@ describe('useScriptBoxEngine', () => {
     expect(callbacks.onGenerateScript).toBeTypeOf('function');
     expect(callbacks.onGenerateShotImage).toBeTypeOf('function');
     expect(callbacks.onGenerateShotPrompts).toBeTypeOf('function');
-    expect(callbacks).toBe(createScriptBoxEngine.mock.results.at(-1)!.value);
+    expect(callbacks).toBe(must(createScriptBoxEngine.mock.results.at(-1), 'createScriptBoxEngine').value);
   });
 
   it('挂载后不向 node.data 注入任何函数（撤销重注入后必须零写入）', () => {
@@ -181,7 +181,7 @@ describe('useScriptBoxEngine', () => {
 
   it('createScriptBoxEngine 用最新 data（getData 读 getNodes）', () => {
     renderHook(() => useScriptBoxEngine('sb1', { shots: [] }));
-    const cfg = at(createScriptBoxEngine.mock.calls, 0)[0]!;
+    const cfg = must(at(createScriptBoxEngine.mock.calls, 0)[0], 'at');
     expect((cfg.getData as unknown as () => unknown)()).toMatchObject({ shots: [] });
     expect(cfg.getProviderState?.()).toEqual({
       providers: [{ id: 'p1', isPrimary: true }],
@@ -191,7 +191,7 @@ describe('useScriptBoxEngine', () => {
 
   it('updateData 经 setNodes 不可变合并（对象 patch）', () => {
     renderHook(() => useScriptBoxEngine('sb1', { shots: [] }));
-    const cfg = at(createScriptBoxEngine.mock.calls, 0)[0]!;
+    const cfg = must(at(createScriptBoxEngine.mock.calls, 0)[0], 'at');
     // updateData 内部直接调 setNodes(updater)；这里验证其注入的 updater 正确合并
     // 注入回调的 useEffect 先触发，updateData 后触发，故取最后一个 function 调用
     cfg.updateData({ title: '新剧本' });
@@ -204,7 +204,7 @@ describe('useScriptBoxEngine', () => {
 
   it('updateData 支持函数式 patch（并发安全，基于 latest 合并）', () => {
     renderHook(() => useScriptBoxEngine('sb1', { shots: [] }));
-    const cfg = at(createScriptBoxEngine.mock.calls, 0)[0]!;
+    const cfg = must(at(createScriptBoxEngine.mock.calls, 0)[0], 'at');
     // 用真实契约字段 story（title 不是 ScriptBoxData 字段；旧写法靠索引签名才编得过）
     cfg.updateData((latest) => ({ story: `${latest.story}＋更新` }));
     const calls = setNodes.mock.calls.filter((c) => typeof c[0] === 'function');
@@ -232,7 +232,7 @@ describe('useScriptBoxEngine', () => {
 
   it('addNodes 经 screenToFlowPosition 偏移落点', () => {
     renderHook(() => useScriptBoxEngine('sb1', { shots: [] }));
-    const cfg = at(createScriptBoxEngine.mock.calls, 0)[0]!;
+    const cfg = must(at(createScriptBoxEngine.mock.calls, 0)[0], 'at');
     // base = screenToFlowPosition({x:0,y:0}) = {x:5,y:7}；偏移 x + base.x + 100, y + base.y
     must(cfg.addNodes, 'addNodes')([{ id: 'x', position: { x: 10, y: 20 } }]);
     const out = lastAddedNode();
@@ -243,7 +243,7 @@ describe('useScriptBoxEngine', () => {
   it('addNodes 注入节点模型记忆（复用 App.addNode 的新建口径）', () => {
     prefsStore = { imageGenerateNode: { model: 'p1::gpt-image-1' } };
     renderHook(() => useScriptBoxEngine('sb1', { shots: [] }));
-    const cfg = at(createScriptBoxEngine.mock.calls, 0)[0]!;
+    const cfg = must(at(createScriptBoxEngine.mock.calls, 0)[0], 'at');
     // 剧本盒已预填 aspectRatio → 不被记忆覆盖；selectedModel 缺失 → 由记忆补上
     must(
       cfg.addNodes,
@@ -264,7 +264,7 @@ describe('useScriptBoxEngine', () => {
 
   it('addNodes 无记忆时不写空模型（留给节点兜底自动选第一个）', () => {
     renderHook(() => useScriptBoxEngine('sb1', { shots: [] }));
-    const cfg = at(createScriptBoxEngine.mock.calls, 0)[0]!;
+    const cfg = must(at(createScriptBoxEngine.mock.calls, 0)[0], 'at');
     must(
       cfg.addNodes,
       'addNodes',

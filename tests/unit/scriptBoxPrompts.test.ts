@@ -175,12 +175,12 @@ describe('剧本盒纯函数 §2.7/2.17', () => {
 
   it('applyTailFrameSelection：选帧 → usePrevShotVideoTail=true + 参考 URL 数组', () => {
     const shots = [{ id: 1, usePrevShotVideoTail: false, prevShotImageRefUrls: [] }];
-    const next = applyTailFrameSelection(
+    const next = must(applyTailFrameSelection(
       shots,
       1,
       { id: 'v2', assetUrl: '/files/tail.png' },
       true,
-    )!;
+    ), 'applyTailFrameSelection');
     expect(at(next, 0)).toMatchObject({
       usePrevShotVideoTail: true,
       selectedTailFrameVariantId: 'v2',
@@ -197,7 +197,7 @@ describe('剧本盒纯函数 §2.7/2.17', () => {
         selectedTailFrameVariantId: 'v2',
       },
     ];
-    const next = applyTailFrameSelection(shots, 1, null, false)!;
+    const next = must(applyTailFrameSelection(shots, 1, null, false), 'applyTailFrameSelection');
     expect(at(next, 0)).toMatchObject({
       usePrevShotVideoTail: false,
       selectedTailFrameVariantId: 'original',

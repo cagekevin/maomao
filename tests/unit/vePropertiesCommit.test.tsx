@@ -24,6 +24,7 @@
  *    `onValueChange`、`fireEvent.pointerUp` 触发 `onValueCommit`（后者报元素当前值，见其实现注释）；
  *  - `Input` 用真实实现 ⇒ `change` / `blur` 即可。
  */
+import { must } from '../helpers/must';
 import 'react';
 import { at } from '../helpers/at';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -376,7 +377,7 @@ describe('组② 非数字字段：draft 入口与值直传入口（TD-22-20）'
   it('背景不透明度（Slider）：percent 域 ⇒ 落库 /100；initial 落在 0~1 域', () => {
     const { element } = setup({ backgroundColor: '#123456' });
     // ⚠️「不透明度」在本面板出现**两次**（文字 / 背景）—— 文字组在前、样式组在后，取后者。
-    const slider = at(screen.getAllByText('不透明度'), 1).parentElement!.querySelector(
+    const slider = must(at(screen.getAllByText('不透明度'), 1).parentElement, 'at').querySelector(
       'input[type="range"]',
     ) as HTMLInputElement;
     // 断言复用面板自己的判据（字段缺省时回落到 DEFAULT_*），不手抄默认值。
@@ -804,9 +805,9 @@ describe('组④ sticker / audio 面板（TD-22-20）', () => {
 
   it('sticker 颜色（ColorPicker）：回传不带 `#` ⇒ 补 `#` 后入库', () => {
     const { element } = setupSticker();
-    const picker = screen
+    const picker = must(screen
       .getByText('颜色')
-      .parentElement!.querySelector('input[type="color"]') as HTMLInputElement;
+      .parentElement, 'screen').querySelector('input[type="color"]') as HTMLInputElement;
 
     fireEvent.change(picker, { target: { value: '#ff3b30' } });
 

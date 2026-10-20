@@ -59,7 +59,7 @@ beforeEach(() => {
       Object.defineProperty(v, 'readyState', { value: 0, writable: true, configurable: true });
       v.addEventListener = ((type: string, fn: Handler) => {
         if (!handlers.has(type)) handlers.set(type, new Set());
-        handlers.get(type)!.add(fn);
+        must(handlers.get(type), 'handlers').add(fn);
       }) as typeof v.addEventListener;
       v.removeEventListener = ((type: string, fn: Handler) => {
         handlers.get(type)?.delete(fn);

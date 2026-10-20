@@ -109,9 +109,9 @@ describe('updateLastStreaming — 流式增量（仅通知）', () => {
       { id: 's', role: 'assistant', content: '', streaming: true, tool_calls: [] },
     ]);
     updateLastStreaming({ content: 'hi', toolCalls: [{ function: { name: 'f' } }] });
-    const last = store.current[store.current.length - 1]!;
+    const last = must(store.current[store.current.length - 1], 'store');
     expect(last.content).toBe('hi');
-    expect(must(last.tool_calls, 'tool_calls')[0]!.function!.name).toBe('f');
+    expect(must(must(must(last.tool_calls, 'tool_calls')[0], 'must').function, 'must').name).toBe('f');
     expect(patchCurrentMessages).toHaveBeenCalled();
   });
 

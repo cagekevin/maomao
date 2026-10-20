@@ -3,6 +3,7 @@
  * 复用共享 mock kit（tests/unit/_nodeMocks.mjs）。
  * 覆盖：渲染不崩、label 透传、点击「生成」触发生成链路（generateImage 被调用）。
  */
+import { must } from '../helpers/must';
 import 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
@@ -186,7 +187,7 @@ describe('TemplateNode', () => {
     const cfg = getGenConfig();
     expect(cfg).toBeTruthy();
     act(() => cfg.onRecover({ resultUrl: 'http://127.0.0.1:18080/files/tasks/x.png' }));
-    expect(nodeData()!['assetUrl']).toBe('http://127.0.0.1:18080/files/tasks/x.png');
+    expect(must(nodeData(), 'nodeData')['assetUrl']).toBe('http://127.0.0.1:18080/files/tasks/x.png');
   });
 });
 

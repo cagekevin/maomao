@@ -8,6 +8,7 @@
  * 断言核心：素材从 refImages 消失后，富文本里引用它的 data-ref-id 芯片被移除，且 onChange 同步
  * 回不含该引用的新 value（不残留）。
  */
+import { must } from '../helpers/must';
 import { useState } from 'react';
 import { describe, it, expect } from 'vitest';
 import { render, act } from '@testing-library/react';
@@ -48,14 +49,14 @@ describe('PromptInput 上游素材消失清理', () => {
         }}
       />,
     );
-    const el = container.querySelector('[contenteditable="true"]')!;
+    const el = must(container.querySelector('[contenteditable="true"]'), 'container');
 
     // 初始：value 自带 @{img1:...} 芯片串 → 重建后 DOM 出现 data-ref-id=img1 芯片
     expect(el.querySelector('[data-ref-id="img1"]')).toBeTruthy();
 
     // 模拟断开上游：refImages 清空（等价点红 × 删连线后 connected 少该素材）
     await act(async () => {
-      container.querySelector('button')!.click();
+      must(container.querySelector('button'), 'container').click();
     });
 
     // 富文本里引用 img1 的芯片应被清掉，缩略图不再残留
@@ -66,7 +67,7 @@ describe('PromptInput 上游素材消失清理', () => {
 
   it('素材仍在 refImages 时，即使触发重建也不误删引用芯片', async () => {
     const { container } = render(<DisconnectHarness onChangeOut={() => {}} />);
-    const el = container.querySelector('[contenteditable="true"]')!;
+    const el = must(container.querySelector('[contenteditable="true"]'), 'container');
 
     // 未断开（refImages 仍含 img1）→ 芯片保留
     expect(el.querySelector('[data-ref-id="img1"]')).toBeTruthy();

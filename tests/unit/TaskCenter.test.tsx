@@ -13,6 +13,7 @@
  *  - 大图预览弹窗
  *  - 清理任务
  */
+import { must } from '../helpers/must';
 import React from 'react';
 import { at } from '../helpers/at';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -250,7 +251,7 @@ describe('TaskCenter — 大图预览', () => {
   it('点击已完成图片缩略图 → 打开预览弹窗', () => {
     h.setTasks([makeTask({ type: 'image', resultUrl: 'http://x/big.png' })]);
     render(<TaskCenter />);
-    const img = document.querySelector('img[src="http://x/big.png"]')!;
+    const img = must(document.querySelector('img[src="http://x/big.png"]'), 'document');
     fireEvent.click(img.closest('[class*="cursor-pointer"]')!);
     expect(screen.getByText('按住拖到画布添加')).toBeTruthy();
     expect(screen.getByTitle('关闭')).toBeTruthy();
@@ -259,7 +260,7 @@ describe('TaskCenter — 大图预览', () => {
   it('预览弹窗关闭按钮 → 关闭弹窗', () => {
     h.setTasks([makeTask({ type: 'image', resultUrl: 'http://x/big.png' })]);
     render(<TaskCenter />);
-    const img = document.querySelector('img[src="http://x/big.png"]')!;
+    const img = must(document.querySelector('img[src="http://x/big.png"]'), 'document');
     fireEvent.click(img.closest('[class*="cursor-pointer"]')!);
     fireEvent.click(screen.getByTitle('关闭'));
     expect(screen.queryByText('按住拖到画布添加')).toBeNull();
@@ -297,7 +298,7 @@ describe('TaskCenter — 清理任务', () => {
     expect(screen.getByText(/清理失败\/未知任务 \(1\)/)).toBeTruthy();
     fireEvent.click(screen.getByText(/清理失败\/未知任务/));
     // 谓词必须同时接受 failed 与 unknown（此处断言对 unknown 行返回 true）
-    const predicate = h.clearTasksBy.mock.calls.at(-1)![0] as (t: { status: string }) => boolean;
+    const predicate = must(h.clearTasksBy.mock.calls.at(-1), 'h')[0] as (t: { status: string }) => boolean;
     expect(predicate({ status: 'unknown' })).toBe(true);
     expect(predicate({ status: 'failed' })).toBe(true);
     expect(predicate({ status: 'completed' })).toBe(false);

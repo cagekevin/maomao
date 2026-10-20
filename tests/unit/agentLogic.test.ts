@@ -48,9 +48,9 @@ describe('AI 助手 parseSSEChunk（SSE 解析）§2.15', () => {
       'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":"pe\\":\\"imageGenerateNode\\"}"}}]}}]}',
       acc,
     );
-    expect(acc.toolCalls[0]!.id).toBe('call1');
-    expect(acc.toolCalls[0]!.function!.name).toBe('create');
-    expect(acc.toolCalls[0]!.function!.arguments).toBe('{"type":"imageGenerateNode"}');
+    expect(must(acc.toolCalls[0], 'acc').id).toBe('call1');
+    expect(must(must(acc.toolCalls[0], 'acc').function, 'must').name).toBe('create');
+    expect(must(must(acc.toolCalls[0], 'acc').function, 'must').arguments).toBe('{"type":"imageGenerateNode"}');
   });
 
   it('忽略非 data: 前缀 / [DONE] / 空', () => {
@@ -184,8 +184,8 @@ describe('AI 助手 buildRequestMessages（发 LLM 消息组装）§2.15', () =>
       index,
     );
     const sys = out.filter((m) => m.role === 'system').map((m) => String(m.content));
-    const indexBlk = sys.find((t) => t.includes('仅表示存在'))!;
-    const docsBlk = sys.find((t) => t.includes('本次启用 Skill'))!;
+    const indexBlk = must(sys.find((t) => t.includes('仅表示存在')), 'sys');
+    const docsBlk = must(sys.find((t) => t.includes('本次启用 Skill')), 'sys');
     expect(indexBlk).toBeTruthy();
     expect(docsBlk).toBeTruthy();
     expect(indexBlk).not.toContain('本次启用 Skill'); // 块① 不含块② 的措辞

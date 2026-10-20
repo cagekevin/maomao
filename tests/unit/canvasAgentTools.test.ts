@@ -208,7 +208,7 @@ describe('画布 Agent 工具层 §2.5', () => {
       position: { x: 10, y: 20 },
     });
     expect(r.ok).toBe(true);
-    const node = ctx.getNodes().find((n) => n.id === must(r.data, 'data').id)!;
+    const node = must(ctx.getNodes().find((n) => n.id === must(r.data, 'data').id), 'ctx');
     expect(node.data['label']).toBe('测试');
     expect(node.position).toEqual({ x: 10, y: 20 });
   });
@@ -233,7 +233,7 @@ describe('画布 Agent 工具层 §2.5', () => {
     const ctx = makeCtx();
     const t = buildCanvasAgentTools(ctx);
     const r = toolOf(t, 'create_node')({ type: 'imageGenerateNode' });
-    const node = ctx.getNodes().find((n) => n.id === must(r.data, 'data').id)!;
+    const node = must(ctx.getNodes().find((n) => n.id === must(r.data, 'data').id), 'ctx');
     expect(node.width).toBe(420);
   });
 
@@ -250,7 +250,7 @@ describe('画布 Agent 工具层 §2.5', () => {
       resolution: '1080p',
     });
     expect(r.ok).toBe(true);
-    const node = ctx.getNodes().find((n) => n.id === must(r.data, 'data').id)!;
+    const node = must(ctx.getNodes().find((n) => n.id === must(r.data, 'data').id), 'ctx');
     // 比例写入 data.aspectRatio（ImageGenerate 组件读取）
     expect(node.data['aspectRatio']).toBe('9:16');
     // 分辨率 1080p 映射到 data.imageSize=1K（组件读取 imageSize 而非 resolution）
@@ -268,7 +268,7 @@ describe('画布 Agent 工具层 §2.5', () => {
       type: 'imageGenerateNode',
       resolution: '4K',
     });
-    expect(c1.getNodes().find((n) => n.id === must(r4.data, 'data').id)!.data['imageSize']).toBe(
+    expect(must(c1.getNodes().find((n) => n.id === must(r4.data, 'data').id), 'c1').data['imageSize']).toBe(
       '4K',
     );
     const c2 = makeCtx();
@@ -279,7 +279,7 @@ describe('画布 Agent 工具层 §2.5', () => {
       type: 'imageGenerateNode',
       resolution: '1440p',
     });
-    expect(c2.getNodes().find((n) => n.id === must(r2.data, 'data').id)!.data['imageSize']).toBe(
+    expect(must(c2.getNodes().find((n) => n.id === must(r2.data, 'data').id), 'c2').data['imageSize']).toBe(
       '2K',
     );
   });
@@ -296,7 +296,7 @@ describe('画布 Agent 工具层 §2.5', () => {
       aspectRatio: '9:16',
       resolution: '1080p',
     });
-    const node = ctx.getNodes().find((n) => n.id === must(r.data, 'data').id)!;
+    const node = must(ctx.getNodes().find((n) => n.id === must(r.data, 'data').id), 'ctx');
     expect(node.data['aspectRatio']).toBeUndefined();
     expect(node.data['imageSize']).toBeUndefined();
   });
@@ -316,7 +316,7 @@ describe('画布 Agent 工具层 §2.5', () => {
     const t = buildCanvasAgentTools(ctx);
     const r = toolOf(t, 'create_node')({ type: 'imageGenerateNode', prompt: '新图' });
     expect(r.ok).toBe(true);
-    const node = ctx.getNodes().find((n) => n.id === must(r.data, 'data').id)!;
+    const node = must(ctx.getNodes().find((n) => n.id === must(r.data, 'data').id), 'ctx');
     expect(node.position.x).toBe(200 + 420 + 100);
     expect(node.position.y).toBe(300);
   });
@@ -342,7 +342,7 @@ describe('画布 Agent 工具层 §2.5', () => {
     ]);
     const t = buildCanvasAgentTools(ctx);
     const r = toolOf(t, 'create_node')({ type: 'imageGenerateNode' });
-    const node = ctx.getNodes().find((n) => n.id === must(r.data, 'data').id)!;
+    const node = must(ctx.getNodes().find((n) => n.id === must(r.data, 'data').id), 'ctx');
     expect(node.position.x).toBe(300 + 300 + 100); // 最右边界 600 + 100
     expect(node.position.y).toBe(50); // 最小顶部
   });
@@ -360,7 +360,7 @@ describe('画布 Agent 工具层 §2.5', () => {
     ]);
     const t = buildCanvasAgentTools(ctx);
     const r = toolOf(t, 'create_node')({ type: 'imageGenerateNode', position: { x: 999, y: 888 } });
-    const node = ctx.getNodes().find((n) => n.id === must(r.data, 'data').id)!;
+    const node = must(ctx.getNodes().find((n) => n.id === must(r.data, 'data').id), 'ctx');
     expect(node.position.x).toBe(999);
     expect(node.position.y).toBe(888);
   });
@@ -447,7 +447,7 @@ describe('画布 Agent 工具层 §2.5', () => {
       nodes: [{ type: 'textGenerateNode' }, { type: 'textGenerateNode' }],
     });
     const batchPos = b.data.ids.map(
-      (id: string) => c2.getNodes().find((n) => n.id === id)!.position,
+      (id: string) => must(c2.getNodes().find((n) => n.id === id), 'c2').position,
     );
     expect(batchPos).toEqual(seqPos);
     expect(c2.setNodes).toHaveBeenCalledTimes(1);

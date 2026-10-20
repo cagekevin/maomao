@@ -18,6 +18,7 @@
 //  2. 两条轨道在**同一语义场景**下产出**同构**结果（对等性护栏）
 //     例：批量平移「目标帧被另一待移动帧占据」时，两条轨道都必须不丢帧。
 //     这条最能暴露「某条轨道忘了先删旧帧」的漂移。
+import { must } from '../helpers/must';
 import { describe, it, expect } from 'vitest';
 import { at } from '../helpers/at';
 import { channelOf, trackOf } from '../helpers/tracks';
@@ -117,7 +118,7 @@ const camSnapshot = (frame: any, position: any, focalLength = 42) => ({
   focalLength,
 });
 
-const straightPath = normalizeCameraPath({
+const straightPath = must(normalizeCameraPath({
   points: [
     { x: 0, y: 0, z: 0 },
     { x: 5, y: 0, z: 0 },
@@ -127,7 +128,7 @@ const straightPath = normalizeCameraPath({
   endFrame: 240,
   keyframeCount: 3,
   sourceKeyframeFrames: [0, 120, 240],
-})!;
+}), 'normalizeCameraPath');
 
 const buildCamTrack = (frames: any) =>
   frames.reduce(

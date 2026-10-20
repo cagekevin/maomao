@@ -10,6 +10,7 @@
  *  - 空/纯空格输入回退到 defaultTitle（trim 兜底）
  *  - 拖拽句柄类名 drag-handle（无限画布拖拽依赖）
  */
+import { must } from '../helpers/must';
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import type { LucideIcon } from 'lucide-react';
@@ -60,14 +61,14 @@ describe('NodeTitle — 展示', () => {
 
   it('带 drag-handle 与 cursor-move，支持无限画布拖拽', () => {
     setup({ label: '节点' });
-    const wrap = screen.getByRole('button', { name: '节点' }).closest('div')!;
+    const wrap = must(screen.getByRole('button', { name: '节点' }).closest('div'), 'screen');
     expect(wrap.className).toContain('drag-handle');
     expect(wrap.className).toContain('cursor-move');
   });
 
   it('floating 时使用绝对定位类（悬浮标题栏）', () => {
     setup({ label: '节点', floating: true });
-    const wrap = screen.getByRole('button', { name: '节点' }).closest('div')!;
+    const wrap = must(screen.getByRole('button', { name: '节点' }).closest('div'), 'screen');
     expect(wrap.className).toContain('absolute');
     expect(wrap.className).toContain('-top-6');
   });

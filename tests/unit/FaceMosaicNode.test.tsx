@@ -14,6 +14,7 @@
  *  - 上传图源落盘（TD-9 口径 A）：落盘成功 → 写回 data.assetUrls（刷新不丢）；
  *    落盘失败退回 blob: 预览 → 不写回（blob 刷新即死链，不进快照）
  */
+import { must } from '../helpers/must';
 import React from 'react';
 import { at } from '../helpers/at';
 import { describe, it, expect, vi } from 'vitest';
@@ -122,7 +123,7 @@ function setup(
   return render(<FaceMosaicNode id={nodeId} data={{ ...data }} selected={false} />);
 }
 function lastData() {
-  return h.state.nodes.find((n) => n.id === nodeId)!.data;
+  return must(h.state.nodes.find((n) => n.id === nodeId), 'h').data;
 }
 function spawnedNodes() {
   return h.state.nodes.filter((n) => n.type === 'assetNode');
@@ -169,7 +170,7 @@ describe('FaceMosaicNode — 模式/强度/颜色写回 data', () => {
 
   it('调整强度滑块 → 写回 data.strength 且百分比显示同步', () => {
     setup();
-    const range = document.querySelector('input[type="range"]')!;
+    const range = must(document.querySelector('input[type="range"]'), 'document');
     fireEvent.change(range, { target: { value: '0.8' } });
     expect(lastData()['strength']).toBe(0.8);
     expect(screen.getByText('80%')).toBeTruthy();

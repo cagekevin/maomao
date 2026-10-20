@@ -12,6 +12,7 @@
  *  - 三态渲染：user 气泡 / assistant 思考+工具+步骤卡片 / tool 成败+重试
  *  - 交互：思考折叠展开、确认按钮触发 onConfirmPlan、重试触发 onRetryStep
  */
+import { must } from '../helpers/must';
 import React from 'react';
 import { at } from '../helpers/at';
 import { describe, it, expect, vi } from 'vitest';
@@ -40,7 +41,7 @@ describe('AgentMessage — 图片 URL 判定与文本切图', () => {
     render(
       <AgentMessage message={{ role: 'assistant', content: '看这张图：![alt](http://x/a.png)' }} />,
     );
-    const img = document.querySelector('img')!;
+    const img = must(document.querySelector('img'), 'document');
     expect(img).toBeTruthy();
     expect(img.getAttribute('src')).toBe('http://x/a.png');
     // 前后文本仍保留
@@ -183,7 +184,7 @@ describe('AgentMessage — assistant 消息（思考/工具/步骤卡片）', ()
       />,
     );
     // 注意：getByText 命中的是内层文本 span，title 在外层 .agent-toolchip 上（closest 需带自身选择器）
-    const chip = screen.getByText('generate_node').closest('.agent-toolchip')!;
+    const chip = must(screen.getByText('generate_node').closest('.agent-toolchip'), 'screen');
     expect(chip).toBeTruthy();
     expect(chip.getAttribute('title')).toContain('nodeType=assetNode');
     expect(chip.getAttribute('title')).toContain('prompt=猫');

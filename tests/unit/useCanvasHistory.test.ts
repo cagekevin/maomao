@@ -11,6 +11,7 @@
  * 已按该文件头注①「重复覆盖迁专用文件去重」的约定**并入本文件并删除**
  * （TD-04-54 · 2026-09-21）。新断言一律写这里，不要再开第二个文件。
  */
+import { must } from '../helpers/must';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import '@xyflow/react';
@@ -74,7 +75,7 @@ describe('useCanvasHistory — 记录与撤销', () => {
     act(() => result.current.undo());
     // 【TD-04-31】apply 收到的是「按结构快照恢复后的画布」（不再原样透传输入快照），
     // 故断言契约（结构与 s1 一致）而非对象引用相等。
-    const applied = apply.mock.calls.at(-1)![0] as CanvasSnapshot;
+    const applied = must(apply.mock.calls.at(-1), 'apply')[0] as CanvasSnapshot;
     expect(applied.nodes.map((n) => n.id)).toEqual(['n1']);
     expect(applied.edges).toEqual([]);
   });
@@ -90,7 +91,7 @@ describe('useCanvasHistory — 记录与撤销', () => {
     act(() => result.current.undo()); // 回到 s1
     expect(result.current.canRedo).toBe(true);
     act(() => result.current.redo()); // 回到 s2
-    const applied = apply.mock.calls.at(-1)![0] as CanvasSnapshot;
+    const applied = must(apply.mock.calls.at(-1), 'apply')[0] as CanvasSnapshot;
     expect(applied.nodes.map((n) => n.id)).toEqual(['b']);
   });
 
@@ -118,7 +119,7 @@ describe('useCanvasHistory — 记录与撤销', () => {
     act(() => result.current.record(snap('y')));
     act(() => result.current.undo());
     // 入栈的确实是 getSnapshot() 给的那份（'x'），不是空快照、也不是后一条 'y'
-    const applied = apply.mock.calls.at(-1)![0] as CanvasSnapshot;
+    const applied = must(apply.mock.calls.at(-1), 'apply')[0] as CanvasSnapshot;
     expect(applied.nodes.map((n) => n.id)).toEqual(['x']);
   });
 });

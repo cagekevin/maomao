@@ -42,7 +42,7 @@ describe('HistoryStack MAX=15 上限', () => {
     expect(s.history).toHaveLength(15);
     // 最早的 5 条被挤出
     expect(at(s.history, 0).i).toBe(6);
-    expect(s.history.at(-1)!.i).toBe(20);
+    expect(must(s.history.at(-1), 's').i).toBe(20);
   });
 
   it('默认上限为 15（不传 max；画布复用者的既有契约，不得漂移）', () => {
@@ -58,7 +58,7 @@ describe('HistoryStack MAX=15 上限', () => {
     expect(s.history).toHaveLength(50);
     // 最早的 10 条被挤出
     expect(at(s.history, 0).i).toBe(11);
-    expect(s.history.at(-1)!.i).toBe(60);
+    expect(must(s.history.at(-1), 's').i).toBe(60);
   });
 });
 
@@ -116,7 +116,7 @@ describe('HistoryStack 分支截断 + suppress', () => {
     s.undo(); // 进入 suppress
     s.push({ i: 'ignored' });
     expect(s.history).toHaveLength(3);
-    expect(s.history.at(-1)!.i).toBe(3);
+    expect(must(s.history.at(-1), 's').i).toBe(3);
   });
 
   it('releaseSuppress 后可正常 push', () => {
@@ -125,7 +125,7 @@ describe('HistoryStack 分支截断 + suppress', () => {
     s.undo();
     s.releaseSuppress();
     s.push({ i: 4 });
-    expect(s.history.at(-1)!.i).toBe(4);
+    expect(must(s.history.at(-1), 's').i).toBe(4);
   });
 });
 

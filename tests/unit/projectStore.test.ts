@@ -313,7 +313,7 @@ describe('projectStore · 画布快照 CAS（docs/118 §6.1 A）', () => {
     expect(v1).toBeGreaterThan(0);
     // 第二次保存：基线已是服务端返回的新版本
     await saveCanvasState('default', [node('n2')], []);
-    expect(H.kvSetCalls.at(-1)!.ifVersion).toBe(v1);
+    expect(must(H.kvSetCalls.at(-1), 'H').ifVersion).toBe(v1);
     expect(getLoadedVersion()).toBeGreaterThan(v1);
   });
 
@@ -342,7 +342,7 @@ describe('projectStore · 画布快照 CAS（docs/118 §6.1 A）', () => {
 
   it('A3 force:true（备份导入）→ 不传 ifVersion（无条件覆盖）', async () => {
     await saveCanvasState('default', [node('n1')], [], undefined, { force: true });
-    expect(H.kvSetCalls.at(-1)!.ifVersion).toBeUndefined();
+    expect(must(H.kvSetCalls.at(-1), 'H').ifVersion).toBeUndefined();
   });
 
   // 【TD-24-4 高危A】落盘失败（非冲突）必须**由落盘方自己确认**：返回 success:false 且自报

@@ -1,3 +1,4 @@
+import { must } from '../helpers/must';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { at } from '../helpers/at';
 
@@ -229,7 +230,7 @@ describe('taskStore §P4 进度落库节流', () => {
     expect(saveTask).toHaveBeenCalledTimes(1); // 窗口内未落
     vi.advanceTimersByTime(200);
     expect(saveTask).toHaveBeenCalledTimes(2); // 合并落 1 次，写最终态
-    const last = vi.mocked(saveTask).mock.calls.at(-1)![0] as Task;
+    const last = must(vi.mocked(saveTask).mock.calls.at(-1), 'vi')[0] as Task;
     expect(last.id).toBe(handle.taskId);
     expect(last.progress).toBe(70);
     // stageLabel 是纯运行时展示字段，落库前已被 persist 剥离（后端 tasks 表无此列），
@@ -244,7 +245,7 @@ describe('taskStore §P4 进度落库节流', () => {
     handle.progress(30, '阶段');
     handle.done('/result.png');
     expect(saveTask).toHaveBeenCalledTimes(1);
-    const last = vi.mocked(saveTask).mock.calls.at(-1)![0] as Task;
+    const last = must(vi.mocked(saveTask).mock.calls.at(-1), 'vi')[0] as Task;
     expect(last.status).toBe('completed');
     expect(last.progress).toBe(100);
     expect(last.resultUrl).toBe('/result.png');
@@ -259,7 +260,7 @@ describe('taskStore §P4 进度落库节流', () => {
     handle.progress(50, '阶段');
     handle.fail('网络错误');
     expect(saveTask).toHaveBeenCalledTimes(1);
-    const last = vi.mocked(saveTask).mock.calls.at(-1)![0] as Task;
+    const last = must(vi.mocked(saveTask).mock.calls.at(-1), 'vi')[0] as Task;
     expect(last.status).toBe('failed');
     expect(last.errorMsg).toBe('网络错误');
     vi.advanceTimersByTime(400);
@@ -276,7 +277,7 @@ describe('taskStore §P4 进度落库节流', () => {
     // 上游偶发返回对象（历史 bug 会让 .startsWith 崩）→ 原语必须防御，不得把对象写进 resultUrl
     completeTask(handle.taskId, { url: 'oops' } as unknown as string);
     expect(saveTask).toHaveBeenCalledTimes(1);
-    const last = vi.mocked(saveTask).mock.calls.at(-1)![0] as Task;
+    const last = must(vi.mocked(saveTask).mock.calls.at(-1), 'vi')[0] as Task;
     expect(last.status).toBe('completed');
     expect(last.progress).toBe(100);
     expect(last.resultUrl).toBe('');
@@ -291,7 +292,7 @@ describe('taskStore §P4 进度落库节流', () => {
     handle.progress(50);
     failTask(handle.taskId);
     expect(saveTask).toHaveBeenCalledTimes(1);
-    const last = vi.mocked(saveTask).mock.calls.at(-1)![0] as Task;
+    const last = must(vi.mocked(saveTask).mock.calls.at(-1), 'vi')[0] as Task;
     expect(last.status).toBe('failed');
     expect(last.errorMsg).toBe('生成失败');
     vi.advanceTimersByTime(400);

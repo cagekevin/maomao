@@ -7,6 +7,7 @@
  * 现锁：基础线 + 辉光 + 粒子流**始终**渲染；bezier path d 透传给各层 path。
  * （性能模式的边降级只作用于正式边，由 index.css 的 `.perf-on .react-flow__edge` 承接，不在本组件。）
  */
+import { must } from '../helpers/must';
 import React from 'react';
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render } from '@testing-library/react';
@@ -56,7 +57,7 @@ describe('ConnectionLine — 始终渲染（性能模式不降拖拽线）', () 
 
   it('渲染隐藏 mpath path（供粒子沿其运动）', () => {
     const view = setup();
-    const mpath = view.container.querySelector('#cust-conn-mpath')!;
+    const mpath = must(view.container.querySelector('#cust-conn-mpath'), 'view');
     expect(mpath).toBeTruthy();
     expect(mpath.getAttribute('d')).toBe('M0,0 C10,10 90,10 100,100');
   });
@@ -80,7 +81,7 @@ describe('ConnectionLine — 始终渲染（性能模式不降拖拽线）', () 
   it('bezier path d 透传给各层 path', () => {
     const view = setup();
     const d = 'M0,0 C10,10 90,10 100,100';
-    expect(view.container.querySelector('.cust-edge-base')!.getAttribute('d')).toBe(d);
-    expect(view.container.querySelector('.cust-edge-glow')!.getAttribute('d')).toBe(d);
+    expect(must(view.container.querySelector('.cust-edge-base'), 'view').getAttribute('d')).toBe(d);
+    expect(must(view.container.querySelector('.cust-edge-glow'), 'view').getAttribute('d')).toBe(d);
   });
 });

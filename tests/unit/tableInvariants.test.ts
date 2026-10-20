@@ -1,3 +1,4 @@
+import { must } from '../helpers/must';
 import { describe, it, expect } from 'vitest';
 import { at } from '../helpers/at';
 import { colOf, rowOf } from '../helpers/table';
@@ -27,7 +28,7 @@ const onlyErrors = (tabs: AssistantTableTabs) => errors(validateTabs(tabs));
 
 /** 造一张合法表（含 1 行真实数据，保证 L1 cells 长度对齐），包成单 tab 集合 */
 function validTabs(): AssistantTableTabs {
-  const sb = parsePasted('景别\t画面\n中景\t原画面')!;
+  const sb = must(parsePasted('景别\t画面\n中景\t原画面'), 'parsePasted');
   const tab: TableTab = {
     id: 'A',
     name: '表A',

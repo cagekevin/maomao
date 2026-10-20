@@ -1,3 +1,4 @@
+import { must } from '../helpers/must';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { at } from '../helpers/at';
 import type { ConversationMessage } from '../../src/components/agent/contract/conversationTypes.ts';
@@ -129,10 +130,10 @@ describe('会话隔离数据层 §2.15', () => {
   it('patchCurrentWorkflow 补丁 workflow（归一 status/steerQueue）', () => {
     const id = ensureActiveConversation();
     applyConversation(id);
-    const wf = patchCurrentWorkflow({ status: 'running', nodeIds: ['n1'] })!;
+    const wf = must(patchCurrentWorkflow({ status: 'running', nodeIds: ['n1'] }), 'patchCurrentWorkflow');
     expect(wf.status).toBe('running');
     expect(wf.steerQueue).toEqual([]);
-    const cur = getCurrentWorkflow()!;
+    const cur = must(getCurrentWorkflow(), 'getCurrentWorkflow');
     expect(cur.nodeIds).toEqual(['n1']);
   });
 
@@ -140,7 +141,7 @@ describe('会话隔离数据层 §2.15', () => {
     const id = ensureActiveConversation();
     applyConversation(id);
     setCurrentPending({ conversationId: id, text: '待恢复任务', attachments: [] });
-    const p = getCurrentPending()!;
+    const p = must(getCurrentPending(), 'getCurrentPending');
     expect(p.text).toBe('待恢复任务');
   });
 
@@ -151,13 +152,13 @@ describe('会话隔离数据层 §2.15', () => {
     const stack = getActiveAiUndoStack();
     expect(stack).toHaveLength(20);
     expect((stack.at(-1) as Record<string, unknown>)['i']).toBe(24);
-    const popped = popActiveAiUndo()!;
+    const popped = must(popActiveAiUndo(), 'popActiveAiUndo');
     expect(popped['i']).toBe(24);
     expect(getActiveAiUndoStack()).toHaveLength(19);
   });
 
   it('normalizeConversation 补齐全字段', () => {
-    const c = normalizeConversation({ title: 'X' })!;
+    const c = must(normalizeConversation({ title: 'X' }), 'normalizeConversation');
     expect(c.id).toBeTruthy();
     expect(c.messages).toEqual([]);
     expect(c.memory.summary).toBe('');
@@ -166,19 +167,19 @@ describe('会话隔离数据层 §2.15', () => {
   });
 
   it('normalizeConversation 给无 id 消息补稳定唯一 id，已有 id 保留（P15 列表 key 锚点）', () => {
-    const c = normalizeConversation({
+    const c = must(normalizeConversation({
       title: 'X',
       messages: [
         { role: 'user', content: 'a' },
         { role: 'assistant', content: 'b', id: 'keep-me' },
       ],
-    })!;
+    }), 'normalizeConversation');
     // 无 id 的消息被补上唯一 id；已有 id 的消息保留
     expect(at(c.messages, 0).id).toBeTruthy();
     expect(at(c.messages, 1).id).toBe('keep-me');
     expect(at(c.messages, 0).id).not.toBe(at(c.messages, 1).id);
     // 幂等：二次归一化不改变已补的 id（保证列表 key 稳定）
-    const again = normalizeConversation(c)!;
+    const again = must(normalizeConversation(c), 'normalizeConversation');
     expect(at(again.messages, 0).id).toBe(at(c.messages, 0).id);
     expect(at(again.messages, 1).id).toBe('keep-me');
   });

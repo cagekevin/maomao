@@ -10,6 +10,7 @@
  *  - 降级：无 IntersectionObserver 环境直接显示（不依赖 IO）
  *  - 兜底：加载失败显示「破图占位」，不再保留裂图
  */
+import { must } from '../helpers/must';
 import { act } from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
@@ -80,7 +81,7 @@ describe('LazyImage — 懒加载语义', () => {
     expect(document.querySelector('img')).toBeNull();
 
     triggerIntersect([{ isIntersecting: true }]);
-    const img = document.querySelector('img')!;
+    const img = must(document.querySelector('img'), 'document');
     expect(img).toBeTruthy();
     expect(img.getAttribute('src')).toBe('http://x/b.png');
   });
@@ -88,14 +89,14 @@ describe('LazyImage — 懒加载语义', () => {
   it('相对 /files/ 路径 → 经 render 出按需小图端点（本地图收口）', () => {
     render(<LazyImage src="/files/pic.png" />);
     triggerIntersect([{ isIntersecting: true }]);
-    const img = document.querySelector('img')!;
+    const img = must(document.querySelector('img'), 'document');
     expect(img.getAttribute('src')).toBe('THUMB/files/pic.png');
   });
 
   it('绝对本地 URL → 还原相对出按需小图（DB 存量形态）', () => {
     render(<LazyImage src="http://127.0.0.1:18080/files/tasks/x.png" />);
     triggerIntersect([{ isIntersecting: true }]);
-    const img = document.querySelector('img')!;
+    const img = must(document.querySelector('img'), 'document');
     expect(img.getAttribute('src')).toBe('THUMB/files/tasks/x.png');
   });
 });
@@ -110,7 +111,7 @@ describe('LazyImage — 降级与兜底', () => {
   it('加载失败 → 显示「破图占位」，不再保留 <img>', () => {
     render(<LazyImage src="http://x/d.png" />);
     triggerIntersect([{ isIntersecting: true }]);
-    const img = document.querySelector('img')!;
+    const img = must(document.querySelector('img'), 'document');
     expect(img).toBeTruthy();
 
     fireEvent.error(img);

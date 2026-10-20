@@ -10,6 +10,7 @@
  *  - headRadius 固定 3.4（与选中 comet 视觉一致）
  *  - uid 唯一标识避免多实例 filter 冲突
  */
+import { must } from '../helpers/must';
 import 'react';
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render } from '@testing-library/react';
@@ -38,7 +39,7 @@ describe('Comet', () => {
 
   function setup(props: any) {
     const view = render(<Comet {...props} />);
-    const g = view.container.querySelector('g')!;
+    const g = must(view.container.querySelector('g'), 'view');
     return { view, g };
   }
 

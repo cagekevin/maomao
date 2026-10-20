@@ -368,7 +368,7 @@ describe('ImageGenerate 异步任务恢复（onRecover）', () => {
     mockGetNodes.mockReturnValue([{ id: 'n1' }]);
     setup({});
     act(() => {
-      must(genConfig, 'genConfig').onRecover!({ resultUrl: 'http://poll.local/done.png' });
+      must(must(genConfig, 'genConfig').onRecover, 'must')({ resultUrl: 'http://poll.local/done.png' });
     });
     const data = lastPatchData();
     expect(data.assetUrl).toBe('http://poll.local/done.png');
@@ -381,7 +381,7 @@ describe('ImageGenerate 异步任务恢复（onRecover）', () => {
     mockSetNodes.mockClear();
     setup({ prompt: '一只猫', label: '生图' });
     act(() => {
-      must(genConfig, 'genConfig').onRecover!({ resultUrl: 'http://poll.local/rebuild.png' });
+      must(must(genConfig, 'genConfig').onRecover, 'must')({ resultUrl: 'http://poll.local/rebuild.png' });
     });
     // TD-04-2：重建走 commitNewNodes（setNodes 函数式追加），不再走裸 addNodes。
     // 行为断言：把最后一次 setNodes 的 updater 应用到空画布，应得到带 resultUrl 的重建节点。

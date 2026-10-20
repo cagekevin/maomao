@@ -1,3 +1,4 @@
+import { must } from '../helpers/must';
 import { describe, it, expect } from 'vitest';
 import {
   emptyAssistantTable,
@@ -565,8 +566,8 @@ describe('AI 助手表格模型（assistantTable 纯函数）', () => {
       expect(requireTab(g2, 'A').globalStyle).toBe('沙丘'); // A 不受影响
       expect(requireTab(g2, 'B').globalStyle).toBe('风格B');
       // rename
-      expect(getTab(renameTab(g2, 'A', '新名'), 'A')!.name).toBe('新名');
-      expect(getTab(renameTab(g2, 'A', ''), 'A')!.name).toBe('表A'); // 空名幂等
+      expect(must(getTab(renameTab(g2, 'A', '新名'), 'A'), 'getTab').name).toBe('新名');
+      expect(must(getTab(renameTab(g2, 'A', ''), 'A'), 'getTab').name).toBe('表A'); // 空名幂等
     });
 
     it('addTab/moveTab/copyTab/deleteRows/copyRowsToTab 行为符合预期', () => {

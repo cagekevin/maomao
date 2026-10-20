@@ -13,6 +13,7 @@
  *  - 点击主显示区 toggleExpanded → 写回 data.expanded
  *  - data.videoUrl 外部写入 → 同步本地 state 显示缩略图
  */
+import { must } from '../helpers/must';
 import 'react';
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
@@ -253,7 +254,7 @@ function setup(data = {}) {
   return render(<VideoGenerate id={nodeId} data={{ ...data }} selected={false} />);
 }
 function nodeData() {
-  return h.state.nodes.find((n) => n.id === nodeId)!.data;
+  return must(h.state.nodes.find((n) => n.id === nodeId), 'h').data;
 }
 
 describe('VideoGenerate — 渲染', () => {
@@ -386,7 +387,7 @@ describe('VideoGenerate — 下载 / 删除 / 展开', () => {
   it('点击主显示区 → toggleExpanded 写回 data.expanded', () => {
     const { container } = setup();
     // 主显示区：.group\/display 容器
-    const display = container.querySelector('.group\\/display')!;
+    const display = must(container.querySelector('.group\\/display'), 'container');
     fireEvent.click(display);
     expect(nodeData()['expanded']).toBe(false);
   });

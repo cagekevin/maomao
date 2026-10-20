@@ -7,6 +7,7 @@
  *  - 图片：markdown 图片 ![]() / 裸图片 URL（复用 markdownImages 判定）
  *  - 安全：javascript: 链接不放行（渲染为纯文本）
  */
+import { must } from '../helpers/must';
 import React from 'react';
 import { at } from '../helpers/at';
 import { describe, it, expect, vi } from 'vitest';
@@ -133,7 +134,7 @@ describe('ChatMarkdown — 图片', () => {
     // 而绝对本地 URL 才会经 resolve → 按需小图端点（这才是本断言要覆盖的路径）。
     const url = 'http://127.0.0.1:18080/files/web/a.webp';
     render(<ChatMarkdown value={`![](${url})`} />);
-    const img = document.querySelector('img')!;
+    const img = must(document.querySelector('img'), 'document');
     expect(img).toBeTruthy();
     // 首次走按需小图（非原图地址）
     expect(img.getAttribute('src')).not.toBe(url);

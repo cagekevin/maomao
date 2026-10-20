@@ -18,6 +18,7 @@
  *  2. `useCanvasKeydown` 无守卫 ⇒ 消费者自写，而 `VideoProcessNode` 那份漏了 contenteditable
  *     ⇒ 输入框里按 Delete/Backspace **既删文字又删视频片段**。
  */
+import { must } from '../helpers/must';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, cleanup, fireEvent } from '@testing-library/react';
 import { useGlobalPaste } from '../../src/hooks/useAssetDropPaste.ts';
@@ -121,7 +122,7 @@ describe('粘贴归属：编辑器内的粘贴不归画布（TD-04-34）', () =>
         richText
       />,
     );
-    const editor = container.querySelector('[contenteditable="true"]')!;
+    const editor = must(container.querySelector('[contenteditable="true"]'), 'container');
     expect(editor).toBeTruthy();
 
     const windowSpy = vi.fn();

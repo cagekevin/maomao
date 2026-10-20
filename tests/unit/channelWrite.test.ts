@@ -132,11 +132,11 @@ const legacyMixedTrack = [
 ];
 
 const migrateMixed = () =>
-  normalizeObjectTracks(
+  must(normalizeObjectTracks(
     { 'actor-lead': legacyMixedTrack },
     { 'actor-lead': 'person' },
     { 'actor-lead': must(straightPath, 'straightPath') },
-  )['actor-lead']!;
+  )['actor-lead'], 'normalizeObjectTracks');
 
 // ---- M4-C1 统一写入口 ----
 
@@ -294,7 +294,7 @@ describe('M4-C2/C6 混合 legacy 轨迁移', () => {
     for (const pathFrame of [0, 60, 120, 180, 240]) {
       const key = transform.find((k) => k.frame === pathFrame);
       expect(Object.keys(must(key, 'key').fields!)).toEqual(['position']);
-      expect(must(key, 'key').fields!['position']).toEqual([(pathFrame * 10) / 240, 0, 0]);
+      expect(must(must(key, 'key').fields, 'must')['position']).toEqual([(pathFrame * 10) / 240, 0, 0]);
     }
     // ②手动帧字段完整迁入 transform 通道
     const manualTransform = transform.find((k) => k.frame === 24);
@@ -303,8 +303,8 @@ describe('M4-C2/C6 混合 legacy 轨迁移', () => {
       'rotation',
       'scale',
     ]);
-    expect(must(manualTransform, 'manualTransform').fields!['position']).toEqual([100, 0, 100]);
-    expect(must(manualTransform, 'manualTransform').fields!['scale']).toEqual([1.2, 1, 1]);
+    expect(must(must(manualTransform, 'manualTransform').fields, 'must')['position']).toEqual([100, 0, 100]);
+    expect(must(must(manualTransform, 'manualTransform').fields, 'must')['scale']).toEqual([1.2, 1, 1]);
     // ②手动帧完整迁入 action/skeleton 通道（continuousMotion 是 objectState，不落通道，见 47）
     expect(at(channelOf(migrated, 'action'), 0)).toEqual({
       frame: 24,
@@ -312,7 +312,7 @@ describe('M4-C2/C6 混合 legacy 轨迁移', () => {
       fields: { pose: 'run', poseTime: 0.6 },
     });
     // cloneJointPose 恒返回全部登记关节（缺失补零），runJoints 注入值应在其中
-    expect(at(channelOf(migrated, 'skeleton'), 0).fields!['joints']).toEqual(
+    expect(must(at(channelOf(migrated, 'skeleton'), 0).fields, 'at')['joints']).toEqual(
       cloneJointPose(runJoints),
     );
   });

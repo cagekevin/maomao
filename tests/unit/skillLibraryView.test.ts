@@ -7,6 +7,7 @@
  *  · 无描述 ≠ 不可用（只是不进「可用清单」）；
  *  · 组三态与"空分组要留着"、"官方恒在最前、`_未分类` 恒在最后"。
  */
+import { must } from '../helpers/must';
 import { describe, it, expect } from 'vitest';
 import { at } from '../helpers/at';
 import { rowOf } from '../helpers/table';
@@ -218,7 +219,7 @@ describe('buildSkillLibraryView · 组与三态', () => {
       ],
     });
 
-    const g = view.groups.find((x) => x.name === '图片类')!;
+    const g = must(view.groups.find((x) => x.name === '图片类'), 'view');
     expect(g.toggleIds).toEqual(['id-a']);
     // 与计数同源：消费者拿 `toggleIds.length` 就该等于组头显示的 `toggleable`
     expect(g.toggleIds.length).toBe(g.toggleable);
@@ -308,8 +309,8 @@ describe('组语义 kind / 行预填 categoryInput（消费者不许比哨兵 ·
     });
 
     const rows = view.groups.flatMap((g) => g.rows);
-    expect(rows.find((r) => r.name === 'A')!.categoryInput).toBe('营销文案');
-    expect(rows.find((r) => r.name === 'B')!.categoryInput).toBe(''); // 兜底组不预填内部名
+    expect(must(rows.find((r) => r.name === 'A'), 'rows').categoryInput).toBe('营销文案');
+    expect(must(rows.find((r) => r.name === 'B'), 'rows').categoryInput).toBe(''); // 兜底组不预填内部名
   });
 
   it('不可编辑的行 `categoryInput` 也是空串（没有输入框，就不给"预填值"）', () => {

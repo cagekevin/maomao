@@ -8,6 +8,7 @@
 //   M1-C6 旧整快照 → 通道结构无损迁移，迁移后播放逐帧一致（对 camera/object/person 三实体）
 // 另含：迁移幂等性、keyframeMaxFrame/clampKeyframeFrames 通道化适配、写入口 upsert/remove、读侧桥 flatten。
 // 依赖均为纯函数，node 环境可跑（npm run test:unit:logic）。
+import { must } from '../helpers/must';
 import { describe, it, expect } from 'vitest';
 import { at } from '../helpers/at';
 import { channelOf, trackOf } from '../helpers/tracks';
@@ -195,9 +196,9 @@ describe('M1.2 整快照 → 通道 key（snapshotToChannelKeys）', () => {
     ]);
     // 反例：transform.fields 里不得出现动作/骨骼字段
     // objectState（continuousMotion）不进任何通道（47）
-    expect(at(channelOf(keys, 'action'), 0).fields!['continuousMotion']).toBeUndefined();
-    expect(at(channelOf(keys, 'transform'), 0).fields!['pose']).toBeUndefined();
-    expect(at(channelOf(keys, 'transform'), 0).fields!['joints']).toBeUndefined();
+    expect(must(at(channelOf(keys, 'action'), 0).fields, 'at')['continuousMotion']).toBeUndefined();
+    expect(must(at(channelOf(keys, 'transform'), 0).fields, 'at')['pose']).toBeUndefined();
+    expect(must(at(channelOf(keys, 'transform'), 0).fields, 'at')['joints']).toBeUndefined();
   });
 
   it('摄像机整快照拆为 transform + lens（镜头通道独立）', () => {
@@ -224,7 +225,7 @@ describe('M1.2 整快照 → 通道 key（snapshotToChannelKeys）', () => {
     const keys = snapshotToChannelKeys('person', { position: [1, 2, 3] }, 5, 'smooth');
     expect(Object.keys(keys)).toEqual(['transform']);
     expect(at(channelOf(keys, 'transform'), 0).fields).toEqual({ position: [1, 2, 3] });
-    expect(at(channelOf(keys, 'transform'), 0).fields!['rotation']).toBeUndefined();
+    expect(must(at(channelOf(keys, 'transform'), 0).fields, 'at')['rotation']).toBeUndefined();
   });
 
   it('插值方式随 key 透传（M1-C3 语义的一部分）', () => {
@@ -353,7 +354,7 @@ describe('M1-C6 旧整快照无损迁移 → 播放逐帧一致', () => {
   });
 
   it('整工程 normalizeProjectData：旧数据迁移为通道结构', () => {
-    const project = normalizeProjectData({
+    const project = must(normalizeProjectData({
       version: 17,
       settings: { fps: 24, durationSeconds: 15 },
       shots: [
@@ -367,7 +368,7 @@ describe('M1-C6 旧整快照无损迁移 → 播放逐帧一致', () => {
           paths: {},
         },
       ],
-    })!;
+    }), 'normalizeProjectData');
     expect(project.keyframes['transform']).toBeInstanceOf(Array);
     expect(project.keyframes['lens']).toBeInstanceOf(Array);
     expect(channelOf(trackOf(project.objectKeyframes, 'actor-lead'), 'action')).toBeInstanceOf(
@@ -469,7 +470,7 @@ describe('归一化与通道化工具（幂等/统计/clamp/写入口）', () =>
     const overwrite = { ...at(legacyPersonKeys, 0), position: [9, 9, 9] };
     channels = upsertChannelKeys(channels, snapshotToChannelKeys('person', overwrite, 0, 'smooth'));
     expect(countChannelKeyframes(channels)).toBe(2);
-    expect(at(channelOf(channels, 'transform'), 0).fields!['position']).toEqual([9, 9, 9]);
+    expect(must(at(channelOf(channels, 'transform'), 0).fields, 'at')['position']).toEqual([9, 9, 9]);
   });
 
   it('removeChannelFrames：从所有通道删除指定帧', () => {

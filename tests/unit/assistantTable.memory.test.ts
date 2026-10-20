@@ -106,12 +106,12 @@ describe('assistantTable 会话记忆字段', () => {
     appendMsg({ role: 'assistant', content: '{"rows":[{"景别":"A"}]}', createdAt: 1 });
     appendMsg({ role: 'assistant', content: '{"rows":[{"景别":"B"}]}', createdAt: 2 });
     appendMsg({ role: 'user', content: '追加问题', createdAt: 3 });
-    const msgs = getActiveConv()!.messages as Array<{ id?: unknown; tableResolved?: string }>;
+    const msgs = must(getActiveConv(), 'getActiveConv').messages as Array<{ id?: unknown; tableResolved?: string }>;
     const first = at(msgs, 0);
 
     // 确认第一条 → 只有它带 confirmed，其余（含同为表格的第二条）不带
     markMessageTableResolved(first.id, 'confirmed');
-    const afterConfirm = getActiveConv()!.messages as Array<{
+    const afterConfirm = must(getActiveConv(), 'getActiveConv').messages as Array<{
       id?: unknown;
       tableResolved?: string;
     }>;
@@ -121,7 +121,7 @@ describe('assistantTable 会话记忆字段', () => {
 
     // 覆写（误触取消后再确认等）→ 状态切换为 cancelled
     markMessageTableResolved(first.id, 'cancelled');
-    const afterCancel = getActiveConv()!.messages as Array<{
+    const afterCancel = must(getActiveConv(), 'getActiveConv').messages as Array<{
       id?: unknown;
       tableResolved?: string;
     }>;

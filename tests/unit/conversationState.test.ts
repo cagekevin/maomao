@@ -1,3 +1,4 @@
+import { must } from '../helpers/must';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { at } from '../helpers/at';
 import * as contentStore from '../../src/components/base/core/contentStore.ts';
@@ -174,7 +175,7 @@ describe('conversationState 订阅与提交（消息单源底座）', () => {
     const many = Array.from({ length: 100 }, (_, i) => ({ role: 'user', content: `m${i}` }));
     patchCurrentMessages(many);
     expect(getCurrentSnapshot().messages).toHaveLength(60);
-    expect(getCurrentSnapshot().messages.at(-1)!.content).toBe('m99');
+    expect(must(getCurrentSnapshot().messages.at(-1), 'getCurrentSnapshot').content).toBe('m99');
   });
 
   it('pending 引用契约（P1a）：makePendingRef 不存 text 副本、保留原始 attachments；set/get 往返一致', () => {
@@ -184,7 +185,7 @@ describe('conversationState 订阅与提交（消息单源底座）', () => {
     setCurrentPending(
       makePendingRef({ conversationId: id, messageId: 'm-42', attachments: rawAtt }),
     );
-    const p = getCurrentPending()!;
+    const p = must(getCurrentPending(), 'getCurrentPending');
     expect(p.messageId).toBe('m-42');
     // text 不入 pending（由 messageId 引用找回），避免用户消息双副本
     expect(p.text).toBeUndefined();
@@ -192,7 +193,7 @@ describe('conversationState 订阅与提交（消息单源底座）', () => {
     expect(p.attachments).toEqual(rawAtt);
     // 兼容旧形态：遗留 text 仍保留（迁移期可恢复）
     setCurrentPending({ conversationId: id, text: 'legacy' });
-    expect(getCurrentPending()!.text).toBe('legacy');
+    expect(must(getCurrentPending(), 'getCurrentPending').text).toBe('legacy');
   });
 });
 
@@ -201,10 +202,10 @@ describe('conversationState · normalizeWorkflow 的 L1 限容', () => {
 
   it('steerQueue 超上限保最近 STEER_QUEUE_MAX 条', () => {
     const total = STEER_QUEUE_MAX + 5;
-    const w = normalizeWorkflow({
+    const w = must(normalizeWorkflow({
       ...base,
       steerQueue: Array.from({ length: total }, (_, i) => ({ text: `t${i}` })),
-    })!;
+    }), 'normalizeWorkflow');
     expect(w.steerQueue.length).toBe(STEER_QUEUE_MAX);
     // 保最近：末位是最新的那条；最早的 5 条被挤掉
     expect(w.steerQueue[w.steerQueue.length - 1]).toEqual({ text: `t${total - 1}` });
@@ -213,7 +214,7 @@ describe('conversationState · normalizeWorkflow 的 L1 限容', () => {
 
   it('未超上限原样保留', () => {
     const q = [{ text: 'a' }, { text: 'b' }];
-    const w = normalizeWorkflow({ ...base, steerQueue: q })!;
+    const w = must(normalizeWorkflow({ ...base, steerQueue: q }), 'normalizeWorkflow');
     expect(w.steerQueue).toEqual(q);
   });
 });

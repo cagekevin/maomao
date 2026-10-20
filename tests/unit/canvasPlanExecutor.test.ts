@@ -1,3 +1,4 @@
+import { must } from '../helpers/must';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { at } from '../helpers/at';
 import type { Node, Edge } from '@xyflow/react';
@@ -198,7 +199,7 @@ describe('多步编排执行器 executePlan §2.5/2.6', () => {
       generations: [{ id: 'g1', prompt: '猫' }],
       referenceImages: ['http://r/ref.png'],
     });
-    const imgs = at(ctx.nodes(), 0)!.data['images'] as Array<{ url: string }>;
+    const imgs = must(at(ctx.nodes(), 0), 'at').data['images'] as Array<{ url: string }>;
     expect(imgs).toHaveLength(1);
     expect(at(imgs, 0).url).toBe('http://r/ref.png');
   });

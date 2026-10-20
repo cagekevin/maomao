@@ -4,6 +4,7 @@
 //   → bakePathKeyframes 按弧长切关键帧（数量/覆盖/单调/去重稳定）
 //   → pathPositionAtFraction 沿弧长匀速回放（直线匀速不偏、细粒度不掉帧）
 // 依赖均为纯函数，node 环境可跑（npm run test:unit:logic）。
+import { must } from '../helpers/must';
 import { describe, it, expect } from 'vitest';
 import { at } from '../helpers/at';
 import {
@@ -37,12 +38,12 @@ describe('路径归一化 normalizeShotPaths / normalizeCameraPath', () => {
       { x: 1, y: 0.6, z: 2 },
       { x: 3, y: 0.6, z: 4 },
     ];
-    const path = normalizeCameraPath({
+    const path = must(normalizeCameraPath({
       points: drawn,
       startFrame: 0,
       endFrame: 360,
       keyframeCount: 5,
-    })!;
+    }), 'normalizeCameraPath');
     expect(path.points).toEqual(drawn);
     expect(path.startFrame).toBe(0);
     expect(path.endFrame).toBe(360);
@@ -58,7 +59,7 @@ describe('路径归一化 normalizeShotPaths / normalizeCameraPath', () => {
   });
 
   it('endFrame 不允许小于 startFrame+1', () => {
-    const path = normalizeCameraPath({ points: straightPoints, startFrame: 100, endFrame: 50 })!;
+    const path = must(normalizeCameraPath({ points: straightPoints, startFrame: 100, endFrame: 50 }), 'normalizeCameraPath');
     expect(path.endFrame).toBe(101);
   });
 
@@ -151,13 +152,13 @@ describe('沿弧长匀速回放 pathPositionAtFraction', () => {
   });
 
   it('直线匀速：u=0.5 应落在中点附近（路程均匀）', () => {
-    const mid = pathPositionAtFraction(path, 0.5)!;
+    const mid = must(pathPositionAtFraction(path, 0.5), 'pathPositionAtFraction');
     expect(mid.x).toBeCloseTo(5, 1);
   });
 
   it('首尾端点与起点终点对应', () => {
-    const head = pathPositionAtFraction(path, 0)!;
-    const tail = pathPositionAtFraction(path, 1)!;
+    const head = must(pathPositionAtFraction(path, 0), 'pathPositionAtFraction');
+    const tail = must(pathPositionAtFraction(path, 1), 'pathPositionAtFraction');
     expect(head.x).toBeCloseTo(0, 2);
     expect(tail.x).toBeCloseTo(10, 2);
   });
@@ -167,7 +168,7 @@ describe('沿弧长匀速回放 pathPositionAtFraction', () => {
     let prev = null;
     let maxStep = 0;
     for (let i = 0; i <= steps; i += 1) {
-      const p = pathPositionAtFraction(path, i / steps)!;
+      const p = must(pathPositionAtFraction(path, i / steps), 'pathPositionAtFraction');
       if (prev) maxStep = Math.max(maxStep, Math.hypot(p.x - prev.x, p.z - prev.z));
       prev = p;
     }
@@ -176,12 +177,12 @@ describe('沿弧长匀速回放 pathPositionAtFraction', () => {
   });
 
   it('超出 [0,1] 的进度被钳制，不越界', () => {
-    expect(pathPositionAtFraction(path, -1)!.x).toBeCloseTo(0, 2);
-    expect(pathPositionAtFraction(path, 2)!.x).toBeCloseTo(10, 2);
+    expect(must(pathPositionAtFraction(path, -1), 'pathPositionAtFraction').x).toBeCloseTo(0, 2);
+    expect(must(pathPositionAtFraction(path, 2), 'pathPositionAtFraction').x).toBeCloseTo(10, 2);
   });
 
   it('切线为归一化单位向量', () => {
-    const tangent = pathTangentAtFraction(path, 0.5)!;
+    const tangent = must(pathTangentAtFraction(path, 0.5), 'pathTangentAtFraction');
     expect(tangent).not.toBeNull();
     expect(Math.hypot(...tangent!)).toBeCloseTo(1, 3);
   });

@@ -440,14 +440,14 @@ beforeEach(() => {
 describe('AgentPanel — 面板显隐（阶段1C：常驻 DOM，CSS 显隐）', () => {
   it('open=false → 根容器仍在 DOM 但带 hidden（不卸载，运行态不断流）', () => {
     render(<AgentPanel {...CLOSED_PROPS} />);
-    const root = document.querySelector('.absolute.top-0.right-0.bottom-0')!;
+    const root = must(document.querySelector('.absolute.top-0.right-0.bottom-0'), 'document');
     expect(root).toBeTruthy(); // 常驻：容器卸载不触发
     expect(root.className).toContain('hidden'); // 关闭：CSS 隐藏可见内容
   });
 
   it('open=true → 根容器不带 hidden（可见）', () => {
     render(<AgentPanel {...OPEN_PROPS} />);
-    const root = document.querySelector('.absolute.top-0.right-0.bottom-0')!;
+    const root = must(document.querySelector('.absolute.top-0.right-0.bottom-0'), 'document');
     expect(root).toBeTruthy();
     expect(root.className).not.toContain('hidden');
   });

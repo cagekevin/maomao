@@ -7,6 +7,7 @@
  *
  * 本文件锁定：失败 → 显式占位；且**不留**坏元素在 DOM 里（否则黑框与占位同屏 = 没说清）。
  */
+import { must } from '../helpers/must';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 
@@ -28,7 +29,7 @@ describe('VideoThumbnail — 视频加载失败必须可见', () => {
 
   it('onError → 出「视频加载失败」占位，并留痕（不许静默黑框）', () => {
     render(<VideoThumbnail src="/files/b.mp4" />);
-    const video = document.querySelector('video')!;
+    const video = must(document.querySelector('video'), 'document');
 
     fireEvent.error(video);
 

@@ -419,8 +419,8 @@ describe('Dialog（自研）', () => {
     const focusables = dialog.querySelectorAll<HTMLElement>(
       'button:not([disabled]), input:not([disabled])',
     );
-    const last = focusables[focusables.length - 1]!;
-    const first = focusables[0]!;
+    const last = must(focusables[focusables.length - 1], 'focusables');
+    const first = must(focusables[0], 'focusables');
     last.focus();
 
     fireEvent.keyDown(dialog, { key: 'Tab' });

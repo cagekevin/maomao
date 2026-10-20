@@ -81,7 +81,7 @@ describe('PromptInput 运行期 @名 自动转芯片', () => {
     const { container } = render(
       <Harness assets={[{ id: 'img-1', label: '猫', url: 'u/cat.png' }]} />,
     );
-    const el = container.querySelector('[contenteditable="true"]')!;
+    const el = must(container.querySelector('[contenteditable="true"]'), 'container');
 
     act(() => {
       placeCaretAtEnd(el);
@@ -101,7 +101,7 @@ describe('PromptInput 运行期 @名 自动转芯片', () => {
         ]}
       />,
     );
-    const el = container.querySelector('[contenteditable="true"]')!;
+    const el = must(container.querySelector('[contenteditable="true"]'), 'container');
 
     act(() => {
       placeCaretAtEnd(el);
@@ -127,7 +127,7 @@ describe('PromptInput 运行期 @名 自动转芯片', () => {
         ]}
       />,
     );
-    const el = container.querySelector('[contenteditable="true"]')!;
+    const el = must(container.querySelector('[contenteditable="true"]'), 'container');
 
     act(() => {
       placeCaretAtEnd(el);
@@ -143,7 +143,7 @@ describe('PromptInput 运行期 @名 自动转芯片', () => {
     const { container } = render(
       <Harness assets={[{ id: 'img-1', label: '猫', url: 'u/cat.png' }]} />,
     );
-    const el = container.querySelector('[contenteditable="true"]')!;
+    const el = must(container.querySelector('[contenteditable="true"]'), 'container');
 
     act(() => {
       placeCaretAtEnd(el);
@@ -159,7 +159,7 @@ describe('PromptInput 运行期 @名 自动转芯片', () => {
     const { container } = render(
       <Harness assets={[{ id: 'img-1', label: '猫', url: 'u/cat.png' }]} />,
     );
-    const el = container.querySelector('[contenteditable="true"]')!;
+    const el = must(container.querySelector('[contenteditable="true"]'), 'container');
 
     act(() => {
       placeCaretAtEnd(el);
@@ -174,7 +174,7 @@ describe('PromptInput 运行期 @名 自动转芯片', () => {
     const { container } = render(
       <Harness assets={[{ id: 'img-1', label: '猫', url: 'u/cat.png' }]} />,
     );
-    const el = container.querySelector('[contenteditable="true"]')!;
+    const el = must(container.querySelector('[contenteditable="true"]'), 'container');
 
     act(() => {
       fireEvent.compositionStart(el);

@@ -218,13 +218,13 @@ describe('R3 duplicateSelectedWithEdges 克隆子图（保留组关系 + 连线�
     expect(r.nodes).toHaveLength(7);
     // 克隆的 c1/c2 有新的 parentId（指向克隆的 group），不指向原 group
     const newIds = [...ids].filter((id) => !['g', 'c1', 'c2', 'outer'].includes(id));
-    const cloneC1 = must(r.nodes, 'nodes').find(
+    const cloneC1 = must(must(r.nodes, 'nodes').find(
       (n) => newIds.includes(n.id) && n.type === 'assetNode',
-    )!;
-    const cloneC2 = must(r.nodes, 'nodes').find(
+    ), 'must');
+    const cloneC2 = must(must(r.nodes, 'nodes').find(
       (n) => newIds.includes(n.id) && n.type === 'textGenerateNode',
-    )!;
-    const cloneG = must(r.nodes, 'nodes').find((n) => newIds.includes(n.id) && n.type === 'group')!;
+    ), 'must');
+    const cloneG = must(must(r.nodes, 'nodes').find((n) => newIds.includes(n.id) && n.type === 'group'), 'must');
     expect(cloneC1.parentId).toBe(cloneG.id);
     expect(cloneC2.parentId).toBe(cloneG.id);
   });
@@ -321,7 +321,7 @@ describe('编组尺寸刷新保真（TASK: 编组后刷新大小变了）', () =
     });
 
   it('group 创建时必须带 width/height 字段（NodeShell.useNodeSize 优先读 width）', () => {
-    const group = must(grouped, 'grouped').find((n) => n.id === groupId)!;
+    const group = must(must(grouped, 'grouped').find((n) => n.id === groupId), 'must');
     expect(group.width).toBe(780);
     expect(group.height).toBe(530);
     expect(must(group.style, 'style').width).toBe(780);
@@ -413,7 +413,7 @@ describe('R3 resolveDragGrouping 拖入/拖出落组判定', () => {
     // 传入的 nodes 必须包含被拖拽节点本身（对齐原调用方 nodesRef.current）
     const r = resolveDragGrouping(dragged, [group, outer, dragged]);
     expect(r).not.toBeNull();
-    const moved = must(r, 'r').find((n) => n.id === 'd')!;
+    const moved = must(must(r, 'r').find((n) => n.id === 'd'), 'must');
     expect(moved.parentId).toBe('g');
     expect(moved.position).toEqual({ x: 200, y: 200 }); // group 在原点，相对=绝对
   });
@@ -441,7 +441,7 @@ describe('R3 resolveDragGrouping 拖入/拖出落组判定', () => {
     };
     const r = resolveDragGrouping(dragged, [group, child, outer, dragged]);
     expect(r).not.toBeNull();
-    const moved = must(r, 'r').find((n) => n.id === 'd')!;
+    const moved = must(must(r, 'r').find((n) => n.id === 'd'), 'must');
     expect(moved.parentId).toBeUndefined();
     expect(moved.extent).toBeUndefined();
     // 原组在原点，绝对=相对 700,700
@@ -466,7 +466,7 @@ describe('R3 resolveDragGrouping 拖入/拖出落组判定', () => {
     };
     const r = resolveDragGrouping(dragged, [inner, group, dragged]);
     expect(r).not.toBeNull();
-    const moved = must(r, 'r').find((n) => n.id === 'd')!;
+    const moved = must(must(r, 'r').find((n) => n.id === 'd'), 'must');
     expect(moved.parentId).toBe('inner');
   });
 });

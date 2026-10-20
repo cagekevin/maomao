@@ -5,6 +5,7 @@
  * downloadUrl（含 fetch 失败分支）。
  * 策略：jsdom 环境 + vi.stubGlobal 拦截 navigator.clipboard / fetch / URL.createObjectURL / Image。
  */
+import { must } from '../helpers/must';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { at } from '../helpers/at';
 
@@ -241,7 +242,7 @@ describe('clipboard — buildNodesFromClipboard（粘贴节点组重建）', () 
   });
 
   it('正常重建：id 重映射、新节点 selected:true、data 深拷贝', () => {
-    const r = buildNodesFromClipboard(clipboardJson, { x: 500, y: 500 })!;
+    const r = must(buildNodesFromClipboard(clipboardJson, { x: 500, y: 500 }), 'buildNodesFromClipboard');
     expect(r).not.toBeNull();
     expect(r.nodes).toHaveLength(2);
     // id 已重映射（不保留原 id a/b）
@@ -262,8 +263,8 @@ describe('clipboard — buildNodesFromClipboard（粘贴节点组重建）', () 
   it('以粘贴点为中心：包围盒中心对齐 pos', () => {
     // 原包围盒 x: 0..200(0+100?) 实际 0..100 / y:0..100 → 中心 (50,50)
     // 节点 a 绝对 x:0..100、b x:200..300 → 整体 x 范围 0..300，中心 150
-    const r = buildNodesFromClipboard(clipboardJson, { x: 1000, y: 800 })!;
-    const nodeA = r.nodes.find((n) => n.type === 'assetNode')!;
+    const r = must(buildNodesFromClipboard(clipboardJson, { x: 1000, y: 800 }), 'buildNodesFromClipboard');
+    const nodeA = must(r.nodes.find((n) => n.type === 'assetNode'), 'r');
     // a 原始 position.x=0，平移后 = pos.x + (0 - centerX) = 1000 + (0 - 150) = 850
     expect(nodeA.position.x).toBe(850);
   });
@@ -273,7 +274,7 @@ describe('clipboard — buildNodesFromClipboard（粘贴节点组重建）', () 
       type: 'mutiwindow-nodes',
       nodes: [{ id: 'a', type: 'assetNode', data: { label: 'L' }, position: { x: 0, y: 0 } }],
     };
-    const r = buildNodesFromClipboard(JSON.stringify(src), { x: 0, y: 0 })!;
+    const r = must(buildNodesFromClipboard(JSON.stringify(src), { x: 0, y: 0 }), 'buildNodesFromClipboard');
     at(r.nodes, 0).data['label'] = 'MUTATED';
     expect(at(src.nodes, 0).data.label).toBe('L');
   });
