@@ -4,7 +4,7 @@
 
 | ID | 位置 | 债的形态 | 归属 | 爆炸半径 | 利息 | 根因 | 大致解法 | 状态 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| @见 债务.md | `src/hooks/useNodeData.ts`（node.data 写回唯一入口，24 处 import + 95 处字符串引用）；对照 `src/components/agent/canvas/agentCanvasHost.ts` `updateNodeData`（tests/unit/agentCanvasHost.test.ts:5 自承"写 node.data 有两条入口"） | 唯一入口缺真守卫：node.data 写回仅有注释红线（CLAUDE.md §5.4.9 列"唯一入口"），无运行时/机器守卫，已漂出第二份入口 `agentCanvasHost.updateNodeData`，违反 SSOT | 前端 hooks/useNodeData（画布/生成关键链路） | 所有节点 data 写回（结果写回/重命名/展开/字段编辑/Agent 写回）一旦绕行即双真相、回潮难查 | 中 | 唯一入口只在注释层，无 dev 期断言/守卫拦截直写 `setNodes` data；与 TD-08-38 同源（红线只在注释→必回潮） | 在 node store 写路径加 dev 守卫：node.data 变更必须经 useNodeData 收口（标记/断言拒绝直写），强制 SSOT | 待还 |
+| TD-04-55 | `src/hooks/useNodeData.ts`（node.data 写回唯一入口，24 处 import + 95 处字符串引用）；对照 `src/components/agent/canvas/agentCanvasHost.ts` `updateNodeData`（tests/unit/agentCanvasHost.test.ts:5 自承"写 node.data 有两条入口"） | 唯一入口缺真守卫：node.data 写回仅有注释红线（CLAUDE.md §5.4.9 列"唯一入口"），无运行时/机器守卫，已漂出第二份入口 `agentCanvasHost.updateNodeData`，违反 SSOT | 前端 hooks/useNodeData（画布/生成关键链路） | 所有节点 data 写回（结果写回/重命名/展开/字段编辑/Agent 写回）一旦绕行即双真相、回潮难查 | 中 | 唯一入口只在注释层，无 dev 期断言/守卫拦截直写 `setNodes` data；与 TD-08-38 同源（红线只在注释→必回潮） | 在 node store 写路径加 dev 守卫：node.data 变更必须经 useNodeData 收口（标记/断言拒绝直写），强制 SSOT | 待还 |
 
 ## 覆盖度表
 
