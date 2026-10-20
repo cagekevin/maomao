@@ -1,3 +1,4 @@
+import { must } from '../helpers/must';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { flushAsync } from './_testUtils.mjs';
 // 静态 import（不动态 import）：
@@ -246,14 +247,14 @@ describe('项目系统 §2.8', () => {
     const r = await saveCanvasState('default', nodes, [], { x: 120, y: -50, zoom: 1.5 });
     expect(r.success).toBe(true);
     const loaded = await loadCanvasState('default');
-    expect(loaded!.viewport).toEqual({ x: 120, y: -50, zoom: 1.5 });
+    expect(must(loaded, 'loaded').viewport).toEqual({ x: 120, y: -50, zoom: 1.5 });
   });
 
   it('saveCanvasState 不传 viewport → 快照无 viewport 字段，loadCanvasState 返回 null（P20 兼容旧快照）', async () => {
     const nodes = [{ id: 'n1', type: 'textGenerateNode', data: {}, position: { x: 0, y: 0 } }];
     await saveCanvasState('default', nodes, []);
     const loaded = await loadCanvasState('default');
-    expect(loaded!.viewport).toBeNull();
+    expect(must(loaded, 'loaded').viewport).toBeNull();
   });
 
   it('落盘白名单保留编组所需字段（parentId/extent/style/width/height）→ 刷新后尺寸与父关系不丢', async () => {
@@ -305,8 +306,8 @@ describe('projectStore · 画布快照 CAS（docs/118 §6.1 A）', () => {
     expect(getLoadedVersion()).toBe(0);
     await saveCanvasState('default', [node('n1')], []);
     const first = H.kvSetCalls.at(-1);
-    expect(first!.key).toBe(CANVAS_KEY);
-    expect(first!.ifVersion).toBe(0);
+    expect(must(first, 'first').key).toBe(CANVAS_KEY);
+    expect(must(first, 'first').ifVersion).toBe(0);
 
     const v1 = getLoadedVersion();
     expect(v1).toBeGreaterThan(0);

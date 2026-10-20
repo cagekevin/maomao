@@ -11,6 +11,7 @@
  *  - 点击删除按钮 → deleteElements({ edges: [{ id }] })
  *  - markerEnd 字符串透传给主线
  */
+import { must } from '../helpers/must';
 import 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
@@ -137,6 +138,6 @@ describe('CustomEdge — 激活态', () => {
     const view = setup({ selected: true });
     const label = view.container.querySelector('[data-testid="edge-label"]');
     expect(label).toBeTruthy();
-    expect(label!.querySelector('[title="删除连线"]')).toBeTruthy();
+    expect(must(label, 'label').querySelector('[title="删除连线"]')).toBeTruthy();
   });
 });

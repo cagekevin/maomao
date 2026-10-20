@@ -6,6 +6,7 @@
  * 策略：mock conversationStore 三个落盘原语（getCurrentSnapshot / setCurrentSnapshot / patchCurrentMessages），
  *       用内存数组当 store 模拟单源读。
  */
+import { must } from '../helpers/must';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { at } from '../helpers/at';
 import type { agentChatMessage } from '../../src/components/agent/runtime/agentCore.ts';
@@ -61,7 +62,7 @@ beforeEach(() => {
       }) as unknown as import('../../src/components/agent/conversation/conversationSnapshot.ts').ConversationSnapshot,
   );
   setCurrentSnapshot.mockImplementation((p) => {
-    if (p?.messages) store.set(p!.messages as TestChatMessage[]);
+    if (p?.messages) store.set(must(p, 'p').messages as TestChatMessage[]);
   });
   patchCurrentMessages.mockImplementation((next) => store.set(next as TestChatMessage[]));
 });
@@ -110,7 +111,7 @@ describe('updateLastStreaming — 流式增量（仅通知）', () => {
     updateLastStreaming({ content: 'hi', toolCalls: [{ function: { name: 'f' } }] });
     const last = store.current[store.current.length - 1]!;
     expect(last.content).toBe('hi');
-    expect(last.tool_calls![0]!.function!.name).toBe('f');
+    expect(must(last.tool_calls, 'tool_calls')[0]!.function!.name).toBe('f');
     expect(patchCurrentMessages).toHaveBeenCalled();
   });
 

@@ -14,6 +14,7 @@
  *   所以"定位准不准 / 拖动面板后是否归位 / 命令式动作（`input.click()`）会不会被吞"
  *   一律**不在这里断言**（那是假覆盖）—— 它们进轮次文件的手工实测清单。
  */
+import { must } from '../helpers/must';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import {
@@ -396,10 +397,10 @@ describe('Dialog（自研）', () => {
 
     const labelledBy = dialog.getAttribute('aria-labelledby');
     expect(labelledBy).toBeTruthy();
-    expect(document.getElementById(labelledBy!)?.textContent).toBe('标题在此');
+    expect(document.getElementById(must(labelledBy, 'labelledBy'))?.textContent).toBe('标题在此');
 
     const describedBy = dialog.getAttribute('aria-describedby');
-    expect(document.getElementById(describedBy!)?.textContent).toBe('说明在此');
+    expect(document.getElementById(must(describedBy, 'describedBy'))?.textContent).toBe('说明在此');
   });
 
   it('打开即把焦点收进对话框（模态的可访问性底线）', () => {

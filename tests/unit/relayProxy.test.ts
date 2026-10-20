@@ -10,6 +10,7 @@
  * mock：httpRequest（httpClient）接 /api/generate 的 {code,data} 信封。
  * 时间：attach 循环内有 3s sleep，用 fake timers + advanceTimersByTimeAsync 推进，避免真等/挂。
  */
+import { must } from '../helpers/must';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 const h = vi.hoisted(() => ({
@@ -87,12 +88,12 @@ describe('relayProxy §R6 — relayAttachUntilDone（统一 attach 契约）', (
     // 一直 running（永不到终态）→ 预算用尽退出
     h.mockHttpRequest.mockResolvedValue(envResp({ status: 'running', progress: 60 }));
     const r = await runWithTimers(relayAttachUntilDone({ frontTaskId: 'task-1', timeoutMs: 5000 }));
-    expect(r.value!.ok).toBe(false);
+    expect(must(r.value, 'value').ok).toBe(false);
     // 判别字段：消费方据此保持任务 running、交恢复轮询续 attach（而非当失败处理）
-    expect(r.value!.pending).toBe(true);
-    expect(r.value!.url).toBeUndefined();
+    expect(must(r.value, 'value').pending).toBe(true);
+    expect(must(r.value, 'value').url).toBeUndefined();
     // error 降级为排障文案（走 timeoutMessage 唯一出口，含真实预算秒数），不再是失败结论
-    expect(r.value!.error).toContain('5 秒');
+    expect(must(r.value, 'value').error).toContain('5 秒');
   });
 
   it('【143 S4′】不传 timeoutMs ⇒ 从后端 budgetMs 学等待上限（生产者给全，前端不自持数值）', async () => {
@@ -102,10 +103,10 @@ describe('relayProxy §R6 — relayAttachUntilDone（统一 attach 契约）', (
     );
     const r = await runWithTimers(relayAttachUntilDone({ frontTaskId: 'task-1' }));
     expect(r.ok).toBe(true);
-    expect(r.value!.ok).toBe(false);
-    expect(r.value!.pending).toBe(true);
+    expect(must(r.value, 'value').ok).toBe(false);
+    expect(must(r.value, 'value').pending).toBe(true);
     // 文案里的秒数 = **后端给的那个数** ⇒ 证明预算确实是从响应学的，不是本地常量
-    expect(r.value!.error).toContain('5 秒');
+    expect(must(r.value, 'value').error).toContain('5 秒');
   });
 
   it('【143 S4′】显式 timeoutMs 优先于后端 budgetMs（调用方本次耐心 > 生产者默认）', async () => {
@@ -114,8 +115,8 @@ describe('relayProxy §R6 — relayAttachUntilDone（统一 attach 契约）', (
       envResp({ status: 'running', progress: 60, budgetMs: 60000 }),
     );
     const r = await runWithTimers(relayAttachUntilDone({ frontTaskId: 'task-1', timeoutMs: 3000 }));
-    expect(r.value!.pending).toBe(true);
-    expect(r.value!.error).toContain('3 秒');
+    expect(must(r.value, 'value').pending).toBe(true);
+    expect(must(r.value, 'value').error).toContain('3 秒');
   });
 
   it('【146 · ADR-0061】signal abort 只抛 AbortError，**不发任何取消请求**（前端无中止入口）', async () => {
@@ -160,7 +161,7 @@ describe('relayProxy §R6 — relayGenerate = submit + attach', () => {
     expect(r.value).toEqual({ ok: true, url: '/files/tasks/x.png' });
     const submitCall = h.mockHttpRequest.mock.calls.find(([u]) => u.endsWith('/api/generate'));
     expect(submitCall).toBeTruthy();
-    expect(JSON.parse(submitCall![1].body)).toMatchObject({
+    expect(JSON.parse(must(submitCall, 'submitCall')[1].body)).toMatchObject({
       frontTaskId: 'task-1',
       providerId: 'lovart',
       capability: 'image',

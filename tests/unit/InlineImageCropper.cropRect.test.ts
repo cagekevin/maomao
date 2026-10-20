@@ -7,6 +7,7 @@
  * 否则会裁到留白或「右边多出一截」。组件 handleSave 与本测试**共用本函数**（此前组件内联一份、
  * 另导出 cropRectFromSelection 一份且口径不同 → 双实现、测试锁住的还不是生产路径）。
  */
+import { must } from '../helpers/must';
 import { describe, it, expect } from 'vitest';
 import { cropRectFromPercent } from '../../src/components/image/editors/InlineImageCropper.tsx';
 
@@ -93,10 +94,10 @@ describe('cropRectFromPercent', () => {
       boxH: 200,
       ...NAT,
     });
-    expect(r!.sx).toBeGreaterThanOrEqual(0);
-    expect(r!.sy).toBeGreaterThanOrEqual(0);
-    expect(r!.sx + r!.sw).toBeLessThanOrEqual(1200);
-    expect(r!.sy + r!.sh).toBeLessThanOrEqual(800);
+    expect(must(r, 'r').sx).toBeGreaterThanOrEqual(0);
+    expect(must(r, 'r').sy).toBeGreaterThanOrEqual(0);
+    expect(must(r, 'r').sx + must(r, 'r').sw).toBeLessThanOrEqual(1200);
+    expect(must(r, 'r').sy + must(r, 'r').sh).toBeLessThanOrEqual(800);
   });
 
   it('无效输入（无宽高 / 零尺寸盒子 / 缺参）→ null', () => {

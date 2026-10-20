@@ -11,6 +11,7 @@
  *
  * 【先红后绿】还原为对象形式 `onChange({ ...state, ... })` → 本用例必红（bgColor 被旧值覆盖）。
  */
+import { must } from '../helpers/must';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, act } from '@testing-library/react';
 import React, { useState } from 'react';
@@ -81,9 +82,9 @@ describe('OverlayEditor 上游同步（TD-06-8）', () => {
 
     // ② 加载期间「用户操作」：改背景色（外部 state 前进一格）
     await act(async () => {
-      setOuterState!((prev) => ({ ...prev, bgColor: '#ffffff' }));
+      must(setOuterState, 'setOuterState')((prev) => ({ ...prev, bgColor: '#ffffff' }));
     });
-    expect(latestState!.bgColor).toBe('#ffffff');
+    expect(must(latestState, 'latestState').bgColor).toBe('#ffffff');
 
     // ③ 图片加载完成 → effect 继续 → 调用 onChange 增删 layers
     await act(async () => {
@@ -91,7 +92,9 @@ describe('OverlayEditor 上游同步（TD-06-8）', () => {
     });
 
     // ④ 关键断言：用户改的 bgColor 仍在（未被闭包旧 state 覆盖），新图层已追加
-    expect(latestState!.bgColor).toBe('#ffffff');
-    expect(latestState!.layers.map((l) => l.assetUrl)).toEqual(['/files/a.png']);
+    expect(must(latestState, 'latestState').bgColor).toBe('#ffffff');
+    expect(must(latestState, 'latestState').layers.map((l) => l.assetUrl)).toEqual([
+      '/files/a.png',
+    ]);
   });
 });

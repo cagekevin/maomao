@@ -1,3 +1,4 @@
+import { must } from '../helpers/must';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { at } from '../helpers/at';
 import * as contentStore from '../../src/components/base/core/contentStore.ts';
@@ -49,7 +50,7 @@ describe('assistantTable 会话记忆字段', () => {
     const id = ensureActiveConversation();
     applyConversation(id);
     const sb = parsePasted('景别\t画面\n中景\t人');
-    setCurrentAssistantTable(sb!);
+    setCurrentAssistantTable(must(sb, 'sb'));
     expect(getCurrentAssistantTable().rows).toHaveLength(1);
 
     const { id: idB } = newConversation();

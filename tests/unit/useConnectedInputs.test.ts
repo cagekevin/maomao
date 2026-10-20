@@ -1,3 +1,4 @@
+import { must } from '../helpers/must';
 import { describe, it, expect } from 'vitest';
 import { at } from '../helpers/at';
 import {
@@ -420,7 +421,7 @@ describe('P0-B ③ 聚合（aggregateUpstream 与旧 useMemo 体语义等价）'
     const src = mkNode('u1', 'imageGenerateNode', { assetUrl: 'http://a.png' });
     const out = aggregateUpstream([{ node: src, sourceHandle: undefined }]);
     expect(out.images).toHaveLength(1);
-    expect(out.images![0]!.url).toBe('http://a.png');
+    expect(must(out.images, 'images')[0]!.url).toBe('http://a.png');
     expect(at(out.images, 0).sourceNodeId).toBe('u1');
   });
 
@@ -434,8 +435,8 @@ describe('P0-B ③ 聚合（aggregateUpstream 与旧 useMemo 体语义等价）'
   it('相对 /files/ URL 兜底为绝对 URL（刷新不破图）', () => {
     const src = mkNode('u1', 'imageGenerateNode', { assetUrl: '/files/a.png' });
     const out = aggregateUpstream([{ node: src, sourceHandle: undefined }]);
-    expect(out.images![0]!.url).toContain('/files/a.png');
-    expect(out.images![0]!.url!.startsWith('http')).toBe(true);
+    expect(must(out.images, 'images')[0]!.url).toContain('/files/a.png');
+    expect(must(out.images, 'images')[0]!.url!.startsWith('http')).toBe(true);
   });
 
   it('无上游 → 空聚合', () => {
@@ -474,7 +475,7 @@ describe('P0-B 编组出口（parentLookup 展开，行为与旧 nodes.filter �
   it('组内子节点聚合：不补 sourceNodeId（保持既有行为）', () => {
     const up = [{ node: child1, sourceHandle: undefined, fromGroup: true }];
     const out = aggregateUpstream(up);
-    expect(out.images![0]!.url).toBe('http://c1.png');
+    expect(must(out.images, 'images')[0]!.url).toBe('http://c1.png');
     expect(at(out.images, 0).sourceNodeId).toBeUndefined();
   });
 

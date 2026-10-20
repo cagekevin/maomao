@@ -1,3 +1,4 @@
+import { must } from '../helpers/must';
 import { describe, it, expect } from 'vitest';
 import { at } from '../helpers/at';
 import { HistoryStack } from '../../src/components/canvas/structure/historyStack.ts';
@@ -66,7 +67,7 @@ describe('HistoryStack undo/redo', () => {
     const s = new HistoryStack<Snap>();
     pushN(s, 3);
     const snap = s.undo();
-    expect(snap!.i).toBe(2);
+    expect(must(snap, 'snap').i).toBe(2);
     expect(s.canRedo).toBe(true);
   });
 
@@ -76,7 +77,7 @@ describe('HistoryStack undo/redo', () => {
     s.undo();
     s.undo();
     const snap = s.redo();
-    expect(snap!.i).toBe(2);
+    expect(must(snap, 'snap').i).toBe(2);
     expect(s.canUndo).toBe(true);
   });
 

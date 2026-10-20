@@ -19,6 +19,7 @@
  * OOM 教训：AgentPanel 的 selectedAssetNodes 若用默认参数（每次渲染新 []），
  * 会与组件内 useEffect(setPendingMediaNodes) 无限 re-render → 堆溢出。测试必须传稳定引用。
  */
+import { must } from '../helpers/must';
 import React from 'react';
 import { at } from '../helpers/at';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -553,15 +554,15 @@ describe('AgentPanel — Skill 应用与移除', () => {
     h.setSkills(SKILLS);
     render(<AgentPanel {...OPEN_PROPS} />);
     const picker = openSkillPicker();
-    expect(within(picker!).getByText('赛博朋克风格')).toBeTruthy();
-    expect(within(picker!).getByText('分镜脚本')).toBeTruthy();
+    expect(within(must(picker, 'picker')).getByText('赛博朋克风格')).toBeTruthy();
+    expect(within(must(picker, 'picker')).getByText('分镜脚本')).toBeTruthy();
   });
 
   it('应用 Skill → 按钮标题带 Skill 名 + 同步 setCurrentSnapshot', () => {
     h.setSkills(SKILLS);
     render(<AgentPanel {...OPEN_PROPS} />);
     const picker = openSkillPicker();
-    fireEvent.click(within(picker!).getByText('赛博朋克风格'));
+    fireEvent.click(within(must(picker, 'picker')).getByText('赛博朋克风格'));
     // 按钮标题带上当前这个 Skill 的名字（一次对话只带一个 ⇒ 说"当前带的"，不说"已启用几个"）
     expect(screen.getByTitle(/当前带的 Skill：赛博朋克风格/)).toBeTruthy();
     // skills 同步到 conversationStore：**存 id 列表**（不是"对象副本" —— 副本就是第二份真相）
@@ -573,7 +574,7 @@ describe('AgentPanel — Skill 应用与移除', () => {
     h.setSkills(SKILLS);
     render(<AgentPanel {...OPEN_PROPS} />);
     const picker = openSkillPicker();
-    fireEvent.click(within(picker!).getByText('赛博朋克风格'));
+    fireEvent.click(within(must(picker, 'picker')).getByText('赛博朋克风格'));
 
     const passed = h.useAgentChat.mock.calls.at(-1)?.[0] as { skills?: unknown };
 
@@ -586,13 +587,13 @@ describe('AgentPanel — Skill 应用与移除', () => {
     render(<AgentPanel {...OPEN_PROPS} />);
     // 先应用
     const picker = openSkillPicker();
-    fireEvent.click(within(picker!).getByText('赛博朋克风格'));
+    fireEvent.click(within(must(picker, 'picker')).getByText('赛博朋克风格'));
     // 再打开下拉移除（按钮标题此时带当前 Skill 名）
     fireEvent.click(screen.getByTitle(/当前带的 Skill/));
     // chip 按钮(agent-skill-main)与下拉行(agent-pop 内)都显示同名，须限定到下拉容器取行。
     // 见应用用例：chip 显示完整 Skill 名后，整容器(.agent-skill-btn)会有两个同名文本，故 query 下拉 .agent-pop。
     const picker2 = screen.getByTitle(/当前带的 Skill/).parentElement;
-    const pop = picker2!.querySelector('.agent-pop') as HTMLElement | null;
+    const pop = must(picker2, 'picker2').querySelector('.agent-pop') as HTMLElement | null;
     if (!pop) throw new Error('skill 下拉容器 .agent-pop 未找到');
     fireEvent.click(within(pop).getByText('赛博朋克风格'));
     expect(screen.getByTitle('应用 Skill')).toBeTruthy(); // 回到未应用态

@@ -9,6 +9,7 @@
  *   - addNodes 经 screenToFlowPosition 偏移落点
  * 通过 vi.mock 隔离 @xyflow/react / scriptBoxEngine / settings/providerStore。
  */
+import { must } from '../helpers/must';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { at } from '../helpers/at';
 import { renderHook } from '@testing-library/react';
@@ -233,7 +234,7 @@ describe('useScriptBoxEngine', () => {
     renderHook(() => useScriptBoxEngine('sb1', { shots: [] }));
     const cfg = at(createScriptBoxEngine.mock.calls, 0)[0]!;
     // base = screenToFlowPosition({x:0,y:0}) = {x:5,y:7}；偏移 x + base.x + 100, y + base.y
-    cfg.addNodes!([{ id: 'x', position: { x: 10, y: 20 } }]);
+    must(cfg.addNodes, 'addNodes')([{ id: 'x', position: { x: 10, y: 20 } }]);
     const out = lastAddedNode();
     expect(out.data).toEqual({});
     expect(out.position).toEqual({ x: 115, y: 27 });
@@ -244,7 +245,10 @@ describe('useScriptBoxEngine', () => {
     renderHook(() => useScriptBoxEngine('sb1', { shots: [] }));
     const cfg = at(createScriptBoxEngine.mock.calls, 0)[0]!;
     // 剧本盒已预填 aspectRatio → 不被记忆覆盖；selectedModel 缺失 → 由记忆补上
-    cfg.addNodes!([
+    must(
+      cfg.addNodes,
+      'addNodes',
+    )([
       {
         id: 'x',
         type: 'imageGenerateNode',
@@ -261,9 +265,10 @@ describe('useScriptBoxEngine', () => {
   it('addNodes 无记忆时不写空模型（留给节点兜底自动选第一个）', () => {
     renderHook(() => useScriptBoxEngine('sb1', { shots: [] }));
     const cfg = at(createScriptBoxEngine.mock.calls, 0)[0]!;
-    cfg.addNodes!([
-      { id: 'x', type: 'videoGenerateNode', position: { x: 0, y: 0 }, data: { prompt: 'v' } },
-    ]);
+    must(
+      cfg.addNodes,
+      'addNodes',
+    )([{ id: 'x', type: 'videoGenerateNode', position: { x: 0, y: 0 }, data: { prompt: 'v' } }]);
     const out = lastAddedNode();
     // 记忆为空 → 注入默认 ''，与系统新建一致；节点侧 useGenerateNode 的兜底仍会生效
     expect(out.data.selectedModel).toBe('');

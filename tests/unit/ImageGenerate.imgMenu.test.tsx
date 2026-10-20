@@ -4,6 +4,7 @@
  *
  * 逆向自 1mao（bo.jsx）。屏蔽重型子组件 / ReactFlow hooks，只验证节点内部交互与 patchData 行为。
  */
+import { must } from '../helpers/must';
 import 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
@@ -53,7 +54,9 @@ vi.mock('../../src/hooks/useNodeGeneration.ts', async (importOriginal) => ({
       if (config.resultKey && url) {
         mockSetNodes((ns: TestNode[]) =>
           ns.map((n: TestNode) =>
-            n.id === config.nodeId ? { ...n, data: { ...n.data, [config.resultKey!]: url } } : n,
+            n.id === config.nodeId
+              ? { ...n, data: { ...n.data, [must(config.resultKey, 'resultKey')]: url } }
+              : n,
           ),
         );
       }
@@ -365,7 +368,7 @@ describe('ImageGenerate 异步任务恢复（onRecover）', () => {
     mockGetNodes.mockReturnValue([{ id: 'n1' }]);
     setup({});
     act(() => {
-      genConfig!.onRecover!({ resultUrl: 'http://poll.local/done.png' });
+      must(genConfig, 'genConfig').onRecover!({ resultUrl: 'http://poll.local/done.png' });
     });
     const data = lastPatchData();
     expect(data.assetUrl).toBe('http://poll.local/done.png');
@@ -378,7 +381,7 @@ describe('ImageGenerate 异步任务恢复（onRecover）', () => {
     mockSetNodes.mockClear();
     setup({ prompt: '一只猫', label: '生图' });
     act(() => {
-      genConfig!.onRecover!({ resultUrl: 'http://poll.local/rebuild.png' });
+      must(genConfig, 'genConfig').onRecover!({ resultUrl: 'http://poll.local/rebuild.png' });
     });
     // TD-04-2：重建走 commitNewNodes（setNodes 函数式追加），不再走裸 addNodes。
     // 行为断言：把最后一次 setNodes 的 updater 应用到空画布，应得到带 resultUrl 的重建节点。
@@ -387,7 +390,7 @@ describe('ImageGenerate 异步任务恢复（onRecover）', () => {
     const next = updater([]);
     const added = next.find((n: TestNode) => n.id === 'n1');
     expect(added).toBeTruthy();
-    expect(added!.type).toBe('imageGenerateNode');
-    expect(added!.data.assetUrl).toBe('http://poll.local/rebuild.png');
+    expect(must(added, 'added').type).toBe('imageGenerateNode');
+    expect(must(added, 'added').data.assetUrl).toBe('http://poll.local/rebuild.png');
   });
 });

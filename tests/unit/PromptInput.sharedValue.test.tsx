@@ -9,6 +9,7 @@
  *
  * 断言核心：编辑哪个实例，selection 就必须留在哪个实例里。
  */
+import { must } from '../helpers/must';
 import { useState } from 'react';
 import { at } from '../helpers/at';
 import { describe, it, expect } from 'vitest';
@@ -101,7 +102,7 @@ describe('PromptInput 外部 value 变化重建', () => {
   it('重建后光标仍停在原偏移，不会跳到开头', () => {
     const { container } = render(<ExternalChangeHarness />);
     const el = container.querySelector('[contenteditable="true"]')!;
-    const textNode = el.firstChild!;
+    const textNode = must(el.firstChild, 'firstChild');
 
     act(() => {
       const range = document.createRange();

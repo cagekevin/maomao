@@ -7,6 +7,7 @@
  *   - onPaneClick / close：关闭（state=null）
  *   - 可编辑目标（input/textarea）右键被忽略（isEditableTarget 守卫）
  */
+import { must } from '../helpers/must';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import type { MouseEvent as ReactMouseEvent } from 'react';
@@ -48,8 +49,8 @@ describe('useContextMenu', () => {
     const e = makeEvent();
     act(() => hook.current.onPaneContextMenu(e));
     expect(hook.current.state).not.toBeNull();
-    expect(hook.current.state!.type).toBe('canvas');
-    expect(hook.current.state!.nodeId).toBeUndefined();
+    expect(must(hook.current.state, 'state').type).toBe('canvas');
+    expect(must(hook.current.state, 'state').nodeId).toBeUndefined();
     expect(e.preventDefault).toHaveBeenCalled();
     expect(e.stopPropagation).toHaveBeenCalled();
   });
@@ -57,8 +58,8 @@ describe('useContextMenu', () => {
   it('onNodeContextMenu → node 菜单带 nodeId', () => {
     const e = makeEvent();
     act(() => hook.current.onNodeContextMenu(e, { id: 'n1' } as unknown as Node));
-    expect(hook.current.state!.type).toBe('node');
-    expect(hook.current.state!.nodeId).toBe('n1');
+    expect(must(hook.current.state, 'state').type).toBe('node');
+    expect(must(hook.current.state, 'state').nodeId).toBe('n1');
   });
 
   it('onPaneClick / close → 关闭', () => {

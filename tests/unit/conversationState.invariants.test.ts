@@ -1,3 +1,4 @@
+import { must } from '../helpers/must';
 import { describe, it, expect } from 'vitest';
 /**
  * AI 助手 · 会话域不变量校验单测网（spec/AI-ASSISTANT-STATE-INVARIANTS-SSOT.md 批1/L5）。
@@ -97,7 +98,7 @@ describe('validateConversation · 错误注入（I2/S1/S3/S4/P4）', () => {
 
   it('S4：memory.global_contract 字段非 string → error', () => {
     const conv = validConv();
-    conv.memory!.global_contract = {
+    must(conv.memory, 'memory').global_contract = {
       visual_positioning: 123 as never,
       unified_style_prompt: '',
       unified_negative_prompt: '',
@@ -139,8 +140,8 @@ describe('validateMemory / validateWorkflow', () => {
   it('validateMemory：健康记忆 → 无违规；非 string 契约 → S4', () => {
     expect(validateMemory(validConv().memory!)).toEqual([]);
     const bad = validConv();
-    bad.memory!.global_contract!.unified_style_prompt = 5 as unknown as string;
-    expect(errs(validateMemory(bad.memory!))).toContain('S4');
+    must(bad.memory, 'memory').global_contract!.unified_style_prompt = 5 as unknown as string;
+    expect(errs(validateMemory(must(bad.memory, 'memory')))).toContain('S4');
   });
 
   it('validateWorkflow：未知 status → S2 warn（不炸）；健康 → 无违规', () => {
