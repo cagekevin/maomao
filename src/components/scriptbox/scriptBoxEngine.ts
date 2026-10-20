@@ -200,7 +200,7 @@ export function createScriptBoxEngine({
     const d = getData();
     const { providers, primary } = getProviderState?.() || { providers: [], primary: null };
     const fallback = buildAllModels(providers, 'image')[0]?.id || '';
-    const assetSettings = d.assetModelSettings as Record<string, unknown> | undefined;
+    const assetSettings = d.assetModelSettings;
     const value = (assetSettings && String(assetSettings.globalModel || '')) || fallback || '';
     return resolveProviderModel(providers, value, primary);
   }
@@ -403,27 +403,30 @@ export function createScriptBoxEngine({
         const m = parsed.data as Record<string, unknown>;
         const rawShots: Record<string, unknown>[] = Array.isArray(m)
           ? (m as Record<string, unknown>[])
-          : Array.isArray(m.shots)
-            ? (m.shots as Record<string, unknown>[])
+          : Array.isArray(m['shots'])
+            ? (m['shots'] as Record<string, unknown>[])
             : [];
         // 分镜归一化（对齐官方 Ar）：补默认字段，id 用 `${nodeId}-shot-${n}`
         const shots = rawShots
-          .filter((s) => s && typeof s === 'object' && (s.description || s.prompt || s.videoPrompt))
+          .filter(
+            (s) =>
+              s && typeof s === 'object' && (s['description'] || s['prompt'] || s['videoPrompt']),
+          )
           .map((t, n) => ({
             id: `${nodeId}-shot-${n}`,
-            index: typeof t.index === 'number' ? t.index : n + 1,
-            duration: String(t.duration || '5s'),
-            description: String(t.description || ''),
-            shotType: String(t.shotType || ''),
-            lighting: String(t.lighting || ''),
+            index: typeof t['index'] === 'number' ? t['index'] : n + 1,
+            duration: String(t['duration'] || '5s'),
+            description: String(t['description'] || ''),
+            shotType: String(t['shotType'] || ''),
+            lighting: String(t['lighting'] || ''),
             // dialogue 归一化为标准数组 [{kind,role,text}]：编剧模型按 SCRIPT_WRITER_FORMAT
             // 返回的是字符串，而 dialogueText / StepShots 对白编辑弹窗期望数组；
             // 若直接存字符串，表格对白/旁白列会因 dialogueText 只认数组而显示为空。
-            dialogue: normalizeDialogue(t.dialogue as unknown),
-            sound: String(t.sound || ''),
-            motion: String(t.motion || ''),
-            prompt: String(t.prompt || ''),
-            videoPrompt: String(t.videoPrompt || ''),
+            dialogue: normalizeDialogue(t['dialogue'] as unknown),
+            sound: String(t['sound'] || ''),
+            motion: String(t['motion'] || ''),
+            prompt: String(t['prompt'] || ''),
+            videoPrompt: String(t['videoPrompt'] || ''),
             grid: 0,
             promptLoading: false,
             connImg: false,
@@ -438,26 +441,28 @@ export function createScriptBoxEngine({
           return;
         }
 
-        const globalStyle = style || (typeof m.globalStyle === 'string' ? m.globalStyle : '');
+        const globalStyle = style || (typeof m['globalStyle'] === 'string' ? m['globalStyle'] : '');
         const projectName =
-          (typeof m.projectName === 'string' && m.projectName.trim()
-            ? m.projectName.trim().slice(0, 20)
+          (typeof m['projectName'] === 'string' && m['projectName'].trim()
+            ? m['projectName'].trim().slice(0, 20)
             : story.replace(/[，。！？,.!?\s].*$/, '').slice(0, 8)) || '剧本项目';
         const customTemplates = resolveAssetTemplates(d.playbookId);
         // 资产归一化（对齐官方 Ar）：补默认字段 + 用 ZgPrompt 拼生图提示词
-        const assets = (Array.isArray(m.assets) ? (m.assets as Record<string, unknown>[]) : [])
-          .filter((e) => e && e.name)
+        const assets = (
+          Array.isArray(m['assets']) ? (m['assets'] as Record<string, unknown>[]) : []
+        )
+          .filter((e) => e && e['name'])
           .map((t, n) => {
             // 【§五 #5／§七 #6 收口】类别校验走唯一守卫（原手抄 `['character','scene','prop'].includes`）
-            const rawCategory = t.category;
+            const rawCategory = t['category'];
             const category: AssetCategory = isAssetCategory(rawCategory)
               ? rawCategory
               : 'character';
-            const desc = String(t.description || '');
+            const desc = String(t['description'] || '');
             return {
               id: `${nodeId}-asset-${n}`,
               category,
-              name: String(t.name || ''),
+              name: String(t['name'] || ''),
               description: desc,
               prompt: ZgPrompt(category, desc, globalStyle, customTemplates),
               assetUrl: '',
@@ -506,7 +511,7 @@ export function createScriptBoxEngine({
       toast('请先在「设置」中配置资产生图大模型');
       return;
     }
-    const ams = (getData().assetModelSettings as Record<string, unknown>) || {};
+    const ams = getData().assetModelSettings ?? {};
     const aspectRatio = String(ams.globalAspectRatio || '16:9');
     const imageSize = String(ams.globalSize || '2K');
     // 参考图提示词（对齐官方 Pr）：资产已编辑 prompt → 直接用；未编辑 → Zg 拼默认模板
@@ -795,8 +800,8 @@ export function createScriptBoxEngine({
             return;
           }
           const parsedData = (parsed.data as Record<string, unknown>) || {};
-          const prompt = parsedData.prompt;
-          const videoPrompt = parsedData.videoPrompt;
+          const prompt = parsedData['prompt'];
+          const videoPrompt = parsedData['videoPrompt'];
           // 结构校验：JSON 合法但缺 prompt/videoPrompt → 视为格式不符，明确提示且不写回空值。
           if (!prompt && !videoPrompt) {
             failedCount++;
@@ -931,8 +936,8 @@ export function createScriptBoxEngine({
         const prompt =
           parsed.ok && typeof parsed.data === 'string'
             ? parsed.data
-            : parsed.ok && (parsed.data as Record<string, unknown>)?.prompt
-              ? (parsed.data as Record<string, unknown>).prompt
+            : parsed.ok && (parsed.data as Record<string, unknown>)?.['prompt']
+              ? (parsed.data as Record<string, unknown>)['prompt']
               : r.ok
                 ? r.content
                 : '';
@@ -1282,8 +1287,8 @@ export function createScriptBoxEngine({
     const set = new Set<number>();
     if (!getNodes) return set;
     for (const n of getNodes()) {
-      if (n?.data?.scriptboxParent === nodeId && Number.isInteger(n.data.scriptboxSlot))
-        set.add(n.data.scriptboxSlot as number);
+      if (n?.data?.['scriptboxParent'] === nodeId && Number.isInteger(n.data['scriptboxSlot']))
+        set.add(n.data['scriptboxSlot'] as number);
     }
     return set;
   };
@@ -1531,9 +1536,9 @@ export function createScriptBoxEngine({
   const findPrevShotVideoUrl = (prevShotId?: string): string => {
     if (!getNodes || !prevShotId) return '';
     const found = getNodes().find(
-      (x) => x.type === 'videoGenerateNode' && x.data?.upstreamShotId === prevShotId,
+      (x) => x.type === 'videoGenerateNode' && x.data?.['upstreamShotId'] === prevShotId,
     );
-    return String(found?.data?.videoUrl || '');
+    return String(found?.data?.['videoUrl'] || '');
   };
 
   const onGenerateTailFrameVariants = async (shotId: string | number) => {
@@ -1631,7 +1636,7 @@ export function createScriptBoxEngine({
         //    失败分类/进度由原语统一产出（此前无）。
         const { provider, modelId } = resolveImageModel();
         if (provider && modelId && origUrl) {
-          const ams = (d.assetModelSettings as Record<string, unknown>) || {};
+          const ams = d.assetModelSettings ?? {};
           const aspectRatio = String(ams.globalAspectRatio || '16:9');
           const imageSize = String(ams.globalSize || '2K');
           await runGenerationOrchestration({
@@ -1946,10 +1951,10 @@ export function assembleShotUser(
   if (shot.description) rows.push(`画面描述：${shot.description}`);
 
   // ── 剧情上下文块（视觉起点 / 上一镜承接 / 本镜职责 / 下一镜钩子，对齐官方 v）──
-  const prevRefs = Array.isArray(shot.prevShotImageRefUrls)
-    ? shot.prevShotImageRefUrls.filter(Boolean)
+  const prevRefs = Array.isArray(shot['prevShotImageRefUrls'])
+    ? shot['prevShotImageRefUrls'].filter(Boolean)
     : [];
-  const hasTail = !!shot.usePrevShotVideoTail;
+  const hasTail = !!shot['usePrevShotVideoTail'];
   const ctx = [];
   if (hasTail && prevRefs.length) {
     ctx.push(
