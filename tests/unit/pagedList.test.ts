@@ -16,7 +16,7 @@ import { at } from '../helpers/at';
 import { jsonResp } from './_testUtils.mjs';
 
 // 全局 fetch 已在 tests/setup.mjs 强制 mock，此处取共享实例。
-const fetchMock = globalThis.fetch as unknown as ReturnType<typeof vi.fn>;
+const fetchMock = vi.mocked(globalThis.fetch);
 
 const paged = await import('@/components/base/api/pagedList.ts');
 

@@ -6,11 +6,12 @@
  * 策略：node + vi.stubGlobal('fetch')。
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { must } from '../helpers/must';
 import { at } from '../helpers/at';
 import { jsonResp } from './_testUtils.mjs';
 
 // setup.mjs 已把 globalThis.fetch 定义为共享 vi.fn；此处做类型对齐以启用 .mock* / mock.calls。
-const fetchMock = globalThis.fetch as unknown as ReturnType<typeof vi.fn>;
+const fetchMock = vi.mocked(globalThis.fetch);
 
 const { providerApi } = await import('@/components/base/api/localToolApi.ts');
 
@@ -22,22 +23,26 @@ describe('settingsApi — providerApi 成功路径', () => {
     fetchMock.mockResolvedValue(jsonResp({ providers: [] }));
     await providerApi.getProviders();
     expect(at(fetchMock.mock.calls, 0)[0]).toBe('http://127.0.0.1:18080/api/providers');
-    expect(at(fetchMock.mock.calls, 0)[1].method).toBe('GET');
+    expect(must(at(fetchMock.mock.calls, 0)[1], 'fetch init').method).toBe('GET');
   });
 
   it('saveProviders 走 PUT，body 含 providers', async () => {
     fetchMock.mockResolvedValue(jsonResp({ ok: true }));
     await providerApi.saveProviders([{ id: 'p1' }]);
-    const [url, init] = at(fetchMock.mock.calls, 0);
+    const [url, initMaybe] = at(fetchMock.mock.calls, 0);
+    const init = must(initMaybe, 'fetch init');
     expect(url).toContain('/api/providers');
     expect(init.method).toBe('PUT');
-    expect(JSON.parse(init.body)).toEqual({ providers: [{ id: 'p1' }] });
+    expect(JSON.parse(String(must(init?.body, 'fetch body')))).toEqual({
+      providers: [{ id: 'p1' }],
+    });
   });
 
   it('testConnection 走 POST', async () => {
     fetchMock.mockResolvedValue(jsonResp({ ok: true }));
     await providerApi.testConnection({ id: 'p1' });
-    const [url, init] = at(fetchMock.mock.calls, 0);
+    const [url, initMaybe] = at(fetchMock.mock.calls, 0);
+    const init = must(initMaybe, 'fetch init');
     expect(url).toContain('/api/providers/test-connection');
     expect(init.method).toBe('POST');
   });
@@ -45,7 +50,8 @@ describe('settingsApi — providerApi 成功路径', () => {
   it('fetchModels 走 POST，含 encodeURIComponent 的 id', async () => {
     fetchMock.mockResolvedValue(jsonResp({ models: [] }));
     await providerApi.fetchModels('a/b');
-    const [url, init] = at(fetchMock.mock.calls, 0);
+    const [url, initMaybe] = at(fetchMock.mock.calls, 0);
+    const init = must(initMaybe, 'fetch init');
     expect(url).toContain('/api/providers/a%2Fb/fetch-models');
     expect(init.method).toBe('POST');
   });

@@ -15,7 +15,7 @@ import { stubCanvas2d } from '../helpers/dom';
 const { upscaleImage } = await import('../../src/components/image/lib/imageUpscale.ts');
 
 // setup.mjs 已把 globalThis.fetch 定义为共享 vi.fn；此处做类型对齐以启用 .mock* / mock.calls。
-const fetchMock = globalThis.fetch as unknown as ReturnType<typeof vi.fn>;
+const fetchMock = vi.mocked(globalThis.fetch);
 
 // mock HTMLImageElement：onload 同步触发，带 naturalWidth/Height
 let imgSize = { w: 2000, h: 1000 };

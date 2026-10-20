@@ -25,11 +25,39 @@
  */
 import { vi } from 'vitest';
 
-/** JSON 假响应：同时暴露 ok/status、json() 与 text()，避免意外触达真实网络路径。
- *  部分调用方走 res.json()（imageApi/chatApi），部分走 res.text()+JSON.parse（cloudSync callGateway），
- *  两者语义等价（text 即 json 的序列化），故一个工厂通用。 */
-export function jsonResp(/** @type {any} */ obj, ok = true, status = 200) {
-  return { ok, status, json: async () => obj, text: async () => JSON.stringify(obj) };
+/**
+ * JSON 假响应 —— **真 `Response`**（node / jsdom 都内置），而非手写 `{ok,status,json,text}` 对象。
+ *
+ * 【为什么改成真 Response（2026-10-20 · plan 150 §11.1 T1-5）】
+ * 手写对象与真实契约有两点脱钩：
+ *  ① 它同时提供 `json()` 与 `text()`，而真实 body **只能消费一次** —— 替身把"双读也能过"变成默认；
+ *  ② 它的形状与 `Response` 无交集 ⇒ `fetchMock.mockResolvedValue(jsonResp(...))` 在
+ *     `vi.mocked(globalThis.fetch)` 下类型不成立，逼得 9 个文件各写一次
+ *     `vi.mocked(globalThis.fetch)`。
+ * 用真 Response 后：`ok` 由 `status` 决定（第 2 参保留但不再参与），且 `vi.mocked` 可直接用。
+ *
+ * ⚠️ 传 `ok=false` 的调用方必须同时给 4xx/5xx 的 `status`（现网 51 处均已如此，已逐条查过）。
+ */
+/** 可**重复读**的 Response：`fetchMock.mockResolvedValue(jsonResp(...))` 会让同一个实例被多次取用，
+ *  而原生 Response 的 body 只能消费一次（第二次 `text()` 抛「Body is unusable」）。
+ *  这里把首次读到的文本缓存下来，`text()` / `json()` 都基于缓存 ⇒ 一个实例可服务多次调用。
+ *  注意：这只影响"桩的可复用性"，生产代码仍按单读语义使用真 Response。 */
+class ReusableJsonResponse extends Response {
+  #text;
+  async text() {
+    if (this.#text === undefined) this.#text = await super.text();
+    return this.#text;
+  }
+  async json() {
+    return JSON.parse(await this.text());
+  }
+}
+
+export function jsonResp(/** @type {any} */ obj, _ok = true, status = 200) {
+  return new ReusableJsonResponse(JSON.stringify(obj), {
+    status,
+    headers: { 'content-type': 'application/json' },
+  });
 }
 
 /**

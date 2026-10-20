@@ -21,7 +21,7 @@ const {
 } = await import('../../src/hooks/useAssetDragToCanvas.ts');
 
 // setup.mjs 已把 globalThis.fetch 定义为共享 vi.fn；此处做类型对齐以启用 .mock* / mock.calls。
-const fetchMock = globalThis.fetch as unknown as ReturnType<typeof vi.fn>;
+const fetchMock = vi.mocked(globalThis.fetch);
 
 function fakeDataTransfer() {
   const store: Record<string, any> = {};
@@ -70,7 +70,7 @@ describe('makeAssetDragProps', () => {
   });
 
   it('文字素材 → 异步 fetchText 补全 text 字段', async () => {
-    fetchMock.mockImplementation(() => Promise.resolve({ ok: true, text: async () => '正文内容' }));
+    fetchMock.mockImplementation(() => Promise.resolve(new Response('正文内容')));
     const props = makeAssetDragProps({ url: 'http://x/t.txt', name: '文', type: 'text' });
     const dt = fakeDataTransfer();
     // 只喂被测用到的 dataTransfer 字段（踩坑记录 #11 的 DOM mock 收尾惯例）
@@ -93,9 +93,7 @@ describe('makeAssetDragProps', () => {
     expect(failed.ok).toBe(false);
     expect(textCache.has('http://x/fail.txt')).toBe(false); // 关键：失败不被固化
 
-    fetchMock.mockImplementation(() =>
-      Promise.resolve({ ok: true, text: async () => '恢复后正文' }),
-    );
+    fetchMock.mockImplementation(() => Promise.resolve(new Response('恢复后正文')));
     const recovered = await _fetchText('http://x/fail.txt');
     expect(recovered.ok).toBe(true);
     expect(textCache.get('http://x/fail.txt')).toBe('恢复后正文');
@@ -109,7 +107,7 @@ describe('useTextAsset（读取 + 三态唯一实现 · 3 处面板副本的收�
   });
 
   it('成功 → phase 由 loading 变 ok 并带 text', async () => {
-    fetchMock.mockImplementation(() => Promise.resolve({ ok: true, text: async () => '正文' }));
+    fetchMock.mockImplementation(() => Promise.resolve(new Response('正文')));
     const { result } = renderHook(() => useTextAsset('http://x/a.txt'));
     expect(result.current.phase).toBe('loading');
     await waitFor(() => expect(result.current).toMatchObject({ phase: 'ok', text: '正文' }));

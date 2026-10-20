@@ -5,11 +5,12 @@
  * 策略：node + vi.stubGlobal('fetch')。
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { must } from '../helpers/must';
 import { at } from '../helpers/at';
 import { jsonResp } from './_testUtils.mjs';
 
 // setup.mjs 已把 globalThis.fetch 定义为共享 vi.fn；此处做类型对齐以启用 .mock* / mock.calls。
-const fetchMock = globalThis.fetch as unknown as ReturnType<typeof vi.fn>;
+const fetchMock = vi.mocked(globalThis.fetch);
 
 const api = await import('@/components/base/api/localToolApi.ts');
 
@@ -29,9 +30,13 @@ describe('projectsApi — 成功路径', () => {
     fetchMock.mockResolvedValue(jsonResp({ ok: true }));
     const projects = [{ id: 'p1', name: 'P1' }];
     await api.saveProjects(projects, 'p1');
-    const [, init] = at(fetchMock.mock.calls, 0);
+    const [, initMaybe] = at(fetchMock.mock.calls, 0);
+    const init = must(initMaybe, 'fetch init');
     expect(init.method).toBe('POST');
-    expect(JSON.parse(init.body)).toEqual({ projects, lastOpened: 'p1' });
+    expect(JSON.parse(String(must(init?.body, 'fetch body')))).toEqual({
+      projects,
+      lastOpened: 'p1',
+    });
   });
 });
 

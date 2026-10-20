@@ -5,12 +5,13 @@
  * 的成功路径与 HTTP 错误抛出。策略：node + vi.stubGlobal('fetch')。
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { must } from '../helpers/must';
 import { at } from '../helpers/at';
 import { jsonResp } from './_testUtils.mjs';
 
 // 全局 fetch 已在 tests/setup.mjs 强制 mock 为 vi.fn()，此处取共享实例。
 // 类型对齐：TS 默认把 globalThis.fetch 当 typeof fetch，cast 为 vi.fn 类型以启用 .mock* / mock.calls。
-const fetchMock = globalThis.fetch as unknown as ReturnType<typeof vi.fn>;
+const fetchMock = vi.mocked(globalThis.fetch);
 
 const api = await import('@/components/base/api/localToolApi.ts');
 
@@ -39,9 +40,10 @@ describe('tasksApi — 成功路径', () => {
     fetchMock.mockResolvedValue(jsonResp({ ok: true }));
     const task = { task_id: 't1', prompt: 'x' };
     await api.saveTask(task);
-    const [, init] = at(fetchMock.mock.calls, 0);
+    const [, initMaybe] = at(fetchMock.mock.calls, 0);
+    const init = must(initMaybe, 'fetch init');
     expect(init.method).toBe('POST');
-    expect(JSON.parse(init.body)).toEqual(task);
+    expect(JSON.parse(String(must(init?.body, 'fetch body')))).toEqual(task);
   });
 
   it('batchSaveTasks 空数组直接返回 ok 不请求', async () => {

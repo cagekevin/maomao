@@ -4,6 +4,7 @@
  * fetch 全部 mock。
  */
 import { beforeEach, afterEach, describe, it, expect, vi } from 'vitest';
+import { must } from '../helpers/must';
 import { at } from '../helpers/at';
 import { API_BASE } from '../../src/components/base/core/config.ts';
 import * as ra from '@/components/base/api/localToolApi.ts';
@@ -13,7 +14,7 @@ function mockFetchOnce(body: any, { ok = true, status = 200 } = {}) {
   const res = { ok, status, json: async () => body, text: async () => JSON.stringify(body) };
   // vi.fn() 的 mock.calls 会被推断为无参空元组（[]），导致 calls[0][0]/[1] 报 TS2493/TS18048；
   // 测试需按调用实参断言 URL 与 init，故标注为 any 保留完整调用记录访问。
-  const fetchMock = vi.fn(async () => res) as unknown as ReturnType<typeof vi.fn>;
+  const fetchMock = vi.fn(async (_input: string | URL | Request, _init?: RequestInit) => res);
   vi.stubGlobal('fetch', fetchMock);
   return fetchMock;
 }
@@ -40,8 +41,8 @@ describe('fetchResources', () => {
     await ra.fetchResources({ folder: 'tasks', type: 'image', page: 2, pageSize: 10 });
     const url = at(fetchMock.mock.calls, 0)[0];
     expect(url).toContain('page=2&pageSize=10');
-    const m = url.match(/filters=([^&]+)/);
-    const filters = JSON.parse(decodeURIComponent(m[1]));
+    const m = must(String(url).match(/filters=([^&]+)/), 'filters 查询参数');
+    const filters = JSON.parse(decodeURIComponent(at(m, 1)));
     // 改前为等值 `'tasks'` → 后端 `folder = 'tasks'`，不返回 `migrated/人物` 这类子目录行，
     // 与前端 matchesFolder 的前缀语义漂移（「全部」pill 看不到子目录素材）
     expect(filters.folder).toEqual({ eqOrPrefix: 'tasks' });
@@ -74,7 +75,7 @@ describe('rescanResources', () => {
     const fetchMock = mockFetchOnce({ data: { scanned: 3 } });
     const r = await ra.rescanResources();
     expect(at(fetchMock.mock.calls, 0)[0]).toBe(`${API_BASE}/api/resources/rescan`);
-    expect(at(fetchMock.mock.calls, 0)[1].method).toBe('POST');
+    expect(must(at(fetchMock.mock.calls, 0)[1], 'fetch init').method).toBe('POST');
     expect(r.data.scanned).toBe(3);
   });
 

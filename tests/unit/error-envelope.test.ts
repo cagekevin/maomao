@@ -9,7 +9,8 @@
  *  - HttpError.message 无 `HTTP ${status}` 前缀；status 由 HttpError.status 单独暴露
  *  - 后端 sendError 带 code → {error:{code,message}}；不传 code → {error:message}（B0 冻结形态不变）
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
+import { sharedFetchMock } from '../helpers/sharedFetchMock';
 import { extractErrorDetail, httpRequest, HttpError } from '@/components/base/api/httpClient.ts';
 
 describe('extractErrorDetail — 错误信封唯一解析入口', () => {
@@ -61,17 +62,14 @@ describe('extractErrorDetail — 错误信封唯一解析入口', () => {
 
 describe('httpRequest — 结构化错误信封透传 message（B2 无 HTTP 前缀）', () => {
   beforeEach(() => {
-    global.fetch = vi.fn();
+    sharedFetchMock().mockReset();
   });
 
   it('error:{code,message} → HttpError.status 单独暴露，message 纯业务', async () => {
-    (global.fetch as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
-      ok: false,
-      status: 422,
-      // 【TD-18-22】替身必须带 `text()`：httpClient 现只经 `res.text()` 读体一次
-      // （真实 Response 的 body 只能消费一次，替身只给 `json()` 会与真实契约脱钩）。
-      text: () => Promise.resolve('{"error":{"code":"business","message":"参数非法"}}'),
-    });
+    // 真 Response：httpClient 只经 res.text() 读体一次（body 单消费），与真实契约一致
+    sharedFetchMock().mockResolvedValue(
+      new Response('{"error":{"code":"business","message":"参数非法"}}', { status: 422 }),
+    );
     await expect(httpRequest('/api/x')).rejects.toMatchObject({
       name: 'HttpError',
       status: 422,
@@ -80,11 +78,7 @@ describe('httpRequest — 结构化错误信封透传 message（B2 无 HTTP 前�
   });
 
   it('提取结果仍能抛 HttpError', async () => {
-    (global.fetch as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
-      ok: false,
-      status: 500,
-      text: () => Promise.resolve('{"error":"server err"}'),
-    });
+    sharedFetchMock().mockResolvedValue(new Response('{"error":"server err"}', { status: 500 }));
     await expect(httpRequest('/api/x')).rejects.toThrow(HttpError);
   });
 });
