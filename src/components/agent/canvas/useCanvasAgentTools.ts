@@ -854,7 +854,9 @@ const deleteEdgeTool = {
       return { ok: true, data: { edgeId: args['edgeId'] } };
     }
     if (args['source'] && args['target']) {
-      const edge = edges.find((e) => e.source === args['source'] && e.target === args['target']);
+      const edge = edges.find(
+        (e) => e['source'] === args['source'] && e['target'] === args['target'],
+      );
       if (!edge) return { ok: false, error: `未找到 ${args['source']}→${args['target']} 的连线` };
       host.removeEdges(edge.id);
       return { ok: true, data: { edgeId: edge.id } };
@@ -1331,7 +1333,7 @@ const executePlanTool = {
       const autoRun = creditHit ? false : args['auto_run'] !== false;
       // 【模型锁定】用面板生图参数区（getGenParams）作为默认；LLM 显式传 model 则优先。
       const panel = getGenParams();
-      const model = str(args['model']) || panel.model;
+      const model = str(args['model']) || panel['model'];
       // workflow 贯穿（对齐大雄）：执行开始 → running；执行结束 → completed/failed。状态写入当前对话 workflow。
       patchCurrentWorkflow({ status: 'running', updatedAt: Date.now() });
       // 【参考图解析】本轮用户参考图池（useAgentChat.send 时写入）+ 跨轮回退。

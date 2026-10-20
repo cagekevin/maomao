@@ -1536,17 +1536,17 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }: Dir
   // 仅限 App 内部使用；对外的 prop 一律用统一的 updateObjectById(id, patch)。
   const updateSelected = (patch: Record<string, unknown>) => updateObjectById(selectedId, patch);
   const groundSelected = () => {
-    if (!activeObject || activeObject.locked) return;
+    if (!activeObject || activeObject['locked']) return;
     setGroundRequest({ id: activeObject.id, nonce: Date.now() });
     setToast('已按模型最低点落到地面');
   };
   const resetSelectedRotation = () => {
-    if (!activeObject || activeObject.locked) return;
+    if (!activeObject || activeObject['locked']) return;
     updateSelected({ rotation: [0, 0, 0] });
     setToast('整体旋转已归零');
   };
   const resetSelectedScale = () => {
-    if (!activeObject || activeObject.locked) return;
+    if (!activeObject || activeObject['locked']) return;
     updateSelected({ scale: [1, 1, 1] });
     setToast('整体缩放已恢复为 1');
   };
@@ -1632,7 +1632,7 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }: Dir
   const deleteSelected = () => {
     if (selectedId === CAMERA_ID) return;
     const source = objects.find((object) => object.id === selectedId);
-    if (source?.locked) {
+    if (source?.['locked']) {
       setToast('物体已锁定，请先解除锁定');
       return;
     }
@@ -2192,11 +2192,11 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }: Dir
           onSelect={setSelectedId}
           onToggleVisible={(id: string) =>
             updateObjectById(id, {
-              visible: objects.find((item) => item.id === id)?.visible === false,
+              visible: objects.find((item) => item.id === id)?.['visible'] === false,
             })
           }
           onToggleLock={(id: string) =>
-            updateObjectById(id, { locked: !objects.find((item) => item.id === id)?.locked })
+            updateObjectById(id, { locked: !objects.find((item) => item.id === id)?.['locked'] })
           }
           shots={displayedShots}
           activeShotId={activeShotId}
@@ -2566,7 +2566,7 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }: Dir
           onDelete={deleteSelected}
           onDuplicate={duplicateSelected}
           onFocus={focusSelected}
-          onToggleLock={() => activeObject && updateSelected({ locked: !activeObject.locked })}
+          onToggleLock={() => activeObject && updateSelected({ locked: !activeObject['locked'] })}
           onGround={groundSelected}
           onResetRotation={resetSelectedRotation}
           onResetScale={resetSelectedScale}

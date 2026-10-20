@@ -323,7 +323,7 @@ export function normalizeCloudPayload(raw: unknown): CloudSnapshot | null {
   const meta = data[CLOUD_META_KEY];
   delete data[CLOUD_META_KEY];
   const m = (meta && typeof meta === 'object' ? meta : {}) as Record<string, unknown>;
-  return { rev: toRev(m.rev), updatedAt: toTs(m.updatedAt), data, hasMeta: false };
+  return { rev: toRev(m['rev']), updatedAt: toTs(m['updatedAt']), data, hasMeta: false };
 }
 
 /** 读本地台账（无 / 结构损坏 → null，等价于「首次同步」） */
@@ -617,7 +617,7 @@ async function restoreLocal(cloud: CloudSnapshot): Promise<{ written: number; fa
     }
   }
   // 2) API 配置：全量保存到 localTool（config/providers/<id>.json 即唯一真源）
-  if (Array.isArray(ls.providers)) {
+  if (Array.isArray(ls['providers'])) {
     try {
       await providerApi.saveProviders(ls['providers']);
       written++;

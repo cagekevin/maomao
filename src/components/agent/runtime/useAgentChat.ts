@@ -974,8 +974,8 @@ export function useAgentChat({
     if (!suggest || typeof suggest !== 'object')
       return { ok: false, error: '没有待确认的项目记忆建议' };
     const saved = await saveProjectMemory(agentKey, {
-      kind: suggest.kind as Parameters<typeof saveProjectMemory>[1]['kind'],
-      content: String(suggest.content || ''),
+      kind: suggest['kind'] as Parameters<typeof saveProjectMemory>[1]['kind'],
+      content: String(suggest['content'] || ''),
       source: { conversationId: getActiveConversationId() },
     });
     setActivePendingMemorySuggest(null);
