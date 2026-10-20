@@ -4,6 +4,12 @@
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
     "strict": true,
+    // 2026-10-20 · P6：539 处已清零，四项「strict 之外更严」开关写回（与根 tsconfig 同口径）。
+    // 顺序按 docs/plan/150：noImplicitOverride(0) → npais(402) → nua(46) → eop(91)，级联后合计 539。
+    "noImplicitOverride": true,
+    "noPropertyAccessFromIndexSignature": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
