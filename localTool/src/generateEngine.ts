@@ -36,21 +36,23 @@ export interface RelayGenerateInput {
   providerId: string;
   capability: RelayCapability;
   model: string;
-  prompt?: string;
-  size?: string;
-  messages?: unknown[];
-  images?: string[];
+  // 【P6 · eop A 类】可选字段显式认下 undefined：调用方普遍把「可能没有」的表达式直接写进
+  // 对象字面量（`tools: body.tools`），而消费方只判 truthy、不区分「键是否存在」⇒ 声明处认下即可。
+  prompt?: string | undefined;
+  size?: string | undefined;
+  messages?: unknown[] | undefined;
+  images?: string[] | undefined;
   /** chat：采样温度（有传才进 body，preset 纯模板剔项） */
-  temperature?: number;
+  temperature?: number | undefined;
   /** chat + 画布 Agent：function calling 工具 schema（有则走 chatWithTools 非流式出站） */
   tools?: unknown;
   /** chat：tool_choice（如 'auto'/'required'），配合 tools */
   toolChoice?: unknown;
   /** 连接覆盖：存在则优先于 providers.json / .env（测试打 mock、同平台多实例用） */
-  baseUrl?: string;
-  apiKey?: string;
+  baseUrl?: string | undefined;
+  apiKey?: string | undefined;
   /** 总超时毫秒；缺省取**预算真源** `budgetMsFor(capability)`（见 `src/budget.ts`，不在此写数值） */
-  timeoutMs?: number;
+  timeoutMs?: number | undefined;
   signal?: AbortSignal;
   /**
    * 是否把生成结果落盘到本地 uploads。
@@ -248,10 +250,10 @@ export async function relayChatStream(
     providerId: string;
     model: string;
     messages: unknown[];
-    tools?: unknown[];
-    baseUrl?: string;
-    apiKey?: string;
-    timeoutMs?: number;
+    tools?: unknown[] | undefined;
+    baseUrl?: string | undefined;
+    apiKey?: string | undefined;
+    timeoutMs?: number | undefined;
   },
 ): Promise<void> {
   try {

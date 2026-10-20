@@ -85,7 +85,7 @@ export async function handleProvidersPut(req: IncomingMessage, res: ServerRespon
       continue;
     }
     const p = raw as Record<string, unknown>;
-    const id = typeof p.id === 'string' ? p.id : '';
+    const id = typeof p['id'] === 'string' ? p['id'] : '';
     if (!id) {
       skippedInvalid++;
       continue;
@@ -124,7 +124,7 @@ function readEnvKey(providerId: string): string {
     for (const name of names) {
       const m = raw.match(new RegExp(`^\\s*${name}\\s*=\\s*(.+)$`, 'm'));
       if (m) {
-        const value = m[1].replace(/['"]/g, '').trim();
+        const value = (m[1] ?? '').replace(/['"]/g, '').trim();
         if (value) return value;
       }
     }
@@ -137,14 +137,14 @@ function readEnvKey(providerId: string): string {
 /** POST /api/providers/test-connection —— 委托 ai-relay 连接测试。 */
 export async function handleProviderTest(req: IncomingMessage, res: ServerResponse): Promise<void> {
   const body = (await parseJsonBody(req)) as Record<string, unknown> | null;
-  const id = typeof body?.id === 'string' ? body.id : '';
+  const id = typeof body?.['id'] === 'string' ? body['id'] : '';
   if (!id) return sendError(res, 'Missing provider id', 400);
   const baseUrl =
-    typeof body?.base_url === 'string' && body.base_url
-      ? body.base_url
+    typeof body?.['base_url'] === 'string' && body['base_url']
+      ? body['base_url']
       : // 纯配置文件厂商（无内置目录定义）→ 用配置文件 base_url 兜底，否则 test-connection 报「未知厂商目录」
         readConfiguredBaseUrl(id);
-  const apiKey = typeof body?.key === 'string' && body.key ? body.key : readEnvKey(id);
+  const apiKey = typeof body?.['key'] === 'string' && body['key'] ? body['key'] : readEnvKey(id);
   const r = await relayTestConnection(id, { apiKey: apiKey || undefined, baseUrl }, undefined);
   return json(res, {
     code: 0,
@@ -158,9 +158,10 @@ export async function handleProviderProbeAsync(
   res: ServerResponse,
 ): Promise<void> {
   const body = (await parseJsonBody(req)) as Record<string, unknown> | null;
-  const id = typeof body?.id === 'string' ? body.id : '';
-  const baseUrl = typeof body?.base_url === 'string' && body.base_url ? body.base_url : undefined;
-  const apiKey = typeof body?.key === 'string' && body.key ? body.key : readEnvKey(id);
+  const id = typeof body?.['id'] === 'string' ? body['id'] : '';
+  const baseUrl =
+    typeof body?.['base_url'] === 'string' && body['base_url'] ? body['base_url'] : undefined;
+  const apiKey = typeof body?.['key'] === 'string' && body['key'] ? body['key'] : readEnvKey(id);
   const def = getProviderDefinition(id);
   const url = baseUrl || def?.defaultBaseUrl || '';
   // 探「提交异步任务」端点是否可用：用假 task_id 命中异步子路径（网关对不存在 task 返 4xx 但端点存在）
@@ -181,8 +182,9 @@ export async function handleProviderFetchModels(
   if (!id) return sendError(res, 'Missing provider id', 400);
   const prov = readProvider(id);
   const cfgBaseUrl =
-    (prov?.base_url as string | undefined) ||
-    ((prov?._relay as Record<string, unknown> | undefined)?.defaultBaseUrl as string | undefined);
+    (prov?.['base_url'] as string | undefined) ||
+    ((prov?.['_relay'] as Record<string, unknown> | undefined)?.['defaultBaseUrl'] as
+      string | undefined);
   const def = getProviderDefinition(id);
   const fallbackModels = Array.isArray(def?.models) ? def.models : [];
   try {

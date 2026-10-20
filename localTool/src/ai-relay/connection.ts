@@ -10,7 +10,13 @@ import { stableRequest, RelayHttpError } from './httpTransport.js';
 import { isRecord } from './protocol/shared.js';
 import type { ConnectionTestResult, ProviderDefinition } from './types.js';
 
-type ConnectionConfig = { apiKey?: string; baseUrl?: string; catalogId?: string };
+// 【P6 · eop A 类】调用方常写 `{ apiKey: key || undefined }`（编辑态未保存的新 key）；
+// 消费方只判 truthy、不区分键存在 ⇒ 三项声明处认下 undefined。
+type ConnectionConfig = {
+  apiKey?: string | undefined;
+  baseUrl?: string | undefined;
+  catalogId?: string | undefined;
+};
 
 function connectionError(err: unknown): { status: number; warning: string } {
   const status = err instanceof RelayHttpError ? err.status : 0;

@@ -97,9 +97,15 @@ export interface CatalogFetchResult {
 
 export interface CatalogFetchOptions {
   providerId: string;
-  config: { apiKey?: string; baseUrl?: string; catalogId?: string };
-  fallbackModels?: CatalogModel[];
-  signal?: AbortSignal;
+  // 【P6 · eop A 类】调用方写 `apiKey: readEnvKey(id) || undefined` ⇒ 声明处认下 undefined。
+  config: {
+    apiKey?: string | undefined;
+    baseUrl?: string | undefined;
+    catalogId?: string | undefined;
+  };
+  fallbackModels?: CatalogModel[] | undefined;
+  // 调用点显式传 `signal: undefined`（可测性：统一写法），声明处认下。
+  signal?: AbortSignal | undefined;
 }
 
 export interface ConnectionTestResult {

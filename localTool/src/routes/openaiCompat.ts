@@ -75,7 +75,7 @@ function sendOpenAiError(
 /** 从请求体 / 查询串解析本次任务的 providerId（默认 lovart）。 */
 function resolveProviderId(body: Record<string, unknown>, url: URL): string {
   const q = url.searchParams.get('provider');
-  return str(body.providerId) || q || DEFAULT_PROVIDER;
+  return str(body['providerId']) || q || DEFAULT_PROVIDER;
 }
 
 // ── GET /v1/models：列出 Lovart 可用模型（供 BeefTV 渠道发现）────────────────
@@ -100,7 +100,7 @@ export function handleOpenAiModels(_req: IncomingMessage, res: ServerResponse): 
  */
 function streamChatCompletion(
   res: ServerResponse,
-  opts: { model: string; text: string; toolCalls?: unknown[] },
+  opts: { model: string; text: string; toolCalls?: unknown[] | undefined },
 ): void {
   const id = newId('chatcmpl-');
   const created = Math.floor(Date.now() / 1000);
@@ -121,7 +121,7 @@ function streamChatCompletion(
     })}\n\n`;
   const hasTools = Array.isArray(opts.toolCalls) && opts.toolCalls.length > 0;
   const first: Record<string, unknown> = { role: 'assistant', content: opts.text };
-  if (hasTools) first.tool_calls = opts.toolCalls;
+  if (hasTools) first['tool_calls'] = opts.toolCalls;
   res.write(chunk(first, null));
   res.write(chunk({}, hasTools ? 'tool_calls' : 'stop'));
   res.write('data: [DONE]\n\n');
@@ -136,10 +136,10 @@ export async function handleOpenAiChatCompletions(
 ): Promise<void> {
   const body = asObj(await parseJsonBody(req));
   const providerId = resolveProviderId(body, url);
-  const model = str(body.model) || 'lovart-chat';
-  const messages = Array.isArray(body.messages) ? (body.messages as unknown[]) : [];
-  const tools = Array.isArray(body.tools) ? (body.tools as unknown[]) : [];
-  const wantStream = body.stream === true;
+  const model = str(body['model']) || 'lovart-chat';
+  const messages = Array.isArray(body['messages']) ? (body['messages'] as unknown[]) : [];
+  const tools = Array.isArray(body['tools']) ? (body['tools'] as unknown[]) : [];
+  const wantStream = body['stream'] === true;
   // 【关键修复】Lovart 直连适配器**不支持 function calling**：一旦把 tools 透传给 relayGenerate，
   // generateEngine 会走 `chatWithTools` 分支 → POST `{lovart 基址}/chat/completions`（Lovart 无此
   // OpenAI 端点）⇒ 必失败（BeefTV 画布 Agent 恰好总带 tools，故"聊天没成功"）。故 lovart 丢弃 tools，
@@ -151,8 +151,8 @@ export async function handleOpenAiChatCompletions(
     model,
     messages,
     tools: forwardTools.length ? forwardTools : undefined,
-    toolChoice: forwardTools.length ? body.tool_choice : undefined,
-    timeoutMs: normalizeOverrideMs(body.timeout_ms ?? body.timeoutMs),
+    toolChoice: forwardTools.length ? body['tool_choice'] : undefined,
+    timeoutMs: normalizeOverrideMs(body['timeout_ms'] ?? body['timeoutMs']),
     persist: false, // 文本不落盘（聊天数据流）
   });
   if (!out.ok) {
@@ -166,7 +166,7 @@ export async function handleOpenAiChatCompletions(
     role: 'assistant',
     content: out.text ?? (hasTools ? null : ''),
   };
-  if (hasTools) message.tool_calls = out.toolCalls;
+  if (hasTools) message['tool_calls'] = out.toolCalls;
   json(res, {
     id: newId('chatcmpl-'),
     object: 'chat.completion',
@@ -191,9 +191,9 @@ export async function handleOpenAiImagesGenerations(
 ): Promise<void> {
   const body = asObj(await parseJsonBody(req));
   const providerId = resolveProviderId(body, url);
-  const model = str(body.model);
-  const prompt = str(body.prompt);
-  const size = str(body.size);
+  const model = str(body['model']);
+  const prompt = str(body['prompt']);
+  const size = str(body['size']);
   if (!model) return sendOpenAiError(res, 'Missing model', 400, 'invalid_request_error');
   if (!prompt) return sendOpenAiError(res, 'Missing prompt', 400, 'invalid_request_error');
 
@@ -269,14 +269,14 @@ export async function handleOpenAiVideosCreate(
     } else {
       const body = asObj(await parseJsonBody(req));
       fields = {
-        model: str(body.model),
-        prompt: str(body.prompt),
-        seconds: str(body.seconds ?? body.duration),
-        size: str(body.size),
-        resolution_name: str(body.resolution_name ?? body.resolution),
+        model: str(body['model']),
+        prompt: str(body['prompt']),
+        seconds: str(body['seconds'] ?? body['duration']),
+        size: str(body['size']),
+        resolution_name: str(body['resolution_name'] ?? body['resolution']),
       };
-      if (typeof body.image === 'string' && body.image.startsWith('data:')) {
-        const saved = saveBase64ToFile(body.image, 'tasks', await getDb());
+      if (typeof body['image'] === 'string' && body['image'].startsWith('data:')) {
+        const saved = saveBase64ToFile(body['image'], 'tasks', await getDb());
         if (saved) images = [saved.url];
       }
     }
@@ -289,9 +289,9 @@ export async function handleOpenAiVideosCreate(
     );
   }
 
-  const providerId = resolveProviderId({ providerId: fields.providerId }, url);
-  const model = fields.model;
-  const prompt = fields.prompt || '';
+  const providerId = resolveProviderId({ providerId: fields['providerId'] }, url);
+  const model = fields['model'];
+  const prompt = fields['prompt'] || '';
   if (!model) return sendOpenAiError(res, 'Missing model', 400, 'invalid_request_error');
 
   const frontTaskId = newId('oai_vid_');
@@ -302,9 +302,9 @@ export async function handleOpenAiVideosCreate(
     capability: 'video',
     model,
     prompt,
-    size: fields.size || undefined, // BeefTV 的 size = aspectRatio（如 16:9）
-    resolution: fields.resolution_name || undefined,
-    duration: fields.seconds || undefined,
+    size: fields['size'] || undefined, // BeefTV 的 size = aspectRatio（如 16:9）
+    resolution: fields['resolution_name'] || undefined,
+    duration: fields['seconds'] || undefined,
     images,
   });
   if (!submit.ok) return sendOpenAiError(res, submit.error || '视频任务提交失败');
@@ -323,7 +323,7 @@ export async function handleOpenAiVideosCreate(
 function videoIdFromPath(url: URL, withContent: boolean): string {
   const re = withContent ? /^\/v1\/videos\/([^/]+)\/content$/ : /^\/v1\/videos\/([^/]+)$/;
   const m = url.pathname.match(re);
-  return m ? m[1] : '';
+  return m?.[1] ?? '';
 }
 
 // ── GET /v1/videos/{id}：查询状态 ────────────────────────────────────────────

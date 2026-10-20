@@ -275,7 +275,8 @@ function rowToResource(row: Record<string, unknown>) {
     resource[camelKey] = camelKey === 'isFavorite' ? Boolean(value) : value;
   }
   // docs/122 #4：暴露 contentId 别名（= sha1 去重身份列），供前端 asset 持稳定 contentId（folder/url 无关）
-  if (typeof resource.sha1 === 'string' && resource.sha1) resource.contentId = resource.sha1;
+  if (typeof resource['sha1'] === 'string' && resource['sha1'])
+    resource['contentId'] = resource['sha1'];
   return resource;
 }
 
@@ -305,7 +306,7 @@ function resourceToRow(resource: Record<string, unknown>) {
  */
 export function contextOfUpload(
   rel: string,
-  opts: { folder?: string; name?: string } = {},
+  opts: { folder?: string | undefined; name?: string | undefined } = {},
 ): { id: string; diskFolder: string; folder: string; name: string; type: string } {
   const diskDir = path.posix.dirname(rel);
   const diskFolder = !diskDir || diskDir === '.' ? '' : diskDir;
@@ -420,14 +421,14 @@ export async function recordUploadedFileRow(
     sha1,
     timestamp: Date.now(),
   };
-  if (prev?.is_favorite !== undefined) resource.isFavorite = Boolean(prev.is_favorite);
+  if (prev?.is_favorite !== undefined) resource['isFavorite'] = Boolean(prev.is_favorite);
   // 【归属保护（2026-09-14 十轮补 · 修十轮自身引入的缺陷）】
   // 既有行**已有归属**时不得被本次覆盖：否则「在项目 B 再上传一张项目 A 已有的图（同内容）」
   // 会把该素材搬到 B → 回到 A 时它**直接不可见**（比"分类漂移"严重得多的用户可见后果）。
   // 不变式：**归属（project_id）不随最近声明漂移；呈现层（folder/name）才随最近声明**。
   // 无归属（legacy NULL）时写入本次项目 —— 这正是 TD-12-5「让 legacy 行获得归属」的初衷。
-  if (prev?.project_id) resource.projectId = prev.project_id;
-  else if (opts.projectId) resource.projectId = opts.projectId;
+  if (prev?.project_id) resource['projectId'] = prev.project_id;
+  else if (opts['projectId']) resource['projectId'] = opts['projectId'];
   upsertResource(db, resourceToRow(resource));
   debouncedSaveDb();
 }
@@ -438,12 +439,12 @@ function upsertResource(db: any, row: Record<string, unknown>) {
   // 不新建冲突行、不触发历史 UNIQUE 约束 500，而是复用既有行、仅刷新其可变 context（folder/name/...），
   // 物理 url 与 contentId 保持不变（永不破图）。这是「同内容全局唯一一行」不变量在应用层的落实。
   const sha1val =
-    (typeof row.sha1 === 'string' && row.sha1) ||
-    (typeof row.contentId === 'string' ? row.contentId : undefined);
+    (typeof row['sha1'] === 'string' && row['sha1']) ||
+    (typeof row['contentId'] === 'string' ? row['contentId'] : undefined);
   if (sha1val) {
     const existing = queryOne(db, 'SELECT id FROM resources WHERE sha1 = ? AND id != ?', [
       sha1val,
-      row.id,
+      row['id'],
     ]) as { id?: string } | undefined;
     if (existing?.id) {
       const sets: string[] = [];
@@ -474,7 +475,7 @@ function upsertResource(db: any, row: Record<string, unknown>) {
   const keys = Object.keys(row);
   const vals = Object.values(row);
   const placeholders = keys.map(() => '?').join(', ');
-  run(db, `DELETE FROM resources WHERE id = ?`, [row.id]);
+  run(db, `DELETE FROM resources WHERE id = ?`, [row['id']]);
   run(db, `INSERT INTO resources (${keys.join(', ')}) VALUES (${placeholders})`, vals);
 }
 
@@ -605,15 +606,15 @@ export async function applyResourceContextChange(opts: {
   const name =
     opts.name !== undefined && String(opts.name).trim()
       ? String(opts.name).trim()
-      : (row.name as string);
+      : (row['name'] as string);
   const folder =
     opts.folder !== undefined && String(opts.folder).trim()
       ? String(opts.folder).trim()
-      : ((row.folder as string | null) ?? null);
+      : ((row['folder'] as string | null) ?? null);
   // 只改 context 层：url（物理, 含 physBucket）、contentId、磁盘均不动
   run(db, 'UPDATE resources SET name = ?, folder = ? WHERE id = ?', [name, folder, opts.id]);
   debouncedSaveDb();
-  return { id: opts.id, url: row.url as string, name, folder };
+  return { id: opts.id, url: row['url'] as string, name, folder };
 }
 
 /**
@@ -656,7 +657,7 @@ export async function applyResourceContextMove(opts: {
   }
   run(db, 'UPDATE resources SET folder = ? WHERE id = ?', [folder, id]);
   debouncedSaveDb();
-  return { id, url: row.url as string, name: row.name as string, folder };
+  return { id, url: row['url'] as string, name: row['name'] as string, folder };
 }
 
 /**
@@ -677,10 +678,10 @@ export async function handleResourcesRename(
   const row = queryOne(db, 'SELECT * FROM resources WHERE id = ?', [id]) as
     Record<string, unknown> | undefined;
   if (!row) return sendError(res, 'Resource not found', 404);
-  if (row.source !== 'local-tool' || row.type === 'folder')
+  if (row['source'] !== 'local-tool' || row['type'] === 'folder')
     return sendError(res, '仅支持重命名本地文件', 400);
 
-  const oldName = row.name as string;
+  const oldName = row['name'] as string;
   const ext = path.extname(oldName);
   let base = String(rawName || '').trim();
   if (!base) return sendError(res, 'Invalid name', 400);
@@ -691,7 +692,7 @@ export async function handleResourcesRename(
   }
   const newFileName = `${base}${ext}`;
   if (!newFileName || newFileName === oldName)
-    return json(res, { code: 0, data: { ok: true, id, url: row.url, name: oldName } });
+    return json(res, { code: 0, data: { ok: true, id, url: row['url'], name: oldName } });
 
   try {
     // context-only 改名：只更新显示名，url/contentId/磁盘不变 → asset 永不破图（docs/122 #4）

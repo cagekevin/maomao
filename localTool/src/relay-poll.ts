@@ -55,22 +55,23 @@ export interface RelaySubmitInput {
   /** 前端自造任务 id（taskStore task_id，贯穿链路主键，= tasks.task_id） */
   frontTaskId: string;
   /** 归属节点 id（任务行 node_id 由前端 taskStore 写，此处可不传；仅建行兜底用） */
-  nodeId?: string;
+  nodeId?: string | undefined;
   type: string;
   providerId: string;
   capability: RelayCapability;
   model: string;
-  prompt?: string;
-  size?: string;
-  images?: string[];
-  messages?: unknown[];
+  // 【P6 · eop A 类】调用方把「可能没有」的表达式直接写进入参；消费方只判 truthy ⇒ 声明处认下 undefined。
+  prompt?: string | undefined;
+  size?: string | undefined;
+  images?: string[] | undefined;
+  messages?: unknown[] | undefined;
   /** video：清晰度（如 '1080p'） */
-  resolution?: string;
+  resolution?: string | undefined;
   /** video：时长（秒） */
-  duration?: string;
+  duration?: string | undefined;
   /** 连接覆盖：存在则优先于 providers.json / .env */
-  baseUrl?: string;
-  timeoutMs?: number;
+  baseUrl?: string | undefined;
+  timeoutMs?: number | undefined;
 }
 
 /**

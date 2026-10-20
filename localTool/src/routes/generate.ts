@@ -27,11 +27,11 @@ export async function handleGenerateSubmit(
   const body = (await parseJsonBody(req)) as Record<string, unknown> | null;
   if (!body) return sendError(res, 'Missing body', 400);
 
-  const providerId = typeof body.providerId === 'string' ? body.providerId : 'lovart';
-  const capability: RelayCapability | undefined = isRelayCapability(body.capability)
-    ? body.capability
+  const providerId = typeof body['providerId'] === 'string' ? body['providerId'] : 'lovart';
+  const capability: RelayCapability | undefined = isRelayCapability(body['capability'])
+    ? body['capability']
     : undefined;
-  const model = typeof body.model === 'string' ? body.model : '';
+  const model = typeof body['model'] === 'string' ? body['model'] : '';
   if (!capability) return sendError(res, 'Invalid or missing capability', 400);
   if (!model) return sendError(res, 'Missing model', 400);
 
@@ -44,11 +44,11 @@ export async function handleGenerateSubmit(
   //   （前端 `relayChat`/`relayChatStream` 写 `CHAT_TOTAL_TIMEOUT`）。image/video 的前端（`RelayIntent`）
   //   **有意不传** —— S4′ 已定「等待上限由后端 `budgetMs` 告知」。⇒ 那不是半态，是**对调用方开放的可选
   //   通道、当前暂无消费方**（不为它预建前端字段 —— 那才是 ADR-0030 说的幽灵预留）。
-  const clientTimeoutMs = normalizeOverrideMs(body.timeoutMs);
+  const clientTimeoutMs = normalizeOverrideMs(body['timeoutMs']);
 
   // ── 聊天数据流（前端 frontTaskId 有则透传，后端不消费——聊天无句柄、不建任务行）──
   if (capability === 'chat') {
-    const tools = (Array.isArray(body.tools) ? body.tools : []) as unknown[];
+    const tools = (Array.isArray(body['tools']) ? body['tools'] : []) as unknown[];
     const hasTools = tools.length > 0;
     // 【TD-01-24 · 口径贯通 · 143 S5′ 回改】前端把**本次任务总预算**写在 `body.timeoutMs`——
     // 本层**只转发**给上游，不再让它按自己的默认值跑（那正是"前端先放弃、上游白跑"的根因）。
@@ -56,18 +56,18 @@ export async function handleGenerateSubmit(
     // ⚠️ 缺省时后端取**预算真源** `budgetMsFor('chat')`（`localTool/src/budget.ts`），不在此编数字。
     // AI 助手（带 tools）→ 默认流式打字机（SSE 透传，前端保留 tool_calls delta 解析）；
     // 显式请求流式或带工具 → 流式；否则同步 JSON 快路径。
-    const wantStream = body.stream === true || hasTools;
+    const wantStream = body['stream'] === true || hasTools;
     if (wantStream) {
       await relayChatStream(req, res, {
         providerId,
         model,
-        messages: Array.isArray(body.messages)
-          ? (body.messages as unknown[])
-          : typeof body.prompt === 'string'
-            ? [{ role: 'user', content: body.prompt }]
+        messages: Array.isArray(body['messages'])
+          ? (body['messages'] as unknown[])
+          : typeof body['prompt'] === 'string'
+            ? [{ role: 'user', content: body['prompt'] }]
             : [],
         tools: hasTools ? tools : undefined,
-        baseUrl: typeof body.baseUrl === 'string' ? body.baseUrl : undefined,
+        baseUrl: typeof body['baseUrl'] === 'string' ? body['baseUrl'] : undefined,
         timeoutMs: clientTimeoutMs,
       });
       return;
@@ -78,10 +78,10 @@ export async function handleGenerateSubmit(
       capability,
       model,
       timeoutMs: clientTimeoutMs,
-      prompt: typeof body.prompt === 'string' ? body.prompt : undefined,
-      messages: Array.isArray(body.messages) ? (body.messages as unknown[]) : undefined,
-      images: Array.isArray(body.images) ? (body.images as string[]) : undefined,
-      temperature: typeof body.temperature === 'number' ? body.temperature : undefined,
+      prompt: typeof body['prompt'] === 'string' ? body['prompt'] : undefined,
+      messages: Array.isArray(body['messages']) ? (body['messages'] as unknown[]) : undefined,
+      images: Array.isArray(body['images']) ? (body['images'] as string[]) : undefined,
+      temperature: typeof body['temperature'] === 'number' ? body['temperature'] : undefined,
       persist: false, // 文本不落盘（聊天数据流）
     });
     if (!out.ok) {
@@ -103,9 +103,9 @@ export async function handleGenerateSubmit(
   }
 
   // ── 图片/视频数据流：异步句柄（frontTaskId 是句柄定位主键，必填）──
-  const frontTaskId = typeof body.frontTaskId === 'string' ? body.frontTaskId : '';
-  const nodeId = typeof body.nodeId === 'string' ? body.nodeId : '';
-  const type = typeof body.type === 'string' ? body.type : '';
+  const frontTaskId = typeof body['frontTaskId'] === 'string' ? body['frontTaskId'] : '';
+  const nodeId = typeof body['nodeId'] === 'string' ? body['nodeId'] : '';
+  const type = typeof body['type'] === 'string' ? body['type'] : '';
   if (!frontTaskId) return sendError(res, 'Missing frontTaskId', 400);
 
   const out = await submitGenerateTask({
@@ -115,13 +115,13 @@ export async function handleGenerateSubmit(
     providerId,
     capability,
     model,
-    prompt: typeof body.prompt === 'string' ? body.prompt : undefined,
-    size: typeof body.size === 'string' ? body.size : undefined,
-    images: Array.isArray(body.images) ? (body.images as string[]) : undefined,
-    messages: Array.isArray(body.messages) ? (body.messages as unknown[]) : undefined,
-    resolution: typeof body.resolution === 'string' ? body.resolution : undefined,
-    duration: body.duration !== undefined ? String(body.duration) : undefined,
-    baseUrl: typeof body.baseUrl === 'string' ? body.baseUrl : undefined,
+    prompt: typeof body['prompt'] === 'string' ? body['prompt'] : undefined,
+    size: typeof body['size'] === 'string' ? body['size'] : undefined,
+    images: Array.isArray(body['images']) ? (body['images'] as string[]) : undefined,
+    messages: Array.isArray(body['messages']) ? (body['messages'] as unknown[]) : undefined,
+    resolution: typeof body['resolution'] === 'string' ? body['resolution'] : undefined,
+    duration: body['duration'] !== undefined ? String(body['duration']) : undefined,
+    baseUrl: typeof body['baseUrl'] === 'string' ? body['baseUrl'] : undefined,
     // 【143 · S3′】override 通道（原先漏转发 ⇒ 该字段对 image/video 完全无效）
     timeoutMs: clientTimeoutMs,
   });

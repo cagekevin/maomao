@@ -28,27 +28,30 @@ export async function handleLogsPost(req: IncomingMessage, res: ServerResponse):
     // 空/非法 body 静默忽略，上报失败不应影响主链路
   }
 
-  const timestamp = typeof body.timestamp === 'string' ? body.timestamp : new Date().toISOString();
+  const timestamp =
+    typeof body['timestamp'] === 'string' ? body['timestamp'] : new Date().toISOString();
   // level 白名单归一：仅允许已知级别，防止异常/注入值（如 "[error]"）导致面板误高亮
   const LEVELS = new Set(['debug', 'info', 'warn', 'error']);
-  const levelRaw = typeof body.level === 'string' ? body.level.trim().toLowerCase() : '';
+  const levelRaw = typeof body['level'] === 'string' ? body['level'].trim().toLowerCase() : '';
   const level = LEVELS.has(levelRaw) ? levelRaw : 'info';
   // source 归一：缺省即前端（向后兼容旧 logger.ts）；限制长度避免异常长串污染日志行
   let source =
-    typeof body.source === 'string' && body.source.trim() ? body.source.trim() : 'frontend';
+    typeof body['source'] === 'string' && body['source'].trim()
+      ? body['source'].trim()
+      : 'frontend';
   if (source.length > 32) source = source.slice(0, 32);
-  const category = typeof body.category === 'string' ? body.category : '';
-  const action = typeof body.action === 'string' ? body.action : '';
-  const taskId = typeof body.taskId === 'string' ? body.taskId : '';
-  const nodeId = typeof body.nodeId === 'string' ? body.nodeId : '';
+  const category = typeof body['category'] === 'string' ? body['category'] : '';
+  const action = typeof body['action'] === 'string' ? body['action'] : '';
+  const taskId = typeof body['taskId'] === 'string' ? body['taskId'] : '';
+  const nodeId = typeof body['nodeId'] === 'string' ? body['nodeId'] : '';
 
   let detailText = '';
-  if (typeof body.detail === 'string') detailText = body.detail;
-  else if (body.detail !== undefined && body.detail !== null) {
+  if (typeof body['detail'] === 'string') detailText = body['detail'];
+  else if (body['detail'] !== undefined && body['detail'] !== null) {
     try {
-      detailText = JSON.stringify(body.detail);
+      detailText = JSON.stringify(body['detail']);
     } catch {
-      detailText = String(body.detail);
+      detailText = String(body['detail']);
     }
   }
 
