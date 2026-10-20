@@ -234,9 +234,9 @@ export async function fetchResources({
   // （TD-12-13 实测：等值时 migrated 仅 5 条；前端 `matchesFolder` 本就是前缀语义，两套判据必漂移）。
   // ⚠️ `folderExact` 是**有意**的相反语义（只要该目录本身），故显式独立参数，不走上面的前缀分支。
   const filters: Record<string, string | { eqOrPrefix: string }> = {};
-  if (folder) filters.folder = { eqOrPrefix: folder };
-  if (folderExact) filters.folder = folderExact;
-  if (type) filters.type = type;
+  if (folder) filters['folder'] = { eqOrPrefix: folder };
+  if (folderExact) filters['folder'] = folderExact;
+  if (type) filters['type'] = type;
   if (Object.keys(filters).length) params.set('filters', JSON.stringify(filters));
   if (projectId) params.set('projectId', projectId);
   if (search) params.set('search', search);

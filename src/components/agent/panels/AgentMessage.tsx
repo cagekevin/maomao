@@ -251,7 +251,7 @@ const GenerationStepsCard = memo(function GenerationStepsCard({
         <div className="agent-trace-detail">
           <div className="agent-steps">
             {list.map((g, i) => {
-              const title = String(g?.title || g?.role || `步骤 ${i + 1}`).trim();
+              const title = String(g?.['title'] || g?.['role'] || `步骤 ${i + 1}`).trim();
               const prompt = String(
                 g?.professionalPrompt || g?.prompt || g?.plannedPrompt || '',
               ).trim();
@@ -334,12 +334,12 @@ function AgentMessage({
       .map((s) => {
         // 来源（官方 / 哪个分组）——读的是**冻结时记下的** `origin` / `category`，不是现在去查磁盘：
         // 技能事后改名、换组甚至被删，这条消息仍如实说出"当时用的是哪一份"（这正是冻结的意义，TD-11-29）。
-        const category = typeof s?.category === 'string' ? s.category : '';
+        const category = typeof s?.['category'] === 'string' ? s['category'] : '';
         return {
           name: String(s?.name || s?.id || ''),
           version: typeof s?.version === 'string' ? s.version : '',
           hash: typeof s?.contentHash === 'string' ? s.contentHash.slice(0, 8) : '',
-          source: s?.origin === 'builtin' ? '官方' : category ? `分组：${category}` : '自建',
+          source: s?.['origin'] === 'builtin' ? '官方' : category ? `分组：${category}` : '自建',
         };
       })
       .filter((b) => b.name);

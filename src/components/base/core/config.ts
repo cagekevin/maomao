@@ -17,7 +17,7 @@ export const LOCAL_TOOL_PORT = 18080;
  * 生产发布后页面部署到 localTool 18080 端口同源访问，仍可经 env 留空回落。
  */
 export const API_BASE =
-  import.meta.env?.VITE_API_BASE?.replace(/\/+$/, '') || `http://127.0.0.1:${LOCAL_TOOL_PORT}`;
+  import.meta.env?.['VITE_API_BASE']?.replace(/\/+$/, '') || `http://127.0.0.1:${LOCAL_TOOL_PORT}`;
 
 // ── 调试开关（通用 DEBUG，按模块分类）───────────────────────────────
 /** 通用调试开关。logger.debug(cat, act, det, { module }) 仅在对应模块位开启时输出到 console，
@@ -82,7 +82,7 @@ export const IS_DEV = import.meta.env?.DEV === true;
  *  开启条件（沿用原语义，未改名）：VITE_DEBUG_LOG='1' 或开发模式（`IS_DEV`）。
  *  注意：此处用 import.meta.env?.X 安全形式，根脚本 define:{'import.meta.env':'{}'} 可正常覆盖，
  *  不再出现 "import.meta is not available with cjs" 警告。 */
-export const DIRECTOR3D_DEBUG = import.meta.env?.VITE_DEBUG_LOG === '1' || IS_DEV;
+export const DIRECTOR3D_DEBUG = import.meta.env?.['VITE_DEBUG_LOG'] === '1' || IS_DEV;
 
 // ── AI 助手模型列表 ──────────────────────────────────────────────
 // 【2026-09-04 清理】AGENT_MODELS / DEFAULT_AGENT_MODELS 已随「AI 助手模型改用设置页厂商 chat_models」
@@ -91,7 +91,7 @@ export const DIRECTOR3D_DEBUG = import.meta.env?.VITE_DEBUG_LOG === '1' || IS_DE
 // ── AI 助手上下文预算默认值（无模型 contextWindow 声明时的保守兜底）────────────
 /** 默认上下文窗口（token）。项目模型未声明 contextWindow 时用此值，env VITE_AGENT_CONTEXT_WINDOW 可覆盖。 */
 export const AGENT_CONTEXT_WINDOW_DEFAULT =
-  Number(import.meta.env?.VITE_AGENT_CONTEXT_WINDOW) || 128_000;
+  Number(import.meta.env?.['VITE_AGENT_CONTEXT_WINDOW']) || 128_000;
 /** 输出预算留白比例：输入预算 = contextWindow × (1 − 该比例)，留出生成空间。 */
 export const AGENT_CONTEXT_OUTPUT_BUDGET_RATIO = 0.2;
 

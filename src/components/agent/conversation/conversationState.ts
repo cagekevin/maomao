@@ -523,7 +523,7 @@ export function normalizeConversation(raw: unknown): Conversation | null {
   // 二次归一化直接返回原引用，不重生成 → 列表 key 稳定不重挂载）。
   c.messages = c.messages.map((m) => {
     const msg = m as Record<string, unknown> | null;
-    if (!msg || typeof msg !== 'object' || msg.id) return m;
+    if (!msg || typeof msg !== 'object' || msg['id']) return m;
     return { ...msg, id: generateId('msg') };
   });
   // 【P4 自愈·2026-09-11】streaming 是瞬时 UI 标志（与 sending 同类）：刷新后无法续流，
@@ -531,7 +531,7 @@ export function normalizeConversation(raw: unknown): Conversation | null {
   // 并让刷新后看到半截气泡（内容已完整、仅标志位残留）。仅在 projections 副本上清除；调用方已保证不污染 live（落盘路径传浅拷贝）。
   c.messages = c.messages.map((m) => {
     const msg = m as Record<string, unknown> | null;
-    if (msg && typeof msg === 'object' && msg.streaming === true) {
+    if (msg && typeof msg === 'object' && msg['streaming'] === true) {
       return { ...msg, streaming: false };
     }
     return m;
@@ -635,9 +635,9 @@ export function normalizeMemory(raw: unknown): ConversationMemory {
     notes: Array.isArray(m.notes) ? m.notes.slice() : base.notes,
     global_contract: gc
       ? {
-          visual_positioning: String(gc.visual_positioning || '').trim(),
-          unified_style_prompt: String(gc.unified_style_prompt || '').trim(),
-          unified_negative_prompt: String(gc.unified_negative_prompt || '').trim(),
+          visual_positioning: String(gc['visual_positioning'] || '').trim(),
+          unified_style_prompt: String(gc['unified_style_prompt'] || '').trim(),
+          unified_negative_prompt: String(gc['unified_negative_prompt'] || '').trim(),
         }
       : null,
     artifacts: Array.isArray(m.artifacts)

@@ -152,14 +152,16 @@ export async function exportAll() {
   }
   // 【TD-15-2】项目集合以 projectStore **内存真相**为准（并集存储副本兜底）：
   // 存储副本落盘有 300ms 防抖滞后 → 只读它会漏备窗口内新建的项目。内存项优先（改名/新建即时生效）。
-  const storedProjects = Array.isArray(ls.projects) ? (ls.projects as { id?: unknown }[]) : [];
+  const storedProjects = Array.isArray(ls['projects'])
+    ? (ls['projects'] as { id?: unknown }[])
+    : [];
   const byId = new Map<string, { id?: unknown }>();
   for (const p of [...getAllProjects(), ...storedProjects]) {
     const id = p && typeof p === 'object' ? (p as { id?: unknown }).id : undefined;
     if (typeof id === 'string' && id && !byId.has(id)) byId.set(id, p as { id?: unknown });
   }
   const projectList = [...byId.values()];
-  if (projectList.length) ls.projects = projectList; // 备份包内项目列表与枚举同源，保证导入自洽
+  if (projectList.length) ls['projects'] = projectList; // 备份包内项目列表与枚举同源，保证导入自洽
   // AI 会话键（agent_conversations_{agentKey}）不在此单独收集 —— 它是 KV 后端键，
   // 由下方 kv 段按登记表模板**派生**收录（v2 时靠 conversationKeys() 手写枚举，v3 起删除该第二份枚举）。
   // 画布快照：遍历所有项目逐个读 KV

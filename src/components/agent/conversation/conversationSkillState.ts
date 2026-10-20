@@ -93,11 +93,11 @@ function isCreditGate(v: unknown): v is CreditGate {
   if (!v || typeof v !== 'object' || Array.isArray(v)) return false;
   const o = v as Record<string, unknown>;
   return (
-    o.pending === true &&
-    Array.isArray(o.gens) &&
-    !!o.map &&
-    typeof o.map === 'object' &&
-    !Array.isArray(o.map)
+    o['pending'] === true &&
+    Array.isArray(o['gens']) &&
+    !!o['map'] &&
+    typeof o['map'] === 'object' &&
+    !Array.isArray(o['map'])
   );
 }
 

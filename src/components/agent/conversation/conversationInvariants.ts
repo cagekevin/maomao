@@ -76,11 +76,11 @@ export function validateConversation(conv: Conversation | null): Violation[] {
     const ok =
       o &&
       typeof o === 'object' &&
-      o.pending === true &&
-      Array.isArray(o.gens) &&
-      !!o.map &&
-      typeof o.map === 'object' &&
-      !Array.isArray(o.map);
+      o['pending'] === true &&
+      Array.isArray(o['gens']) &&
+      !!o['map'] &&
+      typeof o['map'] === 'object' &&
+      !Array.isArray(o['map']);
     if (!ok)
       out.push(err('S3', 'creditGate 形状非法（需 { pending:true, gens:array, map:object }）'));
   }

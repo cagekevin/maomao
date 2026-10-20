@@ -123,8 +123,8 @@ export function measureModelScale(
 function dominantBoneNameFromHit(event: ThreeEvent<PointerEvent>) {
   const mesh = event.object as THREE.SkinnedMesh;
   const face = event.face;
-  const skinIndex = mesh?.geometry?.attributes?.skinIndex;
-  const skinWeight = mesh?.geometry?.attributes?.skinWeight;
+  const skinIndex = mesh?.geometry?.attributes?.['skinIndex'];
+  const skinWeight = mesh?.geometry?.attributes?.['skinWeight'];
   const skeleton = mesh?.skeleton;
   if (!mesh?.isSkinnedMesh || !face || !skinIndex || !skinWeight || !skeleton) return null;
 
@@ -657,7 +657,7 @@ function MixamoPersonModel({
   );
 
   // 体型表缺项 ⇒ 回退 standard，再缺则等比 1（常量表被改坏时仍能渲染）
-  const scale = MIXAMO_BODY_SCALES[bodyType] ?? MIXAMO_BODY_SCALES.standard ?? [1, 1, 1];
+  const scale = MIXAMO_BODY_SCALES[bodyType] ?? MIXAMO_BODY_SCALES['standard'] ?? [1, 1, 1];
   return (
     <group position={rig.root}>
       <group ref={modelRoot} scale={scale}>

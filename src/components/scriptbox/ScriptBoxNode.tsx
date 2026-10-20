@@ -82,8 +82,8 @@ function ScriptBoxNode({ id, data, selected }: ScriptBoxNodeProps) {
     // 上游文本/图片变化时同步到 data（断线后按空清理，避免旧内容一直混入生成）。
     const patch: Record<string, unknown> = {};
     const curText = d.upstreamStory || '';
-    if (upstreamTexts && upstreamTexts !== curText) patch.upstreamStory = upstreamTexts;
-    else if (!upstreamTexts && curText) patch.upstreamStory = '';
+    if (upstreamTexts && upstreamTexts !== curText) patch['upstreamStory'] = upstreamTexts;
+    else if (!upstreamTexts && curText) patch['upstreamStory'] = '';
     const imgList = (connected.images || [])
       .map((im, i) =>
         im && im.url
@@ -100,7 +100,7 @@ function ScriptBoxNode({ id, data, selected }: ScriptBoxNodeProps) {
     const sameImgs =
       imgList.length === curImgs.length &&
       imgList.every((im, i) => im != null && curImgs[i] && curImgs[i].url === im.url);
-    if (!sameImgs) patch.upstreamImages = imgList;
+    if (!sameImgs) patch['upstreamImages'] = imgList;
     const txtList = (connected.texts || [])
       .map((t, i) =>
         t && t.text
@@ -117,7 +117,7 @@ function ScriptBoxNode({ id, data, selected }: ScriptBoxNodeProps) {
     const sameTxts =
       txtList.length === curTxts.length &&
       txtList.every((t, i) => t != null && curTxts[i] && curTxts[i].text === t.text);
-    if (!sameTxts) patch.upstreamTexts = txtList;
+    if (!sameTxts) patch['upstreamTexts'] = txtList;
     if (Object.keys(patch).length) updateData(patch);
   }, [upstreamTexts, d.upstreamStory, d.upstreamImages, d.upstreamTexts, connected, updateData]);
 

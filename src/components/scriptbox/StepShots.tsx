@@ -415,10 +415,10 @@ export default function StepShots({ data, updateData, callbacks }: StepShotsProp
             for (const raw of tfShot.prevTailFrameVariants) {
               if (raw && typeof raw === 'object') {
                 const rec = raw as Record<string, unknown>;
-                if (typeof rec.id === 'string')
+                if (typeof rec['id'] === 'string')
                   variants.push({
-                    id: rec.id,
-                    ...(typeof rec.assetUrl === 'string' ? { assetUrl: rec.assetUrl } : {}),
+                    id: rec['id'],
+                    ...(typeof rec['assetUrl'] === 'string' ? { assetUrl: rec['assetUrl'] } : {}),
                   });
               }
             }

@@ -375,7 +375,7 @@ export async function test(id: string): Promise<void> {
     // 2) apimart 异步协议：额外用假 task_id 嗅探异步端点，能区分
     //    「key 无效(401/403) / 非 apimart(404) / 端点存在(400+invalid task id)」。
     //    若通用探测已成功则跳过，避免无谓请求；失败时用异步嗅探结果补全诊断。
-    if (p.protocol === 'apimart' && !data?.ok) {
+    if (p.protocol === 'apimart' && !data?.['ok']) {
       try {
         const rawProbe = (await providerApi.probeAsync(payload)) as {
           code?: number;
@@ -385,7 +385,7 @@ export async function test(id: string): Promise<void> {
           rawProbe?.data && typeof rawProbe.data === 'object' ? rawProbe.data : rawProbe
         ) as Record<string, unknown>;
         // 优先展示异步嗅探的更精确原始信息；status 若为 0 则回填
-        data = probe.ok ? { ...data, ...probe, ok: true } : { ...data, ...probe, ok: false };
+        data = probe['ok'] ? { ...data, ...probe, ok: true } : { ...data, ...probe, ok: false };
       } catch (e) {
         // probe-async 本身失败时保留 test-connection 的原始信息 → 但**降级必留痕**（2026-09-17 拆 catch-ok）。
         logger.debug('供应商', '异步嗅探失败，保留原始探测信息（不阻断）', e);
@@ -399,9 +399,7 @@ export async function test(id: string): Promise<void> {
   }
 }
 
-export async function fetchModels(
-  id: string,
-): Promise<{
+export async function fetchModels(id: string): Promise<{
   ok: boolean;
   pending?: boolean | undefined;
   total?: number | undefined;
@@ -485,9 +483,9 @@ export async function save(): Promise<{ ok: boolean; error?: string }> {
     // 避免重写 config 时丢失后端返回的扩展字段；配置型下无编辑入口（_apiKey 恒定为空）。
     const payload = state.providers.map((p) => {
       const cleaned: Record<string, unknown> = { ...p };
-      delete cleaned._apiKey;
-      delete cleaned._clearKey;
-      delete cleaned.api_key;
+      delete cleaned['_apiKey'];
+      delete cleaned['_clearKey'];
+      delete cleaned['api_key'];
       return cleaned;
     });
     const data = await providerApi.saveProviders(payload);

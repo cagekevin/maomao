@@ -49,9 +49,10 @@ export function estimateMessagesTokens(messages: unknown[] | null | undefined): 
   let total = 0;
   for (const m of (Array.isArray(messages) ? messages : []) as Record<string, unknown>[]) {
     if (!m || typeof m !== 'object') continue;
-    total += PER_MESSAGE_OVERHEAD + estimateTokens(typeof m.content === 'string' ? m.content : '');
-    if (Array.isArray(m.tool_calls)) {
-      total += estimateTokens(JSON.stringify(m.tool_calls));
+    total +=
+      PER_MESSAGE_OVERHEAD + estimateTokens(typeof m['content'] === 'string' ? m['content'] : '');
+    if (Array.isArray(m['tool_calls'])) {
+      total += estimateTokens(JSON.stringify(m['tool_calls']));
     }
   }
   return total;

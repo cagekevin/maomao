@@ -104,10 +104,10 @@ export function wfNextSteer(terminalStatus?: WorkflowStatus): {
   for (const v of rawQueue) {
     if (v && typeof v === 'object') {
       const o = v as Record<string, unknown>;
-      if (typeof o.text === 'string') {
+      if (typeof o['text'] === 'string') {
         steerQ.push({
-          text: o.text,
-          attachments: Array.isArray(o.attachments) ? o.attachments : [],
+          text: o['text'],
+          attachments: Array.isArray(o['attachments']) ? o['attachments'] : [],
         });
       }
     }

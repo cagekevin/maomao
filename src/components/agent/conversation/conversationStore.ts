@@ -207,10 +207,10 @@ export function importLegacy({
   if (!Array.isArray(messages) || messages.length === 0) return null;
   if (getState().conversations.length > 0) return null; // 已有对话，不迁移
   const msgs = messages as Record<string, unknown>[];
-  const firstUser = msgs.find((m) => m.role === 'user' && m.content);
+  const firstUser = msgs.find((m) => m['role'] === 'user' && m['content']);
   const conv = normalizeConversation({
     id: agentUid('ac'),
-    title: firstUser?.content ? String(firstUser.content).slice(0, 30) : '对话',
+    title: firstUser?.['content'] ? String(firstUser['content']).slice(0, 30) : '对话',
     messages: msgs.slice(-AGENT_MSG_MAX),
     // 与快照写入口同一归一（原 `{ ...s }` 会把 id 字符串展开成索引对象 ⇒ 迁移后技能丢失）
     skills: normalizeSkillIds(skills),

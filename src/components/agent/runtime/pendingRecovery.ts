@@ -41,13 +41,13 @@ export function resolvePendingRecovery({
   activeConversationId?: string | undefined;
 }): PendingRecoveryResult {
   if (!pending || pending.conversationId !== activeConversationId) return { action: 'none' };
-  const byId = pending.messageId ? messages.find((m) => m && m.id === pending.messageId) : null;
-  const text = String(byId?.content || pending.text || '');
+  const byId = pending.messageId ? messages.find((m) => m && m['id'] === pending.messageId) : null;
+  const text = String(byId?.['content'] || pending.text || '');
   const attachments: unknown[] =
     Array.isArray(pending.attachments) && pending.attachments.length
       ? pending.attachments
-      : Array.isArray(byId?.attachments)
-        ? (byId.attachments as unknown[])
+      : Array.isArray(byId?.['attachments'])
+        ? (byId['attachments'] as unknown[])
         : [];
   if (!text && (!attachments || attachments.length === 0)) return { action: 'drop' };
   return { action: 'send', text, attachments };
