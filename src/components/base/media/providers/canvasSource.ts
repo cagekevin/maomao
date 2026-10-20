@@ -59,7 +59,7 @@ export const canvasSourceProvider: MediaRefProvider = {
       const data = (node.data || {}) as Record<string, unknown>;
       // 【TD-16-23 · 根因已治】取主媒体只有这一个入口（内部认 contentId 三形态）。
       const media = getNodeMedia(node, resolveContentUrl);
-      const contentId = typeof data.contentId === 'string' ? data.contentId : undefined;
+      const contentId = typeof data['contentId'] === 'string' ? data['contentId'] : undefined;
 
       if (!media.type && !media.url) {
         // 分两种，**判据不同**：
@@ -93,9 +93,9 @@ export const canvasSourceProvider: MediaRefProvider = {
       if (query?.types && !query.types.includes(type)) continue; // 正常的类型筛选（非失败，不留痕）
 
       const name =
-        (typeof data.label === 'string' && data.label) ||
-        (typeof data.name === 'string' && data.name) ||
-        (typeof data.projectName === 'string' && data.projectName) ||
+        (typeof data['label'] === 'string' && data['label']) ||
+        (typeof data['name'] === 'string' && data['name']) ||
+        (typeof data['projectName'] === 'string' && data['projectName']) ||
         '节点';
       if (!matchKeyword(name, query?.keyword)) continue;
 

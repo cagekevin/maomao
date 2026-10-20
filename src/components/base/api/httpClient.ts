@@ -148,17 +148,19 @@ export class HttpError extends Error {
  */
 export function extractErrorDetail(data: unknown): ErrorDetail {
   const src = data && typeof data === 'object' ? (data as Record<string, unknown>) : {};
-  if (typeof src.error === 'string') {
+  if (typeof src['error'] === 'string') {
     // 字符串错误信封兜底：{error:'msg'} → UNKNOWN（后端当前必返字符串，兜底不可删）
-    return { code: 'UNKNOWN', message: src.error };
+    return { code: 'UNKNOWN', message: src['error'] };
   }
   const e =
-    src.error && typeof src.error === 'object' ? (src.error as Record<string, unknown>) : {};
+    src['error'] && typeof src['error'] === 'object'
+      ? (src['error'] as Record<string, unknown>)
+      : {};
   const str = (v: unknown): string => (typeof v === 'string' ? v : '');
   return {
     // 优先级：error.code > error.message > error.detail > data.detail > data.message
-    code: str(e.code) || 'UNKNOWN',
-    message: str(e.message) || str(e.detail) || str(src.detail) || str(src.message),
+    code: str(e['code']) || 'UNKNOWN',
+    message: str(e['message']) || str(e['detail']) || str(src['detail']) || str(src['message']),
   };
 }
 

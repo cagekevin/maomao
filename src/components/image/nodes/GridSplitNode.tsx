@@ -295,7 +295,7 @@ function GridSplitNode({ id, data, selected }: GridSplitNodeProps) {
   // 已绘制闭合块数（复刻 Lo.jsx ee）
   const closedCount =
     splitMode === 'lasso'
-      ? lassoShapes.filter((s) => s.closed && s.points.length >= 3).length
+      ? lassoShapes.filter((s) => s['closed'] && s.points.length >= 3).length
       : cells.length;
   // 行列计数（复刻 Lo.jsx L/R）
   const rowCount = splitMode === 'grid' ? rows : splitMode === 'manual' ? hLines.length + 1 : 1;
@@ -306,7 +306,7 @@ function GridSplitNode({ id, data, selected }: GridSplitNodeProps) {
   const lassoCenters = useMemo(
     () =>
       lassoShapes
-        .filter((s) => s.closed && s.points.length >= 3)
+        .filter((s) => s['closed'] && s.points.length >= 3)
         .map((s) => {
           const n = s.points.length;
           let sx = 0,
@@ -420,7 +420,7 @@ function GridSplitNode({ id, data, selected }: GridSplitNodeProps) {
     }
     let cancelled = false;
     (async () => {
-      const closed = lassoShapes.filter((s) => s.closed && s.points.length >= 3);
+      const closed = lassoShapes.filter((s) => s['closed'] && s.points.length >= 3);
       const tiles: Array<string | null> = [];
       for (const s of closed) {
         const r = await clipShape(assetUrl, s.points);
@@ -833,14 +833,18 @@ function GridSplitNode({ id, data, selected }: GridSplitNodeProps) {
             if (s.points.length < 2) return null;
             const d =
               s.points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x * 100} ${p.y * 100}`).join(' ') +
-              (s.closed ? ' Z' : '');
+              (s['closed'] ? ' Z' : '');
             const isActive = s.id === activeLasso;
             return (
               <path
                 key={s.id}
                 d={d}
                 fill={
-                  s.closed ? (isActive ? 'rgba(59,130,246,0.35)' : 'rgba(59,130,246,0.18)') : 'none'
+                  s['closed']
+                    ? isActive
+                      ? 'rgba(59,130,246,0.35)'
+                      : 'rgba(59,130,246,0.18)'
+                    : 'none'
                 }
                 stroke={isActive ? '#60a5fa' : '#3b82f6'}
                 strokeWidth={0.4}
@@ -1180,14 +1184,14 @@ function GridSplitNode({ id, data, selected }: GridSplitNodeProps) {
                   const d =
                     s.points
                       .map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x * 100} ${p.y * 100}`)
-                      .join(' ') + (s.closed ? ' Z' : '');
+                      .join(' ') + (s['closed'] ? ' Z' : '');
                   const isActive = s.id === activeLasso;
                   return (
                     <path
                       key={s.id}
                       d={d}
                       fill={
-                        s.closed
+                        s['closed']
                           ? isActive
                             ? 'rgba(59,130,246,0.30)'
                             : 'rgba(59,130,246,0.18)'

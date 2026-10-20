@@ -65,20 +65,20 @@ export function getCurrentImageMap(): ImageMapEntry[] {
     const item = r as Record<string, unknown>;
     map.push({
       num: i + 1,
-      url: String(item.url || ''),
-      name: String(item.name || `图${i + 1}`),
+      url: String(item['url'] || ''),
+      name: String(item['name'] || `图${i + 1}`),
       source: 'gen',
     });
   });
   const offset = genResults.length;
   attachments
-    .filter((a) => !!a && !!(a as Record<string, unknown>).url)
+    .filter((a) => !!a && !!(a as Record<string, unknown>)['url'])
     .forEach((a, i) => {
       const att = a as Record<string, unknown>;
       map.push({
         num: offset + i + 1,
-        url: String(att.url || ''),
-        name: String(att.name || att.label || `图${offset + i + 1}`),
+        url: String(att['url'] || ''),
+        name: String(att['name'] || att['label'] || `图${offset + i + 1}`),
         source: 'att',
       });
     });

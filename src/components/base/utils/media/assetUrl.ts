@@ -285,16 +285,16 @@ export function resolveAssetDisplayUrl(
   // 结构可读：data 是任意对象（含各节点 data 接口），只按需读 contentId/url/assetUrl，不假设索引签名
   const d = data as Record<string, unknown>;
   // 文件型：稳定 contentId → 经 resource 解析（资源行是 url 真源；改名/移动只改 context，contentId→url 自动跟随，永不破图）
-  const contentId = typeof d.contentId === 'string' ? d.contentId : undefined;
+  const contentId = typeof d['contentId'] === 'string' ? d['contentId'] : undefined;
   if (contentId) {
     const resolved = resolveContentUrl(contentId);
     if (resolved) return { kind: 'ok', url: resolved };
   }
   // 主图字段：**写侧唯一写的那个**（nodeImage.ts）⇒ 排在存量字段 `url` 之前
-  const assetUrl = typeof d.assetUrl === 'string' ? d.assetUrl : undefined;
+  const assetUrl = typeof d['assetUrl'] === 'string' ? d['assetUrl'] : undefined;
   if (assetUrl) return { kind: 'ok', url: assetUrl };
   // 存量兼容：`url` 已无生产者（旧双写已删），仅在前两者都空时兜底（读兼容、写唯一）
-  const url = typeof d.url === 'string' ? d.url : undefined;
+  const url = typeof d['url'] === 'string' ? d['url'] : undefined;
   return url ? { kind: 'ok', url } : { kind: 'missing' };
 }
 

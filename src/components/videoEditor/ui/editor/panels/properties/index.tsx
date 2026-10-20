@@ -35,10 +35,10 @@ export function PropertiesPanel() {
 
   const grouped = useMemo(() => groupByType(elementsWithTracks), [elementsWithTracks]);
   // 各类型首个条目：面板只渲染「同类型首元素」的属性，先取好避免每处 `grouped.x[0]` 再判空
-  const firstVideo = grouped.video?.[0];
-  const firstImage = grouped.image?.[0];
-  const firstAudio = grouped.audio?.[0];
-  const firstSticker = grouped.sticker?.[0];
+  const firstVideo = grouped['video']?.[0];
+  const firstImage = grouped['image']?.[0];
+  const firstAudio = grouped['audio']?.[0];
+  const firstSticker = grouped['sticker']?.[0];
 
   return (
     // 【不再外包 ScrollArea】（2026-09-15）里层每个面板（`PanelBaseView`）**自己就有**
@@ -46,9 +46,9 @@ export function PropertiesPanel() {
     <div className="panel bg-background h-full border overflow-hidden">
       {selectedElements.length > 0 ? (
         <>
-          {grouped.text && grouped.text.length > 0 && (
+          {grouped['text'] && grouped['text'].length > 0 && (
             <TextProperties
-              elements={grouped.text.map((item) => ({
+              elements={grouped['text'].map((item) => ({
                 element:
                   item.element as import('@/components/videoEditor/types/timeline').TextElement,
                 trackId: item.track.id,

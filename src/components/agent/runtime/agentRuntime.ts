@@ -706,10 +706,10 @@ export async function runToolCalls(
     // Skill 三阶段阶段1：show_plan_for_confirm 把策划展示给用户（作为一条 assistant 消息，可见规划）
     // 门禁只依赖工具成功（result?.ok），与 plan_text/generations 传输彻底解耦（对齐大雄：门禁由前端本地构造）。
     if (tc.function?.name === 'show_plan_for_confirm' && result?.ok) {
-      const planText = data?.plan_text || '（策划已生成，请确认）';
+      const planText = data?.['plan_text'] || '（策划已生成，请确认）';
       // 【对齐大雄】generations 挂到确认消息上，供前端渲染步骤卡片（agentGenCardHtml 等价物）。
       // 来源优先级：回复正文解析暂存（主） > 工具参数传入。都来自 per-conversation pendingGenerations。
-      const gens = data?.generations;
+      const gens = data?.['generations'];
       const confirmGens = Array.isArray(gens) ? gens : getActivePendingGenerations() || [];
       appendMsg({
         role: 'assistant',
@@ -724,8 +724,8 @@ export async function runToolCalls(
     // 复用 awaiting_confirm 门禁卡片；确认按钮文案由 AgentMessage 按 memory_suggest 语义渲染。
     // 用户确认动作由 UI 侧（AgentPanel.handleConfirmPlan → 确认记忆逻辑）落库。
     if (tc.function?.name === 'memory_suggest' && result?.ok) {
-      const kind = typeof data?.kind === 'string' ? data.kind : '';
-      const content = typeof data?.content === 'string' ? data.content : '';
+      const kind = typeof data?.['kind'] === 'string' ? data['kind'] : '';
+      const content = typeof data?.['content'] === 'string' ? data['content'] : '';
       const kindLabel =
         (
           { preference: '偏好', fact: '事实', constraint: '约束', decision: '决定' } as Record<
@@ -747,11 +747,13 @@ export async function runToolCalls(
     if (tc.function?.name === 'execute_plan' && result?.ok) {
       // 【积分闸停点】execute_plan 命中积分闸（awaited:'credit'）→ 本轮已走到「点生成烧积分」临界点，
       // 置 creditHeld，send 循环据此暂停等用户确认；与全局残留 creditGate.pending 无关（见 send 停点注释）。
-      if (data?.awaited === 'credit') creditHeld = true;
-      const logsArr = Array.isArray(data?.logs) ? (data.logs as RunToolLog[]) : [];
+      if (data?.['awaited'] === 'credit') creditHeld = true;
+      const logsArr = Array.isArray(data?.['logs']) ? (data['logs'] as RunToolLog[]) : [];
       // 【对齐大雄 agentLastResults】把本轮生成结果图 url 存到 assistant 消息的 lastResults，
       //   供后续轮「改上一张生成图」时执行层跨轮取最近生成图（图不进 LLM 上下文，执行层反查原图）。
-      const entriesArr = Array.isArray(data?.entries) ? (data.entries as RunToolEntry[]) : [];
+      const entriesArr = Array.isArray(data?.['entries'])
+        ? (data['entries'] as RunToolEntry[])
+        : [];
       const lastResults = entriesArr
         .filter((e) => e && e.status === 'completed' && e.resultUrl)
         .map((e) => ({

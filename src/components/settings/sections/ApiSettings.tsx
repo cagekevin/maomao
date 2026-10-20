@@ -211,8 +211,8 @@ export default function ApiSettings() {
                   className="st-input"
                   value={
                     (selected.base_url as string) ||
-                    (selected._relay
-                      ? ((selected._relay as { defaultBaseUrl?: string })?.defaultBaseUrl ?? '')
+                    (selected['_relay']
+                      ? ((selected['_relay'] as { defaultBaseUrl?: string })?.defaultBaseUrl ?? '')
                       : '') ||
                     ''
                   }
@@ -254,13 +254,13 @@ export default function ApiSettings() {
                   {testResult && selectedId === selected.id && (
                     <div
                       className={
-                        testResult.ok ? 'st-notice st-notice--ok' : 'st-notice st-notice--danger'
+                        testResult['ok'] ? 'st-notice st-notice--ok' : 'st-notice st-notice--danger'
                       }
                     >
-                      {testResult.ok ? <Check size={14} /> : <AlertCircle size={14} />}
-                      {testResult.ok
-                        ? `连接成功（${testResult.status ?? ''}${testResult.stage ? ' · ' + testResult.stage : ''}）`
-                        : `连接失败：${testResult.error || testResult.status || '未知'}`}
+                      {testResult['ok'] ? <Check size={14} /> : <AlertCircle size={14} />}
+                      {testResult['ok']
+                        ? `连接成功（${testResult['status'] ?? ''}${testResult['stage'] ? ' · ' + testResult['stage'] : ''}）`
+                        : `连接失败：${testResult['error'] || testResult['status'] || '未知'}`}
                     </div>
                   )}
                 </div>

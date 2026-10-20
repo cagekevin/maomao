@@ -177,7 +177,8 @@ const nameFromUrl = (url: string): string => {
 /** 连接源 → 名称（复刻官方 Lc） */
 const sourceName = (node: Node, url: string): string => {
   const d = node?.data as Record<string, unknown> | undefined;
-  const n = d?.sourceVideoName || d?.videoName || d?.fileName || d?.label || node?.id;
+  const n =
+    d?.['sourceVideoName'] || d?.['videoName'] || d?.['fileName'] || d?.['label'] || node?.id;
   return typeof n === 'string' && n ? n : nameFromUrl(url);
 };
 
@@ -443,15 +444,15 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
         return {
           // 【TD-21-23】持久片段缺 id 时的回退必须**确定性**（按"轨道序号+片段序号"派生）：
           // 本 useMemo 每次重算都会走到这里，随机 id 会让同一份 timelineTracks 每次换身份。
-          id: cl.id != null ? String(cl.id) : `clip-${idx}-${ci}`,
+          id: cl['id'] != null ? String(cl['id']) : `clip-${idx}-${ci}`,
           ...(cl.sourceId !== undefined ? { sourceId: cl.sourceId } : {}),
-          url: src?.url || cl.url || cl.sourceUrl || '',
-          name: src?.name || cl.name || cl.sourceName || '视频片段',
+          url: src?.url || cl['url'] || cl['sourceUrl'] || '',
+          name: src?.name || cl['name'] || cl['sourceName'] || '视频片段',
           sourceStart: start,
           sourceEnd: Math.max(start, validEnd),
           duration: clipDur,
           timelineStart: tlStart,
-          muted: !!cl.muted,
+          muted: !!cl['muted'],
           trackId,
         };
       });

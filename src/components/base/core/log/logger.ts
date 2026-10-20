@@ -104,10 +104,10 @@ export function log(
   let nodeId = '';
   if (detail && typeof detail === 'object') {
     const dv = detail as Record<string, unknown>;
-    if (typeof dv.taskId === 'string') taskId = dv.taskId;
-    if (typeof dv.task_id === 'string') taskId = dv.task_id;
-    if (typeof dv.nodeId === 'string') nodeId = dv.nodeId;
-    if (typeof dv.node_id === 'string') nodeId = dv.node_id;
+    if (typeof dv['taskId'] === 'string') taskId = dv['taskId'];
+    if (typeof dv['task_id'] === 'string') taskId = dv['task_id'];
+    if (typeof dv['nodeId'] === 'string') nodeId = dv['nodeId'];
+    if (typeof dv['node_id'] === 'string') nodeId = dv['node_id'];
   }
   const tags = [taskId ? `#taskId=${taskId}` : '', nodeId ? `#nodeId=${nodeId}` : '']
     .filter(Boolean)

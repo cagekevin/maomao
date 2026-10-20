@@ -300,28 +300,28 @@ export async function processVideo(
       showWarnings: false,
     };
     if (t.mode === 'trim') {
-      init.trim = { start: t.start, end: t.end };
-      init.video = {};
-      init.audio = {};
+      init['trim'] = { start: t.start, end: t.end };
+      init['video'] = {};
+      init['audio'] = {};
     } else if (t.mode === 'extractAudio') {
-      init.video = { discard: true };
+      init['video'] = { discard: true };
       if (t.format === 'm4a') {
-        init.audio = { codec: 'aac' };
+        init['audio'] = { codec: 'aac' };
       } else if (t.format === 'wav') {
-        init.audio = { codec: 'pcm-s16' };
+        init['audio'] = { codec: 'pcm-s16' };
       } else {
-        init.audio = { codec: 'mp3', bitrate: 192000 };
+        init['audio'] = { codec: 'mp3', bitrate: 192000 };
       }
     } else {
       // sizeFrameRate
-      init.video = {
+      init['video'] = {
         codec: 'avc',
         width: t.width,
         height: t.height,
         fit: 'contain',
         frameRate: t.fps,
       };
-      init.audio = { codec: 'aac' };
+      init['audio'] = { codec: 'aac' };
     }
 
     const conversion = await Conversion.init(

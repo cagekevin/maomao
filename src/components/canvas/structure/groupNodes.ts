@@ -113,11 +113,11 @@ export function createGroupFromNodes(
 export function normalizeNodeParents<T extends Record<string, unknown>>(nodes: T[]): T[] {
   if (!Array.isArray(nodes) || nodes.length === 0) return nodes;
   const byId = new Map<string, T>();
-  for (const n of nodes) byId.set(String(n.id), n);
+  for (const n of nodes) byId.set(String(n['id']), n);
 
   // 1) 清理孤儿 parentId（父节点不存在的，解除父子关系），避免 React Flow 抛 not found。
   const cleaned = nodes.map((n): T => {
-    const pid = n.parentId != null ? String(n.parentId) : undefined;
+    const pid = n['parentId'] != null ? String(n['parentId']) : undefined;
     if (pid && !byId.has(pid)) {
       const { parentId: _drop, extent: _dropExt, ...rest } = n;
       // 解构剔除两个字段后仍是 T 的形状（T 允许可选 parentId/extent）⇒ 单次断言，非双重。
@@ -133,7 +133,7 @@ export function normalizeNodeParents<T extends Record<string, unknown>>(nodes: T
     if (order.has(id)) return order.get(id)!;
     if (guard > 64 || visiting.has(id)) return 0; // 防环
     const n = byId.get(id);
-    const pid = n?.parentId != null ? String(n.parentId) : undefined;
+    const pid = n?.['parentId'] != null ? String(n['parentId']) : undefined;
     if (!pid) {
       order.set(id, 0);
       return 0;
@@ -144,17 +144,17 @@ export function normalizeNodeParents<T extends Record<string, unknown>>(nodes: T
     order.set(id, d);
     return d;
   };
-  for (const n of cleaned) resolveDepth(String(n.id));
+  for (const n of cleaned) resolveDepth(String(n['id']));
 
   // 原序索引，保证排序稳定（同深度时保持原相对位置）。
   const origIndex = new Map<string, number>();
-  cleaned.forEach((n, i) => origIndex.set(String(n.id), i));
+  cleaned.forEach((n, i) => origIndex.set(String(n['id']), i));
 
   return [...cleaned].sort((a, b) => {
-    const da = order.get(String(a.id)) ?? 0;
-    const db = order.get(String(b.id)) ?? 0;
+    const da = order.get(String(a['id'])) ?? 0;
+    const db = order.get(String(b['id'])) ?? 0;
     if (da !== db) return da - db;
-    return (origIndex.get(String(a.id)) ?? 0) - (origIndex.get(String(b.id)) ?? 0);
+    return (origIndex.get(String(a['id'])) ?? 0) - (origIndex.get(String(b['id'])) ?? 0);
   });
 }
 

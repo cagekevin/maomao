@@ -116,11 +116,11 @@ export interface NodeStructuralDefaults {
 export function applyNodeTypeDefaults<T extends Record<string, unknown>>(
   node: T,
 ): T & NodeStructuralDefaults {
-  const type = String(node.type || '');
+  const type = String(node['type'] || '');
   const d = NODE_TYPE_DEFAULTS[type as NodeTypeKey];
   if (!d) return node;
   const next: Record<string, unknown> = { ...node };
-  const data = (node.data as Record<string, unknown>) || {};
+  const data = (node['data'] as Record<string, unknown>) || {};
   // 折叠态已整体下线，expandedWidth/expandedHeight 为死字段，不再特判兜底（见 GroupNode.tsx 头注释）。
   const fallbackW = d.width;
   const fallbackH = d.height;
@@ -131,18 +131,18 @@ export function applyNodeTypeDefaults<T extends Record<string, unknown>>(
         k === 'width' ? fallbackW : k === 'height' ? fallbackH : (d as Record<string, unknown>)[k];
     }
   }
-  next.style = next.style
-    ? { ...d.style, ...(next.style as Record<string, unknown>) }
-    : d.style || next.style;
+  next['style'] = next['style']
+    ? { ...d['style'], ...(next['style'] as Record<string, unknown>) }
+    : d['style'] || next['style'];
   // group 显示名源头收敛（2026-09-12 九轮）：唯一字段 = data.label。
   // 旧快照/旧建组路径可能只有 data.name（TD-04-14 前）——这里是迁移点：把 name 收敛进 label
   // 并**删除遗留 name**，让「名字双字段」在数据模型层消亡（此前保留 name 属末端兼容，非源头收敛）。
   if (type === 'group') {
-    const legacyName = data.name as string | undefined;
+    const legacyName = data['name'] as string | undefined;
     const { name: _dropLegacyName, ...restData } = data;
-    next.data = {
+    next['data'] = {
       ...restData,
-      label: (data.label as string | undefined) ?? legacyName ?? '编组',
+      label: (data['label'] as string | undefined) ?? legacyName ?? '编组',
     };
   }
   // 出口回 `T`：函数体内部一律按宽 `Record<string,unknown>` 操作（要按 key 动态补字段），

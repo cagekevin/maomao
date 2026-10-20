@@ -652,13 +652,13 @@ async function syncCookies(env: AccountEnv): Promise<void> {
       await attemptQuietlyAsync(async () => {
         // 出站体含条件追加字段，显式标注为可索引记录
         const setOpts: Record<string, unknown> = { url, name: t.name, value: t.value };
-        if (t.domain !== undefined) setOpts.domain = t.domain;
-        if (t.path !== undefined) setOpts.path = t.path;
-        if (t.secure !== undefined) setOpts.secure = t.secure;
-        if (t.httpOnly !== undefined) setOpts.httpOnly = t.httpOnly;
-        if (t.expirationDate) setOpts.expirationDate = t.expirationDate;
-        if (t.storeId) setOpts.storeId = t.storeId;
-        if (t.sameSite) setOpts.sameSite = t.sameSite;
+        if (t['domain'] !== undefined) setOpts['domain'] = t['domain'];
+        if (t['path'] !== undefined) setOpts['path'] = t['path'];
+        if (t['secure'] !== undefined) setOpts['secure'] = t['secure'];
+        if (t['httpOnly'] !== undefined) setOpts['httpOnly'] = t['httpOnly'];
+        if (t['expirationDate']) setOpts['expirationDate'] = t['expirationDate'];
+        if (t['storeId']) setOpts['storeId'] = t['storeId'];
+        if (t['sameSite']) setOpts['sameSite'] = t['sameSite'];
         await chrome.cookies!.set(setOpts);
       });
     }
