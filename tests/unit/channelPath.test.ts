@@ -77,7 +77,7 @@ describe('pathActive / pathPositionAtFrame（M3-C3 判定入口）', () => {
     expect(pathActive({ ...straightPath, points: [] })).toBe(false);
     expect(
       pathActive({
-        ...straightPath!,
+        ...must(straightPath, 'straightPath'),
         points: [must(must(straightPath, 'straightPath').points, 'points')[0]],
       }),
     ).toBe(false);
@@ -140,7 +140,7 @@ describe('M3-C3 仅路径、无关键帧 → position=路径位置，不回落�
       scale: [2.8, 0.9, 2.1],
     };
     const [lead, stage] = objectsAtFrame([person, box], {}, 120, FPS, {
-      'actor-lead': straightPath!,
+      'actor-lead': must(straightPath, 'straightPath'),
     });
     expect(must(must(lead, 'lead').position, 'position')[0]).toBeCloseTo(5, 1);
     expect(must(stage, 'stage').position).toEqual([1.4, 0.45, -0.8]);
@@ -185,7 +185,9 @@ describe('M3-C2/C5 路径烘焙只产出 position，绝不写姿态快照 / 不�
   it('普通物体（box）烘焙同样只产出 position', () => {
     const track = bakeTrackFromPath(straightPath, 'box');
     expect(Object.keys(track)).toEqual(['transform']);
-    expect(Object.keys(at(track['transform'] ?? [], 0).fields!)).toEqual(['position']);
+    expect(Object.keys(must(at(track['transform'] ?? [], 0).fields, 'fields'))).toEqual([
+      'position',
+    ]);
   });
 });
 
