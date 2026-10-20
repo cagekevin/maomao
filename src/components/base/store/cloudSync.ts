@@ -306,12 +306,17 @@ function toTs(v: unknown): number {
 export function normalizeCloudPayload(raw: unknown): CloudSnapshot | null {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
   const obj = raw as Record<string, unknown>;
-  const rawData = obj.data;
+  const rawData = obj['data'];
   // 形态 A：完整包（外层元字段 + data）
   if (rawData && typeof rawData === 'object' && !Array.isArray(rawData)) {
     const data = { ...(rawData as Record<string, unknown>) };
     delete data[CLOUD_META_KEY];
-    return { rev: toRev(obj.rev), updatedAt: toTs(obj.updatedAt), data, hasMeta: true };
+    return {
+      rev: toRev(obj['rev']),
+      updatedAt: toTs(obj['updatedAt']),
+      data,
+      hasMeta: true,
+    };
   }
   // 形态 B：GAS 只回了裸 data 内容 → 元字段从 data.__meta 兜底取回
   const data = { ...obj };
@@ -540,7 +545,7 @@ async function collectLocalData(): Promise<{ ls: Record<string, unknown>; skippe
   try {
     const { data: pd } = await providerApi.getProviders();
     const providers = Array.isArray(pd?.providers) ? pd.providers : null;
-    if (Array.isArray(providers) && providers.length) ls.providers = providers;
+    if (Array.isArray(providers) && providers.length) ls['providers'] = providers;
   } catch (e) {
     // [F-云A] 读取失败=未纳入本次上传，记录并上浮，不再静默当"无 providers"
     skipped.push('providers');
@@ -550,9 +555,9 @@ async function collectLocalData(): Promise<{ ls: Record<string, unknown>; skippe
   }
   // 3) 账号环境：走 KV（backend:'kv'，不在 LS_KEYS），领域开关开则专门收集上传
   try {
-    if (SYNC_DOMAIN_SWITCHES.account) {
+    if (SYNC_DOMAIN_SWITCHES['account']) {
       const acc = await contentGetAsync(KEY_YIMAO_ACCOUNTS);
-      if (Array.isArray(acc) && acc.length) ls.accounts = acc;
+      if (Array.isArray(acc) && acc.length) ls['accounts'] = acc;
     }
   } catch (e) {
     skipped.push('accounts');
@@ -614,7 +619,7 @@ async function restoreLocal(cloud: CloudSnapshot): Promise<{ written: number; fa
   // 2) API 配置：全量保存到 localTool（config/providers/<id>.json 即唯一真源）
   if (Array.isArray(ls.providers)) {
     try {
-      await providerApi.saveProviders(ls.providers);
+      await providerApi.saveProviders(ls['providers']);
       written++;
     } catch (e) {
       failed.push(syncLabel('providers'));
@@ -625,8 +630,8 @@ async function restoreLocal(cloud: CloudSnapshot): Promise<{ written: number; fa
   }
   // 4) 账号环境：走 KV（backend:'kv'），领域开关开则恢复写回 KV
   try {
-    if (SYNC_DOMAIN_SWITCHES.account && Array.isArray(ls.accounts)) {
-      const outcome = await contentSetAsync(KEY_YIMAO_ACCOUNTS, ls.accounts);
+    if (SYNC_DOMAIN_SWITCHES['account'] && Array.isArray(ls['accounts'])) {
+      const outcome = await contentSetAsync(KEY_YIMAO_ACCOUNTS, ls['accounts']);
       // 降级写本机副本（landed:'local'）**不算写回真源**：跨端看不到、引擎恢复后不会自动回灌
       if (isWriteBackOk(outcome, 'kv')) written++;
       else {

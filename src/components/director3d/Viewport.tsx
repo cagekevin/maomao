@@ -25,8 +25,8 @@ const normalizeNum = (value: number | string) =>
 
 function sceneObjectIdFromIntersection(intersection: THREE.Intersection) {
   let object: THREE.Object3D | null = intersection?.object;
-  while (object && !object.userData?.sceneObjectId) object = object.parent;
-  return object?.userData?.sceneObjectId || null;
+  while (object && !object.userData?.['sceneObjectId']) object = object.parent;
+  return object?.userData?.['sceneObjectId'] || null;
 }
 
 function shouldKeepCurrentSelection(
@@ -94,8 +94,8 @@ function SceneObject({
   const appliedGroundRequest = useRef<string | null>(null);
   const { controls: orbitControls } = useThreeTyped();
   const invalidate = useThree((state) => state.invalidate);
-  const scaleAxisLocks = Array.isArray(data.scaleAxisLocks)
-    ? data.scaleAxisLocks
+  const scaleAxisLocks = Array.isArray(data['scaleAxisLocks'])
+    ? data['scaleAxisLocks']
     : [false, false, false];
   const stateAnimationTime = Math.max(
     0,
@@ -107,7 +107,7 @@ function SceneObject({
       !groundRequest ||
       groundRequest.id !== data.id ||
       !groupRef.current ||
-      data.locked ||
+      data['locked'] ||
       preview
     )
       return;
@@ -120,17 +120,17 @@ function SceneObject({
     appliedGroundRequest.current = requestKey;
     object.position.y -= bounds.min.y;
     onUpdate?.(data.id, { position: object.position.toArray() });
-  }, [data.id, data.locked, groundRequest, onUpdate, preview]);
+  }, [data.id, data['locked'], groundRequest, onUpdate, preview]);
   const syncTransform = useCallback(() => {
     const object = groupRef.current;
     if (!object) return;
     let nextScale: number[] = object.scale.toArray();
     if (transformMode === 'scale' && scaleTransformStart.current) {
       const baseline = scaleTransformStart.current;
-      const locks = Array.isArray(data.scaleAxisLocks)
-        ? data.scaleAxisLocks
+      const locks = Array.isArray(data['scaleAxisLocks'])
+        ? data['scaleAxisLocks']
         : [false, false, false];
-      if (data.proportionalScale) {
+      if (data['proportionalScale']) {
         const changedAxis = nextScale
           .map((value, axis) => ({
             axis,
@@ -156,13 +156,13 @@ function SceneObject({
       rotation: [object.rotation.x, object.rotation.y, object.rotation.z],
       scale: nextScale,
     });
-  }, [data.id, data.proportionalScale, data.scaleAxisLocks, onUpdate, transformMode]);
+  }, [data.id, data['proportionalScale'], data['scaleAxisLocks'], onUpdate, transformMode]);
   const beginObjectInteraction = useCallback(
     (event: ThreeEvent<PointerEvent>) => {
       if (shouldKeepCurrentSelection(event, selectedId, selected, transformMode!)) return;
       event.stopPropagation();
       onSelect?.(data.id);
-      if (data.locked) return;
+      if (data['locked']) return;
       if (!selected || transformMode !== 'rotate' || !groupRef.current) return;
       event.nativeEvent?.stopImmediatePropagation?.();
       (event.target as Element | null)?.setPointerCapture?.(event.pointerId);
@@ -179,7 +179,7 @@ function SceneObject({
       if (orbitControls) orbitControls.enabled = false;
       document.body.style.cursor = 'grabbing';
     },
-    [data.id, data.locked, onSelect, orbitControls, selected, selectedId, transformMode],
+    [data.id, data['locked'], onSelect, orbitControls, selected, selectedId, transformMode],
   );
   const rotateObjectFromSurface = useCallback(
     (event: ThreeEvent<PointerEvent>) => {
@@ -228,7 +228,7 @@ function SceneObject({
       position={data.position as [number, number, number]}
       rotation={data.rotation as [number, number, number]}
       scale={data.scale as [number, number, number]}
-      visible={data.visible !== false}
+      visible={data['visible'] !== false}
       userData={{ sceneObjectId: data.id }}
       {...(preview
         ? {}
@@ -268,11 +268,11 @@ function SceneObject({
           onSurfacePointerMove={rotateObjectFromSurface}
           onSurfacePointerUp={endObjectInteraction}
         />
-      ) : data.type === 'depthMesh' && data.depthMapUrl ? (
+      ) : data.type === 'depthMesh' && data['depthMapUrl'] ? (
         <DepthMeshModel
-          url={String(data.depthMapUrl)}
+          url={String(data['depthMapUrl'])}
           settings={
-            data.depthSettings as {
+            data['depthSettings'] as {
               invert?: boolean;
               near?: number;
               far?: number;
@@ -284,7 +284,7 @@ function SceneObject({
           color={data.color as string}
           selected={selected}
         />
-      ) : data.type === 'model' && data.url ? (
+      ) : data.type === 'model' && data['url'] ? (
         <Suspense
           fallback={
             <mesh position={[0, 0.5, 0]}>
@@ -293,14 +293,14 @@ function SceneObject({
             </mesh>
           }
         >
-          <ImportedModel url={String(data.url)} selected={selected} />
+          <ImportedModel url={String(data['url'])} selected={selected} />
         </Suspense>
       ) : (
         <PrimitiveModel
           type={String(data.type)}
           color={String(data.color || '#c7c2b7')}
           selected={selected}
-          parts={data.parts as unknown[]}
+          parts={data['parts'] as unknown[]}
         />
       )}
     </group>
@@ -309,7 +309,7 @@ function SceneObject({
   return (
     <>
       {content}
-      {selected && !data.locked && !preview && transformMode !== 'select' && (
+      {selected && !data['locked'] && !preview && transformMode !== 'select' && (
         <TransformControls
           object={groupRef as unknown as React.RefObject<THREE.Object3D>}
           mode={transformMode ?? 'translate'}

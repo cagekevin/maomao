@@ -292,15 +292,15 @@ function Canvas() {
           const isNodeLike = (n: unknown): n is Node => {
             if (typeof n !== 'object' || n === null) return false;
             const rec = n as Record<string, unknown>;
-            const pos = rec.position as { x?: unknown; y?: unknown } | undefined;
+            const pos = rec['position'] as { x?: unknown; y?: unknown } | undefined;
             return (
-              typeof rec.id === 'string' &&
+              typeof rec['id'] === 'string' &&
               typeof pos === 'object' &&
               pos !== null &&
               typeof pos.x === 'number' &&
               typeof pos.y === 'number' &&
-              typeof rec.data === 'object' &&
-              rec.data !== null
+              typeof rec['data'] === 'object' &&
+              rec['data'] !== null
             );
           };
           const nodesForCanvas: Node[] = [];
@@ -314,7 +314,7 @@ function Canvas() {
           // 预取重依赖节点 chunk：画布里若含 3D/视频处理节点，立即预热（不阻塞渲染），
           // 让节点真正渲染时 chunk 已在模块缓存里，骨架屏一闪而过甚至不出现。
           for (const n of safeNodes)
-            prefetchHeavyNode(n.type as Parameters<typeof prefetchHeavyNode>[0]);
+            prefetchHeavyNode(n['type'] as Parameters<typeof prefetchHeavyNode>[0]);
           // 兜底：历史快照里可能有旧 onConnect 建的「无 id」边 → 补唯一 id，
           // 否则 EdgeRenderer 用 undefined 作 key 触发重复 key 警告。
           // 同时修正「连到固定端口节点却缺 handle」的历史坏边：这些节点的入口/出口
@@ -323,7 +323,7 @@ function Canvas() {
           // React Flow 的 code-008（"Couldn't create edge for {target|source} handle id: null"）。
           // 这里按节点类型统一补齐两侧 handle，让存量边立即生效。
           // 类型→端口映射走模块级单源表 TARGET_/SOURCE_HANDLE_BY_NODE_TYPE（与 addNode 共用）。
-          const nodeTypeById = new Map(safeNodes.map((n) => [n.id, n.type as string]));
+          const nodeTypeById = new Map(safeNodes.map((n) => [n['id'], n['type'] as string]));
           const loadedEdges = ((saved.edges || []) as Edge[]).map((e, _i) => {
             const targetType = nodeTypeById.get(e.target) as string | undefined;
             const sourceType = nodeTypeById.get(e.source) as string | undefined;
@@ -755,21 +755,21 @@ function Canvas() {
         const shotId = parseShotHandle(connection.sourceHandle);
         const shot =
           shotId && src?.type === 'scriptBoxNode'
-            ? ((src.data?.shots as { id: string; duration?: string }[] | undefined) ?? []).find(
+            ? ((src.data?.['shots'] as { id: string; duration?: string }[] | undefined) ?? []).find(
                 (s: { id: string; duration?: string }) => s.id === shotId,
               )
             : null;
         if (shot) {
-          const ar = String(src?.data?.aspectRatio || '16:9');
-          const o = ar === 'custom' ? String(src?.data?.customAspectRatio || '16:9') : ar;
+          const ar = String(src?.data?.['aspectRatio'] || '16:9');
+          const o = ar === 'custom' ? String(src?.data?.['customAspectRatio'] || '16:9') : ar;
           if (type === 'imageGenerateNode') {
-            nodeData.aspectRatio = o === '4:4' ? '1:1' : o;
+            nodeData['aspectRatio'] = o === '4:4' ? '1:1' : o;
           } else if (type === 'videoGenerateNode') {
-            nodeData.size = o === '4:4' ? '1:1' : o;
-            nodeData.selectedSeconds = String(
+            nodeData['size'] = o === '4:4' ? '1:1' : o;
+            nodeData['selectedSeconds'] = String(
               Math.max(1, Number.parseInt(shot.duration || '5', 10) || 5),
             );
-            nodeData.durationFromScript = true;
+            nodeData['durationFromScript'] = true;
           }
         }
       }
@@ -849,7 +849,7 @@ function Canvas() {
   const openRenameDialog = useCallback((id: string) => {
     const node = nodesRef.current.find((n) => n.id === id);
     if (!node) return;
-    const label = String(node.data?.label ?? node.data?.name ?? '');
+    const label = String(node.data?.['label'] ?? node.data?.['name'] ?? '');
     setRenameTarget({ id, label });
   }, []);
 
@@ -861,7 +861,7 @@ function Canvas() {
       const next = String(name || '').trim();
       const cur = nodesRef.current.find((n) => n.id === id);
       if (!cur) return;
-      if (!next || String(cur.data?.label ?? cur.data?.name ?? '') === next) return;
+      if (!next || String(cur.data?.['label'] ?? cur.data?.['name'] ?? '') === next) return;
       // P0-B 红线：setNodes 不可变更新（见 NodeShell.tsx 头注释 / docs/106），禁止原地 mutation
       const nextNodes = computePatchNodeById(nodesRef.current, id, { data: { label: next } });
       setNodes(nextNodes);
@@ -1281,7 +1281,7 @@ function Canvas() {
     const matching = nodesRef.current.filter((n) => targetTypes.has(n.type as string));
     if (matching.length === 0) return;
     // 只要有一个展开 → 全部折叠；否则全部展开（一键整理全局）
-    const anyExpanded = matching.some((n) => (n.data?.expanded ?? true) === true);
+    const anyExpanded = matching.some((n) => (n.data?.['expanded'] ?? true) === true);
     const target = !anyExpanded;
     setNodes((ns) =>
       computePatchNodesById(ns, (n) => targetTypes.has(n.type as string), {
@@ -1458,7 +1458,7 @@ function Canvas() {
     setEdges((eds) => {
       const next = eds.map((ed) => {
         const rel = ids.has(ed.source) || ids.has(ed.target);
-        return ed.data?.relatedToSelected !== rel
+        return ed.data?.['relatedToSelected'] !== rel
           ? patchEdgeData(ed, { data: { relatedToSelected: rel } })
           : ed;
       });

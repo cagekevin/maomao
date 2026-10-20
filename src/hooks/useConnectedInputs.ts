@@ -163,16 +163,16 @@ export const NODE_OUTPUTS: Record<string, NodeOutputResolver> = {
   scriptBoxNode: (d, sourceHandle) => {
     const shotId = parseShotHandle(sourceHandle);
     if (!shotId) return undefined;
-    const shots = Array.isArray(d.shots) ? d.shots : [];
-    const shot = shots.find((s: Record<string, unknown>) => String(s.id) === String(shotId));
-    const assets = Array.isArray(d.assets) ? (d.assets as ScriptAsset[]) : null;
+    const shots = Array.isArray(d['shots']) ? d['shots'] : [];
+    const shot = shots.find((s: Record<string, unknown>) => String(s['id']) === String(shotId));
+    const assets = Array.isArray(d['assets']) ? (d['assets'] as ScriptAsset[]) : null;
     // d 来自节点 data（运行时对象），收窄为具体契约类型交给 collectAssets
     return { images: shot ? collectAssets(shot as Shot, assets) : [] };
   },
   // 图片盒子：多图（对象数组 {id,url,label}），产出全部图；assetType 由 URL 判定
   imageBoxNode: (d) => {
     const images: NodeOutputItem[] = [];
-    const list: unknown[] = Array.isArray(d.images) ? (d.images as unknown[]) : [];
+    const list: unknown[] = Array.isArray(d['images']) ? (d['images'] as unknown[]) : [];
     for (const im of list) {
       const url = objField(im, 'url');
       if (url) {
@@ -188,19 +188,21 @@ export const NODE_OUTPUTS: Record<string, NodeOutputResolver> = {
   },
   // 视频抽帧 / 网格切图 / 网格合并：data.extractedImages[]（dataURL 字符串数组）
   videoExtractNode: (d) => ({
-    images: arrayImages(d.extractedImages, 'frame', (i) => `帧 ${i + 1}`),
+    images: arrayImages(d['extractedImages'], 'frame', (i) => `帧 ${i + 1}`),
   }),
   gridSplitNode: (d) => ({
-    images: arrayImages(d.extractedImages, 'split', (i) => `切片 ${i + 1}`),
+    images: arrayImages(d['extractedImages'], 'split', (i) => `切片 ${i + 1}`),
   }),
-  gridMergeNode: (d) => ({ images: arrayImages(d.extractedImages, 'merge', (i) => `图 ${i + 1}`) }),
+  gridMergeNode: (d) => ({
+    images: arrayImages(d['extractedImages'], 'merge', (i) => `图 ${i + 1}`),
+  }),
 };
 
 /**
  * 单产出解析（**唯一实现**）：按 `fields` 顺序取第一个非空 URL，并按 `data.assetType` / URL 判型。
  * 字段名由调用方**显式传入**（`SINGLE_OUTPUT_FIELDS[type]` 或安全网常量）——
  * 这正是 TD-02-11 的落点：产出字段名是「写侧声明」的，不再由读侧猜。
- * `label` 统一带 `d.label`（供下游候选列表显示 / @名 匹配）。
+ * `label` 统一带 `d['label']`（供下游候选列表显示 / @名 匹配）。
  */
 function singleOutput(
   d: Record<string, unknown>,
@@ -213,10 +215,10 @@ function singleOutput(
     // 控制流收窄（非 as）：只有真是非空 string 才生效。
     if (typeof url !== 'string' || !url) continue;
     // assetType 只认可引用媒体白名单：非已知值视为未声明（undefined），交 resolveAssetType 按 URL 判。
-    const at = d.assetType;
+    const at = d['assetType'];
     const assetType = isMediaRefType(at) ? at : undefined;
     const kind = resolveAssetType(url, assetType);
-    const label = str(d.label);
+    const label = str(d['label']);
     const item: NodeOutputItem = { id, url, ...(label !== undefined ? { label } : {}) };
     if (kind === 'video') return { ...empty, videos: [item] };
     if (kind === 'audio') return { ...empty, audios: [item] };
@@ -232,10 +234,10 @@ function singleOutput(
   // 不在此重写字段嗅探（canvasSource 曾因"直接用 getNodeMedia 拿不到 url"踩过同一坑，见其文件头）。
   const resolved = resolveAssetDisplayUrl(d, buildContentUrlResolver(getResources()));
   if (resolved.kind !== 'ok' || !resolved.url) return empty;
-  const rAt = d.assetType;
+  const rAt = d['assetType'];
   const rAssetType = isMediaRefType(rAt) ? rAt : undefined;
   const rKind = resolveAssetType(resolved.url, rAssetType);
-  const rLabel = str(d.label);
+  const rLabel = str(d['label']);
   const rItem: NodeOutputItem = {
     id,
     url: resolved.url,
@@ -284,10 +286,10 @@ export function getNodeOutput(
   sourceHandle?: string,
 ): NodeOutputGroup {
   const empty: NodeOutputGroup = { images: [], texts: [], videos: [], audios: [] };
-  if (!node || !node.data) return empty;
-  const d = node.data as Record<string, unknown>;
-  const type = String(node.type || '');
-  const id = String(node.id || '');
+  if (!node || !node['data']) return empty;
+  const d = node['data'] as Record<string, unknown>;
+  const type = String(node['type'] || '');
+  const id = String(node['id'] || '');
 
   // 1. 显式「无自有产出」：容器 / 占位 / 仅经 spawn 子节点交付结果的类型。
   //    直接返回空、**不进安全网** —— 否则三字段猜测会在这类已知类型上复活（本次要消灭的隐式语义）。
@@ -308,8 +310,8 @@ export function getNodeOutput(
 
   // 4. 文本节点：输出 data.text（统一为 {id,label,text} 对象，供 PromptInput/@弹层显示）。
   // 保留特判而非入表：它读的是 node.id（节点身份）而非纯 data 派生，与「data → 产出」的声明语义不符。
-  if (SPECIAL_OUTPUT_TYPES.has(type) && d.text && typeof d.text === 'string') {
-    return { ...empty, texts: [{ id, label: str(d.label) || '参考文本', text: d.text }] };
+  if (SPECIAL_OUTPUT_TYPES.has(type) && d['text'] && typeof d['text'] === 'string') {
+    return { ...empty, texts: [{ id, label: str(d['label']) || '参考文本', text: d['text'] }] };
   }
 
   // 5. 安全网（三字段猜测）：**只服务未登记类型**（存量退役节点快照，如旧版 discountVideoNode）。
@@ -336,9 +338,9 @@ export function getNodeOutput(
  *      比「裸 node 引用判等」更稳：上游被拖拽只改 position（data 引用不变）时下游不重渲。
  *   ③ 聚合：`useMemo(aggregateUpstream, [upstream])`——upstream 引用稳定 → 不重算。
  *
- * 【F1 架构约束（P0-B 落地后生效，写 node.data 必须不可变更新！）】
- * 现在下游只对「上游 data **引用**变化」敏感。任何写 node.data 的代码若用**原地 mutation**
- * （`node.data.x = ...`），data 引用不变 → 下游**静默不更新**（比旧实现"性能差"更难查）。
+ * 【F1 架构约束（P0-B 落地后生效，写 node['data'] 必须不可变更新！）】
+ * 现在下游只对「上游 data **引用**变化」敏感。任何写 node['data'] 的代码若用**原地 mutation**
+ * （`node['data'].x = ...`），data 引用不变 → 下游**静默不更新**（比旧实现"性能差"更难查）。
  * 全项目已核查 0 处原地 mutation（统一不可变写回：`setNodes(ns => ns.map(n => ...{...n, data:{...n.data,...patch}}))`）。
  *
  * @param nodeId 下游节点 id
@@ -461,7 +463,7 @@ export function aggregateUpstream(upstream: UpstreamRef[]): NodeOutputGroup {
     }
   }
   // 读取端兜底：上游图片 URL 统一补全相对 /files/ 路径为绝对 URL，
-  // 下游所有引用 connected.images[].url 的 <img> 自动拿到可访问地址（刷新不破图）。
+  // 下游所有引用 connected['images'][].url 的 <img> 自动拿到可访问地址（刷新不破图）。
   out.images = out.images.map((im) =>
     im && im.url ? { ...im, url: toAbsoluteFileUrl(im.url) } : im,
   );
