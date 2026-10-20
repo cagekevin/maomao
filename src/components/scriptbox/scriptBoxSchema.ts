@@ -10,6 +10,8 @@
  * 防止双写漂移。归一化返回新对象，不改动传入的 raw。
  */
 import type { Shot } from './scriptBoxPrompts';
+// 默认 playbook id 的真源在工作流表（本文件只引用，不另写一份 'manga'）。
+import { DEFAULT_WORKFLOW } from './scriptBoxWorkflows.ts';
 
 /** 剧本盒 data 顶层字段（P0-1 分通道 negative + tailFrameAngleIds 尾帧默认角度） */
 export interface ScriptBoxTop {
@@ -177,7 +179,7 @@ export interface ScriptBoxCallbacks {
     shotIds: Array<string | number>,
     feedback?: string,
   ) => Promise<void> | void;
-  /** 单个分镜生图（缺省 type 见引擎 IMAGE_GEN_DEFAULT）。 */
+  /** 单个分镜生图（缺省 type 见本文件 `DEFAULT_IMAGE_GEN_TYPE`）。 */
   onGenerateShotImage?: (shotId: string | number, type?: string) => Promise<void> | void;
   /** 单个资产生成参考图（引擎产出；StepAssets 消费） */
   onGenerateAssetImage?: (assetId: string) => void;
@@ -209,6 +211,54 @@ export interface ScriptBoxCallbacks {
   onDisconnectUpstream?: (sourceNodeId: string) => void;
 }
 
+/* ══════════════════════════════════════════════════════════════════════════
+ * 剧本盒默认值单一源（TD-01-33）
+ *
+ * 【为什么在这里】schema 是 `node.data` 的**数据契约真源**，`defaultScriptBoxTop()` /
+ * `defaultShotFields()` 本就是归一化基线。此前同一批默认答案在四处各写一份：
+ * ① schema 基线 ② 引擎回退字面量（`|| '5s'` / `|| '2K'` …）③ 纯函数新建模板
+ * ④ UI 兜底（`useState(… || '16:9')` / `genTypes['keyframe'] ? 'keyframe' : …`）。
+ * 任一处改值都会与其它三处静默漂移 ⇒ 现统一引用本组常量。
+ *
+ * 【不放这里的】**新建镜头引导预填**（`createNewShot` 的 3s／中景／自然光／环境音／双击提示）
+ * 是**另一个角色**：数据基线必须诚实留空（空串 = 用户没填过），引导预填是「新建那一刻的
+ * 用户友好性」。两者不同是设计，见 `scriptBoxPrompts.createNewShot` 注释（TD-04-71）。
+ * ══════════════════════════════════════════════════════════════════════════ */
+
+/** 默认画布比例（含 `customAspectRatio` 的初始值）。 */
+export const DEFAULT_ASPECT_RATIO = '16:9';
+
+/** 默认 shot 时长（文本形态，`'5s'`；秒数语义见 `shotSeconds`）。 */
+export const DEFAULT_SHOT_DURATION = '5s';
+
+/** shot 时长缺省/非法时的秒数基线（与 `DEFAULT_SHOT_DURATION` 同一件事的两种表达）。 */
+export const SHOT_TIMING_BASE_SECONDS = 5;
+
+/** 默认运镜（= `MOTIONS[0]`，提示词模板与 schema 基线共用）。 */
+export const DEFAULT_MOTION = '固定';
+
+/** 尾帧变体「原版」固定 id（选中态与变体构造共用）。 */
+export const DEFAULT_TAIL_FRAME_VARIANT_ID = 'original';
+
+/** 默认生图类型（playbook 的 `imageGenTemplates` 必须含此项，见单测）。 */
+export const DEFAULT_IMAGE_GEN_TYPE = 'keyframe';
+
+/** 默认生图尺寸档（资产图 / 尾帧合成缺省档；剧本盒侧与 ImageGenerate 的档位表同域）。 */
+export const DEFAULT_IMAGE_SIZE = '2K';
+
+/**
+ * shot 时长 → 秒（**全仓唯一解析口**）。
+ *
+ * 归一规则与引擎/提示词原有三份实现逐字一致：缺省或非法一律按
+ * `SHOT_TIMING_BASE_SECONDS`，下限 1 秒（`Math.max(1, …)`）。
+ * `Number.isNaN(x)` 在此不适用——`parseInt` 失败返回 NaN，`|| 基线` 已覆盖。
+ */
+export function shotSeconds(duration: unknown): number {
+  const n = Number.parseInt(String(duration || SHOT_TIMING_BASE_SECONDS), 10);
+  // `n || base` 同时覆盖 NaN（`'abc'`）与 0（`'0s'`）—— 与原有三份实现的判据逐字一致。
+  return Math.max(1, n || SHOT_TIMING_BASE_SECONDS);
+}
+
 /** 顶层字段默认值（含 P0-1 分通道 negative + tailFrameAngleIds 尾帧默认角度）。 */
 export function defaultScriptBoxTop(): ScriptBoxTop {
   return {
@@ -216,14 +266,15 @@ export function defaultScriptBoxTop(): ScriptBoxTop {
     story: '',
     upstreamStory: '',
     globalStyle: '',
-    aspectRatio: '16:9',
-    customAspectRatio: '16:9',
+    aspectRatio: DEFAULT_ASPECT_RATIO,
+    customAspectRatio: DEFAULT_ASPECT_RATIO,
     shotCount: 'auto',
     customCount: '',
     tailFrameAngleIds: ['forward', 'closeup', 'rotateLeft45'],
     // playbook 收口：当前选用 playbook id（默认漫剧）；label 为选中时名称快照（悬挂检测提示用）。
     // 提示词配置唯一真相源 = playbook（scriptBoxPlaybookStore），node.data 不存任何 customXxx 副本。
-    playbookId: 'manga',
+    // 默认 id 的真源在工作流表（`DEFAULT_WORKFLOW`），此处只引用，不另写一份。
+    playbookId: DEFAULT_WORKFLOW,
     playbookLabel: '',
   };
 }
@@ -231,13 +282,13 @@ export function defaultScriptBoxTop(): ScriptBoxTop {
 /** 单个 shot 子字段默认值（含 P1-1 连续性 / 尾帧变体全字段）。 */
 export function defaultShotFields(): ScriptBoxShot {
   return {
-    duration: '5s',
+    duration: DEFAULT_SHOT_DURATION,
     description: '',
     shotType: '',
     lighting: '',
     dialogue: [],
     sound: '',
-    motion: '固定',
+    motion: DEFAULT_MOTION,
     grid: 0,
     prompt: '',
     videoPrompt: '',
@@ -249,7 +300,7 @@ export function defaultShotFields(): ScriptBoxShot {
     usePrevShotVideoTail: false,
     prevShotImageRefUrls: [],
     prevTailFrameVariants: [],
-    selectedTailFrameVariantId: 'original',
+    selectedTailFrameVariantId: DEFAULT_TAIL_FRAME_VARIANT_ID,
     tailFrameVariantsLoading: false,
     tailFrameVariantsError: undefined,
   };

@@ -10,6 +10,7 @@
  *  更新(2026-08-31)：本文件自 base/ 迁入 scriptbox/（解 base⇄scriptbox 循环，见 download/REPORT）。
  */
 import { getPlaybook } from '../scriptbox/scriptBoxPlaybookStore';
+import { DEFAULT_IMAGE_GEN_TYPE } from './scriptBoxSchema.ts';
 // 共享类型自 scriptBoxTypes 取（解 resolver⇄workflows/IO 纯类型环，见该文件头注释）；re-export 保持对外 API 不变。
 import type { ImageGenTemplate, ScriptBoxConstraints, ScriptBoxNegatives } from './scriptBoxTypes';
 export type { ImageGenTemplate, ScriptBoxConstraints, ScriptBoxNegatives };
@@ -24,7 +25,7 @@ export function resolveSystem(playbookId: string, key: 'script' | 'shot' | 'audi
 export function resolveImageGenSys(
   playbookId: string,
   type: string,
-  defaultType = 'keyframe',
+  defaultType = DEFAULT_IMAGE_GEN_TYPE,
 ): ImageGenTemplate {
   const pb = getPlaybook(playbookId);
   const tpls = pb.imageGenTemplates;

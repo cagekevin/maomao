@@ -7,7 +7,6 @@ import {
   collectAssets,
   matchAssetNames,
   ZgPrompt,
-  IMAGE_GEN_DEFAULT,
   SCRIPT_WRITER_FORMAT,
   buildAuditUser,
   normalizeDialogue,
@@ -58,6 +57,12 @@ import type { ProviderWithModels } from '../base/utils/providerModels.ts';
 import {
   assetTaskNodeId,
   tailFrameTaskNodeId,
+  DEFAULT_ASPECT_RATIO,
+  DEFAULT_IMAGE_GEN_TYPE,
+  DEFAULT_IMAGE_SIZE,
+  DEFAULT_SHOT_DURATION,
+  DEFAULT_TAIL_FRAME_VARIANT_ID,
+  shotSeconds,
   type ScriptBoxUpdateData,
   type ScriptBoxData,
   type ScriptBoxPatch,
@@ -415,7 +420,7 @@ export function createScriptBoxEngine({
           .map((t, n) => ({
             id: `${nodeId}-shot-${n}`,
             index: typeof t['index'] === 'number' ? t['index'] : n + 1,
-            duration: String(t['duration'] || '5s'),
+            duration: String(t['duration'] || DEFAULT_SHOT_DURATION),
             description: String(t['description'] || ''),
             shotType: String(t['shotType'] || ''),
             lighting: String(t['lighting'] || ''),
@@ -512,8 +517,8 @@ export function createScriptBoxEngine({
       return;
     }
     const ams = getData().assetModelSettings ?? {};
-    const aspectRatio = String(ams.globalAspectRatio || '16:9');
-    const imageSize = String(ams.globalSize || '2K');
+    const aspectRatio = String(ams.globalAspectRatio || DEFAULT_ASPECT_RATIO);
+    const imageSize = String(ams.globalSize || DEFAULT_IMAGE_SIZE);
     // 参考图提示词（对齐官方 Pr）：资产已编辑 prompt → 直接用；未编辑 → Zg 拼默认模板
     const globalStyle = getData().globalStyle || '';
     const prompt =
@@ -732,7 +737,7 @@ export function createScriptBoxEngine({
             assets.map((a) => a.name),
           );
           const refAssets = assets.filter((a) => a?.name && refNames.has(a.name));
-          const seconds = Math.max(1, Number.parseInt(String(shot.duration || '5'), 10) || 5);
+          const seconds = shotSeconds(shot.duration);
           // 全片镜头序（整部 story 位置）：idx 为该镜在 d.shots 中的下标，0-based 作 shotIndexInStory
           const allShots = d.shots || target;
           const idx = allShots.findIndex((s) => s?.id === shot.id);
@@ -899,7 +904,10 @@ export function createScriptBoxEngine({
   // ═══════════════════════════════════════════════════════════════
   // AI 生成图提示词（关键帧/四宫格/九宫格/俯视调度图）—— 接真 chat
   // ═══════════════════════════════════════════════════════════════
-  const onGenerateShotImage = async (shotId: string | number, type: string = IMAGE_GEN_DEFAULT) => {
+  const onGenerateShotImage = async (
+    shotId: string | number,
+    type: string = DEFAULT_IMAGE_GEN_TYPE,
+  ) => {
     // type 有效性统一由 resolveImageGenSys 对当前 playbook 兜底（未知 type → 默认 keyframe），此处不再持漫剧白名单
     const d = getData();
     const shot = (d.shots || []).find((s) => s.id === shotId);
@@ -1245,10 +1253,10 @@ export function createScriptBoxEngine({
   //   宽高比 custom 取 customAspectRatio；4:4 归一为 1:1（与官方 di 行为一致）。
   const shotPrefill = (shot: ScriptBoxShot, type: string) => {
     const d = getData();
-    const raw = String(d.aspectRatio || '16:9');
-    const ratio = raw === 'custom' ? String(d.customAspectRatio || '16:9') : raw;
+    const raw = String(d.aspectRatio || DEFAULT_ASPECT_RATIO);
+    const ratio = raw === 'custom' ? String(d.customAspectRatio || DEFAULT_ASPECT_RATIO) : raw;
     const o = ratio === '4:4' ? '1:1' : ratio;
-    const seconds = String(Math.max(1, Number.parseInt(String(shot.duration || '5'), 10) || 5));
+    const seconds = String(shotSeconds(shot.duration));
     return type === 'video'
       ? { size: o, selectedSeconds: seconds, durationFromScript: true }
       : { aspectRatio: o };
@@ -1597,7 +1605,7 @@ export function createScriptBoxEngine({
           });
         }
         const original: TailFrameVariant = {
-          id: 'original',
+          id: DEFAULT_TAIL_FRAME_VARIANT_ID,
           label: '原版尾帧',
           assetUrl: origUrl,
           thumbnailUrl: origUrl,
@@ -1622,7 +1630,7 @@ export function createScriptBoxEngine({
         patchShot((s) => ({
           ...s,
           prevTailFrameVariants: variants,
-          selectedTailFrameVariantId: 'original',
+          selectedTailFrameVariantId: DEFAULT_TAIL_FRAME_VARIANT_ID,
           usePrevShotVideoTail: !!s.usePrevShotVideoTail,
           prevShotImageRefUrls: origUrl ? [origUrl] : [],
         }));
@@ -1637,8 +1645,8 @@ export function createScriptBoxEngine({
         const { provider, modelId } = resolveImageModel();
         if (provider && modelId && origUrl) {
           const ams = d.assetModelSettings ?? {};
-          const aspectRatio = String(ams.globalAspectRatio || '16:9');
-          const imageSize = String(ams.globalSize || '2K');
+          const aspectRatio = String(ams.globalAspectRatio || DEFAULT_ASPECT_RATIO);
+          const imageSize = String(ams.globalSize || DEFAULT_IMAGE_SIZE);
           await runGenerationOrchestration({
             taskNodeId: tailFrameTaskNodeId(nodeId, shotId),
             type: 'image',
@@ -1942,7 +1950,7 @@ export function assembleShotUser(
       : Math.max(u + 1, Number(shot.index) || 1);
   const m = u === 0 ? '开场镜' : u === d - 1 ? '结尾镜' : '中段镜';
 
-  const rows = [`镜头编号：${shot.index}`, `时长：${shot.duration || '5s'}`];
+  const rows = [`镜头编号：${shot.index}`, `时长：${shot.duration || DEFAULT_SHOT_DURATION}`];
   rows.push(shot.shotType ? `景别：${shot.shotType}` : '');
   rows.push(shot.lighting ? `光影：${shot.lighting}` : '');
   rows.push(shot.motion ? `运镜：${shot.motion}` : '');

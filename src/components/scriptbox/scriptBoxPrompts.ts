@@ -13,7 +13,14 @@
  */
 
 import { SCRIPT_BOX_WORKFLOWS } from './scriptBoxWorkflows.ts';
-import { defaultShotFields } from './scriptBoxSchema.ts';
+import {
+  DEFAULT_IMAGE_GEN_TYPE,
+  DEFAULT_MOTION,
+  DEFAULT_SHOT_DURATION,
+  DEFAULT_TAIL_FRAME_VARIANT_ID,
+  defaultShotFields,
+  shotSeconds,
+} from './scriptBoxSchema.ts';
 // 资产类别真源在 `@/types` 的 `ASSET_CATEGORY_META`（§五 #5／§七 #6 收口）；原 `export type AssetCategory = string`
 // 的放宽已收窄为联合，边界一律走 `isAssetCategory` 守卫。本文件**不 re-export** 该类型（消费方从 `@/types` 取，免多头入口）。
 import { isAssetCategory, type AssetCategory } from '../../types';
@@ -215,6 +222,11 @@ export function formatLineBreaks(text?: string | null): string {
 
 /** 分镜时长数值解析（表格输入）：parseInt 兜底，非法/0/空 → fallback（默认 3）。
  *  对齐 StepShots 时长输入 `parseInt(x) || 3` 的既有语义。 */
+/**
+ * 编辑器输入框的时长**回显**（fallback 3、无下限）。
+ * 与 schema `shotSeconds`（数据层：基线 5 秒、下限 1 秒，TD-01-33）是**两个角色**：
+ * 本函数服务「用户正在输入」的 UI 回显，不是数据基线 —— 合并会让输入框把 3 变成 5。
+ */
 export function parseShotSeconds(value?: unknown, fallback = 3): number {
   const n = Number.parseInt(String(value ?? ''), 10);
   return n || fallback;
@@ -392,7 +404,9 @@ export function applyTailFrameSelection(
       ? {
           ...x,
           usePrevShotVideoTail: useTail,
-          selectedTailFrameVariantId: useTail ? variant?.id || 'original' : 'original',
+          selectedTailFrameVariantId: useTail
+            ? variant?.id || DEFAULT_TAIL_FRAME_VARIANT_ID
+            : DEFAULT_TAIL_FRAME_VARIANT_ID,
           prevShotImageRefUrls: url,
         }
       : x,
@@ -565,10 +579,7 @@ export function mergeShotsForVideo(
       images.push({ id: im.id || `script-asset-${images.length}`, url: im.url });
     }
   }
-  const seconds = list.reduce(
-    (sum, s) => sum + Math.max(1, Number.parseInt(String(s?.duration || '5'), 10) || 5),
-    0,
-  );
+  const seconds = list.reduce((sum, s) => sum + shotSeconds(s?.duration), 0);
   return { prompt, images, seconds };
 }
 
@@ -576,17 +587,18 @@ export function mergeShotsForVideo(
  *  注：就地写回 shot.prompt / shot.videoPrompt 并返回同一对象（历史行为，勿改成不可变）。 */
 export function buildShotPrompts(shot: Shot): Shot {
   const dlg = dialogueText(shot.dialogue);
-  const base = `电影感画面，${shot.description}${shot.shotType ? `，景别：${shot.shotType}` : ''}${shot.lighting ? `，光影：${shot.lighting}` : ''}，运镜：${shot.motion || '固定'}`;
+  const base = `电影感画面，${shot.description}${shot.shotType ? `，景别：${shot.shotType}` : ''}${shot.lighting ? `，光影：${shot.lighting}` : ''}，运镜：${shot.motion || DEFAULT_MOTION}`;
   shot.prompt = base;
   shot.videoPrompt =
-    `镜头时长 ${shot.duration || '5s'}，${base}${dlg ? `，对白/旁白：${dlg}` : ''}，音效：${shot.sound || ''}`.trim();
+    `镜头时长 ${shot.duration || DEFAULT_SHOT_DURATION}，${base}${dlg ? `，对白/旁白：${dlg}` : ''}，音效：${shot.sound || ''}`.trim();
   return shot;
 }
 
 /** 候选下拉项（表格用） */
 export const SHOT_TYPES = ['特写', '近景', '中景', '全景', '大远景'];
 export const LIGHTS = ['自然光', '暖光', '冷光', '逆光', '烛光', '夜光', '电影感'];
-export const MOTIONS = ['固定', '缓慢推进', '推', '拉', '横摇跟随', '跟随', '环绕'];
+// 首项 = `DEFAULT_MOTION`（schema 基线）：下拉默认项与数据默认值不再各写一份。
+export const MOTIONS = [DEFAULT_MOTION, '缓慢推进', '推', '拉', '横摇跟随', '跟随', '环绕'];
 
 /** 分镜模板（buildShots 循环取用） */
 const SHOT_TPL = [
@@ -707,8 +719,8 @@ export function buildAssets(
 /** 生图类型定义：label=UI 显示名，sys=该类型专用的系统提示词片段（默认来自工作流「漫剧」） */
 export const IMAGE_GEN_TYPES: Record<string, ImageGenTemplate> = MANGA.imageGenTemplates || {};
 
-/** 默认选中类型 */
-export const IMAGE_GEN_DEFAULT = 'keyframe';
+// 原 `IMAGE_GEN_DEFAULT = 'keyframe'` 已删（TD-01-33）：默认生图类型的真源 = schema 的
+// `DEFAULT_IMAGE_GEN_TYPE`，全仓只留一个名字（留两名一值 = 漂移入口）。
 
 /** 把单个分镜某类型的「用户内容」拼成一次 LLM 调用的 user message（纯函数，无副作用） */
 export function buildShotImageUser(
@@ -718,8 +730,8 @@ export function buildShotImageUser(
 ): string {
   if (!shot) return '';
   // 类型表缺项（含默认项）⇒ 用最小兜底文案，不把 undefined 拼进 prompt
-  const t = IMAGE_GEN_TYPES[type ?? IMAGE_GEN_DEFAULT] ??
-    IMAGE_GEN_TYPES[IMAGE_GEN_DEFAULT] ?? { label: '图片' };
+  const t = IMAGE_GEN_TYPES[type ?? DEFAULT_IMAGE_GEN_TYPE] ??
+    IMAGE_GEN_TYPES[DEFAULT_IMAGE_GEN_TYPE] ?? { label: '图片' };
   const dlg = dialogueText(shot.dialogue);
   const assetNames = (assets || [])
     .map((a) => a.name)

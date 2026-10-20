@@ -13,6 +13,7 @@ import {
 } from './scriptBoxPlaybookStore.ts';
 import type { Playbook } from './scriptBoxPlaybookIO.ts';
 import { DEFAULT_WORKFLOW } from './scriptBoxWorkflows.ts';
+import { DEFAULT_ASPECT_RATIO } from './scriptBoxSchema.ts';
 import { ASSET_CATEGORIES, assetCategoryLabel } from '../../types';
 import type { ScriptBoxData, ScriptBoxUpdateData } from './scriptBoxSchema.ts';
 import type { ModelOption } from '../base/utils/providerModels.ts';
@@ -91,7 +92,7 @@ export default function GearSettings({ data, updateData, onClose }: GearSettings
   }, [playbookId]);
 
   // ── 本片参数（per-node，始终可写）──
-  const [aspectRatio, setAspectRatio] = useState((d.aspectRatio as string) || '16:9');
+  const [aspectRatio, setAspectRatio] = useState((d.aspectRatio as string) || DEFAULT_ASPECT_RATIO);
   const [customAspectRatio, setCustomAspectRatio] = useState((d.customAspectRatio as string) || '');
   const [textModel, setTextModel] = useState(
     () => (d.textModel as string) || (d.selectedModel as string) || chatModels[0]?.id || '',

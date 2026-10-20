@@ -34,6 +34,7 @@ const SHOT_COUNT_OPTIONS: Array<[string | number, string]> = [
 import { useOutsideClick } from '../base/core/interaction/uiHooks.ts';
 import { useRenderAssetResolver } from '../base/utils/media/assetUrl.ts';
 import ScriptBoxModal from './ScriptBoxModal.tsx';
+import { DEFAULT_TAIL_FRAME_VARIANT_ID } from './scriptBoxSchema.ts';
 import type { ScriptBoxData, ScriptBoxUpdateData, ScriptBoxCallbacks } from './scriptBoxSchema.ts';
 
 /**
@@ -451,7 +452,7 @@ export default function StepShots({ data, updateData, callbacks }: StepShotsProp
                       className="w-24 h-16 object-cover rounded"
                     />
                     <span className="text-caption-xs text-secondary">
-                      {v.id === 'original' ? '原始尾帧' : '重构变体'}
+                      {v.id === DEFAULT_TAIL_FRAME_VARIANT_ID ? '原始尾帧' : '重构变体'}
                     </span>
                   </button>
                 ))}
