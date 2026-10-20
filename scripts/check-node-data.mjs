@@ -75,7 +75,11 @@ const {
 let NODE_TYPE_TO_FILE = {};
 
 /** nodes/ 下非节点组件文件（辅助 hook / 纯工具 / 素材），不参与 data 对账 */
-const NON_NODE_FILES = new Set(['nodeImage.ts', 'useImagePersistence.tsx', 'useImageHoverActions.tsx']);
+const NON_NODE_FILES = new Set([
+  'nodeImage.ts',
+  'useImagePersistence.tsx',
+  'useImageHoverActions.tsx',
+]);
 /**
  * 节点目录（绝对路径，唯一真源 node-file-resolver.cjs）—— 只含 /nodes 结尾者，
  * 原先只认 canvas/nodes：A2 后既漏扫 image/video/nodes，又把域根里的 UI 文件误当节点。
@@ -332,7 +336,8 @@ function parseWriteSites(src) {
     // 对象里全是 spread、没有字面量键 → 本工具展不开，但**确实是本节点在写 data**。
     // 若不单独标记，会被漏报成「自写 0」→ 误判该节点不落盘（实测 ImageBoxNode/Director3DNode 就栽在这）。
     if (!entries.length) {
-      if (/\.\.\./.test(body)) sites.push({ kind, keys: [], cleared: [], indirect: true, line: lineOf(src, openIdx) });
+      if (/\.\.\./.test(body))
+        sites.push({ kind, keys: [], cleared: [], indirect: true, line: lineOf(src, openIdx) });
       return;
     }
     sites.push({
@@ -454,7 +459,9 @@ const filters = args.filter((a) => !a.startsWith('--'));
 
 let NODE_TYPES = {};
 try {
-  const mod = await import(pathToFileURL(resolve(root, 'src/components/base/core/contracts.ts')).href);
+  const mod = await import(
+    pathToFileURL(resolve(root, 'src/components/base/core/contracts.ts')).href
+  );
   NODE_TYPES = mod.NODE_TYPES || {};
 } catch (e) {
   console.error('  ✖ 无法加载 contracts.ts 的 NODE_TYPES：', e.message);
@@ -515,17 +522,32 @@ const declaredOutputTypes =
   keysOfObjectAfter(outputsSrc, /export const NODE_OUTPUTS\s*(?::[^=]*)?=\s*\{/) || [];
 // 读侧特判集 / 显式无产出集（2026-09-12 / TD-02-11：原 specialHandled + genericOutputOk 两处白名单，
 // 现为 SPECIAL_OUTPUT_TYPES + NO_OUTPUT_NODE_TYPES；genericOutputOk 已删，其职责＝三张表覆盖）
-const specialTypes = stringLiteralsIn(outputsSrc, /const SPECIAL_OUTPUT_TYPES\s*(?::[^=]*)?=\s*new Set\(/);
-const noOutputTypes = stringLiteralsIn(outputsSrc, /const NO_OUTPUT_NODE_TYPES\s*(?::[^=]*)?=\s*new Set\(/);
+const specialTypes = stringLiteralsIn(
+  outputsSrc,
+  /const SPECIAL_OUTPUT_TYPES\s*(?::[^=]*)?=\s*new Set\(/,
+);
+const noOutputTypes = stringLiteralsIn(
+  outputsSrc,
+  /const NO_OUTPUT_NODE_TYPES\s*(?::[^=]*)?=\s*new Set\(/,
+);
 const singleOutputFields = parseSingleOutputFields(outputsSrc);
 // 安全网字段（仅未登记类型走）—— **从真源解析，禁止手抄**（TD-04-59）。
 // 真源 = `useConnectedInputs.ts` 的 `SAFETY_NET_FIELDS`。手抄的害处：改真源漏改此处 ⇒ 本闸基于
 // **过时字段集**放行/拦截（假绿/假红），而它守的正是整张 node.data 读侧契约。
 // 解析不到 ⇒ 由下方 `parserBlind` 自检拦下（不会静默退回空集）。
-const SAFETY_NET_FIELDS = stringLiteralsIn(outputsSrc, /const SAFETY_NET_FIELDS\s*(?::[^=]*)?=\s*\[/);
+const SAFETY_NET_FIELDS = stringLiteralsIn(
+  outputsSrc,
+  /const SAFETY_NET_FIELDS\s*(?::[^=]*)?=\s*\[/,
+);
 const readSideFields = [...new Set([...SAFETY_NET_FIELDS, ...singleOutputFields])];
 // NODE_OUTPUTS 内实际读的 data 字段（声明式产出，如 extractedImages / images / shots）
-const declaredDataFields = [...new Set([...outputsSrc.matchAll(/\bd\.(\w+)\b/g)].map((m) => m[1]))];
+// 【2026-10-20 · P5】`noPropertyAccessFromIndexSignature` 开启后，宽对象上的读法统一改成
+// `d['xxx']`（点访问会报 TS4111）。闸必须同时认出两种写法，否则「读侧认不认」会假红。
+const declaredDataFields = [
+  ...new Set(
+    [...outputsSrc.matchAll(/\bd\.(\w+)\b|\bd\[['"](\w+)['"]\]/g)].map((m) => m[1] ?? m[2]),
+  ),
+];
 
 const types = Object.keys(NODE_TYPES).filter(
   (t) => filters.length === 0 || filters.some((f) => t.includes(f)),
@@ -572,14 +594,16 @@ line('');
 // 「本节点自己的 data」写入 = patchData + {...n.data, X}（守卫为 n.id === id）；
 // 子节点规格 data:{...} 与「跨节点写」（守卫为 n.id !== other）都不算本节点字段，单独归类。
 const NOT_OWN = new Set(['子节点data', '跨节点写']);
-const ownKeys = (r, onlyKind) =>
-  [
-    ...new Set(
-      r.sites.filter((s) => (onlyKind ? s.kind === onlyKind : !NOT_OWN.has(s.kind))).flatMap((s) => s.keys),
-    ),
-  ];
-const clearedKeys = (r) =>
-  [...new Set(r.sites.filter((s) => !NOT_OWN.has(s.kind)).flatMap((s) => s.cleared))];
+const ownKeys = (r, onlyKind) => [
+  ...new Set(
+    r.sites
+      .filter((s) => (onlyKind ? s.kind === onlyKind : !NOT_OWN.has(s.kind)))
+      .flatMap((s) => s.keys),
+  ),
+];
+const clearedKeys = (r) => [
+  ...new Set(r.sites.filter((s) => !NOT_OWN.has(s.kind)).flatMap((s) => s.cleared)),
+];
 const childKeys = (r) => ownKeys(r, '子节点data');
 const crossKeys = (r) => ownKeys(r, '跨节点写');
 
@@ -624,11 +648,18 @@ for (const r of rows) {
       `   间接写回: ${indirectCnt} 处本地 patch-helper（键随调用参数，本工具不展开 → 该节点"声明但未见写入"一栏对它不适用）`,
     );
   }
-  if (cleared.length) line(`   清空     (${cleared.length}): ${cleared.join(' ')}  ← 写 undefined，只清不写`);
-  if (child.length) line(`   子节点   (${child.length}): ${child.join(' ')}  ← spawn 出去的子节点 data，非本节点字段`);
-  if (cross.length) line(`   跨节点   (${cross.length}): ${cross.join(' ')}  ← 写给下游节点的 data，非本节点字段`);
+  if (cleared.length)
+    line(`   清空     (${cleared.length}): ${cleared.join(' ')}  ← 写 undefined，只清不写`);
+  if (child.length)
+    line(
+      `   子节点   (${child.length}): ${child.join(' ')}  ← spawn 出去的子节点 data，非本节点字段`,
+    );
+  if (cross.length)
+    line(`   跨节点   (${cross.length}): ${cross.join(' ')}  ← 写给下游节点的 data，非本节点字段`);
   if (r.idxSigs.length) {
-    line(`   ⚠ 索引签名回退（禁止）: ${r.idxSigs.join(' ')}  ← \`[key: string]: unknown\` 让写错字段名静默通过`);
+    line(
+      `   ⚠ 索引签名回退（禁止）: ${r.idxSigs.join(' ')}  ← \`[key: string]: unknown\` 让写错字段名静默通过`,
+    );
     gapCount += r.idxSigs.length;
   }
   if (defNotIface.length) {
@@ -639,7 +670,8 @@ for (const r of rows) {
     line(`   ⚠ 自写但 interface 未声明（靠索引签名兜住）: ${writeNotIface.join(' ')}`);
     gapCount += writeNotIface.length;
   }
-  if (ifaceNotUsed.length) line(`   · interface 声明但本轮未见写入/默认值: ${ifaceNotUsed.join(' ')}`);
+  if (ifaceNotUsed.length)
+    line(`   · interface 声明但本轮未见写入/默认值: ${ifaceNotUsed.join(' ')}`);
 }
 
 // 表2 结果字段命名
@@ -702,7 +734,9 @@ for (const [type, fields] of Object.entries(RESULT_EXEMPT)) {
   }
 }
 if (staleExempt.length) {
-  line(`⚠ RESULT_EXEMPT 过期（字段已不再写入，请从 scripts/check-node-data.mjs 删除）: ${staleExempt.join(' ')}`);
+  line(
+    `⚠ RESULT_EXEMPT 过期（字段已不再写入，请从 scripts/check-node-data.mjs 删除）: ${staleExempt.join(' ')}`,
+  );
 }
 
 // 表2b 清空遗留字段：写 undefined = 只清不写 → 说明该字段曾是产出，现已退役但仍在代码里被清理
@@ -766,7 +800,9 @@ line(
 if (noPatch.length) line(`   无 patchData: ${noPatch.join(' ')}`);
 const helperNodes = rows.filter((r) => r.sites.some((s) => s.indirect)).map((r) => r.type);
 if (helperNodes.length) {
-  line(`   经本地 patch-helper 写回（非 patchData，可能是 helper 常态，未必是债）: ${helperNodes.join(' ')}`);
+  line(
+    `   经本地 patch-helper 写回（非 patchData，可能是 helper 常态，未必是债）: ${helperNodes.join(' ')}`,
+  );
 }
 
 // ── 解析器自检（2026-09-12）────────────────────────────────────────
@@ -785,11 +821,16 @@ if (!rows.some((r) => r.iface.size)) parserBlind.push('节点 data interface');
 if (parserBlind.length) {
   line('');
   line(`⚠ 解析器自检失败 → 上面的「0 缺口」不可信，以下解析源为空: ${parserBlind.join(' / ')}`);
-  line('  （多半是源码形态漂移打瞎了正则：类型标注 / 命名变化。请修 scripts/check-node-data.mjs 的解析，勿忽略本告警。）');
+  line(
+    '  （多半是源码形态漂移打瞎了正则：类型标注 / 命名变化。请修 scripts/check-node-data.mjs 的解析，勿忽略本告警。）',
+  );
 }
 
 line(strict ? '严格模式：有缺口即失败。' : '报告模式：不阻断（加 --strict 才 exit 1）。');
 
-if (strict && (gapCount > 0 || misreadCount > 0 || noOutputConflictCount > 0 || parserBlind.length > 0))
+if (
+  strict &&
+  (gapCount > 0 || misreadCount > 0 || noOutputConflictCount > 0 || parserBlind.length > 0)
+)
   process.exit(1);
 process.exit(0);
