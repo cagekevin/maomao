@@ -11,8 +11,21 @@ import {
   defaultNodeData,
   NODE_DATA_DEFAULTS,
 } from '../../src/components/canvas/contract/nodeDataSchema.ts';
+import { defaultScriptBoxTop } from '../../src/components/scriptbox/scriptBoxSchema.ts';
 
 describe('nodeDataSchema.defaultNodeData', () => {
+  it('scriptBoxNode 的新建默认值与 scriptBoxSchema 基线同值（TD-01-33 跨层钉死）', () => {
+    // canvas 契约不能反向 import 业务域，故此处是**已知手抄**：只许「值相同」，不许各自演化。
+    const created = defaultNodeData('scriptBoxNode');
+    const base = defaultScriptBoxTop();
+    expect(created['step']).toBe(base.step);
+    expect(created['story']).toBe(base.story);
+    expect(created['globalStyle']).toBe(base.globalStyle);
+    // shots / assets 是数组字段（不在 ScriptBoxTop 上），新建时必须是**各自独立的空数组**
+    expect(created['shots']).toEqual([]);
+    expect(created['assets']).toEqual([]);
+  });
+
   it('有输入面板的节点注入 expanded:false，并合并该类型登记项', () => {
     // creativePresets 为创作库字典登记（TD-创作库，2026-09-15）
     expect(defaultNodeData('textGenerateNode')).toEqual({

@@ -91,6 +91,9 @@ export const NODE_DATA_DEFAULTS: Partial<Record<NodeTypeKey, Record<string, unkn
   },
 
   // ── 其他工具 ──
+  // ⚠️ 值必须与 `scriptbox/scriptBoxSchema.defaultScriptBoxTop()` 同值（此处只登记「新建那一刻够
+  //    UI 渲染」的最小集，其余由 normalizeScriptBoxData 补齐）。跨层手抄是**已知边界**：canvas 契约
+  //    不得反向 import 业务域，故靠单测钉死同值（tests/unit/nodeDataSchema.test.ts · TD-01-33）。
   scriptBoxNode: { step: 1, story: '', globalStyle: '', shots: [], assets: [] },
 
   // ── 顶部快捷（Q/W/E）──
