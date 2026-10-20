@@ -113,8 +113,8 @@ export function writeProviderConfigFile(id: string, provider: Record<string, unk
     if (k === '_relay' || k === 'api_key' || k === '_apiKey' || k === '_clearKey') continue; // key 不入盘
     if (PERSIST_FIELDS.has(k) || k === '_relay') next[k] = provider[k];
   }
-  if (provider._relay && typeof provider._relay === 'object') {
-    next._relay = provider._relay;
+  if (provider['_relay'] && typeof provider['_relay'] === 'object') {
+    next['_relay'] = provider['_relay'];
   }
   try {
     const dir = getProviderConfigDir();
@@ -189,8 +189,8 @@ export function buildLovartDirectProfile(
   baseUrl: string,
   opts: { signal?: AbortSignal; timeoutMs?: number } = {},
 ): LovartDirectProfile {
-  const accessKey = process.env.LOVART_ACCESS_KEY || '';
-  const secretKey = process.env.LOVART_SECRET_KEY || '';
+  const accessKey = process.env['LOVART_ACCESS_KEY'] || '';
+  const secretKey = process.env['LOVART_SECRET_KEY'] || '';
   if (!accessKey || !secretKey) {
     throw new Error(
       'lovart 需要 LOVART_ACCESS_KEY 与 LOVART_SECRET_KEY（请在 localTool/.env 配置）',
@@ -237,9 +237,9 @@ function definitionToProvider(def: ProviderDefinition): Record<string, unknown> 
     else if (cat === 'text' || cat === 'chat') chat.push(entry);
     else img.push(entry);
   }
-  if (img.length) base.image_models = img;
-  if (chat.length) base.chat_models = chat;
-  if (vid.length) base.video_models = vid;
+  if (img.length) base['image_models'] = img;
+  if (chat.length) base['chat_models'] = chat;
+  if (vid.length) base['video_models'] = vid;
   return base;
 }
 
@@ -268,10 +268,10 @@ export function readAllProviders(): Array<Record<string, unknown>> {
         defaultBaseUrl: def.defaultBaseUrl || '',
         allowCustomBaseUrl: !!def.allowCustomBaseUrl,
       };
-      if (def.modelsPath) relayMeta.modelsPath = def.modelsPath;
-      if (def.connectionTestPath) relayMeta.connectionTestPath = def.connectionTestPath;
-      const fileRelay = (file?._relay as Record<string, unknown> | undefined) || {};
-      (base as Record<string, unknown>)._relay = { ...relayMeta, ...fileRelay };
+      if (def['modelsPath']) relayMeta['modelsPath'] = def['modelsPath'];
+      if (def['connectionTestPath']) relayMeta['connectionTestPath'] = def['connectionTestPath'];
+      const fileRelay = (file?.['_relay'] as Record<string, unknown> | undefined) || {};
+      (base as Record<string, unknown>)['_relay'] = { ...relayMeta, ...fileRelay };
     }
     out.push(base);
   };
@@ -286,7 +286,7 @@ export function readAllProviders(): Array<Record<string, unknown>> {
 /** 单平台读取（用于 PUT 单写 / fetch-models 定位）。 */
 export function readProvider(id: string): Record<string, unknown> | null {
   const all = readAllProviders();
-  return all.find((p) => p.id === id) || null;
+  return all.find((p) => p['id'] === id) || null;
 }
 
 /**
@@ -306,7 +306,7 @@ export function seedFromDefaultFile(defaultPath: string): number {
     for (const p of providers) {
       if (!p || typeof p !== 'object') continue;
       const prov = p as Record<string, unknown>;
-      const id = typeof prov.id === 'string' ? prov.id : '';
+      const id = typeof prov['id'] === 'string' ? prov['id'] : '';
       if (!id) continue;
       // 已有用户配置 → 不覆盖（播种只补缺，不动运行态）
       if (readProviderConfigFile(id)) continue;

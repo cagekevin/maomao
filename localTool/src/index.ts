@@ -53,7 +53,8 @@ function loadDotEnv(): void {
       const m = line.match(/^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)\s*$/);
       if (!m) continue;
       const key = m[1];
-      let val = m[2].trim();
+      if (key === undefined) continue;
+      let val = (m[2] ?? '').trim();
       if (
         (val.startsWith('"') && val.endsWith('"')) ||
         (val.startsWith("'") && val.endsWith("'"))
@@ -74,7 +75,7 @@ loadDotEnv();
 //    同时保持【只调用一次】（initLogWriter 内部幂等，勿重复接管 console）。
 initLogWriter();
 
-const PORT = Number(process.env.PORT) || 18080;
+const PORT = Number(process.env['PORT']) || 18080;
 
 // 高频轮询端点（心跳/配置同步/资源缓存）不打印，避免日志刷屏
 // 这些由画布前端每秒轮询，无业务价值；代理类已在 system.ts 单独打 [proxy] 日志
@@ -141,14 +142,14 @@ function sendFileWithRange(
     if (m && total > 0) {
       if (m[1] === '' && m[2] !== '') {
         // bytes=-N：最后 N 字节
-        const suffix = parseInt(m[2], 10);
+        const suffix = parseInt(m[2] ?? '', 10);
         if (suffix > 0) {
           start = Math.max(0, total - suffix);
           satisfiable = true;
         }
       } else if (m[1] !== '') {
-        const s = parseInt(m[1], 10);
-        const e = m[2] === '' ? total - 1 : parseInt(m[2], 10);
+        const s = parseInt(m[1] ?? '', 10);
+        const e = m[2] === '' ? total - 1 : parseInt(m[2] ?? '', 10);
         if (s <= e && s < total) {
           start = s;
           end = Math.min(e, total - 1);
@@ -450,8 +451,8 @@ async function main(): Promise<void> {
   // ── 凭据检查：校验 localTool/.env 注入的 LOVART 凭证，警告占位/缺失 ──
   // 直连 Lovart 走 HMAC 鉴权，凭证真源 = localTool/.env（由模块顶部 loadDotEnv() 注入 process.env）。
   // apimart-gateway 已退役，不再依赖任何外部网关；密钥只进 localTool/.env，勿入库。
-  const ak = process.env.LOVART_ACCESS_KEY || '';
-  const sk = process.env.LOVART_SECRET_KEY || '';
+  const ak = process.env['LOVART_ACCESS_KEY'] || '';
+  const sk = process.env['LOVART_SECRET_KEY'] || '';
   if (ak && sk) {
     if (
       ak.includes('xxxx') ||
@@ -530,7 +531,7 @@ async function main(): Promise<void> {
     // ⚠️ 跨端开关：Mac 菜单栏工具(packaging/mac/menubar)会注入 NO_OPEN_BROWSER=1，
     //    自己用「优先唤醒已装 PWA」的 openCanvas() 打开画布，故这里跳过自动开标签，
     //    避免「后端开一个普通标签 + 菜单栏开 PWA」两个画面。Windows 未设该变量，行为不变。
-    if (process.env.NO_OPEN_BROWSER !== '1') {
+    if (process.env['NO_OPEN_BROWSER'] !== '1') {
       const pageUrl = `http://127.0.0.1:${PORT}`;
       try {
         // 【143 · S9′】改走唯一入口，且它是**全仓唯一** `shell: true` 的调用点：

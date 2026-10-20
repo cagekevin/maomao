@@ -69,7 +69,10 @@ function looksLikeBase64Media(s: string): boolean {
  */
 function extFromB64Magic(s: string): string | null {
   for (const pre of Object.keys(B64_MEDIA_MAGIC)) {
-    if (s.startsWith(pre)) return B64_MEDIA_MAGIC[pre];
+    if (!s.startsWith(pre)) continue;
+    const ext = B64_MEDIA_MAGIC[pre];
+    // nua：查表值是 `string | undefined` ⇒ 缺表项按「不认识」处理（与前置检查契约一致）。
+    if (ext !== undefined) return ext;
   }
   return null;
 }
@@ -93,10 +96,7 @@ function extFromMime(mime: string | null): string {
   if (!mime) return 'png';
   // 归一化：去 `data:` 前缀（本函数也收 data: URL 的 header 段，如 `data:image/jpeg`）、
   // 去 `;charset=…` 参数、去空白 —— 只留裸 MIME 再交真值源查表。
-  const bare = mime
-    .replace(/^data:/i, '')
-    .split(';')[0]
-    .trim();
+  const bare = (mime.replace(/^data:/i, '').split(';')[0] ?? '').trim();
   const ext = mimeToExt(bare); // 带点（'.png'）或 null
   return ext ? ext.slice(1) : 'png';
 }

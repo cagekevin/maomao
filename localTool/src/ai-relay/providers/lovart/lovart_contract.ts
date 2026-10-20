@@ -23,25 +23,25 @@ export interface LovartDirectProfile {
   baseUrl: string;
   /** 必为 hmac 鉴权（accessKey/secretKey）。 */
   auth: AuthConfig;
-  timeoutMs?: number;
-  signal?: AbortSignal;
+  timeoutMs?: number | undefined;
+  signal?: AbortSignal | undefined;
   /** 出站传输；缺省用中央 stableRequest。测试注入 fake transport 断言请求体。 */
-  transport?: LovartTransport;
+  transport?: LovartTransport | undefined;
   /** 轮询间隔（ms）；缺省 lovart_config.POLL_INTERVAL_MS。测试注入小值提速。 */
-  pollIntervalMs?: number;
+  pollIntervalMs?: number | undefined;
   /** done 后复核等待（ms）；缺省 lovart_config.DONE_RECHECK_MS。测试注入小值提速。 */
-  doneRecheckMs?: number;
+  doneRecheckMs?: number | undefined;
   /** project 缓存文件路径（disk persist）；缺省 env LOVART_PROJECT_CACHE_FILE / cwd。 */
-  projectCacheFile?: string;
+  projectCacheFile?: string | undefined;
 }
 
 export interface LovartSendInput {
   prompt: string;
   projectId: string;
   /** 已上传到 Lovart CDN 的附件 URL 列表（由 lovart_attachments 解析产出）。 */
-  attachments?: string[];
+  attachments?: string[] | undefined;
   /** 结构化路选模型：{ prefer_tool_categories: { IMAGE: [...] } }。 */
-  toolConfig?: Record<string, unknown>;
+  toolConfig?: Record<string, unknown> | undefined;
 }
 
 /**
@@ -54,10 +54,10 @@ export function normalizeLovartSendBody(input: LovartSendInput): Record<string, 
     project_id: input.projectId,
   };
   if (input.attachments && input.attachments.length > 0) {
-    body.attachments = input.attachments;
+    body['attachments'] = input['attachments'];
   }
   if (input.toolConfig) {
-    body.tool_config = input.toolConfig;
+    body['tool_config'] = input.toolConfig;
   }
   return body;
 }

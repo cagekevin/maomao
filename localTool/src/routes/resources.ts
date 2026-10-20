@@ -376,12 +376,13 @@ export function resolveDisplayName(
  */
 export async function recordUploadedFileRow(
   rel: string,
+  // 【P6 · eop A 类】调用方把「可能没有」的请求字段整对象传进来 ⇒ 声明处认下 undefined。
   opts: {
-    projectId?: string | null;
-    type?: string;
-    source?: string;
-    name?: string;
-    folder?: string;
+    projectId?: string | null | undefined;
+    type?: string | undefined;
+    source?: string | undefined;
+    name?: string | undefined;
+    folder?: string | undefined;
   } = {},
 ): Promise<void> {
   if (!rel) return;

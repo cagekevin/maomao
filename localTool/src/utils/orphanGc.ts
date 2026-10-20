@@ -118,7 +118,12 @@ function queryReferenceSources(db: Db): {
   const contentIdRe = /sha1:([0-9a-f]{40})/gi;
   const contentIds = new Set<string>();
   for (const v of kvValues) {
-    for (const m of v.matchAll(contentIdRe)) contentIds.add(m[1].toLowerCase());
+    for (const m of v.matchAll(contentIdRe)) {
+      const hex = m[1];
+      // 捕获组缺失 = 本行不成立，跳过（不拿空串进集合，避免误判「有内容身份」）。
+      if (hex === undefined) continue;
+      contentIds.add(hex.toLowerCase());
+    }
   }
   if (contentIds.size > 0) {
     const ids = [...contentIds].map((hex) => `sha1:${hex}`);

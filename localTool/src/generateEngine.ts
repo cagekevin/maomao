@@ -73,7 +73,8 @@ export interface RelayGenerateOutput {
   /** chat 文本结果 */
   text?: string;
   /** chat + 画布 Agent：tool_calls（chatWithTools 出站返回，非流式一次给全） */
-  toolCalls?: unknown[];
+  // 【P6 · eop A 类】结果对象按「有没有就写」构造，消费方只读值 ⇒ 声明处认下 undefined。
+  toolCalls?: unknown[] | undefined;
   taskId?: string;
   providerId: string;
   capability: RelayCapability;

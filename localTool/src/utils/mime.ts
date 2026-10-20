@@ -131,7 +131,8 @@ export function extToCategoryLabel(ext: string): string {
 
 /** MIME（小写）→ 扩展名（带点）；返回 null 表示表外（调用方定 fallback）。 */
 export function mimeToExt(mime: string): string | null {
-  const m = (mime || '').toLowerCase().split(';')[0].trim();
+  // nua：`split(';')[0]` 是 string|undefined ⇒ 显式兜底空串（`mime || ''` 已保证非空源）。
+  const m = ((mime || '').toLowerCase().split(';')[0] ?? '').trim();
   if (!m) return null;
   switch (m) {
     case 'image/jpeg':

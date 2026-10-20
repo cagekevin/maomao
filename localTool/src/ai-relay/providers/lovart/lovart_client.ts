@@ -20,16 +20,16 @@ import {
 export interface LovartClientDeps {
   baseUrl: string;
   auth: AuthConfig;
-  signal?: AbortSignal;
-  timeoutMs?: number;
+  signal?: AbortSignal | undefined;
+  timeoutMs?: number | undefined;
   /** 出站传输；缺省用中央 stableRequest。测试注入 fake transport。 */
-  transport?: LovartTransport;
+  transport?: LovartTransport | undefined;
   /** 轮询间隔（ms）；缺省 lovart_config.POLL_INTERVAL_MS。测试注入小值提速。 */
-  pollIntervalMs?: number;
+  pollIntervalMs?: number | undefined;
   /** done 后复核等待（ms）；缺省 lovart_config.DONE_RECHECK_MS。测试注入小值提速。 */
-  doneRecheckMs?: number;
+  doneRecheckMs?: number | undefined;
   /** project 缓存文件路径；缺省 env LOVART_PROJECT_CACHE_FILE / cwd .lovart_project.json。测试注入临时路径。 */
-  projectCacheFile?: string;
+  projectCacheFile?: string | undefined;
 }
 
 /** 剥 {code,data} 信封并做 code≠0 检。 */

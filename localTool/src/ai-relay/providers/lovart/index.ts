@@ -140,16 +140,16 @@ export async function generateVideoLovart(
   const deps = toDeps(profile, opts.signal, opts.timeoutMs);
   assertCategory(opts.model, 'VIDEO');
   const vars = (opts.variables ?? {}) as Record<string, unknown>;
-  const userPrompt = String(vars.prompt ?? '');
-  const size = String(vars.size ?? '');
-  const imageUrls = (vars.imageUrls as string[] | undefined) ?? undefined;
+  const userPrompt = String(vars['prompt'] ?? '');
+  const size = String(vars['size'] ?? '');
+  const imageUrls = (vars['imageUrls'] as string[] | undefined) ?? undefined;
   // 视频额外参数拼进 gen_prefix，对齐 main.py:1237-1247（duration / aspect_ratio / resolution）。
   const extraParams: string[] = [];
-  const dur = vars.duration;
+  const dur = vars['duration'];
   if (dur) extraParams.push(`duration: ${dur}`);
-  const ar = vars.aspect_ratio;
+  const ar = vars['aspect_ratio'];
   if (ar) extraParams.push(`aspect_ratio: ${ar}`);
-  const res = vars.resolution;
+  const res = vars['resolution'];
   if (res) extraParams.push(`resolution: ${String(res).trim()}`);
   await setLovartMode(deps, false);
   const attachments = await resolveLovartAttachments(deps, imageUrls);
@@ -213,17 +213,18 @@ export async function chatLovartText(
 
 export interface LovartTaskInput {
   model: string;
-  prompt?: string;
+  // 【P6 · eop A 类】调用方把「可能没有」的表达式直接写进入参；消费方只判 truthy ⇒ 声明处认下 undefined。
+  prompt?: string | undefined;
   /** IMAGE：具体像素（如 1024x1024）；VIDEO：比例（如 16:9） */
-  size?: string;
+  size?: string | undefined;
   /** 参考图 URL / base64 列表 */
-  images?: string[];
+  images?: string[] | undefined;
   /** video：清晰度（如 '1080p'） */
-  resolution?: string;
+  resolution?: string | undefined;
   /** video：时长（秒，字符串） */
-  duration?: string;
+  duration?: string | undefined;
   /** 额外生成参数（透传给 buildLovartPrompt，拼进 gen_prefix），对齐 main.py:1237-1247 */
-  extraParams?: string[];
+  extraParams?: string[] | undefined;
 }
 
 export interface LovartTaskHandle {

@@ -14,13 +14,13 @@ import path from 'node:path';
 
 /** localTool 根目录（process.cwd() 或 MAOMAO_ROOT 覆盖） */
 function getRoot(): string {
-  if (process.env.MAOMAO_ROOT) return process.env.MAOMAO_ROOT;
+  if (process.env['MAOMAO_ROOT']) return process.env['MAOMAO_ROOT'];
   return process.cwd();
 }
 
 /** localTool/.env（支持 MAOMAO_ENV_FILE 覆盖） */
 export function getEnvFile(): string {
-  return process.env.MAOMAO_ENV_FILE || path.join(getRoot(), '.env');
+  return process.env['MAOMAO_ENV_FILE'] || path.join(getRoot(), '.env');
 }
 
 /**
@@ -31,7 +31,7 @@ export function getEnvFile(): string {
  * 历史名 api.config.json 已退役（曾与运行态双源漂移）；保留 MAOMAO_CONFIG_FILE 覆盖以兼容脚本。
  */
 export function getProviderSeedFile(): string {
-  return process.env.MAOMAO_CONFIG_FILE || path.join(getRoot(), 'providers.default.json');
+  return process.env['MAOMAO_CONFIG_FILE'] || path.join(getRoot(), 'providers.default.json');
 }
 
 /** localTool/data/apiConfigs.baseline.json */

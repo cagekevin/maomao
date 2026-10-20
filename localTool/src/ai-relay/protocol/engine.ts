@@ -40,6 +40,7 @@ export function modelProtocolUsesVariable(source: string, ...variables: string[]
   if (requested.length === 0) return false;
   return [...source.matchAll(TEMPLATE_RE)].some((match) => {
     const templatePath = match[1];
+    if (templatePath === undefined) return false;
     return requested.some(
       (variable) => templatePath === variable || templatePath.startsWith(`${variable}.`),
     );
@@ -47,7 +48,9 @@ export function modelProtocolUsesVariable(source: string, ...variables: string[]
 }
 
 export function collectModelProtocolTemplatePaths(source: string): string[] {
-  return [...source.matchAll(TEMPLATE_RE)].map((match) => match[1]);
+  return [...source.matchAll(TEMPLATE_RE)]
+    .map((match) => match[1])
+    .filter((path): path is string => path !== undefined);
 }
 
 export function collectModelProtocolForEachVariables(value: unknown): string[] {

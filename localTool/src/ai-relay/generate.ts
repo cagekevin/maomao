@@ -53,7 +53,8 @@ async function postChatRaw(opts: ChatOptions): Promise<{ payload: JsonChatRespon
         ...(opts.tools ? { tools: opts.tools } : {}),
         ...(opts.toolChoice ? { tool_choice: opts.toolChoice } : {}),
       }),
-      signal: opts.signal,
+      // RequestInit（DOM 类型）不能改声明 ⇒ 路线 B：undefined 时不写这个键。
+      ...(opts.signal !== undefined ? { signal: opts.signal } : {}),
     },
     { timeoutMs: opts.timeoutMs },
   );
@@ -122,7 +123,7 @@ export async function streamChat({
       method: 'POST',
       headers: bearerHeaders(apiKey),
       body: JSON.stringify({ model, messages, stream: true }),
-      signal,
+      ...(signal !== undefined ? { signal } : {}),
     },
     { timeoutMs },
   );

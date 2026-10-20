@@ -19,8 +19,8 @@ import {
 import type { ProtocolVariables } from '../types.js';
 
 export interface RenderTemplateOptions {
-  conditionalDirectives?: boolean;
-  arrayItem?: boolean;
+  conditionalDirectives?: boolean | undefined;
+  arrayItem?: boolean | undefined;
 }
 
 function resolveContextPath(context: ProtocolVariables, path: string): unknown {
@@ -28,9 +28,10 @@ function resolveContextPath(context: ProtocolVariables, path: string): unknown {
 }
 
 export function renderTemplateString(template: string, context: ProtocolVariables): unknown {
-  const fullMatch = FULL_TEMPLATE_RE.exec(template);
-  if (fullMatch) {
-    const resolved = resolveContextPath(context, fullMatch[1]);
+  // nua：捕获组是 `string | undefined` ⇒ 取组 1 时即判缺（缺则不按「整串模板」处理）。
+  const fullPath = FULL_TEMPLATE_RE.exec(template)?.[1];
+  if (fullPath !== undefined) {
+    const resolved = resolveContextPath(context, fullPath);
     if (resolved === undefined) return OMIT_TEMPLATE_VALUE;
     return resolved;
   }

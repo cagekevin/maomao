@@ -99,12 +99,20 @@ function normalizeStatus(value: unknown): string {
  *  - 瞬时网络/可重试 HTTP 错误：本轮直接以 `error` 形态返回（附 retryable 标记 + 原始错误），
  *    不静默吞错；调用方决定是否下轮续查。
  */
+// 【P6 · eop A 类】progress 由内部探测器算出、可能为 undefined；消费方只读值 / 展示百分比，
+// 不判「键是否存在」⇒ 三个分支统一在声明处认下 undefined。
 export type ModelPollOnceResult =
-  | { status: 'completed'; urls: string[]; text?: string; taskId?: string; progress?: number }
-  | { status: 'failed'; error: string; taskId?: string; progress?: number }
+  | {
+      status: 'completed';
+      urls: string[];
+      text?: string;
+      taskId?: string;
+      progress?: number | undefined;
+    }
+  | { status: 'failed'; error: string; taskId?: string; progress?: number | undefined }
   | {
       status: 'processing';
-      progress?: number;
+      progress?: number | undefined;
       taskId?: string;
       error?: string;
       retryable?: boolean;
@@ -130,7 +138,8 @@ export async function pollModelProtocolOnce(
   try {
     const response = await corsSafeFetch(applyQueryAuthentication(poll.url, poll.auth, apiKey), {
       ...buildResolvedRequestInit(poll, apiKey),
-      signal,
+      // RequestInit（DOM 类型）不能改声明 ⇒ 路线 B：undefined 时不写这个键。
+      ...(signal !== undefined ? { signal } : {}),
     });
     payload = await readJsonResponse(response, '模型任务查询失败', poll.errorPath);
   } catch (error) {
@@ -269,7 +278,7 @@ function buildResolvedRequestInit(
 
   const auth = resolveAuthentication(poll.auth);
   if (apiKey && auth.type === 'bearer') {
-    headers.Authorization = `${auth.prefix ?? 'Bearer '}${apiKey}`;
+    headers['Authorization'] = `${auth.prefix ?? 'Bearer '}${apiKey}`;
   } else if (apiKey && auth.type === 'header') {
     headers[auth.name ?? 'Authorization'] = `${auth.prefix ?? ''}${apiKey}`;
   }
@@ -280,7 +289,8 @@ function buildResolvedRequestInit(
   return {
     method: poll.method,
     headers,
-    body,
+    // RequestInit（DOM 类型）不能改声明 ⇒ 路线 B：undefined 时不写这个键。
+    ...(body !== undefined ? { body } : {}),
   };
 }
 
@@ -327,7 +337,7 @@ export async function pollResolvedModelProtocol(
           applyQueryAuthentication(poll.url, poll.auth, apiKey),
           {
             ...buildResolvedRequestInit(poll, apiKey),
-            signal,
+            ...(signal !== undefined ? { signal } : {}),
           },
         );
         const payload = await readJsonResponse(response, '模型任务查询失败', poll.errorPath);

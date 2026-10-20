@@ -49,11 +49,11 @@ export interface CatalogModel {
   name: string;
   category: ModelCategory | string;
   provider: string;
-  description?: string;
-  inputModalities?: string[];
-  videoCapability?: Record<string, unknown>;
+  description?: string | undefined;
+  inputModalities?: string[] | undefined;
+  videoCapability?: Record<string, unknown> | undefined;
   /** 连接层预先过滤、不再暴露给 UI 的模型 id */
-  hiddenModelIds?: string[];
+  hiddenModelIds?: string[] | undefined;
 }
 
 export interface ProviderDefinition {
@@ -137,26 +137,26 @@ export interface CreateRelayConfig {
 /* ------------------------------------------------------------------ */
 
 export interface StableRequestOptions {
-  method?: string;
-  path?: string;
-  baseUrl?: string;
-  candidates?: string[];
-  apiKey?: string;
-  auth?: AuthConfig;
-  body?: unknown;
-  headers?: Record<string, string>;
-  query?: Record<string, string | number | boolean | null | undefined>;
-  requestQuery?: Record<string, string>;
-  signal?: AbortSignal;
-  timeoutMs?: number;
-  maxBytes?: number;
-  maxRetries?: number;
+  method?: string | undefined;
+  path?: string | undefined;
+  baseUrl?: string | undefined;
+  candidates?: string[] | undefined;
+  apiKey?: string | undefined;
+  auth?: AuthConfig | undefined;
+  body?: unknown | undefined;
+  headers?: Record<string, string> | undefined;
+  query?: Record<string, string | number | boolean | null | undefined> | undefined;
+  requestQuery?: Record<string, string> | undefined;
+  signal?: AbortSignal | undefined;
+  timeoutMs?: number | undefined;
+  maxBytes?: number | undefined;
+  maxRetries?: number | undefined;
   /**
    * 重试退避基数（ms）：第 n 次重试等待 `retryDelayMs * 2^n`（上限 `DEFAULT_MAX_RETRY_DELAY_MS`）。
    * 缺省 `DEFAULT_BASE_DELAY_MS`（生产不传 = 行为不变）。
    * **测试注入小值提速**（与 `maxRetries` 同族的注入面）：退避是**真 sleep**，用例不该为此白等数秒。
    */
-  retryDelayMs?: number;
+  retryDelayMs?: number | undefined;
   /**
    * **显式**声明「哪些状态码在本场景可重试」；**缺省 = 空集（不按状态码重试）**。
    *
@@ -168,9 +168,9 @@ export interface StableRequestOptions {
    * 窗口返回 **403**，非权限问题、几秒后自愈，且下载是只读 GET）。
    * 传 `[...显式码]` 时**并不自动继承**中央集 —— 要哪些就给哪些（如 `[403, ...RETRYABLE_HTTP_STATUSES]`）。
    */
-  retryStatuses?: number[];
+  retryStatuses?: number[] | undefined;
   /** 底层 fetch 实现；缺省全局 fetch。lovart 等需走代理的域名注入 fetchWithProxy。 */
-  fetchImpl?: typeof fetch;
+  fetchImpl?: typeof fetch | undefined;
 }
 
 export interface StableRequestResult {
@@ -231,12 +231,12 @@ export interface ModelProtocolRequestConfig {
 }
 
 export interface ModelProtocolRetryConfig {
-  httpStatuses?: number[];
-  maxRetries?: number;
-  backoff?: 'fixed' | 'linear' | 'exponential';
-  maxDelayMs?: number;
-  honorRetryAfter?: boolean;
-  retryNetworkErrors?: boolean;
+  httpStatuses?: number[] | undefined;
+  maxRetries?: number | undefined;
+  backoff?: 'fixed' | 'linear' | 'exponential' | undefined;
+  maxDelayMs?: number | undefined;
+  honorRetryAfter?: boolean | undefined;
+  retryNetworkErrors?: boolean | undefined;
 }
 
 export interface ModelProtocolPollConfig extends ModelProtocolRequestConfig {
@@ -269,10 +269,10 @@ export type ProtocolVariables = Record<string, unknown>;
 
 export interface SubmitModelProtocolOptions {
   protocol: ModelProtocol;
-  apiKey?: string;
+  apiKey?: string | undefined;
   baseUrl: string;
   variables: ProtocolVariables;
-  signal?: AbortSignal;
+  signal?: AbortSignal | undefined;
 }
 
 export interface ResolvedPollConfig {
@@ -280,23 +280,24 @@ export interface ResolvedPollConfig {
   url: string;
   auth: AuthConfig;
   headers: Record<string, string>;
-  bodyEncoding?: 'json' | 'form-urlencoded' | 'multipart';
-  body?: unknown;
+  bodyEncoding?: 'json' | 'form-urlencoded' | 'multipart' | undefined;
+  body?: unknown | undefined;
   statusPath: string;
   successValues: string[];
   failureValues: string[];
-  resultUrlPath?: string;
-  resultTextPath?: string;
-  resultBase64Path?: string;
-  resultMimeType?: string;
-  resultBase64Transform?: { type: 'pcm-s16le-to-wav'; sampleRate: number; channels?: number };
-  resultFetchUrl?: boolean;
-  errorPath?: string;
-  progressPath?: string;
+  resultUrlPath?: string | undefined;
+  resultTextPath?: string | undefined;
+  resultBase64Path?: string | undefined;
+  resultMimeType?: string | undefined;
+  resultBase64Transform?:
+    { type: 'pcm-s16le-to-wav'; sampleRate: number; channels?: number } | undefined;
+  resultFetchUrl?: boolean | undefined;
+  errorPath?: string | undefined;
+  progressPath?: string | undefined;
   intervalMs: number;
-  maxAttempts?: number;
-  maxDurationMs?: number;
-  retry?: ModelProtocolRetryConfig;
+  maxAttempts?: number | undefined;
+  maxDurationMs?: number | undefined;
+  retry?: ModelProtocolRetryConfig | undefined;
 }
 
 export interface ModelProtocolSubmitResult {
@@ -307,9 +308,9 @@ export interface ModelProtocolSubmitResult {
 }
 
 export interface ModelProtocolExecuteResult {
-  text?: string;
-  urls?: string[];
-  taskId?: string;
+  text?: string | undefined;
+  urls?: string[] | undefined;
+  taskId?: string | undefined;
 }
 
 export interface PreviewModelProtocolRequestOptions {
@@ -334,10 +335,10 @@ export type AssistantStreamEvent =
   | { type: 'done'; finishReason: string };
 
 export interface ParseStreamOptions {
-  requestId?: string;
-  modelId?: string;
+  requestId?: string | undefined;
+  modelId?: string | undefined;
   onEvent: (event: AssistantStreamEvent) => void;
-  signal?: AbortSignal;
+  signal?: AbortSignal | undefined;
 }
 
 /* ------------------------------------------------------------------ */
@@ -345,66 +346,66 @@ export interface ParseStreamOptions {
 /* ------------------------------------------------------------------ */
 
 export interface ChatOptions {
-  apiKey?: string;
+  apiKey?: string | undefined;
   baseUrl: string;
   model: string;
   messages: unknown[];
-  signal?: AbortSignal;
-  tools?: unknown;
-  toolChoice?: unknown;
-  timeoutMs?: number;
+  signal?: AbortSignal | undefined;
+  tools?: unknown | undefined;
+  toolChoice?: unknown | undefined;
+  timeoutMs?: number | undefined;
 }
 
 /** 画布 Agent 需要的 chat 响应：文本或/且工具调用（非流式一次返回）。 */
 export interface ChatWithToolsResult {
   text: string;
-  toolCalls?: unknown[];
-  finishReason?: string;
+  toolCalls?: unknown[] | undefined;
+  finishReason?: string | undefined;
 }
 
 export interface StreamChatOptions {
-  apiKey?: string;
+  apiKey?: string | undefined;
   baseUrl: string;
   model: string;
   messages: unknown[];
-  signal?: AbortSignal;
+  signal?: AbortSignal | undefined;
   onEvent: (event: AssistantStreamEvent) => void;
-  timeoutMs?: number;
+  timeoutMs?: number | undefined;
 }
 
 export interface GenerateImageOptions {
-  apiKey?: string;
+  apiKey?: string | undefined;
   baseUrl: string;
   model: string;
   prompt: string;
-  size?: string;
-  width?: number;
-  height?: number;
-  imageUrls?: string[];
-  n?: number;
-  protocol?: ModelProtocol;
-  signal?: AbortSignal;
-  timeoutMs?: number;
+  size?: string | undefined;
+  width?: number | undefined;
+  height?: number | undefined;
+  imageUrls?: string[] | undefined;
+  n?: number | undefined;
+  protocol?: ModelProtocol | undefined;
+  signal?: AbortSignal | undefined;
+  timeoutMs?: number | undefined;
 }
 
 export interface GenerateVideoOptions {
-  apiKey?: string;
+  apiKey?: string | undefined;
   baseUrl: string;
   model: string;
   variables: ProtocolVariables;
   protocol: ModelProtocol;
-  signal?: AbortSignal;
-  timeoutMs?: number;
+  signal?: AbortSignal | undefined;
+  timeoutMs?: number | undefined;
 }
 
 export interface GenerateAudioOptions {
-  apiKey?: string;
+  apiKey?: string | undefined;
   baseUrl: string;
   model: string;
   variables: ProtocolVariables;
   protocol: ModelProtocol;
-  signal?: AbortSignal;
-  timeoutMs?: number;
+  signal?: AbortSignal | undefined;
+  timeoutMs?: number | undefined;
 }
 
 export type { ModelProtocolResponsePreviewEntry };

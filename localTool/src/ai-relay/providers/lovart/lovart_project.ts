@@ -31,9 +31,10 @@ import { RelayHttpError } from '../../httpTransport.js';
  *   2. 环境变量 LOVART_PROJECT_CACHE_FILE（对齐 main.py Config.PROJECT_CACHE_FILE）；
  *   3. main.py 兜底 .lovart_project.json（cwd）。
  */
-export function resolveProjectCacheFile(deps?: { projectCacheFile?: string }): string {
+// 【P6 · eop A 类】调用方直接传 LovartClientDeps（`projectCacheFile?: string | undefined`）⇒ 声明处认下。
+export function resolveProjectCacheFile(deps?: { projectCacheFile?: string | undefined }): string {
   if (deps?.projectCacheFile) return deps.projectCacheFile;
-  if (process.env.LOVART_PROJECT_CACHE_FILE) return process.env.LOVART_PROJECT_CACHE_FILE;
+  if (process.env['LOVART_PROJECT_CACHE_FILE']) return process.env['LOVART_PROJECT_CACHE_FILE'];
   return pathJoin(process.cwd(), '.lovart_project.json');
 }
 

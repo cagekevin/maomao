@@ -84,7 +84,7 @@ function rowToTask(row: Record<string, unknown>) {
   // id，导致前端重载历史记录后 id 全为 undefined，diff map 全部 miss、整组被当作「新增」
   // 重新写回，任务中心的「日志」每次打开都重复累加（见 daily/11-前端任务唯一标识梳理报告）。
   // 此处令 id === taskId，使前端去重键在 reload 后仍能命中已有记录，避免重复写入。
-  task.id = task.taskId;
+  task['id'] = task['taskId'];
   return task;
 }
 
@@ -202,7 +202,7 @@ function blocksRealDamage(
   incoming: Record<string, unknown>,
   blocked: string[],
 ): boolean {
-  if (!TERMINAL_STATUSES.has(String(stored.status ?? ''))) return false;
+  if (!TERMINAL_STATUSES.has(String(stored['status'] ?? ''))) return false;
   return CLOBBER_CRITICAL_COLUMNS.some(
     (k) => blocked.includes(k) && differs(stored[k], incoming[k]),
   );
@@ -233,7 +233,7 @@ function hasRelayPollHandle(existing: Record<string, unknown> | undefined): bool
   const r = readRelaySnapshot(existing);
   if (!r.ok && r.reason === 'unparsable') {
     console.warn('[upsertTask:request_data-unparsable] request_data 非合法 JSON，按"无句柄"处理', {
-      task_id: existing?.task_id,
+      task_id: existing?.['task_id'],
     });
   }
   return r.ok;
@@ -245,7 +245,7 @@ export function upsertTask(
   opts: { owner?: 'poller' | 'client' } = {},
 ) {
   const owner = opts.owner ?? 'poller';
-  const existing = queryOne(db, `SELECT * FROM tasks WHERE task_id = ?`, [row.task_id]);
+  const existing = queryOne(db, `SELECT * FROM tasks WHERE task_id = ?`, [row['task_id']]);
   let incoming = row;
   if (existing && owner === 'client' && hasRelayPollHandle(existing)) {
     incoming = {};
@@ -261,7 +261,7 @@ export function upsertTask(
         //（放开 = 回到"后写者赢"，图已在磁盘却显示卡在生成中）。
         console.warn(
           '[upsertTask:client-blocked] 前端来路想覆盖终态真相（status/result_url 会被改掉），已忽略',
-          { task_id: row.task_id, cols: blocked },
+          { task_id: row['task_id'], cols: blocked },
         );
       } else {
         // 冗余写：前端发的是整行快照，必然带执行态列；库里真相一致（或该行尚未终态）⇒ 拦下不改变任何东西。
@@ -269,7 +269,7 @@ export function upsertTask(
         // 【为什么用 logDebug 而不是 console.debug】后者在 localTool 是**黑洞**：logWriter 不接管它
         //（不落盘、不受任何开关控制）。logDebug 走 console.log 落盘 + 后端 debug 开关（LOG_DEBUG_TASK=1
         // 才输出）⇒ 平时安静、需要时 grep 得到，见 utils/logDebug.ts 文件头。
-        logDebug('task', 'upsertTask:client-redundant', { task_id: row.task_id, cols: blocked });
+        logDebug('task', 'upsertTask:client-redundant', { task_id: row['task_id'], cols: blocked });
       }
     }
   }
@@ -322,7 +322,7 @@ export async function handleTasksGet(
 export async function handleTasksSave(req: IncomingMessage, res: ServerResponse): Promise<void> {
   const body = (await parseJsonBody(req)) as Record<string, unknown> | null;
   if (!body) return sendError(res, 'Missing body', 400);
-  if (!body.taskId && !body.id) return sendError(res, 'Missing taskId or id field', 400);
+  if (!body['taskId'] && !body['id']) return sendError(res, 'Missing taskId or id field', 400);
 
   const db = await getDb();
   const { row, droppedKeys } = taskToRow(body);
@@ -343,7 +343,7 @@ export async function handleTasksBatchSave(
   beginTx(db);
   try {
     for (const task of body) {
-      if (!task.taskId && !task.id) continue;
+      if (!task['taskId'] && !task['id']) continue;
       const { row, droppedKeys } = taskToRow(task);
       if (droppedKeys.length) console.warn(`[taskToRow:dropped] ${droppedKeys.join(', ')}`);
       upsertTask(db, row, { owner: 'client' }); // 同 save：前端来路不许改执行态列

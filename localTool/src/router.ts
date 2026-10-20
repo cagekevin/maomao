@@ -133,7 +133,7 @@ export type RouteMiddleware = (
   url: URL,
 ) => boolean | void | Promise<boolean | void>;
 
-const PORT = Number(process.env.PORT) || 18080;
+const PORT = Number(process.env['PORT']) || 18080;
 
 // ── /api/sync/default 本地兜底（A2）──
 // 原为 index.ts 内联逻辑：读 data/apiConfigs.baseline.json 并替换占位 URL。

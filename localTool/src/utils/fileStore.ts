@@ -125,7 +125,7 @@ export function normalizeSubfolder(subfolder: unknown): string | null {
   if (!s) return null;
   const parts = s.split('/');
   if (parts.some((p) => !p || p === '.' || p === '..')) return null;
-  const root = parts[0];
+  const root = parts[0] ?? '';
   if (root.includes(':') || !UPLOAD_ROOT_ALLOW.has(root)) return null;
   const normalized = parts.join('/');
   // 子目录分域校验（TD-03-18）：顶层根本身放行；用户数据根放行其下任意层级；
@@ -400,8 +400,9 @@ export function jimpMimeForFile(ext: unknown, img: Jimp): string {
   const bare = String(ext ?? '')
     .replace(/^\./, '')
     .toLowerCase();
-  if (Object.prototype.hasOwnProperty.call(JIMP_MIME_BY_EXT, bare)) {
-    return JIMP_MIME_BY_EXT[bare];
+  const known = JIMP_MIME_BY_EXT[bare];
+  if (known !== undefined) {
+    return known;
   }
   // 扩展名缺失/未登记 → 取已解码对象的字节真相（`getMIME()` 落在 JIMP 可编码集合内才用）。
   const real = String(img?.getMIME?.() ?? '').toLowerCase();

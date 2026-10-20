@@ -227,7 +227,13 @@ export const CROP_CONTEXT_VERSION = 2;
 export async function cropLocalPatch(
   filePath: string,
   rect: Rect,
-  opts: { paddingRatio?: number; maxPixels?: number; cropNodeId?: string; sourceUrl?: string } = {},
+  // 【P6 · eop A 类】cropNodeId/sourceUrl 由请求字段直给（可能 undefined）⇒ 声明处认下。
+  opts: {
+    paddingRatio?: number | undefined;
+    maxPixels?: number | undefined;
+    cropNodeId?: string | undefined;
+    sourceUrl?: string | undefined;
+  } = {},
 ): Promise<{ img: Jimp; cropContext: CropContext }> {
   const { paddingRatio = 0.1, maxPixels = DEFAULT_MAX_PIXELS, cropNodeId, sourceUrl } = opts;
   if (!rect || rect.w <= 0 || rect.h <= 0) {

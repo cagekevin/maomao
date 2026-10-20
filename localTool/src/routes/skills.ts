@@ -289,11 +289,14 @@ function pruneTrash(root: string, keep = MAX_TRASH_ENTRIES): number {
 function segmentsOf(url: URL): { category: string; slug: string } | null {
   const parts = url.pathname.split('/').filter(Boolean); // ['api','skills',分类,名称]
   if (parts.length !== 4) return null;
+  // nua：`length !== 4` 不给编译器窄化索引访问 ⇒ 解构 + 显式判缺（缺即路径不成立）。
+  const [, , rawCategory, rawSlug] = parts;
+  if (rawCategory === undefined || rawSlug === undefined) return null;
   let category: string;
   let slug: string;
   try {
-    category = decodeURIComponent(parts[2]);
-    slug = decodeURIComponent(parts[3]);
+    category = decodeURIComponent(rawCategory);
+    slug = decodeURIComponent(rawSlug);
   } catch {
     return null; // 非法百分号编码
   }
@@ -326,7 +329,11 @@ export async function handleSkillsList(
         walkFiles(pkgDir, '', false, rels);
         const entry: Record<string, unknown> = { category, slug, files: rels };
         if (withContent) {
-          entry.contents = readEntries(pkgDir, false, onlySkillMd ? [SKILL_ENTRY_FILE] : undefined);
+          entry['contents'] = readEntries(
+            pkgDir,
+            false,
+            onlySkillMd ? [SKILL_ENTRY_FILE] : undefined,
+          );
         }
         packages.push(entry);
       }

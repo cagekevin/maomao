@@ -7,14 +7,14 @@
 export interface PollTaskOptions<T> {
   fetchState: () => Promise<unknown>;
   isComplete: (payload: unknown) => T | null;
-  isFailed?: (payload: unknown) => string | null;
-  interval?: number;
-  maxAttempts?: number;
-  maxDuration?: number;
-  onProgress?: (progress: number) => void;
-  onFetchError?: 'throw' | 'continue';
-  signal?: AbortSignal;
-  timeoutMsg?: string;
+  isFailed?: (payload: unknown) => string | null | undefined;
+  interval?: number | undefined;
+  maxAttempts?: number | undefined;
+  maxDuration?: number | undefined;
+  onProgress?: (progress: number) => void | undefined;
+  onFetchError?: 'throw' | 'continue' | undefined;
+  signal?: AbortSignal | undefined;
+  timeoutMsg?: string | undefined;
 }
 
 function waitForPollInterval(interval: number, signal?: AbortSignal): Promise<void> {

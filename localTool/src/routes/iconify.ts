@@ -37,7 +37,7 @@ export async function handleIconifyProxy(
 ): Promise<void> {
   // 用**原始** req.url 取路径段：`url.pathname` 已被解码一次，直接拼上游会对
   // 含 `%23`（`#` 的图标颜色参数）之类的路径二次编码。
-  const rawPath = (req.url || '').split('?')[0];
+  const rawPath = (req.url || '').split('?')[0] ?? '';
   const rest = rawPath.startsWith(ICONIFY_PREFIX) ? rawPath.slice(ICONIFY_PREFIX.length) : '';
   if (!rest || rest === '/') {
     return sendError(res, 'iconify 路径为空（正确形态：/api/iconify/<prefix>/<name>.svg）', 400);

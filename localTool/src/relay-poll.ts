@@ -94,10 +94,17 @@ export const RELAY_TASK_STATUSES = [
 export type RelayTaskStatusValue = (typeof RELAY_TASK_STATUSES)[number];
 
 /** 任务查询结果（GET attach / status） */
+// 【P6 · eop A 类】progress/budgetMs/threadId 由生产者按「拿得到才写」构造，前端只读值 ⇒
+// 声明处认下 undefined（不区分「键缺失」）。
 export type RelayTaskStatus =
-  | { status: 'running'; progress?: number; budgetMs?: number }
-  | { status: 'completed'; url: string; type: string; budgetMs?: number }
-  | { status: 'failed'; error: string; budgetMs?: number }
+  | { status: 'running'; progress?: number | undefined; budgetMs?: number | undefined }
+  | {
+      status: 'completed';
+      url: string;
+      type: string;
+      budgetMs?: number | undefined;
+    }
+  | { status: 'failed'; error: string; budgetMs?: number | undefined }
   /**
    * 【TD-08-24 · 2026-09-16】提交结果未知（付费任务专属第三终态）。
    *
@@ -116,7 +123,7 @@ export type RelayTaskStatus =
   //   · 原先两个返回口都不填它 ⇒ 消费者永远拿到 `undefined`。
   //   ⇒ 按 Step 4：**消费者要而生产者没给 ⇒ 回生产者补契约**（禁止改消费端/删字段）。
   //   可选是因为它**本就可能未知**（sendChat 失败时拿不到 threadId，见 `upsertUnknown` 注释）。
-  | { status: 'unknown'; error: string; threadId?: string }
+  | { status: 'unknown'; error: string; threadId?: string | undefined }
   /**
    * 【D16】`not-found` = 后端**没有可跟踪的记录**。带可选 `error` 给**可展示文案**（生产者给全）——
    * 它有两种成因（"行根本不存在" vs "行存在但后端从未持有"），各自文案不同，
@@ -204,18 +211,18 @@ type LovartDirectProfile = ReturnType<typeof buildLovartDirectProfile>;
  */
 export interface DirectSubmitInput {
   model: string;
-  prompt?: string;
+  prompt?: string | undefined;
   /** IMAGE：像素；VIDEO：比例（16:9） */
-  size?: string;
+  size?: string | undefined;
   /**
    * 参考图原始 url 列表（/files/ 或外链）。**存库保留原值**（避免 base64 膨胀 DB），
    * 真正的出站归一推迟到后台提交时由 runDirectSubmit 执行（本机媒体内联 base64）。
    */
-  images?: string[];
+  images?: string[] | undefined;
   /** video：清晰度 */
-  resolution?: string;
+  resolution?: string | undefined;
   /** video：时长（秒） */
-  duration?: string;
+  duration?: string | undefined;
   capability: 'IMAGE' | 'VIDEO';
 }
 
@@ -249,7 +256,8 @@ interface PollHandle {
    * +传 CDN+建 project）的耗时被记在上游账上，超时还统一报成"生成超时"（责任与文案双错位：
    * 上游最终成功落盘的任务，前端/后端已按"生成超时"判死）。
    */
-  upstreamStartedAt?: number;
+  // 【P6 · eop A 类】恢复扫描时该值可能未知（仍在我们段）⇒ 声明处认下 undefined。
+  upstreamStartedAt?: number | undefined;
   timer: ReturnType<typeof setInterval> | null;
   running: boolean; // 单轮执行中防重入
   stopped: boolean;
@@ -420,9 +428,11 @@ export async function submitGenerateTask(
       !Array.isArray(protocolDef.submit.body)
     ) {
       if (input.resolution)
-        (protocolDef.submit.body as Record<string, unknown>).resolution = input.resolution;
+        (protocolDef.submit.body as Record<string, unknown>)['resolution'] = input['resolution'];
       if (input.duration)
-        (protocolDef.submit.body as Record<string, unknown>).duration = String(input.duration);
+        (protocolDef.submit.body as Record<string, unknown>)['duration'] = String(
+          input['duration'],
+        );
     }
 
     // 参考图归一：/files/ 磁盘图 → data:base64（唯一出站口纪律，跨平台通用——外部平台无法访问 localTool 本机地址）
@@ -450,10 +460,10 @@ export async function submitGenerateTask(
     // 【爆炸半径 = 0 的凭证】出厂种子无 model_protocols；运行期 17 份 provider 配置的
     // `model_protocols` 全为空对象（非空命中 0 个 / 空对象命中 17 个）⇒ 无任何存量消费方。
     const variables: Record<string, unknown> = { model: input.model };
-    if (input.prompt !== undefined) variables.prompt = input.prompt;
-    if (input.size !== undefined) variables.size = input.size;
-    if (input.messages !== undefined) variables.messages = input.messages;
-    if (images !== undefined) variables.referenceImageUrls = images;
+    if (input['prompt'] !== undefined) variables['prompt'] = input['prompt'];
+    if (input['size'] !== undefined) variables['size'] = input['size'];
+    if (input['messages'] !== undefined) variables['messages'] = input['messages'];
+    if (images !== undefined) variables['referenceImageUrls'] = images;
 
     const submitted: ModelProtocolSubmitResult = await protocol.submitModelProtocol({
       protocol: protocolDef,
@@ -848,8 +858,8 @@ async function updateProgress(
   const p =
     typeof progress === 'number' && progress >= 0 ? Math.min(100, Math.round(progress)) : undefined;
   const patch: Record<string, unknown> = { status: 'running' };
-  if (p !== undefined) patch.progress = p;
-  if (stageError) patch.error_msg = stageError;
+  if (p !== undefined) patch['progress'] = p;
+  if (stageError) patch['error_msg'] = stageError;
   await upsertTask(await getDb(), { task_id: handle.frontTaskId, ...patch });
   debouncedSaveDb();
 }
@@ -1081,7 +1091,8 @@ export async function initRelayPoller(opts: { overrideMs?: number } = {}): Promi
         await markUnrecoverable(db, frontTaskId, '快照缺轮询配置');
         continue;
       }
-      const apiKey = resolveProviderApiKey(core.providerId);
+      // PollHandle.apiKey 的契约是 string（可为空串）⇒ 缺失归一为空串，不把 undefined 写进句柄。
+      const apiKey = resolveProviderApiKey(core.providerId) ?? '';
       registerHandle(
         frontTaskId,
         {

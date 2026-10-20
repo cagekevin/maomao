@@ -85,7 +85,7 @@ import { fetchWithTimeout } from '../utils/fetchTimeout.js';
 import { isLocalOnlyPath } from '../utils/localOnlyPaths.js';
 
 /** 兜底透传超时（比 official.ts 略长，兼容慢接口/流式） */
-const PASSTHROUGH_TIMEOUT_MS = Number(process.env.PASSTHROUGH_TIMEOUT) || 30000;
+const PASSTHROUGH_TIMEOUT_MS = Number(process.env['PASSTHROUGH_TIMEOUT']) || 30000;
 
 // 【TD-08-33】本地专属前缀的清单**不再在本文件自持**（原 `LOCAL_ONLY_PREFIXES` 是第二份字面量，
 // 与 `index.ts` 的分派/托管排除各写一份，已漂移出缺口：`/depth-video/` 在这里缺失 ⇒ 未命中的
@@ -113,7 +113,7 @@ const PASSTHROUGH_TIMEOUT_MS = Number(process.env.PASSTHROUGH_TIMEOUT) || 30000;
  * 定位完成、源头出口删掉后，本段与本文件内的调用点一并删除。
  * ════════════════════════════════════════════════════════════════
  */
-const PASSTHROUGH_DIAG_ALL = process.env.PASSTHROUGH_DIAG_ALL === '1';
+const PASSTHROUGH_DIAG_ALL = process.env['PASSTHROUGH_DIAG_ALL'] === '1';
 
 /** 路径是否「不像 API」（= 可疑：疑似被当成 URL 的文本） */
 function isSuspiciousPath(pathname: string): boolean {

@@ -29,14 +29,15 @@ function appendUrlEncodedValue(params: URLSearchParams, name: string, value: unk
 }
 
 function parseBase64DataUrl(value: string): { mimeType: string; bytes: Uint8Array } {
-  const match = /^data:([^;,]+);base64,([\s\S]*)$/i.exec(value);
-  if (!match || !MIME_TYPE_RE.test(match[1])) {
+  // nua：捕获组是 `string | undefined` ⇒ 解构 + 显式判缺，后面不再做索引访问。
+  const [, mimeType, payload] = /^data:([^;,]+);base64,([\s\S]*)$/i.exec(value) ?? [];
+  if (mimeType === undefined || payload === undefined || !MIME_TYPE_RE.test(mimeType)) {
     throw new Error('multipart 文件只支持 data URL');
   }
   try {
-    const binary = atob(match[2].replace(/\s/g, ''));
+    const binary = atob(payload.replace(/\s/g, ''));
     return {
-      mimeType: match[1],
+      mimeType,
       bytes: Uint8Array.from(binary, (character) => character.charCodeAt(0)),
     };
   } catch {
@@ -74,11 +75,11 @@ function serializeMultipartBody(body: Record<string, unknown>, boundary: string)
   const appendPart = (name: string, value: unknown) => {
     const safeName = sanitizeMultipartToken(name, 'field');
     if (isRecord(value) && Object.hasOwn(value, '$file')) {
-      const fileSource = value.$file;
+      const fileSource = value['$file'];
       if (typeof fileSource !== 'string')
         throw new Error(`multipart 文件字段 ${name} 的 $file 必须是字符串`);
       const parsed = parseBase64DataUrl(fileSource);
-      const configuredMime = value.contentType;
+      const configuredMime = value['contentType'];
       if (
         configuredMime !== undefined &&
         (typeof configuredMime !== 'string' || !MIME_TYPE_RE.test(configuredMime))
@@ -86,7 +87,7 @@ function serializeMultipartBody(body: Record<string, unknown>, boundary: string)
         throw new Error(`multipart 文件字段 ${name} 的 contentType 无效`);
       }
       const filename = sanitizeMultipartToken(
-        typeof value.filename === 'string' ? value.filename : 'upload.bin',
+        typeof value['filename'] === 'string' ? value['filename'] : 'upload.bin',
         'upload.bin',
       );
       appendText(`--${boundary}\r\n`);
@@ -141,8 +142,8 @@ export function serializeModelProtocolBody(
 
 export function redactModelProtocolMultipartPreview(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(redactModelProtocolMultipartPreview);
-  if (isRecord(value) && Object.hasOwn(value, '$file') && typeof value.$file === 'string') {
-    const parsed = parseBase64DataUrl(value.$file);
+  if (isRecord(value) && Object.hasOwn(value, '$file') && typeof value['$file'] === 'string') {
+    const parsed = parseBase64DataUrl(value['$file']);
     return {
       ...value,
       $file: `[data URL ${parsed.mimeType}, ${parsed.bytes.byteLength} bytes]`,

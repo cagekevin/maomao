@@ -44,12 +44,12 @@ function requiresProxy(host: string): boolean {
 /** 从环境变量解析代理地址，返回形如 http://host:port 的 URL，无则返回 null */
 function proxyFromEnv(): string | null {
   const candidates = [
-    process.env.HTTPS_PROXY,
-    process.env.https_proxy,
-    process.env.HTTP_PROXY,
-    process.env.http_proxy,
-    process.env.ALL_PROXY,
-    process.env.all_proxy,
+    process.env['HTTPS_PROXY'],
+    process.env['https_proxy'],
+    process.env['HTTP_PROXY'],
+    process.env['http_proxy'],
+    process.env['ALL_PROXY'],
+    process.env['all_proxy'],
   ];
   for (const c of candidates) {
     if (c && typeof c === 'string') {
@@ -173,7 +173,7 @@ function proxyRequest(proxyUrl: string, targetUrl: string, init?: RequestInit): 
       if (idx === -1) return;
       socket.removeListener('data', onHeadData);
       const head = headBuf.slice(0, idx).toString('utf8');
-      const firstLine = head.split('\r\n')[0];
+      const firstLine = head.split('\r\n')[0] ?? '';
       const status = parseInt(firstLine.split(' ')[1] || '0', 10);
 
       if (status !== 200) {

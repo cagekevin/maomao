@@ -81,7 +81,7 @@ export function saveBase64ToFile(
   if (!isValidBase64(base64Data)) return null;
 
   const buf = Buffer.from(base64Data, 'base64');
-  const ext = extFromMime(mime);
+  const ext = extFromMime(mime ?? '');
 
   // 【2026-09-18 · TD-02-64 收口】落盘/去重/命名**整体委托唯一权威 `writeUploadDedup`**。
   //
@@ -103,8 +103,7 @@ export function saveBase64ToFile(
     existingUrlByContentId: (contentId) => {
       if (!db) return null; // 无 DB 句柄 → 跳过跨入口去重（仅本地幂等，与旧行为一致）
       const hit = queryOne(db, 'SELECT url FROM resources WHERE sha1 = ?', [contentId]) as
-        | { url?: string }
-        | undefined;
+        { url?: string } | undefined;
       return hit?.url ?? null;
     },
   });
@@ -208,10 +207,13 @@ export function extractFilesUrls(value: string): string[] {
   const re = /(?:https?:\/\/[^/]+)?\/files\/([^"'\s)\]]+)/g;
   let m: RegExpExecArray | null;
   while ((m = re.exec(value)) !== null) {
+    const segment = m[1];
+    // 捕获组缺失 = 本轮 match 不构成 /files/ 路径，跳过。
+    if (segment === undefined) continue;
     try {
-      out.add(decodeURIComponent(m[1]));
+      out.add(decodeURIComponent(segment));
     } catch {
-      out.add(m[1]);
+      out.add(segment);
     }
   }
   return Array.from(out);

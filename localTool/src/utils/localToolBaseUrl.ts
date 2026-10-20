@@ -9,7 +9,7 @@
  * 纯函数，无 I/O；默认仍 18080（与既有字符串契约 `127.0.0.1:18080` 一致，见 CLAUDE.md §五.7）。
  */
 export function localToolBaseUrl(): string {
-  const port = Number(process.env.PORT) || 18080;
+  const port = Number(process.env['PORT']) || 18080;
   return `http://127.0.0.1:${port}`;
 }
 

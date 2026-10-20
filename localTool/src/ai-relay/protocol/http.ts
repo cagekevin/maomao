@@ -13,7 +13,8 @@ import type { AuthConfig } from '../types.js';
 
 export class ModelProtocolHttpError extends Error {
   status: number;
-  retryAfterMs?: number;
+  // 【P6 · eop A 类】构造器按「有则赋值」写入，消费方只读值 ⇒ 声明处认下 undefined。
+  retryAfterMs?: number | undefined;
   constructor(status: number, message: string, retryAfterMs?: number) {
     super(message);
     this.name = 'ModelProtocolHttpError';
@@ -52,10 +53,12 @@ export async function readJsonResponse(
     const message =
       configuredMessage !== undefined && configuredMessage !== null
         ? String(configuredMessage)
-        : isRecord(payload) && isRecord(payload.error) && typeof payload.error.message === 'string'
-          ? payload.error.message
-          : isRecord(payload) && typeof payload.message === 'string'
-            ? payload.message
+        : isRecord(payload) &&
+            isRecord(payload['error']) &&
+            typeof payload['error']['message'] === 'string'
+          ? payload['error']['message']
+          : isRecord(payload) && typeof payload['message'] === 'string'
+            ? payload['message']
             : rawText.trim() || `${label} (${response.status})`;
     // 上游显示啥，我们就显示啥——不翻译、不重写（含 429 等状态码）
     throw new ModelProtocolHttpError(
@@ -180,7 +183,8 @@ export async function fetchSameOriginResultUrls(
       const response = await corsSafeFetch(applyQueryAuthentication(url.toString(), auth, apiKey), {
         method: 'GET',
         headers: buildResultAuthenticationHeaders(auth, apiKey),
-        signal,
+        // RequestInit（DOM 类型）不能改声明 ⇒ 路线 B：undefined 时不写这个键。
+        ...(signal !== undefined ? { signal } : {}),
       });
       await ensureSuccessfulRawResponse(response, '模型结果下载失败');
       const bytes = new Uint8Array(await response.arrayBuffer());

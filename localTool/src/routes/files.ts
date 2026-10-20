@@ -140,7 +140,12 @@ const uploadLog = (status: number, msg: string) =>
 async function registerUploadedRowOrFail(
   res: ServerResponse,
   url: string,
-  meta: { projectId?: string | null; folder?: string; name?: string },
+  // 【P6 · eop A 类】调用方从请求字段取「可能没有」的值直接写进 meta ⇒ 声明处认下 undefined。
+  meta: {
+    projectId?: string | null | undefined;
+    folder?: string | undefined;
+    name?: string | undefined;
+  },
 ): Promise<boolean> {
   const rel = relativePathFromFileUrl(url);
   if (!rel) {
@@ -326,7 +331,12 @@ async function handleUploadJson(req: IncomingMessage, res: ServerResponse): Prom
  */
 async function respondRemoteUrlUpload(
   res: ServerResponse,
-  opts: { subfolder: string; fileUrl: string; name?: string; projectId?: string },
+  opts: {
+    subfolder: string;
+    fileUrl: string;
+    name?: string | undefined;
+    projectId?: string | undefined;
+  },
 ): Promise<void> {
   let result: { url: string };
   try {
@@ -429,7 +439,9 @@ async function doSaveRemoteUrl(subfolder: string, fileUrl: string): Promise<Save
   // 格式真相 = 响应 Content-Type（字节的权威声明）；URL 名后缀仅作回退、不当真相。
   // 【TD-03-8 修复·远程分支】mime 未登记且 URL 无后缀时 ext 留空（不静默猜格式）。
   // 【TD-08-20 2026-09-16】URL 名取后缀统一经 fileNameFromUrl（剥 ?# + decode）—— `a.mp4?token=1` 不再带进扩展名。
-  const mime = (response.headers.get('content-type') || '').split(';')[0].trim().toLowerCase();
+  const mime = ((response.headers.get('content-type') || '').split(';')[0] ?? '')
+    .trim()
+    .toLowerCase();
   const ext = mimeToExt(mime) || path.extname(fileNameFromUrl(fileUrl)) || '';
 
   // 落盘与去重委托唯一权威（sha1(字节) 内容寻址 + contentId 查重），与 multipart / base64 同一实现。

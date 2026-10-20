@@ -53,7 +53,8 @@ const SENSITIVE_KEY_RE =
 
 export class RelayHttpError extends Error {
   status: number;
-  retryAfterMs?: number;
+  // 【P6 · eop A 类】构造器按「有则赋值」写入，消费方只读值 ⇒ 字段声明认下 undefined。
+  retryAfterMs?: number | undefined;
   constructor(status: number, message: string, retryAfterMs?: number) {
     super(message);
     this.name = 'RelayHttpError';
@@ -240,11 +241,13 @@ export async function stableRequest(opts: StableRequestOptions): Promise<StableR
               ? (opts.body as BodyInit)
               : undefined;
         const fetchImpl: typeof fetch = opts.fetchImpl ?? fetch;
+        // RequestInit 是 DOM 库类型（不能改声明）⇒ 路线 B：值为 undefined 时不写这个键。
+        const fetchSignal = timeout ? timeout.signal : opts.signal;
         const response = await fetchImpl(finalUrl, {
           method,
           headers: requestHeaders,
-          body: fetchBody,
-          signal: timeout ? timeout.signal : opts.signal,
+          ...(fetchBody !== undefined ? { body: fetchBody } : {}),
+          ...(fetchSignal !== undefined ? { signal: fetchSignal } : {}),
         });
 
         const lengthHeader = response.headers.get('content-length');
@@ -328,14 +331,17 @@ export async function readCapped(
 export async function corsSafeFetch(
   url: string,
   init: RequestInit = {},
-  opts: { signal?: AbortSignal; timeoutMs?: number } = {},
+  // 【P6 · eop A 类】调用方常把 `opts.signal/timeoutMs`（可能 undefined）整对象透传 ⇒ 声明处认下。
+  opts: { signal?: AbortSignal | undefined; timeoutMs?: number | undefined } = {},
 ): Promise<Response> {
   const signal = init.signal ?? opts.signal;
   const timeout = withTimeout(signal, opts.timeoutMs);
+  const finalSignal = timeout ? timeout.signal : signal;
   try {
     return await fetch(url, {
       ...init,
-      signal: timeout ? timeout.signal : signal,
+      // RequestInit（DOM 类型）不能改声明 ⇒ 路线 B：undefined 时不写这个键。
+      ...(finalSignal !== undefined ? { signal: finalSignal } : {}),
     });
   } finally {
     if (timeout) timeout.cleanup();

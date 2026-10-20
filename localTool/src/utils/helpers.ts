@@ -179,14 +179,16 @@ export function parseMultipart(req: IncomingMessage): Promise<{
         const filenameMatch = header.match(/filename="([^"]+)"/);
         if (!nameMatch) continue;
 
+        // nua：捕获组可能缺失（正则未命中组）⇒ 缺即跳过本段，不拿空串当字段名。
         const fieldName = nameMatch[1];
+        if (fieldName === undefined) continue;
 
         if (filenameMatch) {
           const mimeTypeMatch = header.match(/Content-Type:\s*(.+)/);
           files[fieldName] = {
-            filename: filenameMatch[1],
+            filename: filenameMatch[1] ?? '',
             data: body,
-            mimeType: mimeTypeMatch ? mimeTypeMatch[1].trim() : 'application/octet-stream',
+            mimeType: (mimeTypeMatch?.[1] ?? '').trim() || 'application/octet-stream',
           };
         } else {
           fields[fieldName] = body.toString('utf-8');
@@ -207,8 +209,8 @@ export interface PaginationParams {
   pageSize: number;
   sortBy: string;
   sortDir: 'ASC' | 'DESC';
-  search?: string;
-  filters?: Record<string, unknown>;
+  search?: string | undefined;
+  filters?: Record<string, unknown> | undefined;
 }
 
 export function parsePagination(
@@ -310,7 +312,7 @@ export function buildPaginatedQuery(
         'eqOrPrefix' in (rawVal as Record<string, unknown>)
       ) {
         // {eqOrPrefix: x} → 精确匹配 + 前缀匹配（文件夹或其子目录）
-        const prefix = String((rawVal as Record<string, unknown>).eqOrPrefix);
+        const prefix = String((rawVal as Record<string, unknown>)['eqOrPrefix']);
         conditions.push(`(${column} = ? OR ${column} LIKE ?)`);
         values.push(prefix, `${prefix}/%`);
         countValues.push(prefix, `${prefix}/%`);

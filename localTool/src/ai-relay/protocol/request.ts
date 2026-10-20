@@ -82,7 +82,7 @@ export function renderRequestHeaders(
   const resolvedAuth = resolveAuthentication(auth);
   if (!apiKey) return headers;
   if (resolvedAuth.type === 'bearer') {
-    headers.Authorization = `${resolvedAuth.prefix ?? 'Bearer '}${apiKey}`;
+    headers['Authorization'] = `${resolvedAuth.prefix ?? 'Bearer '}${apiKey}`;
   } else if (resolvedAuth.type === 'header') {
     headers[resolvedAuth.name ?? 'Authorization'] = `${resolvedAuth.prefix ?? ''}${apiKey}`;
   }
@@ -141,8 +141,9 @@ export function buildRequestInit(
   return {
     method: request.method,
     headers,
-    body: serializedBody,
-    signal,
+    // RequestInit（DOM 类型）不能改声明 ⇒ 路线 B：值为 undefined 时不写这个键。
+    ...(serializedBody !== undefined ? { body: serializedBody } : {}),
+    ...(signal !== undefined ? { signal } : {}),
   };
 }
 

@@ -198,6 +198,11 @@ export async function handleAdminImport(req: IncomingMessage, res: ServerRespons
   run(db, 'DELETE FROM kv');
   for (let i = 0; i < src.kv.length; i++) {
     const row = src.kv[i];
+    // nua：备份包里可能有空洞 ⇒ 缺行按「跳过该条」处理（recordSkip 记账，不静默）。
+    if (!row) {
+      recordSkip('kv', i, new Error('备份包中该行为空'));
+      continue;
+    }
     try {
       run(db, 'INSERT INTO kv (key, value, updated_at) VALUES (?, ?, ?)', [
         row.key,
@@ -214,6 +219,11 @@ export async function handleAdminImport(req: IncomingMessage, res: ServerRespons
   run(db, 'DELETE FROM tasks');
   for (let i = 0; i < src.tasks.length; i++) {
     const row = src.tasks[i];
+    // nua：元素类型是 unknown（不可信备份包）⇒ 先收窄成对象，非对象按跳过记账。
+    if (!row || typeof row !== 'object') {
+      recordSkip('tasks', i, new Error('备份包中该行不是对象'));
+      continue;
+    }
     const keys = Object.keys(row);
     const vals = Object.values(row);
     const placeholders = keys.map(() => '?').join(', ');
@@ -229,6 +239,11 @@ export async function handleAdminImport(req: IncomingMessage, res: ServerRespons
   run(db, 'DELETE FROM resources');
   for (let i = 0; i < src.resources.length; i++) {
     const row = src.resources[i];
+    // 同 tasks：不可信备份包 ⇒ 先收窄成对象。
+    if (!row || typeof row !== 'object') {
+      recordSkip('resources', i, new Error('备份包中该行不是对象'));
+      continue;
+    }
     const keys = Object.keys(row);
     const vals = Object.values(row);
     const placeholders = keys.map(() => '?').join(', ');
@@ -369,6 +384,9 @@ export async function handleAdminStorageHealth(
   const duplicates = Array.from(groups.values())
     .filter((g) => g.length >= 2)
     .map((g) => {
+      // nua：`g.length >= 2` 不给编译器窄化索引访问 ⇒ 取首项并判缺（缺则该组不成立）。
+      const [first] = g;
+      if (!first) return null;
       const members = g.map((f) => ({
         path: f.rel,
         name: f.name,
@@ -377,8 +395,9 @@ export async function handleAdminStorageHealth(
       }));
       // 只统计未引用副本的可释放量（被画布/任务/素材引用的副本绝不能删）
       const reclaimable = members.filter((m) => !m.referenced).reduce((s, m) => s + m.size, 0);
-      return { name: g[0].name, size: g[0].size, count: g.length, files: members, reclaimable };
-    });
+      return { name: first.name, size: first.size, count: g.length, files: members, reclaimable };
+    })
+    .filter((d): d is NonNullable<typeof d> => d !== null);
 
   const reclaimableBytes = orphanBytes + duplicates.reduce((s, d) => s + d.reclaimable, 0);
 

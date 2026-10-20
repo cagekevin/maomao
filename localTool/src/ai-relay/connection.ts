@@ -146,20 +146,20 @@ export async function testConnection(
 
 export interface BalanceResult {
   /** 余额文本，如 "1100 积分" 或 "58.20 USD"；查询不到时为 undefined */
-  balance?: string;
+  balance?: string | undefined;
   /** 该厂商原型阶段暂未实现余额查询 */
-  unsupported?: boolean;
+  unsupported?: boolean | undefined;
   /** 查询失败原因 */
-  error?: string;
+  error?: string | undefined;
 }
 
 function readErrorMessage(payload: unknown): string | undefined {
   if (!isRecord(payload)) return undefined;
-  if (typeof payload.message === 'string') return payload.message;
-  if (typeof payload.errorMessage === 'string') return payload.errorMessage;
-  if (typeof payload.error === 'string') return payload.error;
-  if (isRecord(payload.error) && typeof payload.error.message === 'string')
-    return payload.error.message;
+  if (typeof payload['message'] === 'string') return payload['message'];
+  if (typeof payload['errorMessage'] === 'string') return payload['errorMessage'];
+  if (typeof payload['error'] === 'string') return payload['error'];
+  if (isRecord(payload['error']) && typeof payload['error']['message'] === 'string')
+    return payload['error']['message'];
   return undefined;
 }
 
@@ -205,14 +205,16 @@ async function fetchRunninghubBalance(
       return { error: msg ? `HTTP ${res.response.status}: ${msg}` : `HTTP ${res.response.status}` };
     }
     const record = isRecord(data) ? data : {};
-    if (record.code !== 0) {
-      return { error: typeof record.msg === 'string' ? record.msg : `code=${String(record.code)}` };
+    if (record['code'] !== 0) {
+      return {
+        error: typeof record['msg'] === 'string' ? record['msg'] : `code=${String(record['code'])}`,
+      };
     }
-    const d = isRecord(record.data) ? record.data : {};
+    const d = isRecord(record['data']) ? record['data'] : {};
     const parts: string[] = [];
-    if (typeof d.remainCoins === 'number') parts.push(`${d.remainCoins} 积分`);
-    if (typeof d.currentTaskCounts === 'number' && d.currentTaskCounts !== 0) {
-      parts.push(`${d.currentTaskCounts} 任务运行中`);
+    if (typeof d['remainCoins'] === 'number') parts.push(`${d['remainCoins']} 积分`);
+    if (typeof d['currentTaskCounts'] === 'number' && d['currentTaskCounts'] !== 0) {
+      parts.push(`${d['currentTaskCounts']} 任务运行中`);
     }
     return { balance: parts.join('，') || undefined };
   } catch (err) {

@@ -237,7 +237,8 @@ export function getProviderDefinitions(): ProviderDefinition[] {
 
 export function getProviderDefinition(
   providerId: string,
-  config?: string | { catalogId?: string } | null,
+  // 【P6 · eop A 类】调用方直接传 `ConnectionConfig`（`catalogId?: string | undefined`）⇒ 声明处认下。
+  config?: string | { catalogId?: string | undefined } | null,
 ): ProviderDefinition | undefined {
   const catalogId = config && typeof config === 'object' ? config.catalogId : config;
   return PROVIDER_DEFINITION_MAP.get(catalogId || providerId);

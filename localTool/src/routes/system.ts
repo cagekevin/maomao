@@ -11,7 +11,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { json, parseJsonBody, sendError } from '../utils/helpers.js';
 import { VERSION } from '../version.js';
 
-const PORT = Number(process.env.PORT) || 18080;
+const PORT = Number(process.env['PORT']) || 18080;
 
 // GET /api/status ──
 export async function handleStatus(_req: IncomingMessage, res: ServerResponse): Promise<void> {
@@ -32,8 +32,8 @@ export async function handleJianyingSend(req: IncomingMessage, res: ServerRespon
   }
 
   // 形态 ②：批量 {items: [{fileUrl, localPath}]}
-  if (body.items && Array.isArray(body.items)) {
-    const items = body.items as Array<{ fileUrl?: string; localPath?: string }>;
+  if (body['items'] && Array.isArray(body['items'])) {
+    const items = body['items'] as Array<{ fileUrl?: string; localPath?: string }>;
     console.log(`[jianying] 批量发送 ${items.length} 个文件到剪映`);
 
     // 实际剪映集成需要通过剪映的插件 API 或剪映草稿目录

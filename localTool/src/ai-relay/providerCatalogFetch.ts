@@ -34,8 +34,8 @@ function readCatalogItems(payload: unknown): unknown[] {
   if (Array.isArray(payload)) return payload;
   if (!payload || typeof payload !== 'object') return [];
   const record = payload as Record<string, unknown>;
-  if (Array.isArray(record.data)) return record.data;
-  if (Array.isArray(record.models)) return record.models;
+  if (Array.isArray(record['data'])) return record['data'];
+  if (Array.isArray(record['models'])) return record['models'];
   return [];
 }
 
@@ -46,12 +46,12 @@ function parseCatalogItem(item: unknown, providerId: string): CatalogModel | nul
   }
   if (!item || typeof item !== 'object') return null;
   const record = item as Record<string, unknown>;
-  const rawId = record.id ?? record.model ?? record.model_id;
+  const rawId = record['id'] ?? record['model'] ?? record['model_id'];
   if (typeof rawId !== 'string' || !rawId.trim()) return null;
   const id = rawId.trim();
-  const rawName = record.name ?? record.display_name ?? record.displayName;
+  const rawName = record['name'] ?? record['display_name'] ?? record['displayName'];
   const name = typeof rawName === 'string' && rawName.trim() ? rawName.trim() : id;
-  const supportsImageInput = record.supports_image === true || record.supportsImage === true;
+  const supportsImageInput = record['supports_image'] === true || record['supportsImage'] === true;
   return {
     id,
     name,

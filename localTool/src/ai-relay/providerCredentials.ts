@@ -42,7 +42,8 @@ export function readEnvValues(providerId: string, definition?: ProviderDefinitio
 export function resolveAuth(
   providerId: string,
   definition?: ProviderDefinition,
-): { auth?: AuthConfig; apiKey?: string; missing: boolean } {
+  // 【P6 · eop A 类】调用方把 `primary || undefined` 直接写进返回值，消费方只判 truthy ⇒ 声明处认下。
+): { auth?: AuthConfig | undefined; apiKey?: string | undefined; missing: boolean } {
   const values = readEnvValues(providerId, definition);
   const primary = values[0] || '';
   const declared = definition?.auth;
