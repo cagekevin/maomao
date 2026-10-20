@@ -1,7 +1,7 @@
 {
   "_comment": "非空断言存量基线（唯一账本）。只允许通过 `node scripts/check-nonnull.mjs --update` 下调；禁止手改数字。",
-  "generatedAt": "2026-10-20T04:19:54.752Z",
-  "total": 682,
+  "generatedAt": "2026-10-20T04:27:10.560Z",
+  "total": 629,
   "byFile": {
     "tests/unit/addNodeConcurrency.test.tsx": 2,
     "tests/unit/agentLogic.test.ts": 19,
@@ -12,7 +12,7 @@
     "tests/unit/agentRuntime.test.ts": 17,
     "tests/unit/assistantTable.memory.test.ts": 4,
     "tests/unit/assistantTable.property.test.ts": 5,
-    "tests/unit/assistantTable.test.ts": 55,
+    "tests/unit/assistantTable.test.ts": 2,
     "tests/unit/asyncGuard.test.ts": 2,
     "tests/unit/autoSync.test.ts": 2,
     "tests/unit/canvasAgentTools.test.ts": 28,
