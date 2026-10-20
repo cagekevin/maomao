@@ -186,14 +186,14 @@ describe('M1.2 整快照 → 通道 key（snapshotToChannelKeys）', () => {
       rotation: [0, 0.25, 0],
       scale: [1, 1, 1],
     });
-    expect(Object.keys(at(channelOf(keys, 'action'), 0).fields!).sort()).toEqual([
-      'pose',
-      'poseTime',
-    ]);
-    expect(Object.keys(at(channelOf(keys, 'skeleton'), 0).fields!).sort()).toEqual([
-      'joints',
-      'rigRoot',
-    ]);
+    expect(
+      Object.keys(must(at(channelOf(keys, 'action'), 0).fields, 'action 通道 key.fields')).sort(),
+    ).toEqual(['pose', 'poseTime']);
+    expect(
+      Object.keys(
+        must(at(channelOf(keys, 'skeleton'), 0).fields, 'skeleton 通道 key.fields'),
+      ).sort(),
+    ).toEqual(['joints', 'rigRoot']);
     // 反例：transform.fields 里不得出现动作/骨骼字段
     // objectState（continuousMotion）不进任何通道（47）
     expect(must(at(channelOf(keys, 'action'), 0).fields, 'at')['continuousMotion']).toBeUndefined();
@@ -354,21 +354,24 @@ describe('M1-C6 旧整快照无损迁移 → 播放逐帧一致', () => {
   });
 
   it('整工程 normalizeProjectData：旧数据迁移为通道结构', () => {
-    const project = must(normalizeProjectData({
-      version: 17,
-      settings: { fps: 24, durationSeconds: 15 },
-      shots: [
-        {
-          id: 'shot-01',
-          name: '镜头 01',
-          objects: [person, box],
-          camera: initialCamera,
-          keyframes: legacyCamKeys,
-          objectKeyframes: { 'actor-lead': legacyPersonKeys, 'block-stage': legacyBoxKeys },
-          paths: {},
-        },
-      ],
-    }), 'normalizeProjectData');
+    const project = must(
+      normalizeProjectData({
+        version: 17,
+        settings: { fps: 24, durationSeconds: 15 },
+        shots: [
+          {
+            id: 'shot-01',
+            name: '镜头 01',
+            objects: [person, box],
+            camera: initialCamera,
+            keyframes: legacyCamKeys,
+            objectKeyframes: { 'actor-lead': legacyPersonKeys, 'block-stage': legacyBoxKeys },
+            paths: {},
+          },
+        ],
+      }),
+      'normalizeProjectData',
+    );
     expect(project.keyframes['transform']).toBeInstanceOf(Array);
     expect(project.keyframes['lens']).toBeInstanceOf(Array);
     expect(channelOf(trackOf(project.objectKeyframes, 'actor-lead'), 'action')).toBeInstanceOf(
@@ -470,7 +473,9 @@ describe('归一化与通道化工具（幂等/统计/clamp/写入口）', () =>
     const overwrite = { ...at(legacyPersonKeys, 0), position: [9, 9, 9] };
     channels = upsertChannelKeys(channels, snapshotToChannelKeys('person', overwrite, 0, 'smooth'));
     expect(countChannelKeyframes(channels)).toBe(2);
-    expect(must(at(channelOf(channels, 'transform'), 0).fields, 'at')['position']).toEqual([9, 9, 9]);
+    expect(must(at(channelOf(channels, 'transform'), 0).fields, 'at')['position']).toEqual([
+      9, 9, 9,
+    ]);
   });
 
   it('removeChannelFrames：从所有通道删除指定帧', () => {

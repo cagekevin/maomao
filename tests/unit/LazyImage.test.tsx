@@ -129,11 +129,11 @@ describe('LazyImage — 降级与兜底', () => {
 
     // ① 小图失败 → 回退原图，且**回退地址必须是归一后的可加载地址**
     //（回归教训：直接回退裸相对 `/files/…` 会让 <img> 在画布页 5180 上 404 → 缩略图变「加载失败」）
-    fireEvent.error(img()!);
+    fireEvent.error(must(img(), '加载态 <img> 元素'));
     expect(img()?.getAttribute('src')).toBe(toAbsoluteFileUrl('/files/web/a.webp'));
 
     // ② 原图也失败 → 才显式占位
-    fireEvent.error(img()!);
+    fireEvent.error(must(img(), '加载态 <img> 元素'));
     expect(document.querySelector('img')).toBeNull();
     expect(screen.getByText('图片加载失败')).toBeTruthy();
   });

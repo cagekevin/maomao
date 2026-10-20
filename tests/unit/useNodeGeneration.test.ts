@@ -73,7 +73,9 @@ vi.mock('../../src/components/base/core/event/toastStore.ts', async (importOrigi
   showToast: showToastMock,
 }));
 
+import { must } from '../helpers/must';
 import { useNodeGeneration } from '../../src/hooks/useNodeGeneration.ts';
+import type { NodeGenerationStartResult } from '../../src/hooks/useNodeGeneration.ts';
 
 const baseProps = {
   nodeId: 'n1',
@@ -95,11 +97,13 @@ describe('useNodeGeneration — resultKey 声明式写回（唯一写回路径�
 
   it('非破坏：默认不传时成功路径不自动写 node.data', async () => {
     const { result } = renderHook(() => useNodeGeneration(baseProps));
-    let ok;
+    let ok: NodeGenerationStartResult | false | undefined;
     await act(async () => {
       ok = await result.current.start();
     });
-    expect(ok!.ok).toBe(true);
+    const started = must(ok, 'start() 返回值');
+    if (started === false) throw new Error('start() 未触发（loading 忙 / 校验不过）');
+    expect(started.ok).toBe(true);
     expect(patchDataMock).not.toHaveBeenCalled();
   });
 

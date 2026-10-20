@@ -38,12 +38,15 @@ describe('路径归一化 normalizeShotPaths / normalizeCameraPath', () => {
       { x: 1, y: 0.6, z: 2 },
       { x: 3, y: 0.6, z: 4 },
     ];
-    const path = must(normalizeCameraPath({
-      points: drawn,
-      startFrame: 0,
-      endFrame: 360,
-      keyframeCount: 5,
-    }), 'normalizeCameraPath');
+    const path = must(
+      normalizeCameraPath({
+        points: drawn,
+        startFrame: 0,
+        endFrame: 360,
+        keyframeCount: 5,
+      }),
+      'normalizeCameraPath',
+    );
     expect(path.points).toEqual(drawn);
     expect(path.startFrame).toBe(0);
     expect(path.endFrame).toBe(360);
@@ -59,7 +62,10 @@ describe('路径归一化 normalizeShotPaths / normalizeCameraPath', () => {
   });
 
   it('endFrame 不允许小于 startFrame+1', () => {
-    const path = must(normalizeCameraPath({ points: straightPoints, startFrame: 100, endFrame: 50 }), 'normalizeCameraPath');
+    const path = must(
+      normalizeCameraPath({ points: straightPoints, startFrame: 100, endFrame: 50 }),
+      'normalizeCameraPath',
+    );
     expect(path.endFrame).toBe(101);
   });
 
@@ -184,7 +190,7 @@ describe('沿弧长匀速回放 pathPositionAtFraction', () => {
   it('切线为归一化单位向量', () => {
     const tangent = must(pathTangentAtFraction(path, 0.5), 'pathTangentAtFraction');
     expect(tangent).not.toBeNull();
-    expect(Math.hypot(...tangent!)).toBeCloseTo(1, 3);
+    expect(Math.hypot(...tangent)).toBeCloseTo(1, 3);
   });
 });
 

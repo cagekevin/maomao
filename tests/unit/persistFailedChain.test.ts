@@ -16,6 +16,7 @@
  * 本测试用【真实 storageAdapter.sSet】（不 mock），模拟 localStorage.setItem 抛错，
  * 锁死上面两条返回事实（避免再靠猜 / 再靠总线）。
  */
+import { must } from '../helpers/must';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 // 用真实 contentStore/storageAdapter；只替换最小外部依赖（fetch 可控、logger 静默）。
@@ -58,7 +59,9 @@ describe('KV 降级链：降级与失败以返回值给全（原 persist:failed 
     const outcome = await contentSetAsync(CONTENT_STATE_KEY, { nodes: [{ id: '1' }] });
     expect(outcome).toEqual({ ok: true, landed: 'local' });
     // storageAdapter.sSet 带 yimao: 前缀，故按拼接后的真实 key 读降级副本确实落盘
-    expect(JSON.parse(localStorage.getItem('yimao:' + CONTENT_STATE_KEY)!)).toEqual({
+    expect(
+      JSON.parse(must(localStorage.getItem('yimao:' + CONTENT_STATE_KEY), '降级副本')),
+    ).toEqual({
       nodes: [{ id: '1' }],
     });
   });

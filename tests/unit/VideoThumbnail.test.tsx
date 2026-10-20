@@ -40,7 +40,7 @@ describe('VideoThumbnail — 视频加载失败必须可见', () => {
 
   it('换 src → 失败态复位（重新尝试新素材，不让旧 failed 粘住新源）', () => {
     const { rerender } = render(<VideoThumbnail src="/files/c.mp4" />);
-    fireEvent.error(document.querySelector('video')!);
+    fireEvent.error(must(document.querySelector('video'), 'video 元素'));
     expect(screen.getByText('视频加载失败')).toBeTruthy();
 
     rerender(<VideoThumbnail src="/files/d.mp4" />);

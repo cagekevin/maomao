@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { at } from '../helpers/at';
+import { must } from '../helpers/must';
 import {
   FOLDERS,
   libraryFoldersOf,
@@ -202,7 +203,7 @@ describe('resourceStore P4 落盘节流', () => {
     removeResource(at(getResources(), 0).id);
     expect(localStorage.getItem(STORAGE_KEY)).toBeNull();
     vi.advanceTimersByTime(300);
-    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY)!);
+    const saved = JSON.parse(must(localStorage.getItem(STORAGE_KEY), '落盘内容'));
     expect(Array.isArray(saved)).toBe(true);
     // 窗口内 3 次变更合并为最终态：加了 2 个、删了 1 个 → 只剩 1 个
     expect(saved).toHaveLength(1);
@@ -214,7 +215,7 @@ describe('resourceStore P4 落盘节流', () => {
     expect(localStorage.getItem(STORAGE_KEY)).toBeNull();
     resourceFlushPersist();
     expect(localStorage.getItem(STORAGE_KEY)).not.toBeNull();
-    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY)!);
+    const saved = JSON.parse(must(localStorage.getItem(STORAGE_KEY), '落盘内容'));
     expect(saved).toHaveLength(1);
   });
 

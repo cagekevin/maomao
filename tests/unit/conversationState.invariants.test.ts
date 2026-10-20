@@ -138,9 +138,10 @@ describe('validateConversation · 错误注入（I2/S1/S3/S4/P4）', () => {
 
 describe('validateMemory / validateWorkflow', () => {
   it('validateMemory：健康记忆 → 无违规；非 string 契约 → S4', () => {
-    expect(validateMemory(validConv().memory!)).toEqual([]);
+    expect(validateMemory(must(validConv().memory, 'memory'))).toEqual([]);
     const bad = validConv();
-    must(must(bad.memory, 'memory').global_contract, 'must').unified_style_prompt = 5 as unknown as string;
+    must(must(bad.memory, 'memory').global_contract, 'must').unified_style_prompt =
+      5 as unknown as string;
     expect(errs(validateMemory(must(bad.memory, 'memory')))).toContain('S4');
   });
 

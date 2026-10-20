@@ -12,6 +12,7 @@
  */
 import 'react';
 import { at } from '../helpers/at';
+import { must } from '../helpers/must';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render } from '@testing-library/react';
 import { fireEvent } from '@testing-library/react';
@@ -43,7 +44,10 @@ describe('CustomHandle — 变体与定位', () => {
   function setup(props: CustomHandleProps) {
     const view = render(<CustomHandle {...props} />);
     // querySelector 默认返回 Element（无 style 属性），用泛型收窄到 HTMLElement
-    const wrap = view.container.querySelector<HTMLElement>('.cust-handle-wrap')!;
+    const wrap = must(
+      view.container.querySelector<HTMLElement>('.cust-handle-wrap'),
+      '.cust-handle-wrap 容器',
+    );
     return { view, wrap };
   }
 
@@ -114,7 +118,10 @@ describe('CustomHandle — 鼠标追踪（--cust-shift-x/y）', () => {
   function setup(props: CustomHandleProps) {
     const view = render(<CustomHandle {...props} />);
     // querySelector 默认返回 Element（无 style 属性），用泛型收窄到 HTMLElement
-    const wrap = view.container.querySelector<HTMLElement>('.cust-handle-wrap')!;
+    const wrap = must(
+      view.container.querySelector<HTMLElement>('.cust-handle-wrap'),
+      '.cust-handle-wrap 容器',
+    );
     return { view, wrap };
   }
 

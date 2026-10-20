@@ -6,6 +6,7 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { at } from '../helpers/at';
+import { must } from '../helpers/must';
 import { renderHook, act } from '@testing-library/react';
 
 const setNodesMock = vi.hoisted(() => vi.fn());
@@ -23,7 +24,7 @@ describe('useNodeData — patchData', () => {
       { id: 'n1', data: { a: 1 } },
       { id: 'n2', data: { a: 9 } },
     ];
-    let updater;
+    let updater: ((nodes: unknown[]) => unknown) | undefined;
     setNodesMock.mockImplementation((u) => {
       updater = u;
     });
@@ -33,7 +34,7 @@ describe('useNodeData — patchData', () => {
     // setNodes 应收到「函数式更新器」，才能做不可变局部更新
     expect(typeof updater).toBe('function');
 
-    const next = updater!(ns);
+    const next = must(updater, 'setNodes 函数式更新器')(ns);
     expect(next).not.toBe(ns);
     if (!Array.isArray(next)) throw new Error('updater 应返回数组');
     expect(at(next, 0)).toEqual({ id: 'n1', data: { a: 1, b: 2 } });
@@ -46,7 +47,7 @@ describe('useNodeData — patchDebounced', () => {
 
   it('防抖：连续多次调用不立即写，flush 后只写最后一次', () => {
     const ns = [{ id: 'n1', data: { a: 1 } }];
-    let updater;
+    let updater: ((nodes: unknown[]) => unknown) | undefined;
     setNodesMock.mockImplementation((u) => {
       updater = u;
     });
@@ -61,7 +62,9 @@ describe('useNodeData — patchDebounced', () => {
 
     act(() => result.current.patchDebounced.flush());
     expect(typeof updater).toBe('function');
-    expect(updater!(ns)[0].data).toEqual({ a: 3 }); // 只写最后一次
+    const out = must(updater, 'setNodes 函数式更新器')(ns);
+    if (!Array.isArray(out)) throw new Error('updater 应返回数组');
+    expect(at(out, 0).data).toEqual({ a: 3 }); // 只写最后一次
   });
 });
 
@@ -70,12 +73,17 @@ describe('useNodeData — 字典 GC（TD-05-13 · I1：孤儿字典项不得随�
 
   /** 挂好 updater，返回「跑一次 updater」的闭包 */
   const mount = (id = 'n1') => {
-    let updater;
+    let updater: ((nodes: unknown[]) => unknown) | undefined;
     setNodesMock.mockImplementation((u) => {
       updater = u;
     });
     const { result } = renderHook(() => useNodeData(id));
-    return { result, run: (ns: unknown[]) => updater!(ns) };
+    const run = (ns: unknown[]) => {
+      const out = must(updater, 'setNodes 函数式更新器')(ns);
+      if (!Array.isArray(out)) throw new Error('updater 应返回数组');
+      return out;
+    };
+    return { result, run };
   };
 
   it('写 prompt 时裁掉已删胶囊的孤儿字典项', () => {

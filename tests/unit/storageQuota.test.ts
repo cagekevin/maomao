@@ -70,7 +70,7 @@ describe('storageQuota.estimateBrowserStorage', () => {
 
   it('quota 为 0：ratio 为 0（防除零，真实边界）', async () => {
     vi.stubGlobal('navigator', { storage: { estimate: async () => ({ usage: 5, quota: 0 }) } });
-    expect((await estimateBrowserStorage())!.ratio).toBe(0);
+    expect(must(await estimateBrowserStorage(), 'estimateBrowserStorage()').ratio).toBe(0);
   });
 });
 
@@ -148,8 +148,18 @@ describe('storageQuota.analyzeStorageByKeys（按键画像）', () => {
     expect(must(r, 'r').totalKeys).toBe(3);
     // 3 个 domain，按 bytes 降序（agent 键最长 → 最大，其次 settings、project）
     expect(must(r, 'r').domains.map((d) => d.domain)).toEqual(['agent', 'settings', 'project']);
-    expect(must(must(r, 'r').domains.find((d) => d.domain === 'project'), 'must').keys).toBe(1);
-    expect(must(must(r, 'r').domains.find((d) => d.domain === 'settings'), 'must').label).toBe('应用设置');
+    expect(
+      must(
+        must(r, 'r').domains.find((d) => d.domain === 'project'),
+        'must',
+      ).keys,
+    ).toBe(1);
+    expect(
+      must(
+        must(r, 'r').domains.find((d) => d.domain === 'settings'),
+        'must',
+      ).label,
+    ).toBe('应用设置');
   });
 
   it('非业务键（无 yimao: 前缀）也计入，归 unknown 或各自 domain', async () => {

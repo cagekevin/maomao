@@ -132,11 +132,14 @@ const legacyMixedTrack = [
 ];
 
 const migrateMixed = () =>
-  must(normalizeObjectTracks(
-    { 'actor-lead': legacyMixedTrack },
-    { 'actor-lead': 'person' },
-    { 'actor-lead': must(straightPath, 'straightPath') },
-  )['actor-lead'], 'normalizeObjectTracks');
+  must(
+    normalizeObjectTracks(
+      { 'actor-lead': legacyMixedTrack },
+      { 'actor-lead': 'person' },
+      { 'actor-lead': must(straightPath, 'straightPath') },
+    )['actor-lead'],
+    'normalizeObjectTracks',
+  );
 
 // ---- M4-C1 统一写入口 ----
 
@@ -293,18 +296,16 @@ describe('M4-C2/C6 混合 legacy 轨迁移', () => {
     // ①路径帧无姿态残留：fields 只有 position（剥掉 pose/joints/rigRoot/rotation/scale）
     for (const pathFrame of [0, 60, 120, 180, 240]) {
       const key = transform.find((k) => k.frame === pathFrame);
-      expect(Object.keys(must(key, 'key').fields!)).toEqual(['position']);
-      expect(must(must(key, 'key').fields, 'must')['position']).toEqual([(pathFrame * 10) / 240, 0, 0]);
+      const fields = must(must(key, `frame ${pathFrame} 的 key`).fields, '路径帧 fields');
+      expect(Object.keys(fields)).toEqual(['position']);
+      expect(fields['position']).toEqual([(pathFrame * 10) / 240, 0, 0]);
     }
     // ②手动帧字段完整迁入 transform 通道
     const manualTransform = transform.find((k) => k.frame === 24);
-    expect(Object.keys(must(manualTransform, 'manualTransform').fields!).sort()).toEqual([
-      'position',
-      'rotation',
-      'scale',
-    ]);
-    expect(must(must(manualTransform, 'manualTransform').fields, 'must')['position']).toEqual([100, 0, 100]);
-    expect(must(must(manualTransform, 'manualTransform').fields, 'must')['scale']).toEqual([1.2, 1, 1]);
+    const manualFields = must(must(manualTransform, 'frame 24 手动帧').fields, '手动帧 fields');
+    expect(Object.keys(manualFields).sort()).toEqual(['position', 'rotation', 'scale']);
+    expect(manualFields['position']).toEqual([100, 0, 100]);
+    expect(manualFields['scale']).toEqual([1.2, 1, 1]);
     // ②手动帧完整迁入 action/skeleton 通道（continuousMotion 是 objectState，不落通道，见 47）
     expect(at(channelOf(migrated, 'action'), 0)).toEqual({
       frame: 24,
