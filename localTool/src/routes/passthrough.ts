@@ -77,7 +77,7 @@
  */
 
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { Writable } from 'node:stream';
+import { Readable, Writable } from 'node:stream';
 import { sendError } from '../utils/helpers.js';
 import { readOfficialBase } from './official.js';
 import { HOP_BY_HOP, maskToken, logTs, stripHopByHop } from '../utils/relayHeaders.js';
@@ -219,7 +219,9 @@ export async function handlePassthrough(
       {
         method,
         headers: buildForwardHeaders(req, targetUrl),
-        body: hasBody ? (req as unknown as ReadableStream) : undefined,
+        // IncomingMessage → 真 Web ReadableStream（Node 官方适配器）。旧写法用双重断言把 Node 流
+        // 直接当 ReadableStream 传，只是让编译器闭嘴；运行时在 .pipeTo / getReader 处会炸。
+        body: hasBody ? Readable.toWeb(req) : undefined,
         // Node 18+ 用请求流做 body 时必须显式声明半双工，否则报 duplex 错误
         ...(hasBody ? { duplex: 'half' } : {}),
         redirect: 'manual', // 重定向原样回传给前端，由前端决定跟不跟（保留 Set-Cookie 语义）

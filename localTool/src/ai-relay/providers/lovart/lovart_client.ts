@@ -32,8 +32,12 @@ export interface LovartClientDeps {
   projectCacheFile?: string | undefined;
 }
 
-/** 剥 {code,data} 信封并做 code≠0 检。 */
-async function parseEnvelope(json: any): Promise<any> {
+/** 剥 {code,data} 信封并做 code≠0 检。`errType` 让上传路径也能复用同一份信封判据。 */
+async function parseEnvelope(
+  json: any,
+  errType: string = LOVART_ERR_TYPES.UPSTREAM,
+  fallbackMessage = 'Lovart request failed',
+): Promise<any> {
   if (
     json &&
     typeof json === 'object' &&
@@ -42,11 +46,7 @@ async function parseEnvelope(json: any): Promise<any> {
     json.code !== undefined
   ) {
     // 原样透传上游文案（B13：禁翻译/静默）
-    throw new LovartError(
-      String(json.message ?? 'Lovart request failed'),
-      json.code,
-      LOVART_ERR_TYPES.UPSTREAM,
-    );
+    throw new LovartError(String(json.message ?? fallbackMessage), json.code, errType);
   }
   return json && typeof json === 'object' && 'data' in json && json.data !== undefined
     ? json.data
@@ -140,7 +140,7 @@ export async function uploadLovartFile(
     Buffer.from(tail, 'utf8'),
   ]);
   const transport: LovartTransport = deps.transport ?? stableRequest;
-  const data = await transport({
+  const json = await transport({
     method: 'POST',
     path: LOVART_PATH_PREFIX + '/file/upload',
     body: payload, // Uint8Array → 中央 isBodyInit 透传，不 JSON 化
@@ -150,21 +150,9 @@ export async function uploadLovartFile(
     signal: deps.signal,
     timeoutMs: deps.timeoutMs,
   }).then((r) => r.response.json());
-  if (
-    data &&
-    typeof data === 'object' &&
-    'code' in data &&
-    data.code !== 0 &&
-    data.code !== undefined
-  ) {
-    throw new LovartError(
-      String(data.message ?? '上传失败'),
-      data.code,
-      LOVART_ERR_TYPES.UPLOAD_FAILED,
-    );
-  }
-  const out = (data && typeof data === 'object' && 'data' in data ? data.data : data) as any;
-  const url = out?.url;
+  // 信封剥离与 code≠0 判据与其它接口**同一份实现**（此前这里是内联副本 + 一处 any 转型）
+  const data = await parseEnvelope(json, LOVART_ERR_TYPES.UPLOAD_FAILED, '上传失败');
+  const url = data?.url;
   if (!url) throw new LovartError('上传未返回 CDN URL', -1, LOVART_ERR_TYPES.UPLOAD_FAILED);
   return String(url);
 }

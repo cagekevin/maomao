@@ -17,7 +17,6 @@
 import * as https from 'node:https';
 import net from 'node:net';
 import tls from 'node:tls';
-import { Readable } from 'node:stream';
 
 /** 常见本机代理端口（Clash / ClashX / Clash Verge / V2Ray 等默认端口），按优先级探测 */
 const COMMON_PROXY_PORTS = [7897, 7890, 1087, 1080, 8888, 8118];
@@ -242,43 +241,32 @@ function proxyRequest(proxyUrl: string, targetUrl: string, init?: RequestInit): 
 }
 
 /**
- * fetch Response 兼容最小实现（仅供调用方读 status / ok / headers / arrayBuffer / body / text）。
- * 不做 `implements Response` 严格实现（TS 对 bytes() 返回泛型要求过严），以结构兼容 + 断言转换返回。
+ * 代理隧道拿到的是「已缓冲的整包响应」，这里把它交回标准的 `Response`。
+ *
+ * 【为什么不用手写 mock】旧实现用对象字面量 + 双重断言伪装成 Response，`body` 甚至是
+ * `Readable.from(...)` 冒充的 Web 流 —— 调用方一旦真的 `.body.pipeTo()/getReader()`（passthrough
+ * 的流式回传就是），拿到的并不是 ReadableStream。用真 `Response` 后：body 是真流、`bodyUsed`/
+ * `clone()`/`bytes()` 语义由平台保证，也不再需要任何断言。
+ *
+ * 【单读语义】真 `Response` 的 body 只能消费一次 —— 这正是 fetch 的标准语义（上游真实响应同样如此），
+ * 各调用方（`.arrayBuffer()`／`.json()`／`.body.pipeTo()`）都是单读，不会退化。
+ *
+ * 【空 body 状态码】204/205/304 按 fetch 规范不允许带 body，`Response` 构造器会对非 null body 抛错。
+ * 【状态码越界】1xx（含 101）不是 fetch 可表示的终态，统一按 502 兜底（隧道不承载协议升级）。
  */
 function proxyResponse(status: number, headers: Headers, body: Buffer): Response {
-  const self: Record<string, unknown> = {
-    status,
-    statusText: status === 200 ? 'OK' : `HTTP ${status}`,
-    ok: status >= 200 && status < 300,
-    url: '',
-    redirected: false,
-    type: 'basic',
+  const finalStatus = status >= 200 && status <= 599 ? status : 502;
+  const nullBody = finalStatus === 204 || finalStatus === 205 || finalStatus === 304;
+  // Buffer 的 backing store 是 `ArrayBufferLike`（可能是 SharedArrayBuffer），与 `BodyInit` 要求的
+  // `ArrayBufferView<ArrayBuffer>` 不同 ⇒ 拷进一个普通 Uint8Array。响应体本已整体缓冲，这一次拷贝
+  // 不改变内存量级（相比手写 mock 反而少了一层 Node 流包装）。
+  const bytes = new Uint8Array(body.byteLength);
+  bytes.set(body);
+  return new Response(nullBody ? null : bytes, {
+    status: finalStatus,
+    statusText: finalStatus === 200 ? 'OK' : `HTTP ${finalStatus}`,
     headers,
-    body: Readable.from(body) as unknown as ReadableStream,
-    bodyUsed: false,
-    clone() {
-      return self as unknown as Response;
-    },
-    arrayBuffer() {
-      return Promise.resolve(body.buffer.slice(body.byteOffset, body.byteOffset + body.byteLength));
-    },
-    blob() {
-      return Promise.resolve(new Blob([new Uint8Array(body)]));
-    },
-    json() {
-      return Promise.resolve(JSON.parse(body.toString('utf8')));
-    },
-    text() {
-      return Promise.resolve(body.toString('utf8'));
-    },
-    formData() {
-      return Promise.reject(new Error('Not implemented'));
-    },
-    bytes() {
-      return Promise.resolve(new Uint8Array(body));
-    },
-  };
-  return self as unknown as Response;
+  });
 }
 
 /**

@@ -448,7 +448,9 @@ export function closeDb(): void {
 /** 执行 SQL，返回结果数组 */
 export function queryAll(db: any, sql: string, params: unknown[] = []): any[] {
   const stmt = db.prepare(sql);
-  stmt.bind(params as any[]);
+  // `db` 本身是 any（sql.js 不带类型声明）⇒ 这里的参数转型本身是**空操作**，只让"我在转型"看起来成立。
+  // 删掉后行为不变：绑定值仍是调用方给的 unknown[]。
+  stmt.bind(params);
   const rows: any[] = [];
   while (stmt.step()) {
     rows.push(stmt.getAsObject());
@@ -465,7 +467,7 @@ export function queryOne(db: any, sql: string, params: unknown[] = []): any | un
 
 /** 执行 INSERT/UPDATE/DELETE，返回 { changes } */
 export function run(db: any, sql: string, params: unknown[] = []): { changes: number } {
-  db.run(sql, params as any[]);
+  db.run(sql, params);
   return { changes: db.getRowsModified() };
 }
 
