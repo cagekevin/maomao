@@ -9,6 +9,7 @@
  *   T6 姿势库不进 KV（isProjectPersistenceKey 判定）
  * 策略：纯函数直接断言；externalize 注入 mock save，不依赖真实落盘。
  */
+import { must } from '../helpers/must';
 import { describe, it, expect, vi } from 'vitest';
 import { at } from '../helpers/at';
 import {
@@ -86,9 +87,9 @@ describe('externalizeProjectImages — 写入外置', () => {
       .mockResolvedValueOnce({ ok: true, url: FILES('c') });
     const r = await externalizeProjectImages(baseProject(), save);
     expect(save).toHaveBeenCalledTimes(3);
-    expect(r.project!.reference!.image).toBe(FILES('a'));
-    expect(at(r.project!.shots!, 0).thumbnail).toBe(FILES('b'));
-    expect(at(r.project!.shots!, 1).thumbnail).toBe(FILES('c'));
+    expect(must(r.project, 'project').reference!.image).toBe(FILES('a'));
+    expect(at(must(r.project, 'project').shots!, 0).thumbnail).toBe(FILES('b'));
+    expect(at(must(r.project, 'project').shots!, 1).thumbnail).toBe(FILES('c'));
     expect(r.droppedCount).toBe(3);
     // 无 data: 残留（R4）
     expect(JSON.stringify(r.project)).not.toContain('data:');
@@ -110,7 +111,7 @@ describe('externalizeProjectImages — 写入外置', () => {
     const r = await externalizeProjectImages(proj, save);
     expect(save).not.toHaveBeenCalled();
     expect(r.droppedCount).toBe(0);
-    expect(r.project!.reference!.image).toBe(FILES('already'));
+    expect(must(r.project, 'project').reference!.image).toBe(FILES('already'));
   });
 });
 
@@ -124,8 +125,8 @@ describe('externalizeProjectImages — 后端不可达降级', () => {
       shots: [{ id: 's1', thumbnail: 'data:image/png;base64,t' }],
     };
     const r = await externalizeProjectImages(proj, save);
-    expect(r.project!.reference!.image).toBe(png);
-    expect(at(r.project!.shots!, 0).thumbnail).toBe('data:image/png;base64,t');
+    expect(must(r.project, 'project').reference!.image).toBe(png);
+    expect(at(must(r.project, 'project').shots!, 0).thumbnail).toBe('data:image/png;base64,t');
     expect(r.droppedCount).toBe(0);
   });
 
@@ -133,7 +134,7 @@ describe('externalizeProjectImages — 后端不可达降级', () => {
     // 失败语义：`ok:true` 但 `url === 输入` ⇒ 仍视为失败（保留原值）。
     const save = vi.fn().mockResolvedValue({ ok: true, url: png });
     const r = await externalizeProjectImages({ reference: { image: png }, shots: [] }, save);
-    expect(r.project!.reference!.image).toBe(png);
+    expect(must(r.project, 'project').reference!.image).toBe(png);
     expect(r.droppedCount).toBe(0);
   });
 });
@@ -149,7 +150,7 @@ describe('pickProjectSource — 源选择与迁移判定', () => {
     const pick = pickProjectSource(null, { shots: [{ id: 'ls' }] });
     expect(pick.from).toBe('local');
     expect(pick.migrateToKv).toBe(true);
-    expect(at(pick.project!.shots!, 0)['id']).toBe('ls');
+    expect(at(must(pick.project, 'project').shots!, 0)['id']).toBe('ls');
   });
   it('都空 → null，不回写', () => {
     const pick = pickProjectSource(null, null);

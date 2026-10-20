@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { must } from '../helpers/must';
 import { describe, it, expect } from 'vitest';
 import { at } from '../helpers/at';
 import {
@@ -54,7 +55,7 @@ describe('promptChips 序列化往返', () => {
     expect(chip).not.toBeNull();
     const img = chip.querySelector('.prompt-chip-thumb') as HTMLImageElement | null;
     expect(img).not.toBeNull();
-    expect(img!.src).toBe('http://x/a.png');
+    expect(must(img, 'img').src).toBe('http://x/a.png');
     expect(serializeDOM(root)).toBe(serialized); // 二次序列化稳定
   });
 
@@ -109,7 +110,7 @@ describe('buildChipEl', () => {
     expect(chip.className).toContain('prompt-chip');
     const img = chip.querySelector('.prompt-chip-thumb') as HTMLImageElement | null;
     expect(img).not.toBeNull();
-    expect(img!.src).toBe('http://x/p.png');
+    expect(must(img, 'img').src).toBe('http://x/p.png');
     expect(chip.getAttribute('data-ref-id')).toBe('img-1');
     expect(chip.contentEditable).toBe('false');
   });

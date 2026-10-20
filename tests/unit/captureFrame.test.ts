@@ -5,6 +5,7 @@
  *   (loadeddata) → currentTime setter → seeked → drawImage → toBlob/toDataURL 时序，
  * 断言真实分支（尺寸夹取 / 降采样 / readyState 分支 / 错误文案 / 各失败路径），不是自证式断言。
  */
+import { must } from '../helpers/must';
 import { describe, it, expect, beforeEach } from 'vitest';
 import {
   captureFrame,
@@ -119,7 +120,7 @@ beforeEach(() => {
 /** 驱动一次成功流程：loadeddata → (seek) → draw */
 async function drive(url = 'http://x/v.mp4', atTime = 3, quality?: number) {
   const p = quality === undefined ? captureFrame(url, atTime) : captureFrame(url, atTime, quality);
-  fire(lastVideo!, 'loadeddata');
+  fire(must(lastVideo, 'lastVideo'), 'loadeddata');
   await new Promise((r) => setTimeout(r, 0));
   return p;
 }
@@ -127,9 +128,9 @@ async function drive(url = 'http://x/v.mp4', atTime = 3, quality?: number) {
 describe('captureFrame — 成功路径', () => {
   it('按视频原尺寸绘制，默认 jpeg 质量 0.55，resolve 出 Blob', async () => {
     const blob = await drive('http://x/v.mp4', 3);
-    expect(lastCanvas!.width).toBe(640);
-    expect(lastCanvas!.height).toBe(360);
-    expect(lastCanvas!.drawImageArgs[0]).toEqual([lastVideo, 0, 0, 640, 360]);
+    expect(must(lastCanvas, 'lastCanvas').width).toBe(640);
+    expect(must(lastCanvas, 'lastCanvas').height).toBe(360);
+    expect(must(lastCanvas, 'lastCanvas').drawImageArgs[0]).toEqual([lastVideo, 0, 0, 640, 360]);
     expect(toBlobArgs).toEqual({ mime: 'image/jpeg', quality: 0.55 });
     expect(blob).toBeInstanceOf(Blob);
     expect(blob.type).toBe('image/jpeg');
@@ -137,12 +138,12 @@ describe('captureFrame — 成功路径', () => {
 
   it('自定义质量透传到 toBlob', async () => {
     await drive('http://x/v.mp4', 3, 0.9);
-    expect(toBlobArgs!.quality).toBe(0.9);
+    expect(must(toBlobArgs, 'toBlobArgs').quality).toBe(0.9);
   });
 
   it('atTime 超过时长 → 夹取到 duration-0.01', async () => {
     const p = captureFrame('http://x/v.mp4', 20);
-    const v = lastVideo!;
+    const v = must(lastVideo, 'lastVideo');
     fire(v, 'loadeddata');
     await new Promise((r) => setTimeout(r, 0));
     await p;
@@ -153,9 +154,9 @@ describe('captureFrame — 成功路径', () => {
   it('已在目标时间 → 不 seek，直接绘制', async () => {
     const p = captureFrame('http://x/v.mp4', 0);
     // 目标 = min(0, max(0, 9.99)) = 0，currentTime 初始 0 → 差值 < 0.001 → 立即 draw
-    fire(lastVideo!, 'loadeddata');
+    fire(must(lastVideo, 'lastVideo'), 'loadeddata');
     await p;
-    expect(lastCanvas!.drawImageArgs).toHaveLength(1);
+    expect(must(lastCanvas, 'lastCanvas').drawImageArgs).toHaveLength(1);
   });
 
   it('① 对外行为零变化：完成后释放 src（removeAttribute("src") + load()）', async () => {
@@ -167,7 +168,7 @@ describe('captureFrame — 成功路径', () => {
   it('① 失败路径同样释放 src（不等同不释放）', async () => {
     const p = captureFrame('http://x/bad.mp4', 1);
     const assertion = expect(p).rejects.toThrow('captureFrame: load error');
-    fire(lastVideo!, 'error');
+    fire(must(lastVideo, 'lastVideo'), 'error');
     await assertion;
     expect(removeAttrArgs).toEqual(['src']);
     expect(loadCalls).toBeGreaterThan(0);
@@ -177,7 +178,7 @@ describe('captureFrame — 成功路径', () => {
 describe('captureFrame — 失败路径（失败即 reject，不产出假帧）', () => {
   it('视频尺寸为 0 → reject zero dimensions，不创建 canvas', async () => {
     const p = captureFrame('http://x/v.mp4', 1);
-    const v = lastVideo!;
+    const v = must(lastVideo, 'lastVideo');
     Object.defineProperty(v, 'videoWidth', { value: 0, writable: true, configurable: true });
     fire(v, 'loadeddata');
     await expect(p).rejects.toThrow('captureFrame: zero dimensions');
@@ -186,7 +187,7 @@ describe('captureFrame — 失败路径（失败即 reject，不产出假帧）'
 
   it('加载失败 → reject load error', async () => {
     const p = captureFrame('http://x/bad.mp4', 1);
-    fire(lastVideo!, 'error');
+    fire(must(lastVideo, 'lastVideo'), 'error');
     await expect(p).rejects.toThrow('captureFrame: load error');
   });
 
@@ -195,7 +196,7 @@ describe('captureFrame — 失败路径（失败即 reject，不产出假帧）'
     // 先同步挂上 rejection 断言，再驱动事件（否则 microtask 内 reject 会成 unhandled）
     const p = captureFrame('http://x/v.mp4', 3);
     const assertion = expect(p).rejects.toThrow('captureFrame: no 2d context');
-    fire(lastVideo!, 'loadeddata');
+    fire(must(lastVideo, 'lastVideo'), 'loadeddata');
     await assertion;
   });
 
@@ -203,7 +204,7 @@ describe('captureFrame — 失败路径（失败即 reject，不产出假帧）'
     toBlobBehavior = 'null';
     const p = captureFrame('http://x/v.mp4', 3);
     const assertion = expect(p).rejects.toThrow('图片超出当前设备可处理的范围');
-    fire(lastVideo!, 'loadeddata');
+    fire(must(lastVideo, 'lastVideo'), 'loadeddata');
     await assertion;
   });
 });
@@ -222,9 +223,9 @@ describe('drawVideoFrame — 底层原语（宿主薄包装共用的"怎么读�
     const p = drawVideoFrame(v, { atTime: 2, maxSize: 480 });
     fire(v, 'loadeddata');
     await p;
-    expect(lastCanvas!.width).toBe(480);
-    expect(lastCanvas!.height).toBe(270);
-    expect(lastCanvas!.drawImageArgs[0]).toEqual([v, 0, 0, 480, 270]);
+    expect(must(lastCanvas, 'lastCanvas').width).toBe(480);
+    expect(must(lastCanvas, 'lastCanvas').height).toBe(270);
+    expect(must(lastCanvas, 'lastCanvas').drawImageArgs[0]).toEqual([v, 0, 0, 480, 270]);
   });
 
   it('maxSize=480：竖向超限按比例缩到 270×480', async () => {
@@ -232,8 +233,8 @@ describe('drawVideoFrame — 底层原语（宿主薄包装共用的"怎么读�
     const p = drawVideoFrame(v, { atTime: 2, maxSize: 480 });
     fire(v, 'loadeddata');
     await p;
-    expect(lastCanvas!.width).toBe(270);
-    expect(lastCanvas!.height).toBe(480);
+    expect(must(lastCanvas, 'lastCanvas').width).toBe(270);
+    expect(must(lastCanvas, 'lastCanvas').height).toBe(480);
   });
 
   it('maxSize=800：未超限 → 保持原尺寸（⑤ 的小尺寸素材）', async () => {
@@ -241,8 +242,8 @@ describe('drawVideoFrame — 底层原语（宿主薄包装共用的"怎么读�
     const p = drawVideoFrame(v, { atTime: 2, maxSize: 800 });
     fire(v, 'loadeddata');
     await p;
-    expect(lastCanvas!.width).toBe(640);
-    expect(lastCanvas!.height).toBe(360);
+    expect(must(lastCanvas, 'lastCanvas').width).toBe(640);
+    expect(must(lastCanvas, 'lastCanvas').height).toBe(360);
   });
 
   it('waitForLoad:false（宿主自备元素，⑤ 的路径）→ 不等 loadeddata 直接 seek+draw', async () => {
@@ -250,8 +251,8 @@ describe('drawVideoFrame — 底层原语（宿主薄包装共用的"怎么读�
     const p = drawVideoFrame(v, { atTime: 2, maxSize: 800, waitForLoad: false });
     // 不 fire loadeddata：靠 waitForLoad:false 启动；seeked 由 currentTime setter 的 microtask 触发
     await p;
-    expect(lastCanvas!.width).toBe(800);
-    expect(lastCanvas!.height).toBe(600);
+    expect(must(lastCanvas, 'lastCanvas').width).toBe(800);
+    expect(must(lastCanvas, 'lastCanvas').height).toBe(600);
   });
 
   it('getContext 不带选项（`willReadFrequently` 已删——无宿主读像素，见 JSDoc）', async () => {
@@ -282,9 +283,9 @@ describe('drawVideoFrame — 底层原语（宿主薄包装共用的"怎么读�
     const p = drawVideoFrame(v, { atTime: 2 });
     fire(v, 'loadeddata');
     await p;
-    expect(lastCanvas!.width).toBe(640);
-    expect(lastCanvas!.height).toBe(360);
-    expect(lastCanvas!.drawImageArgs).toHaveLength(1);
+    expect(must(lastCanvas, 'lastCanvas').width).toBe(640);
+    expect(must(lastCanvas, 'lastCanvas').height).toBe(360);
+    expect(must(lastCanvas, 'lastCanvas').drawImageArgs).toHaveLength(1);
   });
 
   it('currentTime 抛异常 + 尺寸为 0 → 以 dimensions 拒绝（缺口证据：无"就绪但 0 尺寸"防御）', async () => {

@@ -1,3 +1,4 @@
+import { must } from '../helpers/must';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { at } from '../helpers/at';
 import { toolOf } from '../helpers/agentTools';
@@ -207,7 +208,7 @@ describe('画布 Agent 工具层 §2.5', () => {
       position: { x: 10, y: 20 },
     });
     expect(r.ok).toBe(true);
-    const node = ctx.getNodes().find((n) => n.id === r.data!.id)!;
+    const node = ctx.getNodes().find((n) => n.id === must(r.data, 'data').id)!;
     expect(node.data['label']).toBe('测试');
     expect(node.position).toEqual({ x: 10, y: 20 });
   });
@@ -232,7 +233,7 @@ describe('画布 Agent 工具层 §2.5', () => {
     const ctx = makeCtx();
     const t = buildCanvasAgentTools(ctx);
     const r = toolOf(t, 'create_node')({ type: 'imageGenerateNode' });
-    const node = ctx.getNodes().find((n) => n.id === r.data!.id)!;
+    const node = ctx.getNodes().find((n) => n.id === must(r.data, 'data').id)!;
     expect(node.width).toBe(420);
   });
 
@@ -249,7 +250,7 @@ describe('画布 Agent 工具层 §2.5', () => {
       resolution: '1080p',
     });
     expect(r.ok).toBe(true);
-    const node = ctx.getNodes().find((n) => n.id === r.data!.id)!;
+    const node = ctx.getNodes().find((n) => n.id === must(r.data, 'data').id)!;
     // 比例写入 data.aspectRatio（ImageGenerate 组件读取）
     expect(node.data['aspectRatio']).toBe('9:16');
     // 分辨率 1080p 映射到 data.imageSize=1K（组件读取 imageSize 而非 resolution）
@@ -267,7 +268,9 @@ describe('画布 Agent 工具层 §2.5', () => {
       type: 'imageGenerateNode',
       resolution: '4K',
     });
-    expect(c1.getNodes().find((n) => n.id === r4.data!.id)!.data['imageSize']).toBe('4K');
+    expect(c1.getNodes().find((n) => n.id === must(r4.data, 'data').id)!.data['imageSize']).toBe(
+      '4K',
+    );
     const c2 = makeCtx();
     const r2 = toolOf(
       buildCanvasAgentTools(c2),
@@ -276,7 +279,9 @@ describe('画布 Agent 工具层 §2.5', () => {
       type: 'imageGenerateNode',
       resolution: '1440p',
     });
-    expect(c2.getNodes().find((n) => n.id === r2.data!.id)!.data['imageSize']).toBe('2K');
+    expect(c2.getNodes().find((n) => n.id === must(r2.data, 'data').id)!.data['imageSize']).toBe(
+      '2K',
+    );
   });
 
   it('create_node 非生图节点不写 aspectRatio/resolution', () => {
@@ -291,7 +296,7 @@ describe('画布 Agent 工具层 §2.5', () => {
       aspectRatio: '9:16',
       resolution: '1080p',
     });
-    const node = ctx.getNodes().find((n) => n.id === r.data!.id)!;
+    const node = ctx.getNodes().find((n) => n.id === must(r.data, 'data').id)!;
     expect(node.data['aspectRatio']).toBeUndefined();
     expect(node.data['imageSize']).toBeUndefined();
   });
@@ -311,7 +316,7 @@ describe('画布 Agent 工具层 §2.5', () => {
     const t = buildCanvasAgentTools(ctx);
     const r = toolOf(t, 'create_node')({ type: 'imageGenerateNode', prompt: '新图' });
     expect(r.ok).toBe(true);
-    const node = ctx.getNodes().find((n) => n.id === r.data!.id)!;
+    const node = ctx.getNodes().find((n) => n.id === must(r.data, 'data').id)!;
     expect(node.position.x).toBe(200 + 420 + 100);
     expect(node.position.y).toBe(300);
   });
@@ -337,7 +342,7 @@ describe('画布 Agent 工具层 §2.5', () => {
     ]);
     const t = buildCanvasAgentTools(ctx);
     const r = toolOf(t, 'create_node')({ type: 'imageGenerateNode' });
-    const node = ctx.getNodes().find((n) => n.id === r.data!.id)!;
+    const node = ctx.getNodes().find((n) => n.id === must(r.data, 'data').id)!;
     expect(node.position.x).toBe(300 + 300 + 100); // 最右边界 600 + 100
     expect(node.position.y).toBe(50); // 最小顶部
   });
@@ -355,7 +360,7 @@ describe('画布 Agent 工具层 §2.5', () => {
     ]);
     const t = buildCanvasAgentTools(ctx);
     const r = toolOf(t, 'create_node')({ type: 'imageGenerateNode', position: { x: 999, y: 888 } });
-    const node = ctx.getNodes().find((n) => n.id === r.data!.id)!;
+    const node = ctx.getNodes().find((n) => n.id === must(r.data, 'data').id)!;
     expect(node.position.x).toBe(999);
     expect(node.position.y).toBe(888);
   });
@@ -943,8 +948,8 @@ describe('画布 Agent 工具层 §2.5', () => {
     expect(mockExecutePlan).toHaveBeenCalledTimes(1);
     const arg = at(mockExecutePlan.mock.calls, 0)[0];
     expect(arg.generations).toHaveLength(1);
-    expect(at(arg.generations!, 0).id).toBe('g1'); // 主通道：gens 取自暂存，非 args
-    expect(at(arg.generations!, 0).prompt).toBe('一只猫'); // 无 global_contract → 不加风格前缀
+    expect(at(must(arg.generations, 'generations'), 0).id).toBe('g1'); // 主通道：gens 取自暂存，非 args
+    expect(at(must(arg.generations, 'generations'), 0).prompt).toBe('一只猫'); // 无 global_contract → 不加风格前缀
     expect(convStore.setActivePendingGenerations).toHaveBeenCalledWith(null); // 执行后清暂存
   });
 
@@ -969,10 +974,14 @@ describe('画布 Agent 工具层 §2.5', () => {
     expect(r.ok).toBe(true);
     const arg = at(mockExecutePlan.mock.calls, 0)[0];
     // 每步按索引解析成自己的 referenceImages
-    expect(at(arg.generations!, 0).referenceImages).toEqual(['http://ref/1.png']);
-    expect(at(arg.generations!, 1).referenceImages).toEqual(['http://ref/2.png']);
+    expect(at(must(arg.generations, 'generations'), 0).referenceImages).toEqual([
+      'http://ref/1.png',
+    ]);
+    expect(at(must(arg.generations, 'generations'), 1).referenceImages).toEqual([
+      'http://ref/2.png',
+    ]);
     // 无索引的步骤不注入 per-step referenceImages（执行器会回退整批共享）
-    expect(at(arg.generations!, 2).referenceImages).toBeUndefined();
+    expect(at(must(arg.generations, 'generations'), 2).referenceImages).toBeUndefined();
   });
 
   it('【对齐大雄 agentLastUserAttachments】本轮无图时 execute_plan 回退用历史 user 图（attachment_indices 精确取）', async () => {
@@ -997,8 +1006,12 @@ describe('画布 Agent 工具层 §2.5', () => {
     expect(r.ok).toBe(true);
     const arg = at(mockExecutePlan.mock.calls, 0)[0];
     // 每步按索引精确取历史图（对齐大雄「本轮无图回退上一轮用户图」）
-    expect(at(arg.generations!, 0).referenceImages).toEqual(['http://hist/1.png']);
-    expect(at(arg.generations!, 1).referenceImages).toEqual(['http://hist/2.png']);
+    expect(at(must(arg.generations, 'generations'), 0).referenceImages).toEqual([
+      'http://hist/1.png',
+    ]);
+    expect(at(must(arg.generations, 'generations'), 1).referenceImages).toEqual([
+      'http://hist/2.png',
+    ]);
   });
 
   it('【对齐大雄 direct_refs】execute_plan 按图编号引用历史/生成图，prompt 里「图N」翻译成「第X张参考图」', async () => {
@@ -1026,9 +1039,11 @@ describe('画布 Agent 工具层 §2.5', () => {
     expect(r.ok).toBe(true);
     const arg = at(mockExecutePlan.mock.calls, 0)[0];
     // prompt 里「图1」「图2」被翻译成「第1张参考图」「第2张参考图」
-    expect(at(arg.generations!, 0).prompt).toContain('把第1张参考图改成红色，第2张参考图保持不变');
+    expect(at(must(arg.generations, 'generations'), 0).prompt).toContain(
+      '把第1张参考图改成红色，第2张参考图保持不变',
+    );
     // referenceImages 精确取 direct_refs 的 url
-    expect(at(arg.generations!, 0).referenceImages).toEqual([
+    expect(at(must(arg.generations, 'generations'), 0).referenceImages).toEqual([
       'http://x/gen1.png',
       'http://x/gen2.png',
     ]);

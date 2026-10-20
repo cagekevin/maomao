@@ -1,3 +1,4 @@
+import { must } from '../helpers/must';
 import { describe, it, expect } from 'vitest';
 import { at } from '../helpers/at';
 
@@ -217,9 +218,13 @@ describe('R3 duplicateSelectedWithEdges 克隆子图（保留组关系 + 连线�
     expect(r.nodes).toHaveLength(7);
     // 克隆的 c1/c2 有新的 parentId（指向克隆的 group），不指向原 group
     const newIds = [...ids].filter((id) => !['g', 'c1', 'c2', 'outer'].includes(id));
-    const cloneC1 = r.nodes!.find((n) => newIds.includes(n.id) && n.type === 'assetNode')!;
-    const cloneC2 = r.nodes!.find((n) => newIds.includes(n.id) && n.type === 'textGenerateNode')!;
-    const cloneG = r.nodes!.find((n) => newIds.includes(n.id) && n.type === 'group')!;
+    const cloneC1 = must(r.nodes, 'nodes').find(
+      (n) => newIds.includes(n.id) && n.type === 'assetNode',
+    )!;
+    const cloneC2 = must(r.nodes, 'nodes').find(
+      (n) => newIds.includes(n.id) && n.type === 'textGenerateNode',
+    )!;
+    const cloneG = must(r.nodes, 'nodes').find((n) => newIds.includes(n.id) && n.type === 'group')!;
     expect(cloneC1.parentId).toBe(cloneG.id);
     expect(cloneC2.parentId).toBe(cloneG.id);
   });
@@ -316,15 +321,15 @@ describe('编组尺寸刷新保真（TASK: 编组后刷新大小变了）', () =
     });
 
   it('group 创建时必须带 width/height 字段（NodeShell.useNodeSize 优先读 width）', () => {
-    const group = grouped!.find((n) => n.id === groupId)!;
+    const group = must(grouped, 'grouped').find((n) => n.id === groupId)!;
     expect(group.width).toBe(780);
     expect(group.height).toBe(530);
-    expect(group.style!.width).toBe(780);
-    expect(group.style!.height).toBe(530);
+    expect(must(group.style, 'style').width).toBe(780);
+    expect(must(group.style, 'style').height).toBe(530);
   });
 
   it('落盘 -> 加载重建后 group 面积不变（防止刷新塌成 0×0）', () => {
-    const snapshot = sanitize(grouped!);
+    const snapshot = sanitize(must(grouped, 'grouped'));
     const lookup = new Map();
     const parentLookup = new Map();
     adoptUserNodes(snapshot as unknown as Node[], lookup, parentLookup, { nodeOrigin: [0, 0] });
@@ -357,7 +362,7 @@ describe('编组尺寸刷新保真（TASK: 编组后刷新大小变了）', () =
         }
         return out;
       });
-    const snapshot = badSanitize(grouped!);
+    const snapshot = badSanitize(must(grouped, 'grouped'));
     const lookup = new Map();
     adoptUserNodes(snapshot as unknown as Node[], lookup, new Map(), { nodeOrigin: [0, 0] });
     const dims = getNodeDimensions(lookup.get(groupId));
@@ -408,7 +413,7 @@ describe('R3 resolveDragGrouping 拖入/拖出落组判定', () => {
     // 传入的 nodes 必须包含被拖拽节点本身（对齐原调用方 nodesRef.current）
     const r = resolveDragGrouping(dragged, [group, outer, dragged]);
     expect(r).not.toBeNull();
-    const moved = r!.find((n) => n.id === 'd')!;
+    const moved = must(r, 'r').find((n) => n.id === 'd')!;
     expect(moved.parentId).toBe('g');
     expect(moved.position).toEqual({ x: 200, y: 200 }); // group 在原点，相对=绝对
   });
@@ -436,7 +441,7 @@ describe('R3 resolveDragGrouping 拖入/拖出落组判定', () => {
     };
     const r = resolveDragGrouping(dragged, [group, child, outer, dragged]);
     expect(r).not.toBeNull();
-    const moved = r!.find((n) => n.id === 'd')!;
+    const moved = must(r, 'r').find((n) => n.id === 'd')!;
     expect(moved.parentId).toBeUndefined();
     expect(moved.extent).toBeUndefined();
     // 原组在原点，绝对=相对 700,700
@@ -461,7 +466,7 @@ describe('R3 resolveDragGrouping 拖入/拖出落组判定', () => {
     };
     const r = resolveDragGrouping(dragged, [inner, group, dragged]);
     expect(r).not.toBeNull();
-    const moved = r!.find((n) => n.id === 'd')!;
+    const moved = must(r, 'r').find((n) => n.id === 'd')!;
     expect(moved.parentId).toBe('inner');
   });
 });

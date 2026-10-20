@@ -3,6 +3,7 @@
  * 遵循 TEST-GUIDE §六「值不值得写」：只锁「用户可感知的真实契约」，
  * 不写「真实流程不会发生」的假边界（缺字段/非法类型/未实现占位）。
  */
+import { must } from '../helpers/must';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { formatBytes, formatBytesParts } from '../../src/components/base/core/utils.ts';
 import {
@@ -90,17 +91,17 @@ describe('storageQuota.estimateChromeStorage', () => {
     chromeGlobal = makeExtensionChrome({ 'yimao:a': 'hello', 'yimao:b': { x: 123 } });
     const r = await estimateChromeStorage();
     expect(r).not.toBeNull();
-    expect(r!.keys).toBe(2);
+    expect(must(r, 'r').keys).toBe(2);
     // 'yimao:a' 键 7 + 'hello' 5；'yimao:b' 键 7 + JSON.stringify({x:123}) '{"x":123}' 9
-    expect(r!.bytes).toBe(7 + 5 + 7 + 9);
+    expect(must(r, 'r').bytes).toBe(7 + 5 + 7 + 9);
   });
 
   it('普通网页（无 chrome）：回退 localStorage 估算', async () => {
     localStorage.setItem('yimao:x', 'abc');
     const r = await estimateChromeStorage();
     expect(r).not.toBeNull();
-    expect(r!.keys).toBe(1);
-    expect(r!.bytes).toBe('yimao:x'.length + 'abc'.length);
+    expect(must(r, 'r').keys).toBe(1);
+    expect(must(r, 'r').bytes).toBe('yimao:x'.length + 'abc'.length);
   });
 
   it('chrome.storage.local.get 抛错：返回 null（降级不崩）', async () => {
@@ -144,11 +145,11 @@ describe('storageQuota.analyzeStorageByKeys（按键画像）', () => {
     localStorage.setItem('yimao:agent_conversations_ca', '[{"m":1}]'); // agent（动态 pattern）
     const r = await analyzeStorageByKeys();
     expect(r).not.toBeNull();
-    expect(r!.totalKeys).toBe(3);
+    expect(must(r, 'r').totalKeys).toBe(3);
     // 3 个 domain，按 bytes 降序（agent 键最长 → 最大，其次 settings、project）
-    expect(r!.domains.map((d) => d.domain)).toEqual(['agent', 'settings', 'project']);
-    expect(r!.domains.find((d) => d.domain === 'project')!.keys).toBe(1);
-    expect(r!.domains.find((d) => d.domain === 'settings')!.label).toBe('应用设置');
+    expect(must(r, 'r').domains.map((d) => d.domain)).toEqual(['agent', 'settings', 'project']);
+    expect(must(r, 'r').domains.find((d) => d.domain === 'project')!.keys).toBe(1);
+    expect(must(r, 'r').domains.find((d) => d.domain === 'settings')!.label).toBe('应用设置');
   });
 
   it('非业务键（无 yimao: 前缀）也计入，归 unknown 或各自 domain', async () => {
@@ -157,8 +158,8 @@ describe('storageQuota.analyzeStorageByKeys（按键画像）', () => {
     localStorage.setItem('other_key', 'xyz'); // 无前缀 → unknown
     const r = await analyzeStorageByKeys();
     expect(r).not.toBeNull();
-    expect(r!.totalKeys).toBe(2);
-    expect(r!.domains.find((d) => d.domain === 'unknown')).toBeTruthy();
+    expect(must(r, 'r').totalKeys).toBe(2);
+    expect(must(r, 'r').domains.find((d) => d.domain === 'unknown')).toBeTruthy();
   });
 
   it('chrome.storage.get 抛错：返回 null（降级不崩）', async () => {

@@ -10,6 +10,7 @@
  *  - IME 组字中不转；
  *  - 共享 value 双实例：焦点实例转 chip，光标不被面板实例抢走。
  */
+import { must } from '../helpers/must';
 import { useState } from 'react';
 import { at } from '../helpers/at';
 import { describe, it, expect } from 'vitest';
@@ -52,8 +53,8 @@ const placeCaretAtEnd = (el: Element) => {
   range.selectNodeContents(el);
   range.collapse(false);
   const sel = document.getSelection();
-  sel!.removeAllRanges();
-  sel!.addRange(range);
+  must(sel, 'sel').removeAllRanges();
+  must(sel, 'sel').addRange(range);
 };
 
 /** 模拟真实打字：字符追加进编辑器末尾的文本节点（光标落在文本节点内，而非元素边界），并派发 input */
@@ -68,8 +69,8 @@ const typeInto = (el: Element, ch: string) => {
   const range = document.createRange();
   range.setStart(last, last.textContent.length);
   range.collapse(true);
-  sel!.removeAllRanges();
-  sel!.addRange(range);
+  must(sel, 'sel').removeAllRanges();
+  must(sel, 'sel').addRange(range);
   fireEvent.input(el);
 };
 
@@ -227,7 +228,7 @@ describe('PromptInput 运行期 @名 自动转芯片', () => {
     // 焦点实例（full）就地转 chip；光标仍留在 full
     expect(chipOf(full, 'img-1')).toBeTruthy();
     const sel = document.getSelection();
-    expect(full.contains(sel!.anchorNode)).toBe(true);
-    expect(panel.contains(sel!.anchorNode)).toBe(false);
+    expect(full.contains(must(sel, 'sel').anchorNode)).toBe(true);
+    expect(panel.contains(must(sel, 'sel').anchorNode)).toBe(false);
   });
 });

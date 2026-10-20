@@ -15,6 +15,7 @@
  * 一次性求值 import.meta.env，无法在单测运行时激活（除非改 src），故不在 hook 层覆盖；
  * demoPlan 纯函数编排已由 demoPlan.test.js 单独覆盖。
  */
+import { must } from '../helpers/must';
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import { at } from '../helpers/at';
 import { renderHook, act, waitFor } from '@testing-library/react';
@@ -875,7 +876,7 @@ describe('useAgentChat · refCatalog（参考图编号目录，对齐大雄 atta
     const allAssetUrls = out
       .flatMap((m) => (Array.isArray(m.content) ? m.content : []))
       .filter((c) => c.type === 'image_url')
-      .map((c) => c.image_url!.url);
+      .map((c) => must(c.image_url, 'image_url').url);
     expect(allAssetUrls).toEqual(['http://x/d.png']);
     // 历史 user 文字也不回传（对齐大雄 messages:[]）
     expect(out.some((m) => m.role === 'user' && m.content === '轮1')).toBe(false);
@@ -1177,7 +1178,7 @@ describe('useAgentChat · parseSSEChunk 深度（SSE 增量解析）', () => {
       'data: {"choices":[{"delta":{"tool_calls":[{"index":1,"id":"c1","function":{"name":"b"}}]}}]}',
       acc,
     );
-    expect(acc.toolCalls.map((t) => t.function!.name)).toEqual(['a', 'b']);
+    expect(acc.toolCalls.map((t) => must(t.function, 'function').name)).toEqual(['a', 'b']);
   });
 
   it('SSE tool_calls 无 name（仅 index）：产生空占位（根因——filter 后为空需判断）', () => {
@@ -1324,9 +1325,9 @@ describe('useAgentChat · 阶段1B 卸载不 abort / 切 key abort', () => {
       result.current.send('挂起任务').catch(() => {});
     });
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
-    expect(capturedSignal!.aborted).toBe(false);
+    expect(must(capturedSignal, 'capturedSignal').aborted).toBe(false);
     unmount(); // 卸载——不得触发 abort（原 cleanup abort 已移除）
-    expect(capturedSignal!.aborted).toBe(false);
+    expect(must(capturedSignal, 'capturedSignal').aborted).toBe(false);
     // 收尾：让挂起的 fetch 正常结束，避免遗留 pending
     act(() => {
       resolveFetch(textStream('卸载后仍完成'));

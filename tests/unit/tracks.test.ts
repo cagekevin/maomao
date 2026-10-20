@@ -7,6 +7,7 @@
 //   - clearObjectTrack：删除对象时随对象清空整条轨道
 //   - 薄封装冒烟：upsert/remove/move/interpolation（对象轨 + 相机轨）
 // 依赖均为纯函数，node 环境可跑（npm run test:unit:logic）。
+import { must } from '../helpers/must';
 import { describe, it, expect } from 'vitest';
 import { at } from '../helpers/at';
 import { channelOf, trackOf } from '../helpers/tracks';
@@ -111,7 +112,7 @@ describe('bakeObjectPath 对象路径烘焙', () => {
       const key = channelOf(trackOf(next, 'actor-lead'), 'transform').find(
         (k) => k.frame === frame,
       )!;
-      expect(Object.keys(key.fields!)).toEqual(['position']);
+      expect(Object.keys(must(key.fields, 'fields'))).toEqual(['position']);
     }
     // 手动帧完整拆进 transform/action/skeleton，动作/骨骼通道不被路径帧触碰
     expect(channelOf(trackOf(next, 'actor-lead'), 'action')).toHaveLength(1);
@@ -146,7 +147,7 @@ describe('bakeCameraPath 相机路径烘焙', () => {
     const camera = { focalLength: 42 };
     const next = bakeCameraPath(
       tracks,
-      straightPath!,
+      must(straightPath, 'straightPath'),
       camera,
       [
         { frame: 0, position: [0, 0, 0] },
@@ -160,8 +161,8 @@ describe('bakeCameraPath 相机路径烘焙', () => {
       .sort((a, b) => a - b);
     expect(transformFrames).toEqual([0, 24, 120]); // 旧路径帧 0/60 被删，新增 0/120，手动帧 24 保留
     const baked = channelOf(next, 'transform').find((k) => k.frame === 120)!;
-    expect(baked.fields!['position']).toEqual([5, 0, 0]);
-    expect(Array.isArray(baked.fields!['rotation'])).toBe(true); // 视线朝切线方向
+    expect(must(baked.fields, 'fields')['position']).toEqual([5, 0, 0]);
+    expect(Array.isArray(must(baked.fields, 'fields')['rotation'])).toBe(true); // 视线朝切线方向
     expect(channelOf(next, 'lens').find((k) => k.frame === 120)!.fields!['focalLength']).toBe(42);
   });
 });

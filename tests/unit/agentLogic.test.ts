@@ -1,3 +1,4 @@
+import { must } from '../helpers/must';
 import { describe, it, expect } from 'vitest';
 import { at } from '../helpers/at';
 import {
@@ -151,9 +152,11 @@ describe('AI 助手 buildRequestMessages（发 LLM 消息组装）§2.15', () =>
     const skillMsg = out.find(
       (m) => m.role === 'system' && String(m.content).includes('本次启用 Skill'),
     );
-    expect(skillMsg!.content).toContain('你是电商设计师');
-    expect(skillMsg!.content).toContain('===== 本次启用 Skill（1 项）开始：电商 =====');
-    expect(skillMsg!.content).toContain('Skill 是你的参考'); // 执行规则随块② 追加
+    expect(must(skillMsg, 'skillMsg').content).toContain('你是电商设计师');
+    expect(must(skillMsg, 'skillMsg').content).toContain(
+      '===== 本次启用 Skill（1 项）开始：电商 =====',
+    );
+    expect(must(skillMsg, 'skillMsg').content).toContain('Skill 是你的参考'); // 执行规则随块② 追加
   });
 
   it('块② 为空 ⇒ **本轮没发 skill**：既不注入 Skill system，也不追加执行规则', () => {
@@ -195,8 +198,8 @@ describe('AI 助手 buildRequestMessages（发 LLM 消息组装）§2.15', () =>
     };
     const out = buildRequestMessages([{ role: 'user', content: 'hi' }], '', true, '', memory);
     const memMsg = out.find((m) => m.role === 'system' && String(m.content).includes('最近策划'));
-    expect(memMsg!.content).toContain('规划说明');
-    expect(memMsg!.content).toContain('主图');
+    expect(must(memMsg, 'memMsg').content).toContain('规划说明');
+    expect(must(memMsg, 'memMsg').content).toContain('主图');
   });
 
   it('用户消息带附件 → 转 image_url 数组', () => {
@@ -208,7 +211,7 @@ describe('AI 助手 buildRequestMessages（发 LLM 消息组装）§2.15', () =>
       null,
     );
     const user = out.find((m) => m.role === 'user');
-    expect(user!.content).toEqual([
+    expect(must(user, 'user').content).toEqual([
       { type: 'image_url', image_url: { url: '/files/a.png' } },
       { type: 'text', text: '看图' },
     ]);
@@ -290,7 +293,7 @@ describe('AI 助手 buildRequestMessages（发 LLM 消息组装）§2.15', () =>
     const out = buildRequestMessages(msgs, '', false);
     const tool = out.find((m) => m.role === 'tool');
     expect(tool).toBeTruthy();
-    expect(tool!.tool_call_id).toBe('c_real');
+    expect(must(tool, 'tool').tool_call_id).toBe('c_real');
     expect(out.find((m) => m.role === 'assistant')?.tool_calls).toHaveLength(1);
   });
 
@@ -322,10 +325,11 @@ describe('AI 助手 buildRequestMessages（发 LLM 消息组装）§2.15', () =>
     const out = buildRequestMessages(msgs, '', false);
     const user = out.find((m) => m.role === 'user');
     // 图片转 image_url（带附件时 content 运行时为内容块数组，此处断言为数组）
-    expect(at(user!.content as unknown as ContentBlock[], 0).type).toBe('image_url');
+    expect(at(must(user, 'user').content as unknown as ContentBlock[], 0).type).toBe('image_url');
     // 坐标文本附加在 content 里，LLM 能感知参考图来自画布哪个位置
     const text =
-      (user!.content as unknown as ContentBlock[]).find((c) => c.type === 'text')?.text || '';
+      (must(user, 'user').content as unknown as ContentBlock[]).find((c) => c.type === 'text')
+        ?.text || '';
     expect(text).toContain('画布坐标 x=100, y=200');
   });
 
@@ -340,7 +344,8 @@ describe('AI 助手 buildRequestMessages（发 LLM 消息组装）§2.15', () =>
     const out = buildRequestMessages(msgs, '', false);
     const user = out.find((m) => m.role === 'user');
     const text =
-      (user!.content as unknown as ContentBlock[]).find((c) => c.type === 'text')?.text || '';
+      (must(user, 'user').content as unknown as ContentBlock[]).find((c) => c.type === 'text')
+        ?.text || '';
     expect(text).not.toContain('画布坐标');
     expect(text).toContain('生成一张图');
   });
@@ -397,8 +402,8 @@ describe('AI 助手 buildRequestMessages（发 LLM 消息组装）§2.15', () =>
     const users = out.filter((m) => m.role === 'user');
     // 历史 user 只保留纯文字，content 是字符串而非 image_url 数组
     const histUser = users.find((u) => u.content === '看这张图');
-    expect(typeof histUser!.content).toBe('string'); // 图未内联（是纯文字，不是 image_url 数组）
-    expect(histUser!.content).not.toContain('image_url');
+    expect(typeof must(histUser, 'histUser').content).toBe('string'); // 图未内联（是纯文字，不是 image_url 数组）
+    expect(must(histUser, 'histUser').content).not.toContain('image_url');
     // 图片只以 imageCatalog 编号形式进 system（图N 机制），供 LLM 引用
     const sys = out.find((m) => m.role === 'system');
     expect(sys?.content).toContain('图1');

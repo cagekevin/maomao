@@ -10,7 +10,8 @@
  * 用法：`const g = must(res.nodes.find((n) => n.id === 'g'), 'group 节点');`
  * 失败信息形如 `期望非空：group 节点`，直接指出用例前提没成立。
  */
-export function must<T>(value: T | null | undefined, what: string): T {
+export function must<T>(value: T | null | undefined, what: string): NonNullable<T> {
   if (value === null || value === undefined) throw new Error(`期望非空：${what}`);
-  return value;
+  // 收窄断言：`T` 可能是 `X | undefined`（声明宽度），走到这里已排除 null/undefined。
+  return value as NonNullable<T>;
 }

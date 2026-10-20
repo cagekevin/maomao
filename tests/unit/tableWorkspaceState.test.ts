@@ -1,3 +1,4 @@
+import { must } from '../helpers/must';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { at } from '../helpers/at';
 import { cellOf, colOf, rowOf } from '../helpers/table';
@@ -71,7 +72,7 @@ function setupConvWithTable() {
   const id = ensureActiveConversation();
   applyConversation(id);
   const sb = parsePasted('景别\t画面\n中景\t原画面');
-  setCurrentAssistantTable(sb!);
+  setCurrentAssistantTable(must(sb, 'sb'));
   return getCurrentAssistantTable();
 }
 
