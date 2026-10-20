@@ -1,7 +1,7 @@
 {
   "_comment": "非空断言存量基线（唯一账本）。只允许通过 `node scripts/check-nonnull.mjs --update` 下调；禁止手改数字。",
-  "generatedAt": "2026-10-20T04:47:29.103Z",
-  "total": 318,
+  "generatedAt": "2026-10-20T05:04:06.969Z",
+  "total": 269,
   "byFile": {
     "tests/unit/agentLogic.test.ts": 7,
     "tests/unit/AgentMessage.test.tsx": 2,
@@ -50,7 +50,6 @@
     "tests/unit/skillLibraryView.test.ts": 3,
     "tests/unit/storageQuota.test.ts": 3,
     "tests/unit/tableInvariants.test.ts": 1,
-    "tests/unit/tableWorkspaceState.test.ts": 26,
     "tests/unit/TaskCenter.test.tsx": 5,
     "tests/unit/taskStore.test.ts": 5,
     "tests/unit/TemplateNode.test.tsx": 1,
@@ -66,7 +65,6 @@
     "tests/unit/VideoExtractNode.test.tsx": 1,
     "tests/unit/VideoGenerate.test.tsx": 2,
     "tests/unit/VideoProcessNode.test.tsx": 1,
-    "tests/unit/VideoThumbnail.test.tsx": 2,
-    "tests/unit/volumePolicy.test.ts": 23
+    "tests/unit/VideoThumbnail.test.tsx": 2
   }
 }

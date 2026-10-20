@@ -16,6 +16,22 @@ import {
   SUMMARY_MAX,
 } from '../../src/components/agent/runtime/volumePolicy.ts';
 
+/**
+ * 本文件的「断言先行」工具：预算结果里的会话/消息按用例前提一定存在，
+ * 缺了**直接 throw**（用例红），不用 `!`、也不提前 return（那会让后续断言被跳过而假绿）。
+ */
+function convAt(r: ReturnType<typeof applyConversationBudget>, i = 0) {
+  return must(must(r.conversations, 'conversations')[i], `conversations[${i}]`);
+}
+
+function keptMessages(r: ReturnType<typeof applyConversationBudget>, i = 0) {
+  return must(convAt(r, i).messages, 'messages');
+}
+
+function keptMessage(r: ReturnType<typeof applyConversationBudget>, i = 0, j = 0) {
+  return must(keptMessages(r, i)[j], `messages[${j}]`);
+}
+
 describe('volumePolicy · truncateTo', () => {
   it('短串原样返回', () => {
     expect(truncateTo('abc', 10)).toBe('abc');
@@ -113,7 +129,7 @@ describe('volumePolicy · 整包预算', () => {
     ];
     const r = applyConversationBudget(convs, 100);
     // 预算 100 字节内必先剥离 streaming，且不被截断正文（正文很短）
-    const kept = must(r.conversations, 'conversations')[0]!.messages!;
+    const kept = keptMessages(r);
     expect(kept.some((m) => m['streaming'])).toBe(false);
     // 非瞬时用户消息应保留
     expect(kept.some((m) => m['role'] === 'user')).toBe(true);
@@ -123,7 +139,7 @@ describe('volumePolicy · 整包预算', () => {
     const convs = [{ id: 'c1', messages: [{ id: 'm1', role: 'user', content: huge }] }];
     const r = applyConversationBudget(convs, 1000);
     expect(r.downgraded).toBe(true);
-    const finalContent = must(r.conversations, 'conversations')[0]!.messages![0]!.content!;
+    const finalContent = must(keptMessage(r).content, 'content');
     expect(finalContent.length).toBeLessThan(1000);
     expect(estimateConversationsBytes(must(r.conversations, 'conversations'))).toBeLessThanOrEqual(
       1000 * 2,
@@ -144,29 +160,25 @@ describe('volumePolicy · 整包预算', () => {
     const convs = [{ id: 'c1', messages: [{ id: 'm1', role: 'user', content }] }];
     const r = applyConversationBudget(convs, MSG_CONTENT_MAX + 1000);
     expect(r.downgraded).toBe(true);
-    expect(must(r.conversations, 'conversations')[0]!.messages![0]!.content!.length).toBe(
-      MSG_CONTENT_MAX,
-    );
+    expect(must(keptMessage(r).content, 'content').length).toBe(MSG_CONTENT_MAX);
   });
   it('tool 结果走更宽的 TOOL_CONTENT_MAX 水位', () => {
     const content = 'x'.repeat(TOOL_CONTENT_MAX + 3000);
     const convs = [{ id: 'c1', messages: [{ id: 'm1', role: 'tool', content }] }];
     const r = applyConversationBudget(convs, TOOL_CONTENT_MAX + 1000);
-    expect(must(r.conversations, 'conversations')[0]!.messages![0]!.content!.length).toBe(
-      TOOL_CONTENT_MAX,
-    );
+    expect(must(keptMessage(r).content, 'content').length).toBe(TOOL_CONTENT_MAX);
   });
   it('memory.summary 截到 SUMMARY_MAX', () => {
     const convs = [{ id: 'c1', memory: { summary: 'y'.repeat(SUMMARY_MAX + 2000) } }];
     const r = applyConversationBudget(convs, SUMMARY_MAX + 500);
-    expect(must(r.conversations, 'conversations')[0]!.memory!.summary!.length).toBe(SUMMARY_MAX);
+    expect(must(must(convAt(r).memory, 'memory').summary, 'summary').length).toBe(SUMMARY_MAX);
   });
   it('未超预算时即使正文超水位也不截断（不白丢数据）', () => {
     const content = 'z'.repeat(MSG_CONTENT_MAX + 5000);
     const convs = [{ id: 'c1', messages: [{ id: 'm1', role: 'user', content }] }];
     const r = applyConversationBudget(convs, 100000);
     expect(r.downgraded).toBe(false);
-    expect(must(r.conversations, 'conversations')[0]!.messages![0]!.content).toBe(content);
+    expect(keptMessage(r).content).toBe(content);
   });
   it('lastResults 去重降级', () => {
     const convs = [
@@ -183,7 +195,7 @@ describe('volumePolicy · 整包预算', () => {
       },
     ];
     const r = applyConversationBudget(convs, 10000);
-    const lr = must(r.conversations, 'conversations')[0]!.messages![0]!.lastResults;
+    const lr = keptMessage(r).lastResults;
     expect(must(lr, 'lr').length).toBe(2);
   });
 });

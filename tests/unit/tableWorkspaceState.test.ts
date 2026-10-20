@@ -43,6 +43,33 @@ import {
   resetTableWorkspace,
 } from '../../src/components/agent/assistantTable/tableWorkspaceState.ts';
 
+/**
+ * 下面四个是本文件的「断言先行」小工具：用例前提要求非空时用它，缺了**直接 throw**（用例红），
+ * 既不用 `!`，也不会像提前 return 那样让后续断言被跳过而假绿。
+ */
+function activeConv() {
+  return must(getActiveConv(), 'getActiveConv()');
+}
+
+function preview() {
+  return must(getTableWorkspace().preview, 'tableWorkspace.preview');
+}
+
+function requirePasted(raw: string) {
+  return must(parsePasted(raw), 'parsePasted');
+}
+
+function requireActiveTab(tabs: Parameters<typeof getActiveTab>[0]) {
+  return must(getActiveTab(tabs), 'getActiveTab(tabs)');
+}
+
+function pickTab(tabs: Parameters<typeof getActiveTab>[0], id: string) {
+  return must(
+    tabs.tabs.find((t) => t.id === id),
+    `tab ${id}`,
+  );
+}
+
 // 会话键已迁 KV：用 Map 兜底让 KV 确定性往返，避免走真实网络（对齐 assistantTable.memory.test.ts）
 const kvStore = new Map();
 vi.mock('../../src/components/base/api/localToolApi.ts', async (importOriginal) => ({
@@ -79,7 +106,7 @@ function setupConvWithTable() {
 /** 追加一条 assistant 消息并返回其 id（confirm/cancel 需要真实 messageId 才能打到 mark） */
 function appendAssistant(content: string): unknown {
   appendMsg({ role: 'assistant', content, createdAt: Date.now() });
-  const msgs = getActiveConv()!.messages as Array<{ id?: unknown }>;
+  const msgs = activeConv().messages as Array<{ id?: unknown }>;
   return at(msgs, msgs.length - 1).id;
 }
 
@@ -149,7 +176,7 @@ describe('tableWorkspaceState — acceptTablePreview 算结果 + confirm 原样�
       messageId: mid,
       selectedRowIds: [rowId],
     });
-    const p = getTableWorkspace().preview!;
+    const p = preview();
     expect(p.opKind).toBe('update');
     expect(p.resultRows).toHaveLength(1); // 预览存「操作后最终表格」
     confirmTablePreview();
@@ -160,13 +187,13 @@ describe('tableWorkspaceState — acceptTablePreview 算结果 + confirm 原样�
     expect(cellOf(after.rows, 0, 1)).toBe('新画面');
     expect(after.rows).toHaveLength(1); // 不新增行
     expect(getTableWorkspace().preview).toBeNull();
-    const msgs = getActiveConv()!.messages as Array<{ tableResolved?: string }>;
+    const msgs = activeConv().messages as Array<{ tableResolved?: string }>;
     expect(at(msgs, msgs.length - 1).tableResolved).toBe('confirmed');
   });
 
   it('多行改（选中 2 行 + AI 回 2 行）→ 两行都更新，未选中行不受影响（验收 2）', () => {
     setupConvWithTable();
-    const sb = parsePasted('景别\t画面\n中景\t原1\n特写\t原2\n全景\t原3')!;
+    const sb = requirePasted('景别\t画面\n中景\t原1\n特写\t原2\n全景\t原3');
     setCurrentAssistantTable(sb);
     const r1 = rowOf(sb.rows, 0).id;
     const r3 = rowOf(sb.rows, 2).id;
@@ -178,7 +205,7 @@ describe('tableWorkspaceState — acceptTablePreview 算结果 + confirm 原样�
       messageId: mid,
       selectedRowIds: [r1, r3],
     });
-    expect(getTableWorkspace().preview!.opKind).toBe('update');
+    expect(preview().opKind).toBe('update');
     confirmTablePreview();
 
     const after = getCurrentAssistantTable();
@@ -191,7 +218,7 @@ describe('tableWorkspaceState — acceptTablePreview 算结果 + confirm 原样�
 
   it('未选中行 + AI 返回行 → append 末尾追加，原有行与列宽不丢（验收 3）', () => {
     setupConvWithTable();
-    const sb = parsePasted('景别\t画面\n中景\t原1\n特写\t原2')!;
+    const sb = requirePasted('景别\t画面\n中景\t原1\n特写\t原2');
     const col0 = colOf(sb.columns, 0);
     setCurrentAssistantTable({ ...sb, columns: [{ ...col0, width: 180 }, colOf(sb.columns, 1)] });
     const mid = appendAssistant('{"rows":[{"景别":"全景","画面":"新增"}]}');
@@ -201,7 +228,7 @@ describe('tableWorkspaceState — acceptTablePreview 算结果 + confirm 原样�
       messageId: mid,
       selectedRowIds: [],
     });
-    const p = getTableWorkspace().preview!;
+    const p = preview();
     expect(p.opKind).toBe('append');
     expect(colOf(p.resultCols, 0).id).toBe(col0.id); // 列 id 保留
     expect(colOf(p.resultCols, 0).width).toBe(180); // 列宽不丢
@@ -216,7 +243,7 @@ describe('tableWorkspaceState — acceptTablePreview 算结果 + confirm 原样�
   it('单行带 _rowIndex（无选中）→ 精准 patch 到对应行，不当列、不整表替换', () => {
     // 先建会话 + 表，再覆盖成一张 3 行表：景别/画面（行序：中景-原1 / 特写-原2 / 全景-原3）
     setupConvWithTable();
-    const sb = parsePasted('景别\t画面\n中景\t原1\n特写\t原2\n全景\t原3')!;
+    const sb = requirePasted('景别\t画面\n中景\t原1\n特写\t原2\n全景\t原3');
     const row2 = rowOf(sb.rows, 1); // 第 2 行：特写/原2
     setCurrentAssistantTable(sb);
     const mid = appendAssistant('{"rows":[{"_rowIndex":2,"画面":"已更新"}]}');
@@ -228,7 +255,7 @@ describe('tableWorkspaceState — acceptTablePreview 算结果 + confirm 原样�
       selectedRowIds: [],
     });
     // 未选中 + AI 有 _rowIndex → 按行号定位该行（update 语义，非 append）
-    const p = getTableWorkspace().preview!;
+    const p = preview();
     expect(p.opKind).toBe('update');
     confirmTablePreview();
 
@@ -241,7 +268,7 @@ describe('tableWorkspaceState — acceptTablePreview 算结果 + confirm 原样�
     expect(cellOf(after.rows, 2, 1)).toBe('原3');
     expect(after.columns.map((c) => c.label)).toEqual(['景别', '画面']); // _rowIndex 不当列
     expect(row2.id).toBe(rowOf(after.rows, 1).id); // 写回的是原第 2 行（id 稳定）
-    const msgs = getActiveConv()!.messages as Array<{ tableResolved?: string }>;
+    const msgs = activeConv().messages as Array<{ tableResolved?: string }>;
     expect(at(msgs, msgs.length - 1).tableResolved).toBe('confirmed');
     expect(getTableWorkspace().preview).toBeNull();
   });
@@ -258,7 +285,7 @@ describe('tableWorkspaceState — acceptTablePreview 算结果 + confirm 原样�
       messageId: mid,
       selectedRowIds: [],
     });
-    const p = getTableWorkspace().preview!;
+    const p = preview();
     expect(p.opKind).toBe('replace');
     expect(p.resultCols.map((c) => c.label)).toEqual(['新列A', '新列B']);
     confirmTablePreview();
@@ -269,7 +296,7 @@ describe('tableWorkspaceState — acceptTablePreview 算结果 + confirm 原样�
     expect(cellOf(after.rows, 0, 0)).toBe('a1');
     // 隔离决策（spec 1.1/2.1）：globalStyle 写当前活动 tab 的 globalStyle，不再写 global_contract
     const tabs = getCurrentAssistantTabs();
-    expect(getActiveTab(tabs)!.globalStyle).toBe('写实电影感');
+    expect(requireActiveTab(tabs).globalStyle).toBe('写实电影感');
     expect(getCurrentGlobalContract()?.unified_style_prompt).toBeUndefined();
     expect(getTableWorkspace().preview).toBeNull();
   });
@@ -286,7 +313,7 @@ describe('tableWorkspaceState — acceptTablePreview 算结果 + confirm 原样�
       messageId: mid,
       selectedRowIds: [rid],
     });
-    const p = getTableWorkspace().preview!;
+    const p = preview();
     expect(p.resultCols.map((c) => c.label)).toEqual(['景别', '画面', '备注']); // 新列在预览
     confirmTablePreview();
 
@@ -309,7 +336,7 @@ describe('tableWorkspaceState — acceptTablePreview 算结果 + confirm 原样�
     });
     // accept 后即使改选/表已变，确认仍写 preview 里的结果（B-003 结构消解）
     setTableWorkspaceRows([]);
-    setCurrentAssistantTable(parsePasted('甲\t乙\nx\ty')!);
+    setCurrentAssistantTable(requirePasted('甲\t乙\nx\ty'));
     confirmTablePreview();
 
     const after = getCurrentAssistantTable();
@@ -335,7 +362,7 @@ describe('tableWorkspaceState — acceptTablePreview 算结果 + confirm 原样�
     const after = getCurrentAssistantTable();
     expect(cellOf(after.rows, 0, 0)).toBe('中景');
     expect(getTableWorkspace().preview).toBeNull();
-    const msgs = getActiveConv()!.messages as Array<{ tableResolved?: string }>;
+    const msgs = activeConv().messages as Array<{ tableResolved?: string }>;
     expect(at(msgs, msgs.length - 1).tableResolved).toBe('cancelled');
   });
 
@@ -360,17 +387,17 @@ describe('多标签页（spec 1.1/3.3：tabs 真源 + 预览目标表 + 隔离�
     const tabs = getCurrentAssistantTabs();
     expect(tabs.tabs).toHaveLength(2);
     expect(tabs.activeTabId).toBe('t1');
-    expect(getActiveTab(tabs)!.name).toBe('表A');
-    expect(getActiveTab(tabs)!.globalStyle).toBe('风格A');
+    expect(requireActiveTab(tabs).name).toBe('表A');
+    expect(requireActiveTab(tabs).globalStyle).toBe('风格A');
 
     // 切活动 tab → setCurrentAssistantTable 只改该 tab，其它表隔离
     setActiveTableTab('t2');
     setCurrentAssistantTable({ columns: [], rows: [{ id: 'rx', cells: [] }] });
     const tabs2 = getCurrentAssistantTabs();
-    const act2 = getActiveTab(tabs2)!;
+    const act2 = requireActiveTab(tabs2);
     expect(act2.name).toBe('表B');
     expect(act2.rows).toHaveLength(1);
-    const tabA = tabs2.tabs.find((t) => t.id === 't1')!;
+    const tabA = pickTab(tabs2, 't1');
     expect(tabA.rows).toHaveLength(0); // 表A 不受影响
     expect(tabA.globalStyle).toBe('风格A'); // globalStyle 每 tab 独立
   });
@@ -378,7 +405,7 @@ describe('多标签页（spec 1.1/3.3：tabs 真源 + 预览目标表 + 隔离�
   it('预览目标默认活动 tab；切目标重算；确认写目标表（源表不动）且自动切到目标', () => {
     const setup = () => {
       ensureActiveConversation();
-      applyConversation(getActiveConv()!.id);
+      applyConversation(activeConv().id);
       setCurrentAssistantTabs({
         tabs: [
           { id: 'tabA', name: '表A', columns: [], rows: [], globalStyle: '' },
@@ -393,22 +420,22 @@ describe('多标签页（spec 1.1/3.3：tabs 真源 + 预览目标表 + 隔离�
 
     // 当前活动 tab = tabA
     acceptTablePreview({ json: { rows: [{ 新列A: 'a1' }] }, messageId: mid, selectedRowIds: [] });
-    expect(getTableWorkspace().preview!.targetTabId).toBe('tabA');
+    expect(preview().targetTabId).toBe('tabA');
     // 切目标到 tabB → 重算（目标空表 → replace）
     setPreviewTargetTab('tabB');
-    const p = getTableWorkspace().preview!;
+    const p = preview();
     expect(p.targetTabId).toBe('tabB');
     expect(p.opKind).toBe('replace');
     confirmTablePreview();
 
     // 写进 tabB，tabA 不动
     const tabs = getCurrentAssistantTabs();
-    const a = tabs.tabs.find((t) => t.id === 'tabA')!;
-    const b = tabs.tabs.find((t) => t.id === 'tabB')!;
+    const a = pickTab(tabs, 'tabA');
+    const b = pickTab(tabs, 'tabB');
     expect(a.columns).toHaveLength(0); // 源表不动
     expect(b.columns.map((c) => c.label)).toEqual(['新列A']);
     // 自动切到目标表（spec 3.3）
-    expect(getActiveTab(tabs)!.id).toBe('tabB');
+    expect(requireActiveTab(tabs).id).toBe('tabB');
   });
 });
 
@@ -510,7 +537,7 @@ describe('TD-11-11 防回潮：confirmTablePreview 失败绝不谎称 confirmed 
     setPreviewTargetTab('ghost-tab-that-does-not-exist');
     const res = confirmTablePreview();
     expect(res.ok).toBe(false);
-    const msgs = getActiveConv()!.messages as Array<{ tableResolved?: string }>;
+    const msgs = activeConv().messages as Array<{ tableResolved?: string }>;
     const last = at(msgs, msgs.length - 1);
     expect(last.tableResolved).toBe('cancelled'); // 假成功已修：绝不谎称 confirmed
     expect(last.tableResolved).not.toBe('confirmed');
