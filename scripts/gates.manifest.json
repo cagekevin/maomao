@@ -57,7 +57,7 @@
       "id": "type-check",
       "cmd": "npm run type-check",
       "phase": "push",
-      "desc": "通用类型校验 + 隐式 any 收口（tsc --noEmit --noImplicitAny · 2026-09-24 并入原 strict-src）"
+      "desc": "通用类型校验（tsc --noEmit，口径 = 根 tsconfig：strict + 7 项最严格开关；2026-09-24 并入原 strict-src）"
     },
     {
       "id": "any",
