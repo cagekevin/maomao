@@ -30,7 +30,11 @@ module.exports = {
       { argsIgnorePattern: '^_', varsIgnorePattern: '^_' },
     ],
     '@typescript-eslint/no-empty-function': 'off',
-    '@typescript-eslint/ban-ts-comment': 'off',
+    // 【P7 · 2026-10-20】ts-comment 存量已清零（2 处 `@ts-ignore` 改成 `vi.stubGlobal`），开 error。
+    // 允许「带说明的 @ts-expect-error」（默认 allow-with-description）——那是**有意**的类型级断言。
+    '@typescript-eslint/ban-ts-comment': 'error',
+    // no-non-null-assertion 仍 off：实测存量 **792 处 / 122 文件**（2026-10-20 eslint 实跑）。
+    // 直接开 error 会一夜红；按 docs/plan/150 §3 P7 的判据先建「新增即红」基线，再逐批清。
     '@typescript-eslint/no-non-null-assertion': 'off',
     '@typescript-eslint/no-var-requires': 'off',
     'react/react-in-jsx-scope': 'off',

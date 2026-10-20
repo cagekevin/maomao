@@ -20,26 +20,29 @@ const fetchMock = globalThis.fetch as unknown as ReturnType<typeof vi.fn>;
 let imgSize = { w: 2000, h: 1000 };
 let imgFail = false;
 function installImageMock() {
-  // @ts-ignore
-  globalThis.Image = class {
-    set src(_v) {
-      if (imgFail) {
-        queueMicrotask(() => this.onerror && this.onerror(new Error('load failed')));
-      } else {
-        this.naturalWidth = imgSize.w;
-        this.naturalHeight = imgSize.h;
-        queueMicrotask(() => this.onload && this.onload());
+  // `vi.stubGlobal` 接 unknown ⇒ 不需要 `@ts-ignore`（旧写法是拿 mock 类硬赋给 globalThis.Image）。
+  vi.stubGlobal(
+    'Image',
+    class {
+      set src(_v) {
+        if (imgFail) {
+          queueMicrotask(() => this.onerror && this.onerror(new Error('load failed')));
+        } else {
+          this.naturalWidth = imgSize.w;
+          this.naturalHeight = imgSize.h;
+          queueMicrotask(() => this.onload && this.onload());
+        }
       }
-    }
-    get src() {
-      return '';
-    }
-    crossOrigin = null;
-    onload: (() => void) | null = null;
-    onerror: ((e: Error) => void) | null = null;
-    naturalWidth = 0;
-    naturalHeight = 0;
-  };
+      get src() {
+        return '';
+      }
+      crossOrigin = null;
+      onload: (() => void) | null = null;
+      onerror: ((e: Error) => void) | null = null;
+      naturalWidth = 0;
+      naturalHeight = 0;
+    },
+  );
 }
 
 // 记录 canvas 被创建的宽高，供断言放大尺寸
