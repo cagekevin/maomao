@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { videoTrackOf } from '../helpers/fixtures';
+import { videoTrackOf, videoElementOf } from '../helpers/fixtures';
 import { at } from '../helpers/at';
 import type {
   TimelineTrack,
@@ -48,12 +48,18 @@ vi.mock('@/components/videoEditor/engine/core/editorInstance', () => ({
       getSelectedElements: () => [],
       setSelectedElements: () => undefined,
     },
+    // 删除命令在「删掉的元素带 mediaId」时会问 project 拿 id 做 ephemeral 清理；
+    // 旧断言（整轨/整元素 as unknown as）把这条依赖藏住了，补上真实桩。
+    project: {
+      getActiveOrNull: () => null,
+    },
   }),
 }));
 
 function element(fields: Record<string, unknown>): TimelineElement {
-  return {
+  return videoElementOf({
     id: 'el',
+    mediaId: 'media-1',
     name: 'el',
     startTime: 0,
     duration: 1,
@@ -62,7 +68,7 @@ function element(fields: Record<string, unknown>): TimelineElement {
     muted: false,
     transform: { scale: 1, position: { x: 0, y: 0 }, rotate: 0 },
     ...fields,
-  } as unknown as TimelineElement;
+  });
 }
 
 function track(fields: Record<string, unknown>): TimelineTrack {

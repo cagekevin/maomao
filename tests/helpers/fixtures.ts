@@ -9,9 +9,17 @@
 import type { MediaAsset } from '../../src/components/videoEditor/types/mediaAssets';
 import type {
   AudioTrack,
+  ImageElement,
+  StickerElement,
+  TextElement,
   TextTrack,
+  TScene,
+  UploadAudioElement,
+  VideoElement,
   VideoTrack,
 } from '../../src/components/videoEditor/types/timeline';
+import { defaultScriptBoxTop } from '../../src/components/scriptbox/scriptBoxSchema';
+import type { ScriptBoxData } from '../../src/components/scriptbox/scriptBoxSchema';
 
 /** 素材：补 `name` / `type` / `file` 默认值（`file` 必填，测试用空 File 即可）。 */
 export function mediaAssetOf(init: Partial<MediaAsset> & { id: string }): MediaAsset {
@@ -61,4 +69,123 @@ export function audioTrackOf(init: Partial<AudioTrack> = {}): AudioTrack {
     muted: false,
     ...init,
   };
+}
+
+/* ── 时间轴元素 / 场景（T1-4：元素形状不再靠断言）──────────────────────── */
+
+const IDENTITY_TRANSFORM = { scale: 1, position: { x: 0, y: 0 }, rotate: 0 };
+
+function elementBase(init: {
+  id?: string | undefined;
+  name?: string | undefined;
+  duration?: number | undefined;
+  startTime?: number | undefined;
+  trimStart?: number | undefined;
+}) {
+  const id = init.id ?? 'el';
+  return {
+    id,
+    name: init.name ?? id,
+    duration: init.duration ?? 1,
+    startTime: init.startTime ?? 0,
+    trimStart: init.trimStart ?? 0,
+  };
+}
+
+/** 视频元素：补 mediaId / transform / opacity。 */
+export function videoElementOf(init: Partial<VideoElement> & { id?: string } = {}): VideoElement {
+  const { id, name, ...rest } = init;
+  return {
+    ...elementBase({ id, name }),
+    type: 'video',
+    mediaId: 'media-1',
+    transform: IDENTITY_TRANSFORM,
+    opacity: 1,
+    ...rest,
+  };
+}
+
+/** 图片元素。 */
+export function imageElementOf(init: Partial<ImageElement> & { id?: string } = {}): ImageElement {
+  const { id, name, ...rest } = init;
+  return {
+    ...elementBase({ id, name }),
+    type: 'image',
+    mediaId: 'media-1',
+    transform: IDENTITY_TRANSFORM,
+    opacity: 1,
+    ...rest,
+  };
+}
+
+/** 文本元素：补样式默认值（容器只断言内容/时间时用）。 */
+export function textElementOf(init: Partial<TextElement> & { id?: string } = {}): TextElement {
+  const { id, name, ...rest } = init;
+  return {
+    ...elementBase({ id, name }),
+    type: 'text',
+    content: '文本',
+    fontSize: 48,
+    fontFamily: 'sans-serif',
+    color: '#ffffff',
+    backgroundColor: 'transparent',
+    textAlign: 'center',
+    fontWeight: 400,
+    fontStyle: 'normal',
+    textDecoration: 'none',
+    transform: IDENTITY_TRANSFORM,
+    opacity: 1,
+    ...rest,
+  };
+}
+
+/** 音频元素（缺省是 upload 变体）。 */
+export function audioElementOf(
+  init: Partial<UploadAudioElement> & { id?: string } = {},
+): UploadAudioElement {
+  const { id, name, ...rest } = init;
+  return {
+    ...elementBase({ id, name }),
+    type: 'audio',
+    sourceType: 'upload',
+    mediaId: 'media-1',
+    volume: 1,
+    ...rest,
+  };
+}
+
+/** 贴纸元素。 */
+export function stickerElementOf(
+  init: Partial<StickerElement> & { id?: string } = {},
+): StickerElement {
+  const { id, name, ...rest } = init;
+  return {
+    ...elementBase({ id, name }),
+    type: 'sticker',
+    iconName: 'star',
+    transform: IDENTITY_TRANSFORM,
+    opacity: 1,
+    ...rest,
+  };
+}
+
+/** 场景：补 tracks / bookmarks / 时间戳。 */
+export function sceneOf(init: Partial<TScene> = {}): TScene {
+  const now = new Date('2026-01-01T00:00:00.000Z');
+  const id = init.id ?? 'scene-1';
+  return {
+    id,
+    name: init.name ?? id,
+    isMain: init.isMain ?? true,
+    tracks: [],
+    bookmarks: [],
+    createdAt: now,
+    updatedAt: now,
+    ...init,
+  };
+}
+
+/** 剧本盒 node.data：默认值取 schema 基线，只覆盖差异。 */
+export function scriptBoxDataOf(init: Partial<ScriptBoxData> = {}): ScriptBoxData {
+  return { ...defaultScriptBoxTop(), shots: [], assets: [], ...init };
 }

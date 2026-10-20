@@ -15,6 +15,7 @@
  * 全库 26 处命令同一写法（母体），本用例锁住收口后的行为，防它再退回「各写一遍」。
  */
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { sceneOf, textElementOf, textTrackOf } from '../helpers/fixtures';
 import { EditorCore } from '../../src/components/videoEditor/engine/core';
 import {
   BatchCommand,
@@ -40,26 +41,12 @@ function makeProject(id: string): TProject {
 
 /** 用 text 元素（不带 mediaId）以避开 ephemeral 素材清理分支，只测快照语义。 */
 function textElement(id: string) {
-  return {
-    id,
-    type: 'text',
-    name: id,
-    content: id,
-    startTime: 0,
-    duration: 1,
-  };
+  return textElementOf({ id, name: id, content: id });
 }
 
 function makeScene(id: string, elementIds: string[]): TScene {
-  const track = {
-    id: 't1',
-    type: 'video',
-    isMain: true,
-    muted: false,
-    hidden: false,
-    elements: elementIds.map(textElement),
-  };
-  return {
+  const track = textTrackOf({ id: 't1', elements: elementIds.map(textElement) });
+  return sceneOf({
     id,
     name: id,
     isMain: true,
@@ -67,7 +54,7 @@ function makeScene(id: string, elementIds: string[]): TScene {
     bookmarks: [],
     createdAt: new Date(),
     updatedAt: new Date(),
-  } as unknown as TScene;
+  });
 }
 
 /** 当前轨上元素 id（按顺序）。 */

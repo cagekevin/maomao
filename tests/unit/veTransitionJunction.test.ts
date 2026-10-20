@@ -13,6 +13,7 @@
  * ════════════════════════════════════════════════════════════════
  */
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { sceneOf } from '../helpers/fixtures';
 import { at } from '../helpers/at';
 import { EditorCore } from '../../src/components/videoEditor/engine/core';
 import {
@@ -107,7 +108,7 @@ function makeProject(id: string): TProject {
 }
 
 function makeScene(tracks: VideoTrack[]): TScene {
-  return {
+  return sceneOf({
     id: 's1',
     name: 's1',
     isMain: true,
@@ -115,7 +116,7 @@ function makeScene(tracks: VideoTrack[]): TScene {
     bookmarks: [],
     createdAt: new Date(),
     updatedAt: new Date(),
-  } as unknown as TScene;
+  });
 }
 
 describe('countAdjacentJunctions 与写路径同源 —— 「看得见的就能加上」（TD-22-49）', () => {
