@@ -120,7 +120,7 @@ export function duplicateObjectTrack(
   for (const [channel, keys] of Object.entries(sourceTrack)) {
     duplicateTrack[channel] = (Array.isArray(keys) ? keys : []).map((key: ChannelKey) => {
       if (channel !== 'transform') return key;
-      const rawPosition = key.fields?.position as number[] | undefined;
+      const rawPosition = key.fields?.['position'] as number[] | undefined;
       const [px = 0, py = 0, pz = 0] = rawPosition ?? [];
       return {
         ...key,

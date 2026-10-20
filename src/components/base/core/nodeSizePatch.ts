@@ -48,7 +48,7 @@ export function withNodeSize(
   const patch: NodeSizePatch = {
     width: w,
     height: h,
-    style: { ...((node.style as Record<string, unknown>) || {}), width: w, height: h },
+    style: { ...((node['style'] as Record<string, unknown>) || {}), width: w, height: h },
   };
   if (opts.includeInitial) {
     patch.initialWidth = w;

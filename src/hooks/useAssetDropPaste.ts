@@ -230,7 +230,7 @@ export function useAssetDropPaste({
               // （`base64`／`already-local` 等分支本不产出）⇒ **静默才正确**，消费者不替生产者告警/留痕
               // （CLAUDE.md §5.1「只有生产者才有权呈现错误」＋「失败不得伪装成空」三形态①）。
               const patch: Record<string, unknown> = { assetUrl: localUrl };
-              if (r.contentId) patch.contentId = r.contentId;
+              if (r.contentId) patch['contentId'] = r.contentId;
               patchNodeData(id, patch);
             }
           })

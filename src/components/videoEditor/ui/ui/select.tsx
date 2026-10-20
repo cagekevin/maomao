@@ -148,7 +148,7 @@ function Select({
     }
     contentRef.current?.focus({ preventScroll: true });
     const options = optionNodes(contentRef.current);
-    const currentIndex = options.findIndex((option) => option.dataset.value === value);
+    const currentIndex = options.findIndex((option) => option.dataset['value'] === value);
     setHighlighted(currentIndex >= 0 ? currentIndex : 0);
   }, [open, value, itemsVersion]);
 

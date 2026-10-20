@@ -130,7 +130,7 @@ export function useGenerateNode({
   const defaultFromProvider = models[0]?.id;
   useEffect(() => {
     if (!defaultFromProvider) return;
-    if (prefs?.model) return; // 已有记忆，不覆盖
+    if (prefs?.['model']) return; // 已有记忆，不覆盖
     // 节点显式指定模型则不覆盖（data 的静态类型由各节点 interface 提供，此处只读一个字段，就地收窄）
     if ((data as { selectedModel?: unknown } | undefined)?.selectedModel) return;
     setSelectedModel(defaultFromProvider);

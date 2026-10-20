@@ -361,7 +361,7 @@ export async function relayChat(
     // 现在「生产者给全 · 消费者只转发」：后端读它、原样交给上游，前后端口径天然一致。
     timeoutMs: totalBudgetMs,
   };
-  if (opts.temperature !== undefined) body.temperature = opts.temperature;
+  if (opts.temperature !== undefined) body['temperature'] = opts.temperature;
   try {
     // 统一入口：chat 走同步快路径，后端立即返 {code:0,data:{status:'completed',text}}。
     // 响应体 = **原始信封 `{code,data}`**（httpClient 不剥信封）⇒ 文本在 `env.data.text`；

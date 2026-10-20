@@ -59,7 +59,7 @@ export default function StepPrompt({ data, updateData, callbacks }: StepPromptPr
   // 生图类型全集从当前 playbook 取（单一数据源；内置四类与自定义 key 一致，label/sys 随 playbook 变）
   const genTypes: Record<string, ImageGenTemplate> =
     getPlaybook(d.playbookId).imageGenTemplates || {};
-  const genDefaultType = genTypes.keyframe ? 'keyframe' : Object.keys(genTypes)[0] || 'keyframe';
+  const genDefaultType = genTypes['keyframe'] ? 'keyframe' : Object.keys(genTypes)[0] || 'keyframe';
   const [view, setView] = useState<'list' | 'grid'>('list');
   const [editing, setEditing] = useState<EditingState | null>(null); // { idx, field, title, base, awaiting }
   const [draft, setDraft] = useState<string | null>(null); // 预览/编辑缓冲：AI 改写结果或人手直接改的内容，点「应用」才写回 shot

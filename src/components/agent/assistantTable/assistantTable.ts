@@ -502,7 +502,7 @@ export function tryParseAssistantTableJson(text: unknown): ParseTableJsonResult 
     };
   }
   if (!obj || typeof obj !== 'object') return { ok: false, reason: 'not-object', message: '' };
-  const rows = (obj as Record<string, unknown>).rows;
+  const rows = (obj as Record<string, unknown>)['rows'];
   if (!Array.isArray(rows))
     return {
       ok: false,

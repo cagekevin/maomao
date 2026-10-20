@@ -47,7 +47,7 @@ export function deriveSelectedAssets(
     .filter((n) => n.selected)
     .map((n) => {
       const media = getNodeMedia(n, resolveContentUrl);
-      const label = (n.data?.label ?? n.data?.projectName ?? '') as string;
+      const label = (n.data?.['label'] ?? n.data?.['projectName'] ?? '') as string;
       return {
         nodeId: n.id,
         nodeType: n.type,

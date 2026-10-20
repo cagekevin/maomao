@@ -664,7 +664,7 @@ export function buildRequestMessages(
         }> = toMediaContentBlocks(m.attachments);
         // 参考图编号目录（对齐大雄）+ 画布坐标：只对「图片附件」算——视频/音频不做"第N张参考图"编号，
         // 它们仅作为上方的多模态 content 块随消息透传。图片序号与 useAgentChat.buildRefCatalog 对齐（图片内部序）。
-        const imgAtts = m.attachments.filter((a) => !a.type || a.type === 'image');
+        const imgAtts = m.attachments.filter((a) => !a['type'] || a['type'] === 'image');
         const coordLines = imgAtts
           .map((a, i) =>
             a.x != null || a.y != null

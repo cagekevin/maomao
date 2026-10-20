@@ -37,7 +37,7 @@ export interface ImageGenTemplate {
 }
 
 const WF = SCRIPT_BOX_WORKFLOWS as Record<string, WorkflowLike>;
-const MANGA = WF.manga as WorkflowLike;
+const MANGA = WF['manga'] as WorkflowLike;
 
 /** 单条对白（kind 存任意字符串，运行时按 '台词'/'旁白' 展示；如实标注避免过度收窄） */
 export interface Dialogue {

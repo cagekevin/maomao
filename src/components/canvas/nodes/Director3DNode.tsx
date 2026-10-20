@@ -123,7 +123,7 @@ function Director3DNode({ id, data, selected }: Director3DNodeProps) {
         const boxId = boxes[0];
         if (boxId === undefined) return; // boxes 非空已判（不可达兜底）
         const boxNode = getNode(boxId);
-        const existing = (boxNode?.data?.images as Array<{ url?: string }> | undefined) || [];
+        const existing = (boxNode?.data?.['images'] as Array<{ url?: string }> | undefined) || [];
         const existingUrls = new Set(existing.map((x) => x.url));
         const fresh = newImages.filter((x) => !existingUrls.has(x.url ?? undefined));
         const merged = [...existing, ...fresh];
@@ -295,7 +295,7 @@ function Director3DNode({ id, data, selected }: Director3DNodeProps) {
       }
       // 写回节点：assetUrl 存缩略图，彻底移除旧 directorProject 字段。
       // 走主图写回唯一入口（含「旧身份失效」不变式）；确实无封面可写时按「清空主图」处理（与旧 `|| null` 等义）。
-      const cover = persistedThumb || String(getNode(id)?.data?.assetUrl || '');
+      const cover = persistedThumb || String(getNode(id)?.data?.['assetUrl'] || '');
       if (cover) {
         replaceNodeImage(
           { id, dataUrl: cover, dataPatch: { directorProject: undefined } },

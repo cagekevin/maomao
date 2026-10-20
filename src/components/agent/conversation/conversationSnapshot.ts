@@ -189,7 +189,7 @@ export function patchCurrentWorkflow(patch: Record<string, unknown> = {}): Workf
   const nextWf = normalizeWorkflow({
     ...wf,
     ...patch,
-    steerQueue: Array.isArray(patch?.steerQueue) ? patch.steerQueue : wf.steerQueue || [],
+    steerQueue: Array.isArray(patch?.['steerQueue']) ? patch['steerQueue'] : wf.steerQueue || [],
   });
   commit({
     ...getState(),

@@ -403,7 +403,8 @@ function PanoramaNode({ id, data, selected }: PanoramaNodeProps) {
             const boxId = boxes[0];
             if (boxId === undefined) return; // boxes 非空已判（不可达兜底）
             const boxNode = getNode(boxId);
-            const existing = (boxNode?.data?.images as Array<{ url?: string }> | undefined) || [];
+            const existing =
+              (boxNode?.data?.['images'] as Array<{ url?: string }> | undefined) || [];
             const existingUrls = new Set(existing.map((x) => x.url));
             const fresh = newImages.filter((x) => !existingUrls.has(x.url));
             const merged = [...existing, ...fresh];

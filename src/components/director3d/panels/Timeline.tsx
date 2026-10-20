@@ -429,7 +429,7 @@ export function Timeline({
         );
         const stateCopy =
           kind === 'object' && objectTrack?.type === 'person'
-            ? ` · ${poseLabel(key.pose as string)}${objectTrack.continuousMotion ? '（持续）' : ''}`
+            ? ` · ${poseLabel(key['pose'] as string)}${objectTrack.continuousMotion ? '（持续）' : ''}`
             : '';
         const title = `第 ${key.frame} 帧${stateCopy} · ${normalizeInterpolation(key.interpolation ?? '') === 'smooth' ? '平滑' : normalizeInterpolation(key.interpolation ?? '') === 'linear' ? '线性' : '保持'} · 拖动可移动，单击改插值/删除`;
         return (

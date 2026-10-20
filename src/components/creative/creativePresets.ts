@@ -185,7 +185,7 @@ export function normalizeChipFieldWrite(
   patch: Record<string, unknown>,
 ): Record<string, unknown> {
   if (!CHIP_BEARING_FIELDS.some((f) => f in patch)) return data;
-  const dict = data.creativePresets as CreativePresetsDict | undefined;
+  const dict = data['creativePresets'] as CreativePresetsDict | undefined;
   if (!dict || Object.keys(dict).length === 0) return data; // 无字典 = 无孤儿可清
   // chip 字段可能多个（prompt / text），取并集后统一裁剪：任一字段仍引用即保留。
   const merged = CHIP_BEARING_FIELDS.map((f) => String(data[f] ?? '')).join('\n');

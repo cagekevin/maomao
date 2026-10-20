@@ -103,7 +103,7 @@ export function lazyNode(
       <Suspense
         fallback={
           <NodeLoading
-            id={props.id as string | undefined}
+            id={props['id'] as string | undefined}
             label={label}
             handleContract={handleContract}
           />

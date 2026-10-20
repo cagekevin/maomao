@@ -94,7 +94,7 @@ const Slot = React.forwardRef<HTMLElement, SlotProps>(
     const child = children as React.ReactElement<Record<string, unknown>>;
     const childProps = (child.props ?? {}) as Record<string, unknown>;
     const mergedProps = mergeSlotProps(slotProps as Record<string, unknown>, childProps);
-    mergedProps.ref = composeRefs<HTMLElement>(
+    mergedProps['ref'] = composeRefs<HTMLElement>(
       forwardedRef,
       getElementRef(child) as React.Ref<HTMLElement> | undefined,
     );

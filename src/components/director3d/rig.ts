@@ -326,12 +326,12 @@ export function cloneJointPose(joints: unknown) {
 }
 
 export function poseForObject(object: Record<string, unknown>): RigPose {
-  const rootRaw = object?.rigRoot;
+  const rootRaw = object?.['rigRoot'];
   const root: [number, number, number] =
     Array.isArray(rootRaw) && rootRaw.length >= 3
       ? [Number(rootRaw[0]) || 0, Number(rootRaw[1]) || 0, Number(rootRaw[2]) || 0]
       : [0, 0, 0];
-  return { root, joints: cloneJointPose(object?.joints) };
+  return { root, joints: cloneJointPose(object?.['joints']) };
 }
 
 export function presetJoints(pose = 'idle') {

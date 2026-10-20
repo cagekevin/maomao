@@ -154,7 +154,7 @@ export function useNodeData(id: string): {
         ns.map((n) => {
           if (n.id !== id) return n;
           const d = (n.data ?? {}) as Record<string, unknown>;
-          const dict = (d.creativePresets ?? {}) as Record<string, unknown>;
+          const dict = (d['creativePresets'] ?? {}) as Record<string, unknown>;
           return { ...n, data: { ...d, creativePresets: { ...dict, [presetId]: entry } } };
         }),
       );

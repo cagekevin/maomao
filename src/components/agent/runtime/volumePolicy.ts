@@ -172,7 +172,7 @@ function downgradeConversation(
   if (opt.dropSteerQueue && Array.isArray(next.workflow?.steerQueue))
     next.workflow = { ...next.workflow, steerQueue: [] };
   if (opt.dropStreaming && Array.isArray(next.messages)) {
-    next.messages = next.messages.filter((m) => !m || m.streaming !== true);
+    next.messages = next.messages.filter((m) => !m || m['streaming'] !== true);
   }
   // 2) lastResults 去重限条
   if (Array.isArray(next.messages)) {
@@ -190,7 +190,7 @@ function downgradeConversation(
 
 /** 单条正文的水位：tool 结果是结构化输出，比普通正文更宽 */
 function contentLimitOf(msg: ChatMessage): number {
-  return msg.role === 'tool' ? TOOL_CONTENT_MAX : MSG_CONTENT_MAX;
+  return msg['role'] === 'tool' ? TOOL_CONTENT_MAX : MSG_CONTENT_MAX;
 }
 
 /**

@@ -24,7 +24,7 @@ function CustomEdge({
   selected,
   data,
 }: EdgeProps) {
-  const relatedToSelected = !!data?.relatedToSelected;
+  const relatedToSelected = !!data?.['relatedToSelected'];
   const [path, labelX, labelY] = getBezierPath({
     sourceX,
     sourceY,

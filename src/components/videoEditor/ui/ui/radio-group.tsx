@@ -118,7 +118,7 @@ const RadioGroupItem = React.forwardRef<HTMLButtonElement, RadioGroupItemProps>(
 
           event.preventDefault();
           next.focus();
-          const nextValue = next.dataset.value;
+          const nextValue = next.dataset['value'];
           if (nextValue !== undefined) ctx?.select(nextValue);
         }}
         className={cn(
