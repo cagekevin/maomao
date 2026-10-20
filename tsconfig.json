@@ -41,6 +41,10 @@
     // 2026-10-20 · P4：src 869 + tests 1227 处已清零，开关写回主配置。
     // 全量 3368 用例通过；此后 `arr[i]` 的 `T | undefined` 由编译器强制面对。
     "noUncheckedIndexedAccess": true,
+    // 2026-10-20 · P5：src 505 + tests 401 处 TS4111 已清零，开关写回主配置。
+    // A 类（真字典：LLM 入参 / 外部 JSON / node.data）改方括号 + 边界归一；
+    // B 类假字典（ScriptBoxData / promptHubStore / ProjectObject）补显式字段后删索引签名。
+    "noPropertyAccessFromIndexSignature": true,
 
     "types": ["node", "vite/client", "vitest/globals"],
     "baseUrl": ".",
