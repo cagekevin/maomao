@@ -22,7 +22,7 @@
 | `check-gate-vitals.mjs` | **元层闸（闸的闸）**：真源 = `gates.manifest.json`。**2026-09-24 由原两道元层闸合并**：① **在册闸的扫描根必须存在**、且"扫到 0 即 fail-loud"的基数自检不得缺失（治「扫 0 却绿灯」—— TD-22-53 / TD-02-9 同族）；② **在册闸脚本头部必须带【申诉口】三问**（锚点 `★闸的申诉口` + `Q1 守什么：`/`Q2 何时该改：`/`Q3 怎么改：`，原 `check-gates.mjs` 判据）—— 把「闸的成本守恒律」从注释升为机器约束。另含**孤儿闸**识别（物理存在却既不在清单、也不在助手白名单 ⇒ 从没被跑过）。静态度量、零执行（< 0.1s）；非脚本命令（如 `npm run type-check`）**明确列出为跳过**、不静默略过；解析到 0 个脚本即 fail-loud（防"假绿"）。 | `npm run check:push`（闸循环内） |
 | `check-storage-keys.mjs` | 存储键契约：`contentSet/Get` 用到的键必须在 `contracts.STORAGE_KEYS` 登记（防裸键漂移） | `npm run check:keys` |
 | `check-events.mjs` | 事件契约：`publish/subscribe` 的事件名必须在 `contracts.EVENTS` 登记（防发布无订阅/订阅无发布） | `npm run check:events` |
-| `check-nonnull.mjs` | **非空断言（`x!`）禁新增**：eslint 实跑 `@typescript-eslint/no-non-null-assertion`，按**文件 + 总量**对 `nonnull-baseline.json` 做「永不复涨」比对（存量 792 处 / 122 文件，2026-10-20 实测；闸探针已验证「新增 1 处即红」）。扫到 0 文件 ⇒ fail-loud（TD-22-53 同款）。清完一批跑 `--update` 下调基线；清零后改 eslint `error` 并删除本闸。 | `npm run check:nonnull` |
+| ~~`check-nonnull.mjs`~~ · **已退役 2026-10-20** | 使命是「非空断言（`x!`）存量只降不升」（起始 792 处 / 122 文件，eslint 实测；按文件 + 总量对 `nonnull-baseline.json` 做「永不复涨」比对，闸探针验证过「新增 1 处即红」）。2026-10-20 分 13 批清到 **0** ⇒ 按设计退役：`.eslintrc.cjs` 的 `@typescript-eslint/no-non-null-assertion` 改 **`error`** 无条件接管，不再保留第二份账本。**退役原因留痕**：存量归零后闸只剩「0 比 0」，留着只会制造假警报与形态②警告疲劳。**恢复方法**：若将来又出现批量 `!` 存量需分期清，按 `docs/plan/150` §3 P7 的做法重建基线闸 + 把规则临时降回 `off`。 | — |
 | `check-api-contract.cjs` | 前后端 API 契约比对（前端 `apiRegistry` ↔ localTool 路由表） | `npm run check:api` |
 | `check-node-types.mjs` | `useNodePrefs` 命名空间必须先登记 `contracts.NODE_TYPES`（防裸字符串命名空间让「上次参数」静默失效） | `npm run check:node-types` |
 | `check-node-handles.mjs` | 节点端口契约：`NODE_HANDLE_CONTRACT` 为端口真源，App/lazyNode 只允许派生 | `npm run check:node-handles` |

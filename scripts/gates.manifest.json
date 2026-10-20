@@ -66,12 +66,6 @@
       "desc": "类型诚实性：禁显式 any/never + 未标注 useState(null)/useRef(null)（全 src 零白名单）"
     },
     {
-      "id": "nonnull",
-      "cmd": "node scripts/check-nonnull.mjs",
-      "phase": "push",
-      "desc": "非空断言禁新增（`x!` · 基线 792 处「永不复涨」，逐批下调至 0 后改为 eslint error）"
-    },
-    {
       "id": "events",
       "cmd": "node scripts/check-events.mjs",
       "phase": "push",

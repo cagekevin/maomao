@@ -33,9 +33,10 @@ module.exports = {
     // 【P7 · 2026-10-20】ts-comment 存量已清零（2 处 `@ts-ignore` 改成 `vi.stubGlobal`），开 error。
     // 允许「带说明的 @ts-expect-error」（默认 allow-with-description）——那是**有意**的类型级断言。
     '@typescript-eslint/ban-ts-comment': 'error',
-    // no-non-null-assertion 仍 off：实测存量 **792 处 / 122 文件**（2026-10-20 eslint 实跑）。
-    // 直接开 error 会一夜红；按 docs/plan/150 §3 P7 的判据先建「新增即红」基线，再逐批清。
-    '@typescript-eslint/no-non-null-assertion': 'off',
+    // 【2026-10-20 · P7 收尾】非空断言存量已清零（792 → 0，13 批），直接开 error。
+    // 原「永不复涨」基线闸（check-nonnull.mjs + nonnull-baseline.json）随之退役：
+    // 存量一旦为 0，闸要守的「禁新增」由本规则无条件接管，多留一道闸就是第二份真相。
+    '@typescript-eslint/no-non-null-assertion': 'error',
     '@typescript-eslint/no-var-requires': 'off',
     'react/react-in-jsx-scope': 'off',
     'react/prop-types': 'off',
