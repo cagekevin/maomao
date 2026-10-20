@@ -22,6 +22,7 @@
  */
 import { must } from '../helpers/must';
 import { describe, expect, it } from 'vitest';
+import { mediaAssetOf, videoTrackOf, audioTrackOf, textTrackOf } from '../helpers/fixtures';
 import { at } from '../helpers/at';
 import type { MediaAsset } from '../../src/components/videoEditor/types/mediaAssets';
 import type {
@@ -55,13 +56,13 @@ import {
 const CANVAS = { width: 1920, height: 1080 };
 
 function makeVideoAsset({ id }: { id: string }): MediaAsset {
-  return {
+  return mediaAssetOf({
     id,
     type: 'video',
     name: `${id}.mp4`,
     url: `https://example.test/${id}`,
     file: { arrayBuffer: async () => new ArrayBuffer(8) } as unknown as File,
-  } as unknown as MediaAsset;
+  });
 }
 
 const VIDEO_ASSETS: MediaAsset[] = [
@@ -107,7 +108,7 @@ function makeVideoTrack({
   elementHidden?: boolean | undefined;
   mediaId: string;
 }): TimelineTrack {
-  return {
+  return videoTrackOf({
     id,
     name: id,
     type: 'video',
@@ -115,7 +116,7 @@ function makeVideoTrack({
     muted: false,
     hidden: hidden ?? false,
     elements: [makeVideoElement({ id: `${id}-el`, mediaId, hidden: elementHidden })],
-  } as unknown as TimelineTrack;
+  });
 }
 
 /** 渲染树的绘制序（子节点加入序 = 由底到顶；末位 = 最上层）。 */
@@ -183,7 +184,7 @@ describe('hidden = 不参与输出（画面）', () => {
 });
 
 describe('hidden = 不参与输出（声音）', () => {
-  const onlyMain = [{ id: 'm-main', type: 'video' } as unknown as MediaAsset];
+  const onlyMain = [mediaAssetOf({ id: 'm-main', type: 'video' })];
 
   function track({
     hidden,
@@ -394,9 +395,10 @@ describe('开关判据（每个开关一个谓词，消费方禁直读字段）'
   });
 
   it('轨静音：只有能出声的轨（video／audio）才谈静音', () => {
-    expect(isTrackMuted({ type: 'video', muted: true } as unknown as TimelineTrack)).toBe(true);
-    expect(isTrackMuted({ type: 'audio', muted: true } as unknown as TimelineTrack)).toBe(true);
-    expect(isTrackMuted({ type: 'text', muted: true } as unknown as TimelineTrack)).toBe(false);
+    expect(isTrackMuted(videoTrackOf({ type: 'video', muted: true }))).toBe(true);
+    expect(isTrackMuted(audioTrackOf({ type: 'audio', muted: true }))).toBe(true);
+    // 文本轨类型上没有 `muted`；本用例要证明的是「运行期即使挂了 muted 也不算静音」⇒ 如实挂上去
+    expect(isTrackMuted(Object.assign(textTrackOf({ type: 'text' }), { muted: true }))).toBe(false);
   });
 });
 
@@ -454,11 +456,11 @@ describe('元素矩形唯一（画面 / 框子 / 命中同源）', () => {
 
   it('媒体矩形 = 素材元数据 × 适配基准（与渲染节点读同一个 `mediaSize`）', () => {
     const assets = [
-      {
+      mediaAssetOf({
         ...makeVideoAsset({ id: 'm-main' }),
         width: 800,
         height: 600,
-      } as unknown as MediaAsset,
+      }),
     ];
     const element = makeVideoElement({ id: 'el', mediaId: 'm-main' });
     const scene = buildScene({

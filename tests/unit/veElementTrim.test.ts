@@ -14,6 +14,7 @@
  * ════════════════════════════════════════════════════════════════
  */
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { mediaAssetOf } from '../helpers/fixtures';
 import { at } from '../helpers/at';
 import { EditorCore } from '../../src/components/videoEditor/engine/core';
 import { getElementSourceDuration } from '../../src/components/videoEditor/engine/timeline/element-utils';
@@ -22,7 +23,7 @@ import type { TProject } from '../../src/components/videoEditor/types/project';
 import type { TScene, TimelineElement } from '../../src/components/videoEditor/types/timeline';
 
 function media(id: string, duration?: number): MediaAsset {
-  return { id, name: id, type: 'video', duration } as unknown as MediaAsset;
+  return mediaAssetOf({ id, name: id, type: 'video', duration });
 }
 
 function element(overrides: Record<string, unknown>): TimelineElement {
@@ -87,7 +88,7 @@ function makeProject(id: string): TProject {
       background: { type: 'color', color: '#000000' },
     },
     version: 3,
-  } as unknown as TProject;
+  } satisfies TProject;
 }
 
 function makeScene(): TScene {

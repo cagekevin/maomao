@@ -21,6 +21,7 @@
  * tracks、不回滚 settings。
  */
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { mediaAssetOf } from '../helpers/fixtures';
 import { at } from '../helpers/at';
 import { EditorCore } from '../../src/components/videoEditor/engine/core';
 import type { TProject } from '../../src/components/videoEditor/types/project';
@@ -44,7 +45,7 @@ function makeProject(id: string): TProject {
       background: { type: 'color', color: '#000000' },
     },
     version: 3,
-  } as unknown as TProject;
+  } satisfies TProject;
 }
 
 function videoElement(id: string, startTime: number, duration: number) {
@@ -82,7 +83,7 @@ function makeScene({ elements }: { elements: unknown[] }): TScene {
 }
 
 function videoAsset(id: string, width: number, height: number, fps: number): MediaAsset {
-  return {
+  return mediaAssetOf({
     id,
     name: id,
     type: 'video',
@@ -90,7 +91,7 @@ function videoAsset(id: string, width: number, height: number, fps: number): Med
     width,
     height,
     fps,
-  } as unknown as MediaAsset;
+  });
 }
 
 /** 当前轨上的转场列表。 */

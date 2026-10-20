@@ -35,7 +35,7 @@ function makeProject(id: string): TProject {
       background: { type: 'color', color: '#000000' },
     },
     version: 3,
-  } as unknown as TProject;
+  } satisfies TProject;
 }
 
 /** 用 text 元素（不带 mediaId）以避开 ephemeral 素材清理分支，只测快照语义。 */

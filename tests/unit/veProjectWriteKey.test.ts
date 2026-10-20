@@ -70,9 +70,14 @@ function makeProject(id: string): TProject {
     metadata: { id, name: `作品 ${id}`, duration: 0, createdAt: now, updatedAt: now },
     scenes: [],
     currentSceneId: '',
-    settings: { fps: 30, canvasSize: { width: 1920, height: 1080 }, originalCanvasSize: null },
+    settings: {
+      fps: 30,
+      canvasSize: { width: 1920, height: 1080 },
+      originalCanvasSize: null,
+      background: { type: 'color', color: '#000000' },
+    },
     version: 1,
-  } as unknown as TProject;
+  } satisfies TProject;
 }
 
 function writtenProjectId(key: string): string | undefined {

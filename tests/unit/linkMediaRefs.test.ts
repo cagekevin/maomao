@@ -9,6 +9,7 @@
  *  - 大小上限：超限 → 进 failures（不 OOM）
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { mediaAssetOf } from '../helpers/fixtures';
 import { at } from '../helpers/at';
 import {
   normalizeFileUrl,
@@ -95,7 +96,7 @@ describe('linkMediaRefsToProject：登记引用（不上传）', () => {
   });
 
   it('双轨去重 · 轨 2（归一化 url）：已存在同 url → skipped，不重复登记', async () => {
-    const existing = [{ id: 'm0', persistentUrl: '/files/a.png' } as unknown as MediaAsset];
+    const existing = [mediaAssetOf({ id: 'm0', persistentUrl: '/files/a.png' })];
     const media = mkMedia(existing);
     const res = await linkMediaRefsToProject({
       items: [mkRef()], // 绝对 url，归一化后 == /files/a.png
@@ -114,11 +115,11 @@ describe('linkMediaRefsToProject：登记引用（不上传）', () => {
 
   it('双轨去重 · 轨 1（contentId）：contentId 命中即 skipped（url 不同也算同一份）', async () => {
     const existing = [
-      {
+      mediaAssetOf({
         id: 'm0',
         contentId: 'sha1:abc',
         persistentUrl: '/files/other.png',
-      } as unknown as MediaAsset,
+      }),
     ];
     const media = mkMedia(existing);
     const res = await linkMediaRefsToProject({

@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { videoTrackOf } from '../helpers/fixtures';
 import { at } from '../helpers/at';
 import type {
   TimelineTrack,
@@ -65,13 +66,13 @@ function element(fields: Record<string, unknown>): TimelineElement {
 }
 
 function track(fields: Record<string, unknown>): TimelineTrack {
-  return {
+  return videoTrackOf({
     id: 't',
     muted: false,
     hidden: false,
     elements: [],
     ...fields,
-  } as unknown as TimelineTrack;
+  });
 }
 
 beforeEach(() => {

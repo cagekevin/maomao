@@ -15,6 +15,7 @@
  * ════════════════════════════════════════════════════════════════
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { mediaAssetOf } from '../helpers/fixtures';
 import { EditorCore } from '../../src/components/videoEditor/engine/core';
 import type { MediaAsset } from '../../src/components/videoEditor/types/mediaAssets';
 import type { TProject } from '../../src/components/videoEditor/types/project';
@@ -57,11 +58,11 @@ function makeProject(id: string): TProject {
       background: { type: 'color', color: '#000000' },
     },
     version: 3,
-  } as unknown as TProject;
+  } satisfies TProject;
 }
 
 function makeAsset(id: string): MediaAsset {
-  return { id, name: id, type: 'video', url: `blob:${id}` } as unknown as MediaAsset;
+  return mediaAssetOf({ id, name: id, type: 'video', url: `blob:${id}` });
 }
 
 /** `addMediaAsset` 的入参形态（id 由 manager 生成，故 Omit 掉）。 */

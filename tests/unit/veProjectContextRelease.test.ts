@@ -22,6 +22,7 @@
  * TD-22-32 的知识（全局命令栈无法表达跨场景撤销）已移入 scenes-manager 头注释与当日轮次日志。
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { mediaAssetOf } from '../helpers/fixtures';
 import { EditorCore } from '../../src/components/videoEditor/engine/core';
 import { Command } from '../../src/components/videoEditor/engine/commands/base-command.ts';
 import type { TProject } from '../../src/components/videoEditor/types/project';
@@ -53,7 +54,7 @@ function makeProject(id: string): TProject {
       background: { type: 'color', color: '#000000' },
     },
     version: 3,
-  } as unknown as TProject;
+  } satisfies TProject;
 }
 
 function makeScene(id: string, tracks: unknown[] = []): TScene {
@@ -93,7 +94,7 @@ function trackOf(id: string, duration: number): TimelineTrack {
 }
 
 function makeAsset(id: string): MediaAsset {
-  return { id, name: id, type: 'video', url: `blob:${id}` } as unknown as MediaAsset;
+  return mediaAssetOf({ id, name: id, type: 'video', url: `blob:${id}` });
 }
 
 describe('EditorCore.releaseProjectContext', () => {

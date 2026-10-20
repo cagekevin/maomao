@@ -103,7 +103,7 @@ function makeProject(id: string): TProject {
       background: { type: 'color', color: '#000000' },
     },
     version: 3,
-  } as unknown as TProject;
+  } satisfies TProject;
 }
 
 function makeScene(tracks: VideoTrack[]): TScene {

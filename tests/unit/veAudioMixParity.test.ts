@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
+import { mediaAssetOf, videoTrackOf } from '../helpers/fixtures';
 import { at } from '../helpers/at';
-import type { MediaAsset } from '../../src/components/videoEditor/types/mediaAssets';
 import type { TimelineTrack, VideoElement } from '../../src/components/videoEditor/types/timeline';
 import {
   collectAudioSources,
@@ -108,16 +108,18 @@ describe('TD-22-29 · collectAudioSources 采集倒放判据', () => {
     } as unknown as VideoElement;
 
     return [
-      {
+      videoTrackOf({
         id: 'track-1',
         type: 'video',
         muted: false,
         elements: [element],
-      } as unknown as TimelineTrack,
+      }),
     ];
   }
 
-  const mediaAssets = [{ id: 'media-1', type: 'video', file: {} } as unknown as MediaAsset];
+  const mediaAssets = [
+    mediaAssetOf({ id: 'media-1', type: 'video', file: new File([], 'm1.mp4') }),
+  ];
 
   it('reversed video 元素 → spec.reversed = true', () => {
     const { items } = collectAudioSources({ tracks: makeTracks({ reversed: true }), mediaAssets });
