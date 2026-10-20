@@ -26,8 +26,7 @@
 // 【出口收口 L3b】出站统一走前端生成门面 chatStream（不再裸拼 provider URL / 直连 /api/agent）。
 // 旧 /api/proxy 已退役；providerUrlAdapters 的 URL 拼装链与 responses 形态随知识退场删除。
 import { chatStream } from '@/components/generate/lib/generate';
-import type { GenerationProvider } from '@/types';
-import type { relayChatMessage as ApiChatMessage } from '@/components/generate/lib/generate';
+import type { GenerationProvider, ErrorResponseLike } from '@/types';
 import { withTimeout, releaseQuietly } from '@/components/base/utils/net/asyncGuard';
 import { CHAT_TOTAL_TIMEOUT } from '../../base/core/config.ts';
 // 复用 agentCore 的权威消息/工具调用类型（同 runtime 目录，避免重定义漂移）
@@ -88,7 +87,7 @@ export interface RoundTripCtx {
   provider: GenerationProvider | null | undefined;
   logger: AgentLogger;
   loadAgentChatModel: () => { streamMode?: string } | null | undefined;
-  parseAgentError: (res: Response, fallback?: string) => Promise<string>;
+  parseAgentError: (res: ErrorResponseLike, fallback?: string) => Promise<string>;
   parseSSEChunk: (line: string, acc: SSEAccumulator) => SSEChunkOutcome;
   ENABLE_TOOLS_ON_NON_STREAM?: boolean;
 }
@@ -230,14 +229,11 @@ export async function roundTrip(
       model,
       // 【TD-11-12③ 跨模块边界】requestMessages 为 agentCore ChatMessage（useAgentChat 产出），
       // chatStream 收 generate ChatMessage——两套同名词类型结构不一致，此处单点收窄（不扩散 cast）。
-      messages: requestMessages as unknown as ApiChatMessage[],
+      messages: requestMessages,
       tools: withTools ? toolSchemas : undefined,
       stream: !isNonStream,
       signal,
-      parseAgentError: parseAgentError as unknown as (
-        res: { status: number; text: () => Promise<string> },
-        fallback: string,
-      ) => Promise<string>,
+      parseAgentError,
     });
   } catch (e) {
     logger.error('AI助手', '请求失败', {

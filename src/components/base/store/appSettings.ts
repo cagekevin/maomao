@@ -86,12 +86,9 @@ export function reloadAppSettings(): void {
   notify();
 }
 
-/** 扩展 window 上的调试总开关（config.js isDebugModuleOn 运行时读取源；非标准窗口属性需显式声明） */
-type DebugWindow = Window & { __DEBUG_ALL: boolean };
-
 /** 把调试总开关状态同步到 window.__DEBUG_ALL（isDebugModuleOn 的实时读取源） */
 function syncDebugAll(v: boolean): void {
-  if (typeof window !== 'undefined') (window as unknown as DebugWindow).__DEBUG_ALL = !!v;
+  if (typeof window !== 'undefined') window.__DEBUG_ALL = !!v;
 }
 
 // 应用加载初始化：若已持久化的调试总开关为开（云同步/刷新恢复），启动即同步 window.__DEBUG_ALL，

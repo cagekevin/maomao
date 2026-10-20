@@ -14,6 +14,20 @@ import {
   DEFAULT_STRIDE_SECONDS,
 } from '@/components/videoEditor/constants/transcription-constants';
 
+/**
+ * 从第三方对象上逐层读一个数值（transformers.js 的 processor/model 内部字段无公开类型）。
+ * 任一层缺失或末值非 number ⇒ undefined（调用方据此 fail-loud，而不是让 NaN 流进时间换算）。
+ */
+function readNumberAt(root: unknown, ...path: string[]): number | undefined {
+  let cur: unknown = root;
+  for (const key of path) {
+    if (cur === null || typeof cur !== 'object') return undefined;
+    // `Reflect.get` 对缺失键返回 undefined，且其返回类型是 any（赋给 unknown 无需断言）
+    cur = Reflect.get(cur, key);
+  }
+  return typeof cur === 'number' ? cur : undefined;
+}
+
 export type WorkerMessage =
   | {
       type: 'init';
@@ -93,7 +107,7 @@ async function handleInit({
     // 模型 + ORT wasm 均已落地本机：指向 /models/<modelId>/ 并禁远端（形态与 depthVideo/loader.ts 一致）。
     // 必须在 pipeline 之前设，否则库已按默认（远程 huggingface.co / cdn.jsdelivr.net）解析路径。
     configureTranscriptionModelEnv(env, modelId);
-    transcriber = (await pipeline('automatic-speech-recognition', modelId, {
+    transcriber = await pipeline('automatic-speech-recognition', modelId, {
       dtype: {
         encoder_model: encoderDtype,
         decoder_model_merged: 'q4',
@@ -145,7 +159,7 @@ async function handleInit({
           } satisfies WorkerResponse);
         }
       },
-    })) as unknown as AutomaticSpeechRecognitionPipeline;
+    });
 
     self.postMessage({ type: 'init-complete' } satisfies WorkerResponse);
   } catch (error) {
@@ -176,13 +190,21 @@ async function handleTranscribe({
   cancelled = false;
 
   try {
-    const featureExtractor = transcriber.processor.feature_extractor as unknown as {
-      config: { chunk_length: number };
-    };
-    const modelConfig = transcriber.model.config as unknown as {
-      max_source_positions: number;
-    };
-    const timePrecision = featureExtractor.config.chunk_length / modelConfig.max_source_positions;
+    // transformers.js 的内部字段（processor.feature_extractor / model.config）不进公开类型，
+    // 旧写法用两次双重断言把它们"变成"具体形状 —— 字段改名/缺失时静默变 NaN。
+    // 现改为逐层读数值 + 显式判缺（fail-loud），缺失即抛错由外层 catch 汇报。
+    const chunkLength = readNumberAt(
+      transcriber.processor.feature_extractor,
+      'config',
+      'chunk_length',
+    );
+    const maxSourcePositions = readNumberAt(transcriber.model.config, 'max_source_positions');
+    if (chunkLength === undefined || maxSourcePositions === undefined || maxSourcePositions <= 0) {
+      throw new Error(
+        `transcriber 配置缺失：chunk_length=${String(chunkLength)} / max_source_positions=${String(maxSourcePositions)}`,
+      );
+    }
+    const timePrecision = chunkLength / maxSourcePositions;
 
     const chunks: TranscriptionChunk[] = [];
     let chunkCount = 0;

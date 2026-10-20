@@ -80,6 +80,7 @@ import CustomEdge from './components/canvas/edges/CustomEdge.tsx';
 import ConnectionLine from './components/canvas/edges/ConnectionLine.tsx';
 import ContextMenu from './components/canvas/shell/ContextMenu.tsx';
 import { useContextMenu } from './components/canvas/shell/useContextMenu.ts';
+import type { PendingConnection } from './components/canvas/shell/useContextMenu.ts';
 import { useCanvasHistory } from './components/canvas/structure/useCanvasHistory.ts';
 import { patchNodeDataById } from './hooks/useNodeData.ts';
 import { CanvasEdgesProvider } from './components/canvas/structure/CanvasEdgesContext.tsx';
@@ -153,9 +154,7 @@ import { useCanvasSync } from './hooks/useCanvasSync.ts';
 import { parseShotHandle, NODE_HANDLE_CONTRACT } from './components/base/core/contracts.ts';
 import { prefetchHeavyNode } from './components/canvas/shell/lazyNode.tsx';
 
-// 拖线连接态：menu.state.connection 声明为 Connection，但 onConnectEnd 构造时额外补了 dropPosition，
-// 运行时实际形态是 Connection & { dropPosition }。本文件 buildFromConnection 仅消费 source/sourceHandle/dropPosition。
-type DragConnection = Connection & { dropPosition: { x: number; y: number } };
+// 拖线连接态的真源在 `useContextMenu.ts#PendingConnection`（source/sourceHandle + 落点，无 target）。
 // onConnectEnd 第二参（FinalConnectionState）的结构子集：仅取本文件用到的字段。
 type ConnectEndState = {
   isValid?: boolean | null;
@@ -739,11 +738,7 @@ function Canvas() {
       type: string,
       position: { x: number; y: number },
       data: Record<string, unknown> = {},
-      connection?: {
-        source: string;
-        sourceHandle: string | null;
-        dropPosition: { x: number; y: number };
-      },
+      connection?: PendingConnection,
     ) => {
       const id = generateId(type);
       const nodeData: Record<string, unknown> = { label: '', ...data };
@@ -1174,7 +1169,7 @@ function Canvas() {
 
   // 从「连接」状态建下游节点：在 dropPosition 建节点 + 自动连线，并清掉 ghost（复刻官方 di + a()）
   const buildFromConnection = useCallback(
-    (type: string, conn: DragConnection | null) => {
+    (type: string, conn: PendingConnection | null) => {
       if (!conn) return;
       addNode(
         type,
@@ -1205,15 +1200,11 @@ function Canvas() {
     (type: string) => {
       const conn = menu.state?.connection;
       if (conn) {
-        buildFromConnection(type, conn as DragConnection | null);
+        buildFromConnection(type, conn);
         return;
       }
       // 右键菜单（含工具子菜单/视频抽帧）：用公共 posAtMenu 算落点（右键位置，点哪建哪）
-      addNode(
-        type,
-        posAtMenu((menu.state ?? null) as unknown as Parameters<typeof posAtMenu>[0]),
-        defaultNodeData(type),
-      );
+      addNode(type, posAtMenu(menu.state), defaultNodeData(type));
     },
     [menu.state, buildFromConnection, addNode, posAtMenu],
   );
@@ -1314,7 +1305,7 @@ function Canvas() {
       // 若处于「拖线」菜单态（复用 canvas 菜单但 state 带 connection）：建下游并自动连线
       const conn = menu.state?.connection;
       if (conn) {
-        buildFromConnection(type, conn as DragConnection | null);
+        buildFromConnection(type, conn);
         return;
       }
       // 否则快速添加节点到视窗中心（复刻 Q/W/E，统一走公共 posAtCenter）
@@ -1396,7 +1387,7 @@ function Canvas() {
             source: fromNodeId,
             sourceHandle: fromHandleId || null,
             dropPosition: pos,
-          } as unknown as Connection,
+          },
           clientX - (rect?.left || 0),
           clientY - (rect?.top || 0),
         );

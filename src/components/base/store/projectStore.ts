@@ -447,9 +447,9 @@ export async function saveCanvasState(
       // 否则渲染时抛 "Parent node <id> not found. Please make sure that parent nodes are in front of
       // their child nodes."；同时清理指向不存在节点的孤儿 parentId（防坏快照入库，根治刷新即崩）。
       // 此写边界是自动保存与导入回写的唯一落盘口，这里归一化即可保证所有持久化快照天生合法。
-      const normalizedNodes = normalizeNodeParents(
-        nodes as unknown as import('@xyflow/react').Node[],
-      ) as unknown as Record<string, unknown>[];
+      // normalizeNodeParents 是泛型 `<T extends Record<string, unknown>>`：入参/返回都是同一形状，
+      // 无需在 Node 与 Record 之间来回断言（旧写法两次 as unknown as 纯属历史遗留）。
+      const normalizedNodes = normalizeNodeParents(nodes);
       const sanitizedNodes = sanitizeSnapshotNodes(normalizedNodes);
       const sanitizedEdges = sanitizeSnapshotEdges(edges);
 

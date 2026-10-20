@@ -37,5 +37,10 @@ export type ThreeState = {
   invalidate: () => void;
 };
 
-/** 唯一一次双重断言：把 R3F 的 RootState 收窄为本域真实使用的形状 */
-export const useThreeTyped = () => useThree() as unknown as ThreeState;
+/**
+ * 取 R3F state 并按本域形状使用。
+ *
+ * 此前是 `useThree() as unknown as ThreeState`（"唯一一次双重断言"）。实测 R3F 的 `RootState`
+ * **结构上已满足** `ThreeState`（`tsc` 实证：直接赋值 0 错）⇒ 断言纯属历史遗留，删掉即可。
+ */
+export const useThreeTyped = (): ThreeState => useThree();

@@ -147,13 +147,15 @@ export function applyStructuralSnapshot(
     // 已不存在（撤销一次删除）→ 重建。
     // 【勿漏 parentId】归属是结构的一部分：漏了会让「撤销删除编组子节点」后它变回顶层节点
     // （位置语义随之从「相对父节点」漂成「绝对坐标」）—— 实测由 structuralSnapshot.test.ts 捕获。
-    const rebuilt = {
+    // 三个必填字段（id/position/data）给齐 + 可选项条件展开（eop 下不能显式写 undefined），
+    // 形状即满足 `Node` ⇒ 不再需要双重断言。
+    const rebuilt: Node = {
       id: s.id,
-      type: s.type,
       position: { x: 0, y: 0 },
       data: {},
+      ...(s.type !== undefined ? { type: s.type } : {}),
       ...(s.parentId != null ? { parentId: s.parentId } : {}),
-    } as unknown as Node;
+    };
     return materialize ? materialize(s) : rebuilt;
   });
 

@@ -30,7 +30,7 @@ import {
 import { relayGenerate, relayChat, relayChatStream } from '@/components/generate/lib/relayProxy';
 import { logger } from '@/components/base/core/log/logger';
 import type { RelayCapability, RelayIntent } from '@/components/generate/lib/relayProxy';
-import type { GenerationProvider, GenerationResult } from '@/types';
+import type { GenerationProvider, GenerationResult, ErrorResponseLike } from '@/types';
 
 /** 真·单一真相：禁止重新列举字面量（修正 8） */
 export type GenerateCapability = RelayCapability;
@@ -100,8 +100,8 @@ export interface relayChatMessage {
   role: 'user' | 'system' | 'assistant' | 'tool' | string;
   content?: string | ChatContentBlock[];
   tool_call_id?: string;
-  tool_calls?: Array<Record<string, unknown>>;
-  [key: string]: unknown;
+  /** 上游只透传：工具调用形状由 agentCore 定义，本层不解释（故用只读 unknown 数组）。 */
+  tool_calls?: readonly unknown[];
 }
 
 /** chatCompletions 入参（stream 字段已删——死参数，修订 7）。流式与否由后端 config 决定。 */
@@ -311,9 +311,7 @@ export async function chatStream(opts: {
   stream?: boolean | undefined;
   signal?: AbortSignal | undefined;
   /** 错误归一入口：HttpError → 统一文案（来自 agentCore）。 */
-  parseAgentError?:
-    | ((res: { status: number; text: () => Promise<string> }, fallback: string) => Promise<string>)
-    | undefined;
+  parseAgentError?: ((res: ErrorResponseLike, fallback: string) => Promise<string>) | undefined;
 }): Promise<Response> {
   try {
     return await relayChatStream({

@@ -67,12 +67,43 @@ export function updateLastStreaming(delta: StreamDelta): void {
 }
 
 /** 结束流式：把最后一条 streaming 占位替换为完整 assistant（高频流式末拍；仅通知不落盘，finally 统一落盘） */
-export function endStreaming(assistant: Record<string, unknown>): void {
+/**
+ * `endStreaming` 接受的 assistant 形状：只声明会落进消息的字段（不含索引签名）。
+ *
+ * 【为什么不用 `Record<string, unknown>`】`Record` 带索引签名，而 `agentChatMessage` /
+ * `RuntimeAssistantMessage` 这类**具体接口不能赋给带索引签名的类型** ⇒ 调用点只能双重断言
+ * （useAgentChat 旧写法）。这里用无索引签名的窄接口，具体接口天然可赋值（多余字段忽略）。
+ */
+export interface AssistantMessageLike {
+  role?: unknown;
+  content?: unknown;
+  tool_calls?: unknown;
+  tool_call_id?: unknown;
+  reasoning?: unknown;
+  attachments?: unknown;
+  refCatalog?: unknown;
+  model?: unknown;
+  createdAt?: unknown;
+}
+
+export function endStreaming(assistant: AssistantMessageLike): void {
   // 【key 稳定修复】替换时必须保留原占位消息的 id（assistant 对象可能无 id）——
   //   否则 key={m.id} 变 undefined，AI 发消息（流式结束）时触发 React「列表缺 key」警告。
   const cur = getCurrentSnapshot().messages;
+  // 逐字段条件展开：`exactOptionalPropertyTypes` 下不能把 undefined 显式写进可选字段。
+  const carried = {
+    ...(assistant.role !== undefined ? { role: assistant.role } : {}),
+    ...(assistant.content !== undefined ? { content: assistant.content } : {}),
+    ...(assistant.tool_calls !== undefined ? { tool_calls: assistant.tool_calls } : {}),
+    ...(assistant.tool_call_id !== undefined ? { tool_call_id: assistant.tool_call_id } : {}),
+    ...(assistant.reasoning !== undefined ? { reasoning: assistant.reasoning } : {}),
+    ...(assistant.attachments !== undefined ? { attachments: assistant.attachments } : {}),
+    ...(assistant.refCatalog !== undefined ? { refCatalog: assistant.refCatalog } : {}),
+    ...(assistant.model !== undefined ? { model: assistant.model } : {}),
+    ...(assistant.createdAt !== undefined ? { createdAt: assistant.createdAt } : {}),
+  };
   const next = cur.map((m, i) =>
-    i === cur.length - 1 ? { ...assistant, id: m.id, streaming: false } : m,
+    i === cur.length - 1 ? { ...carried, id: m.id, streaming: false } : m,
   );
   patchCurrentMessages(next);
 }

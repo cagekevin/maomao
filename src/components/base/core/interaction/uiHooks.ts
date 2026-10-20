@@ -384,10 +384,15 @@ export interface FlowPosition {
   y: number;
 }
 
-/** 右键菜单状态里本 hook 消费的部分（client 为视口坐标） */
+/**
+ * 右键菜单状态里本 hook 消费的部分（client 为视口坐标）。
+ *
+ * 刻意**不加** `[key: string]: unknown`：index signature 会让任何真实接口（如
+ * `ContextMenuState`）都不再结构兼容，调用点只能靠双重断言硬转 —— 那正是 App.tsx 旧写法。
+ * 这里只要 client，多传的字段本来就不影响（非字面量不触发多余属性检查）。
+ */
 export interface MenuStateLike {
   client?: FlowPosition;
-  [key: string]: unknown;
 }
 
 export function useNodePosition(): {

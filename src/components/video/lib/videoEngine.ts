@@ -284,8 +284,9 @@ export async function processVideo(
     if (t.mode === 'extractAudio' && !audioTrack) throw new Error('该视频不包含可提取的音频轨道');
     if (t.controller?.isCanceled) throw new ConversionCanceled();
 
-    // init 在下方多分支动态补 trim/video/audio 字段，用 Record 兜底并整体断言给 Conversion.init
-    const init: Record<string, unknown> = {
+    // 直接按 mediabunny 的入参类型声明（下方多分支只补 trim/video/audio 三个可选字段），
+    // 旧写法是 Record + 末尾整体双重断言，把字段名/取值写错都藏了起来。
+    const init: Parameters<typeof Conversion.init>[0] = {
       input,
       output: new Output({
         format:
@@ -300,7 +301,11 @@ export async function processVideo(
       showWarnings: false,
     };
     if (t.mode === 'trim') {
-      init['trim'] = { start: t.start, end: t.end };
+      // 库类型要求「要么给值、要么不给键」（eop）⇒ 条件展开，不显式写 undefined
+      init['trim'] = {
+        ...(t.start !== undefined ? { start: t.start } : {}),
+        ...(t.end !== undefined ? { end: t.end } : {}),
+      };
       init['video'] = {};
       init['audio'] = {};
     } else if (t.mode === 'extractAudio') {
@@ -316,17 +321,15 @@ export async function processVideo(
       // sizeFrameRate
       init['video'] = {
         codec: 'avc',
-        width: t.width,
-        height: t.height,
         fit: 'contain',
-        frameRate: t.fps,
+        ...(t.width !== undefined ? { width: t.width } : {}),
+        ...(t.height !== undefined ? { height: t.height } : {}),
+        ...(t.fps !== undefined ? { frameRate: t.fps } : {}),
       };
       init['audio'] = { codec: 'aac' };
     }
 
-    const conversion = await Conversion.init(
-      init as unknown as Parameters<typeof Conversion.init>[0],
-    );
+    const conversion = await Conversion.init(init);
     t.controller?.attach(conversion);
     if (!conversion.isValid) {
       const reasons = conversion.discardedTracks.map((e) => e.reason).join('、');

@@ -85,6 +85,9 @@ function SceneObject({
   preview = false,
 }: SceneObjectProps) {
   const groupRef = useRef<THREE.Group>(null);
+  /** drei 的 TransformControls.object 只接受非 null 的 RefObject<Object3D>，而 useRef 类型恒含 null
+   *  （React 引用不变式无法表达「挂载后必非空」）⇒ 在组件内单点收窄，供下方一处消费（此前两处双重断言）。 */
+  const transformTarget = groupRef as React.RefObject<THREE.Object3D>;
   const objectRotateDrag = useRef<{
     pointerId: number;
     startX: number;
@@ -312,7 +315,7 @@ function SceneObject({
       {content}
       {selected && !data['locked'] && !preview && transformMode !== 'select' && (
         <TransformControls
-          object={groupRef as unknown as React.RefObject<THREE.Object3D>}
+          object={transformTarget}
           mode={transformMode ?? 'translate'}
           space={transformSpace}
           size={0.8}
@@ -431,6 +434,8 @@ function CameraModel({
   onUpdate?: ((id: string, patch: Record<string, unknown>) => void) | undefined;
 }) {
   const groupRef = useRef<THREE.Group>(null);
+  /** 同 SceneObject：drei 的 object 只接受非 null RefObject，React 类型无法表达「挂载后必非空」。 */
+  const transformTarget = groupRef as React.RefObject<THREE.Object3D>;
   // 相机朝向欧拉用 'YXZ'（先 yaw 后 pitch）：与 cameraRotationToward 的生成约定一致，
   // 保证「始终面向对象」/路径切线朝向在目标位于侧方/后方时也精确对准（'XYZ' 有象限歧义会偏）。
   const groupRotation = useMemo(
@@ -507,7 +512,7 @@ function CameraModel({
       {rig}
       {selected && ['translate', 'rotate'].includes(transformMode) && (
         <TransformControls
-          object={groupRef as unknown as React.RefObject<THREE.Object3D>}
+          object={transformTarget}
           mode={transformMode as 'translate' | 'rotate'}
           space={transformSpace}
           size={0.8}

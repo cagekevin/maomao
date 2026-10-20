@@ -34,17 +34,9 @@ export const API_BASE =
  *     （缓存会使运行时 window.__DEBUG_<MODULE> 切换失效，见下方 isDebugModuleOn 注释）。 */
 export const DEBUG_MODULES = ['asset', 'agent', 'image', 'text', 'project', 'http', 'depth']; // 支持的模块位（新增模块在此登记）；'text'=文本节点复制/落盘链路；'project'=项目切换/快照/备份/同步；'http'=统一请求层(httpClient)传输日志；'depth'=深度转视频（模型加载/生成链路）
 
-/** 运行时调试开关所在 window 形状：`__DEBUG_<MODULE>` / `__DEBUG_ALL` 由前端运行时注入，
- *  非标准 Window 成员 → 显式声明模板字面量索引面（避免 noImplicitAny 下的隐式 any 索引，TD-09-1）。 */
-type DebugWindow = Window & { [k: `__DEBUG_${string}`]: boolean | undefined };
-
 const _debugOn = (upper: string) => {
   if (import.meta.env?.[`VITE_DEBUG_${upper}`] === '1') return true;
-  if (
-    typeof window !== 'undefined' &&
-    (window as unknown as DebugWindow)[`__DEBUG_${upper}`] === true
-  )
-    return true;
+  if (typeof window !== 'undefined' && window[`__DEBUG_${upper}`] === true) return true;
   return false;
 };
 // 总开关不在模块顶层缓存（否则运行时设 window.__DEBUG_ALL 不生效）。

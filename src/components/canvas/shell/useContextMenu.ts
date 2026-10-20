@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef } from 'react';
 import type { RefObject, MouseEvent as ReactMouseEvent } from 'react';
-import type { Connection, Node } from '@xyflow/react';
+import type { Node } from '@xyflow/react';
 import { isEditableTarget } from '@/components/base/core/interaction/uiHooks';
 
 /** ReactFlow 的 onPaneContextMenu 既可能是原生 DOM MouseEvent，也可能是 React 合成事件 */
@@ -17,11 +17,24 @@ export interface ContextMenuPos {
  * - client：原始视口坐标，供建节点时 screenToFlowPosition 换算落点
  * - connection：仅「从端口拖出到空白」的菜单携带，菜单项据此决定是否自动连线
  */
+/**
+ * 拖线连接态（onConnectEnd → 菜单 → 建节点三段共用）。
+ *
+ * 【为什么不是 xyflow 的 Connection】这里只有 source/sourceHandle + 落点，**没有 target** ——
+ * 它是「用户从某端口拖出、尚未连到目标」的待决状态，不是一条已成立的连接。
+ * 此前声明成 Connection 迫使调用点双重断言（App.tsx 旧写法），把「结构不成立」藏在断言里。
+ */
+export interface PendingConnection {
+  source: string;
+  sourceHandle: string | null;
+  dropPosition: ContextMenuPos;
+}
+
 export interface ContextMenuState extends ContextMenuPos {
   type: string;
   nodeId?: string | null;
   client?: ContextMenuPos;
-  connection?: Connection | null;
+  connection?: PendingConnection | null;
 }
 
 export interface ContextMenuApi {
@@ -32,7 +45,7 @@ export interface ContextMenuApi {
   onSelectionContextMenu: (e: ReactMouseEvent, nodes: Node[]) => void;
   onSelectionEnd: (e: ReactMouseEvent, nodes?: Node[]) => void;
   onPaneClick: () => void;
-  openConnection: (connection: Connection, clientX: number, clientY: number) => void;
+  openConnection: (connection: PendingConnection, clientX: number, clientY: number) => void;
   close: () => void;
 }
 
@@ -81,7 +94,7 @@ export function useContextMenu(): ContextMenuApi {
   // 单一数据源：直接复用空白处（canvas）同一套菜单，不另起 connection 菜单。
   // 仅把这次拖拽的源信息（connection）挂进 state，菜单项据此决定是否自动连线。
   const openConnection = useCallback(
-    (connection: Connection, clientX: number, clientY: number) => {
+    (connection: PendingConnection, clientX: number, clientY: number) => {
       const { x, y } = toContainerPos(clientX, clientY);
       setState({ x, y, type: 'canvas', connection });
     },

@@ -47,6 +47,7 @@ import { AGENT_KEY_PREFIX } from './agentKeys.ts';
 import { AGENT_PROMPTS } from '../agentConfig.ts';
 import type { ImageMapEntry } from '../conversation/conversationImageMap.ts';
 import type { ConversationMessage } from '../contract/conversationTypes.ts';
+import type { ErrorResponseLike } from '@/types';
 
 /**
  * 把本轮附件数组转成 OpenAI 兼容的多模态 messages content 块：
@@ -762,7 +763,7 @@ export function buildRequestMessages(
  *  从非 2xx 响应体提取可读错误信息（兼容 OpenAI {error:{message}} 与本地 {error} 两种形态），
  *  失败/非 JSON 回退到默认文案。避免两条路径各写一套错误处理。 */
 export async function parseAgentError(
-  res: Response,
+  res: ErrorResponseLike,
   fallback: string = '调用失败',
 ): Promise<string> {
   let msg = `${fallback} (${res.status})`;

@@ -811,7 +811,7 @@ export function useAgentChat({
             updateLastStreaming(delta),
           );
           // 结束流式（把占位替换为完整 assistant）
-          endStreaming(assistant as unknown as Record<string, unknown>);
+          endStreaming(assistant);
           // ── [debug] 非流式链路 · 跳④：roundTrip 返回（定位"前端拿到什么"） ──
           logger.debug(
             'AI助手',
