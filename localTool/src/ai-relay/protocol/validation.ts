@@ -29,12 +29,98 @@ import {
   visitTemplateStrings,
 } from './shared.js';
 
-export function validateAuthentication(value: unknown, errors: string[]): void {
-  if (value === undefined) return;
-  if (!isRecord(value)) {
+/**
+ * 协议原文的「待校验视图」：**只登记本文件会读取的键**，类型一律 unknown。
+ *
+ * 为什么需要它：`isRecord()` 收窄出来的是 `Record<string, unknown>`（带索引签名），
+ * 开了 `noPropertyAccessFromIndexSignature` 后 `value.type` 一类点访问全变成 TS4111；
+ * 而 `value['type']` 只是换语法，拼错字段名照样能过。
+ * 这里把「协议 v1/v2 的固定字段」显式登记成接口（B 类假字典判据：键名全是代码里写死的），
+ * `Record<string, unknown>` 天然可赋值给它的全部可选属性 ⇒ **零断言收窄**，拼错字段立即 TS2339。
+ *
+ * 与 `types.ts` 的 `ModelProtocol*` 分工：那套是**校验通过后**的强类型契约（method 只允许 GET/POST 等）；
+ * 这里是**校验前**的原始值视图（字段类型必须是 unknown，否则 equals 校验本身写不出来）。
+ */
+interface AuthFields {
+  type?: unknown;
+  prefix?: unknown;
+  name?: unknown;
+}
+
+interface RequestFields {
+  method?: unknown;
+  path?: unknown;
+  pathMode?: unknown;
+  bodyEncoding?: unknown;
+  maxBodyBytes?: unknown;
+  body?: unknown;
+  query?: unknown;
+  headers?: unknown;
+  response?: unknown;
+  retry?: unknown;
+  intervalMs?: unknown;
+  maxAttempts?: unknown;
+  maxDurationMs?: unknown;
+}
+
+interface ResponseFields {
+  type?: unknown;
+  taskIdPath?: unknown;
+  result?: unknown;
+  errorPath?: unknown;
+  statusPath?: unknown;
+  successValues?: unknown;
+  failureValues?: unknown;
+  progressPath?: unknown;
+}
+
+interface ResultFields {
+  urlPath?: unknown;
+  textPath?: unknown;
+  base64Path?: unknown;
+  mimeType?: unknown;
+  fetchUrl?: unknown;
+  base64Transform?: unknown;
+}
+
+interface RetryFields {
+  httpStatuses?: unknown;
+  maxRetries?: unknown;
+  backoff?: unknown;
+  maxDelayMs?: unknown;
+  honorRetryAfter?: unknown;
+  retryNetworkErrors?: unknown;
+}
+
+/** 轮询段：v1 扁平字段（resultUrlPath 等）与 v2 结构字段（response/statusPath 等）都要读/删。 */
+interface LegacyPollFields extends LegacyProtocolFields, ResponseFields {}
+
+/** v1 扁平字段 + v2 结构字段的并集（upgrade 与顶层校验都要读/删）。 */
+interface LegacyProtocolFields {
+  version?: unknown;
+  mode?: unknown;
+  streamFormat?: unknown;
+  auth?: unknown;
+  submit?: unknown;
+  response?: unknown;
+  poll?: unknown;
+  request?: unknown;
+  responseType?: unknown;
+  resultUrlPath?: unknown;
+  resultTextPath?: unknown;
+  resultBase64Path?: unknown;
+  resultMimeType?: unknown;
+  errorPath?: unknown;
+  taskIdPath?: unknown;
+}
+
+export function validateAuthentication(raw: unknown, errors: string[]): void {
+  if (raw === undefined) return;
+  if (!isRecord(raw)) {
     errors.push('鉴权配置无效');
     return;
   }
+  const value: AuthFields = raw;
   if (!['bearer', 'header', 'query', 'none'].includes(String(value.type))) {
     errors.push('鉴权类型只支持 bearer、header、query 或 none');
     return;
@@ -78,7 +164,9 @@ function validateTemplateVariables(
   visitTemplateStrings(request, (template) => {
     for (const match of template.matchAll(TEMPLATE_RE)) {
       const variable = match[1];
-      const root = variable.split('.')[0];
+      // TEMPLATE_RE 的第 1 组是可选的（`matchAll` 不给编译器保证）⇒ 缺失即跳过，不做断言。
+      if (variable === undefined) continue;
+      const [root = ''] = variable.split('.');
       if (!ALLOWED_VARIABLE_ROOTS.has(root) && !(allowSubmit && root === 'submit')) {
         errors.push(`${label}使用了不允许的变量 ${variable}`);
       }
@@ -101,7 +189,9 @@ function validateConditionalTemplateDirectives(
   value: unknown,
   label: string,
   errors: string[],
-  options: { enabled: boolean; arrayItem?: boolean; forEachEnabled?: boolean },
+  // forEachEnabled 显式允许 undefined：调用方按「bodyEncoding 未知 ⇒ 允许」传布尔表达式，
+  // 消费方只判 truthy、不区分「键缺失」（eop 的 A 类：声明处认下 undefined）。
+  options: { enabled: boolean; arrayItem?: boolean; forEachEnabled?: boolean | undefined },
 ): void {
   if (Array.isArray(value)) {
     value.forEach((item) =>
@@ -182,15 +272,16 @@ function validateConditionalTemplateDirectives(
 }
 
 export function validateRequest(
-  request: unknown,
+  raw: unknown,
   label: string,
   allowSubmit: boolean,
   errors: string[],
 ): boolean {
-  if (!isRecord(request)) {
+  if (!isRecord(raw)) {
     errors.push(`${label}配置无效`);
     return false;
   }
+  const request: RequestFields = raw;
   if (request.method !== 'GET' && request.method !== 'POST') {
     errors.push(`${label} method 只支持 GET 或 POST`);
   }
@@ -238,9 +329,10 @@ export function validateRequest(
   return true;
 }
 
-function pollRequestUsesTaskId(request: unknown, taskIdPath: string): boolean {
+function pollRequestUsesTaskId(raw: unknown, taskIdPath: string): boolean {
   if (typeof taskIdPath !== 'string' || !taskIdPath.trim()) return false;
-  if (!isRecord(request)) return false;
+  if (!isRecord(raw)) return false;
+  const request: RequestFields = raw;
   const expected = `submit.${taskIdPath.trim()}`;
   const source = JSON.stringify({
     path: request.path,
@@ -250,12 +342,13 @@ function pollRequestUsesTaskId(request: unknown, taskIdPath: string): boolean {
   return [...source.matchAll(TEMPLATE_RE)].some((match) => match[1] === expected);
 }
 
-function validatePollRetryConfig(value: unknown, errors: string[]): void {
-  if (value === undefined) return;
-  if (!isRecord(value)) {
+function validatePollRetryConfig(raw: unknown, errors: string[]): void {
+  if (raw === undefined) return;
+  if (!isRecord(raw)) {
     errors.push('轮询重试配置无效');
     return;
   }
+  const value: RetryFields = raw;
   if (
     value.httpStatuses !== undefined &&
     (!Array.isArray(value.httpStatuses) ||
@@ -299,9 +392,10 @@ function withoutUndefined(values: Record<string, unknown>): Record<string, unkno
   return Object.fromEntries(Object.entries(values).filter(([, value]) => value !== undefined));
 }
 
-export function upgradeLegacyProtocolValue(value: unknown): unknown {
-  if (!isRecord(value)) return value;
-  const upgraded = structuredClone(value);
+export function upgradeLegacyProtocolValue(raw: unknown): unknown {
+  if (!isRecord(raw)) return raw;
+  const value: LegacyProtocolFields = raw;
+  const upgraded: LegacyProtocolFields & Record<string, unknown> = structuredClone(raw);
   upgraded.version = 2;
   upgraded.response = withoutUndefined({
     type: value.responseType ?? 'json',
@@ -326,19 +420,19 @@ export function upgradeLegacyProtocolValue(value: unknown): unknown {
   delete upgraded.taskIdPath;
 
   if (isRecord(value.poll)) {
-    const poll = structuredClone(value.poll);
+    const poll: LegacyPollFields = structuredClone(value.poll);
     poll.response = withoutUndefined({
-      statusPath: value.poll.statusPath,
-      successValues: value.poll.successValues,
-      failureValues: value.poll.failureValues,
+      statusPath: poll.statusPath,
+      successValues: poll.successValues,
+      failureValues: poll.failureValues,
       result: withoutUndefined({
-        urlPath: value.poll.resultUrlPath,
-        textPath: value.poll.resultTextPath,
-        base64Path: value.poll.resultBase64Path,
-        mimeType: value.poll.resultMimeType,
+        urlPath: poll.resultUrlPath,
+        textPath: poll.resultTextPath,
+        base64Path: poll.resultBase64Path,
+        mimeType: poll.resultMimeType,
       }),
-      errorPath: value.poll.errorPath,
-      progressPath: value.poll.progressPath,
+      errorPath: poll.errorPath,
+      progressPath: poll.progressPath,
     });
     delete poll.statusPath;
     delete poll.successValues;
@@ -355,15 +449,16 @@ export function upgradeLegacyProtocolValue(value: unknown): unknown {
 }
 
 function validateResultConfig(
-  value: unknown,
+  raw: unknown,
   label: string,
   requirePath: boolean,
   errors: string[],
 ): void {
-  if (!isRecord(value)) {
+  if (!isRecord(raw)) {
     errors.push(`${label}配置无效`);
     return;
   }
+  const value: ResultFields = raw;
   if (
     requirePath &&
     value.urlPath === undefined &&
@@ -411,11 +506,12 @@ function validateResultConfig(
     errors.push(`${label}启用同源结果下载时必须配置 URL 路径`);
   }
   if (value.base64Transform !== undefined) {
-    if (!isRecord(value.base64Transform) || value.base64Transform.type !== 'pcm-s16le-to-wav') {
+    const transform = value.base64Transform;
+    if (!isRecord(transform) || transform['type'] !== 'pcm-s16le-to-wav') {
       errors.push(`${label}Base64 转换只支持 pcm-s16le-to-wav`);
     } else {
-      const sampleRate = Number(value.base64Transform.sampleRate);
-      const channels = Number(value.base64Transform.channels ?? 1);
+      const sampleRate = Number(transform['sampleRate']);
+      const channels = Number(transform['channels'] ?? 1);
       if (!Number.isInteger(sampleRate) || sampleRate < 8000 || sampleRate > 384000) {
         errors.push(`${label}PCM 采样率必须是 8000 到 384000 的整数`);
       }
@@ -432,9 +528,10 @@ function validateResultConfig(
   }
 }
 
-export function validateModelExecutionProtocol(value: unknown): string[] {
+export function validateModelExecutionProtocol(raw: unknown): string[] {
   const errors: string[] = [];
-  if (!isRecord(value)) return ['调用协议必须是 JSON 对象'];
+  if (!isRecord(raw)) return ['调用协议必须是 JSON 对象'];
+  const value: LegacyProtocolFields = raw;
   if (value.version !== 1 && value.version !== 2) {
     errors.push('调用协议 version 只支持 1 或 2');
     return errors;
@@ -565,7 +662,7 @@ export function parseModelExecutionProtocol(value: unknown): ModelProtocol {
   const errors = validateModelExecutionProtocol(value);
   if (errors.length > 0) throw new Error(errors[0]);
   const normalized =
-    (value as Record<string, unknown>).version === 1
+    (value as Record<string, unknown>)['version'] === 1
       ? upgradeLegacyProtocolValue(value)
       : structuredClone(value);
   return normalized as ModelProtocol;
