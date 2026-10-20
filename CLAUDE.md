@@ -34,7 +34,7 @@ npm run check:health  # 工程健康全量检查（= gates-run health：manifest
 npm run check:events  # 事件契约双向校验：① 裸事件名必须登记 EVENTS；② EVENTS 的 to/from 须与代码实测 subscribe/publish 自洽（防 to:[] 误判死事件）。挂 prebuild+pretest
 npm run check:node-types  # 节点类型静态校验：NODE_TYPES 裸 nodePrefs 命名空间拦截（useNodePrefs 首参必须登记）
 npm run check:api     # API 契约双向校验：contracts.ts apiRegistry ↔ localTool router.ts 互检（防白实现/镜像漂移/信封不符），挂 prebuild+pretest
-npm run type-check    # tsc --noEmit 类型检查（根 tsconfig 已 strict + 六项：3 项零成本 + noImplicitOverride + verbatimModuleSyntax + exactOptionalPropertyTypes，全仓 0 错；更严格开关见 docs/plan/150）
+npm run type-check    # tsc --noEmit 类型检查（根 tsconfig = strict + 全部 7 项「strict 之外更严」开关：3 项零成本 + noImplicitOverride + verbatimModuleSyntax + exactOptionalPropertyTypes + noUncheckedIndexedAccess + noPropertyAccessFromIndexSignature；localTool 为 strict + 4 项同口径。全仓 0 错，见 docs/plan/150）
 ```
 
 ### ⚠️ 查任务/查图/查视频铁律（改这些 bug 前必跑，不要自己造查询）
@@ -136,7 +136,7 @@ node scripts/task-inspect.mjs --canvas-health   # 画布结构体检
 
 ## 二、 前端原型架构
 
-- **技术栈**：Vite + React 19（`package.json` 实测 `react@19.2.8`、`@types/react@^19` 已对齐）+ `@xyflow/react`(React Flow) + Tailwind。开发服务器 `localhost:5180`。tsconfig 已 `strict: true`（含 `noUnusedLocals`/`noUnusedParameters`/`noImplicitReturns` + `noFallthroughCasesInSwitch`/`allowUnreachableCode:false`/`allowUnusedLabels:false`/`noImplicitOverride`/`verbatimModuleSyntax`/`exactOptionalPropertyTypes`），全仓 `tsc --noEmit` 0 错；更严格开关（`noUncheckedIndexedAccess` / `noPropertyAccessFromIndexSignature`）的分期收口见 `docs/plan/150-类型检测最严格模式-根治计划-2026-10-19.md`。
+- **技术栈**：Vite + React 19（`package.json` 实测 `react@19.2.8`、`@types/react@^19` 已对齐）+ `@xyflow/react`(React Flow) + Tailwind。开发服务器 `localhost:5180`。tsconfig **已是最严格**：`strict: true`（含 `noUnusedLocals`/`noUnusedParameters`/`noImplicitReturns`）＋ `noFallthroughCasesInSwitch`/`allowUnreachableCode:false`/`allowUnusedLabels:false`/`noImplicitOverride`/`verbatimModuleSyntax`/`exactOptionalPropertyTypes`/`noUncheckedIndexedAccess`/`noPropertyAccessFromIndexSignature`，全仓 `tsc --noEmit` 0 错；`localTool` 同口径（strict + 后四项）。这 4197 处的分期收口与判据见 `docs/plan/150-类型检测最严格模式-根治计划-2026-10-19.md`（P0~P6 已完成，开关全部写回）。
 
 - **入口**：`src/main.tsx` → `src/App.tsx`。
 
@@ -225,7 +225,7 @@ npx vitest run --bail=1 tests/unit
 > 命令速查（详见 `spec/TEST-GUIDE.md`，权威）：**`npm test`（=** **`npm run test:all`）= 冒烟 + vitest 全量单测 + 回归 + Agent 工具** 四件套一次跑完，提交前首选；单项：`npm run test:smoke`（冒烟）/`test:unit`（vitest 单测）/`test:regression`（SSR 回归）/`test:tools`（Agent 工具）；`npm run check:health` 全量编排（含构建 + 测试 + TDZ + dist 基线）。
 
 > ⚠️ **跑 vitest 单次**：`vitest.config.ts` 已默认 `watch:false`，裸调 `npx vitest xxx` 也会单次跑完即退（不会挂住）。但**优先用脚本**（内部已配好）：`npm test` / `npm run test:unit`（全量）或 `npx vitest run tests/unit/xxx.test.js`（单文件）。需 watch 时显式 `npx vitest --watch`。若已误入 watch，`Ctrl+C` 或 `pkill -f vitest` 退出。
-> 提交前 `pre-commit` 钩子（`.husky/pre-commit`）自动跑 `lint-staged`（仅暂存文件 eslint --fix + prettier）+ `type-check` + `node scripts/test-affected.cjs`（只测与暂存改动相关的单测，\~2-3s）+ 3 个秒级 SSR 门禁（`smoke`/`regression`/`tools`，防改名后 SSR 挂）。**`pre-push`（2026-09-10 恢复）跑全量 `npm run lint`**（全量 ESLint，约 4s；当初「跑得慢 + 报错多」的理由已不成立——当前 0 error / 0 warning）；`main` 分支的 push/PR 由 `.github/workflows/ci.yml` 云端跑 type-check + 全量单测（frontend + localtool 两个 job）。全量 lint 只落在 push 这一道（不进 pre-commit，避免每次提交都等），紧急可用 `git push --no-verify` 绕过。另保留**单条存储键契约编译期拦截**：`npm run check:keys` 静态校验裸 `STORAGE_KEYS` key（挂 `npm run check:health`）+ `contentStore.checkRegistered` 在 dev 环境对未登记字面量 key 直接 throw。
+> 提交前 `pre-commit` 钩子（`.husky/pre-commit`）自动跑 `lint-staged`（仅暂存文件 eslint --fix + prettier）+ `type-check` + `node scripts/test-affected.cjs`（只测与暂存改动相关的单测，\~2-3s）+ 3 个秒级 SSR 门禁（`smoke`/`regression`/`tools`，防改名后 SSR 挂）。**`pre-push`（2026-09-10 恢复）跑全量 `npm run lint`**（全量 ESLint，约 4s；当初「跑得慢 + 报错多」的理由已不成立——当前 0 error / 7 warning，存量均为 react-hooks/exhaustive-deps）；`main` 分支的 push/PR 由 `.github/workflows/ci.yml` 云端跑 type-check + 全量单测（frontend + localtool 两个 job）。全量 lint 只落在 push 这一道（不进 pre-commit，避免每次提交都等），紧急可用 `git push --no-verify` 绕过。另保留**单条存储键契约编译期拦截**：`npm run check:keys` 静态校验裸 `STORAGE_KEYS` key（挂 `npm run check:health`）+ `contentStore.checkRegistered` 在 dev 环境对未登记字面量 key 直接 throw。
 > **写完代码跑哪个**：平时 `npm run type-check` + **按影响面的最小射程单测**（**❌ 不是 `test:unit` 全量**，见 §3.0.1）；
 > 改画布/地基或合 main 前**申请后**再跑 `npm test` 全量兜底（regression/tools 已含在内）。
 

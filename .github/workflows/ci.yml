@@ -62,6 +62,9 @@ jobs:
         working-directory: localTool
 
       # build = tsc --noEmit + esbuild 打包，同时守住「类型正确」与「可打包」两条底线。
+      # 【2026-10-20 · P7】本步的 tsc 走 localTool/tsconfig.json —— 该文件已写入四项最严格开关
+      # （noImplicitOverride / noPropertyAccessFromIndexSignature / noUncheckedIndexedAccess /
+      #  exactOptionalPropertyTypes），故这一步同时就是「localTool 最严格」job，无需再加独立步骤。
       - name: Type check + build
         run: npm run build
         working-directory: localTool
