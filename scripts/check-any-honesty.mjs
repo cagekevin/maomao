@@ -29,22 +29,31 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join, relative } from 'node:path';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
-const SRC = join(ROOT, 'src');
 
-/** 递归收集 src 下所有 .ts/.tsx */
+/**
+ * 扫描根：前端 src + 后端 localTool/src（2026-10-20 · P8-T2 扩围）。
+ * 此前只扫 src ⇒ localTool 的 `as any` / 双重断言完全在射程外（见 docs/plan/150 §11.2）。
+ */
+const SCAN_ROOTS = [join(ROOT, 'src'), join(ROOT, 'localTool', 'src')];
+
+/** 递归收集各扫描根下所有 .ts/.tsx */
 const files = [];
-(function walk(dir) {
-  for (const name of readdirSync(dir)) {
-    const p = join(dir, name);
-    const st = statSync(p);
-    if (st.isDirectory()) walk(p);
-    else if (/\.(ts|tsx)$/.test(name)) files.push(p);
-  }
-})(SRC);
+for (const root of SCAN_ROOTS) {
+  (function walk(dir) {
+    for (const name of readdirSync(dir)) {
+      const p = join(dir, name);
+      const st = statSync(p);
+      if (st.isDirectory()) walk(p);
+      else if (/\.(ts|tsx)$/.test(name)) files.push(p);
+    }
+  })(root);
+}
 
 // 自检 fail-loud：解析源为空 → 报错退出（防路径/遍历失效后静默「0 违规」）
 if (files.length === 0) {
-  console.error('❌ any 门禁自检失败：未扫描到任何 src/**/*.ts(x) 文件（路径或遍历逻辑失效）');
+  console.error(
+    '❌ any 门禁自检失败：未扫描到任何 src/** 或 localTool/src/** 的 .ts(x) 文件（路径或遍历逻辑失效）',
+  );
   process.exit(1);
 }
 
@@ -67,14 +76,18 @@ for (const file of files) {
     const code = raw.replace(/\s\/\/.*$/, '');
     for (const rule of RULES) {
       if (rule.re.test(code)) {
-        violations.push(`${relative(ROOT, file)}:${i + 1}  [${rule.name}]  ${trimmed.slice(0, 120)}`);
+        violations.push(
+          `${relative(ROOT, file)}:${i + 1}  [${rule.name}]  ${trimmed.slice(0, 120)}`,
+        );
       }
     }
   });
 }
 
 console.log('🔒 类型诚实性门禁（显式/隐含 any）');
-console.log(`   扫描 src 共 ${files.length} 个 .ts/.tsx · 规则 ${RULES.length} 条（全 src，无白名单）`);
+console.log(
+  `   扫描 ${files.length} 个 .ts/.tsx（src + localTool/src）· 规则 ${RULES.length} 条（无白名单）`,
+);
 
 if (violations.length > 0) {
   console.error(`\n❌ 发现 ${violations.length} 处：`);

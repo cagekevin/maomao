@@ -39,8 +39,8 @@
     "adr:audit": "node scripts/adr.mjs audit",
     "adr:hygiene": "node scripts/adr.mjs hygiene",
     "type-check": "tsc --noEmit",
-    "lint": "eslint src tests --ext .ts,.tsx,.js,.jsx",
-    "lint:fix": "eslint src tests --ext .ts,.tsx,.js,.jsx --fix",
+    "lint": "eslint src tests localTool/src --ext .ts,.tsx,.js,.jsx",
+    "lint:fix": "eslint src tests localTool/src --ext .ts,.tsx,.js,.jsx --fix",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "prepare": "husky"

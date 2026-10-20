@@ -63,7 +63,7 @@
       "id": "any",
       "cmd": "node scripts/check-any-honesty.mjs",
       "phase": "push",
-      "desc": "类型诚实性：禁显式 any/never + 未标注 useState(null)/useRef(null)（全 src 零白名单）"
+      "desc": "类型诚实性：禁显式 any/never + 未标注 useState(null)/useRef(null)（src + localTool/src，零白名单）"
     },
     {
       "id": "events",

@@ -29,6 +29,11 @@ jobs:
       - name: "Gates (push: type-check / any / events / arch / dead-code / gate-vitals)"
         run: npm run check:push
 
+      # 【2026-10-20 · P8-T2】全量 ESLint 首次进 CI。此前 lint 只落在本地 pre-push（可用 --no-verify 绕过），
+      # 且射程只有 `src tests`；现在射程含 `localTool/src`（见 docs/plan/150 §11.2）⇒ 云端必须同一口径跑一次。
+      - name: Lint (src + tests + localTool/src)
+        run: npm run lint
+
       # 【2026-09-10 去重】此处原有一个 `Fast logic lane`（npm run test:unit:logic），
       # 排在 test:coverage 之前「先跑快速面暴露回归」。实测该分层收益不成立，已删除：
       #   · test:unit:logic 的 1932 个用例是 test:coverage（2332）的**真子集**，属纯重复执行；
