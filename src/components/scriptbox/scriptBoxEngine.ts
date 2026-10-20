@@ -60,6 +60,7 @@ import {
   tailFrameTaskNodeId,
   type ScriptBoxUpdateData,
   type ScriptBoxData,
+  type ScriptBoxPatch,
   type ScriptBoxShot,
 } from './scriptBoxSchema.ts';
 
@@ -237,7 +238,7 @@ export function createScriptBoxEngine({
    * @returns {{ enqueuePatch:(apply:(latest)=>data)=>void, flushPatches:()=>void }}
    */
   function createPatchBatcher(updateData: ScriptBoxUpdateData, windowMs = 200) {
-    const patchQueue: Array<(latest: ScriptBoxData) => Record<string, unknown>> = [];
+    const patchQueue: Array<(latest: ScriptBoxData) => ScriptBoxPatch> = [];
     let flushTimer: ReturnType<typeof setTimeout> | null = null;
     const flushPatches = () => {
       if (flushTimer) {
@@ -247,13 +248,16 @@ export function createScriptBoxEngine({
       const q = patchQueue.splice(0);
       if (!q.length) return;
       updateData((latest) => {
-        // 累积合并：每个 apply 返回 partial patch，逐次 `{...d, ...patch}` 合并，d 始终为宽松对象
-        let d: Record<string, unknown> = { ...latest };
-        for (const apply of q) d = { ...d, ...apply(d as ScriptBoxData) };
+        // 累积合并：每个 apply 返回 partial patch，逐次 `{...d, ...patch}` 合并。
+        // 【P5】d 直接就是 latest（ScriptBoxData），不再降级成 Record 再断言回来 ——
+        // 那层 `as ScriptBoxData` 是因为 ScriptBoxData 有索引签名时才"恰好成立"，
+        // 删掉索引签名后它立刻变成跨类型断言（TS2352），说明本就是类型表达债。
+        let d: ScriptBoxData = latest;
+        for (const apply of q) d = { ...d, ...apply(d) };
         return d;
       });
     };
-    const enqueuePatch = (apply: (latest: ScriptBoxData) => Record<string, unknown>) => {
+    const enqueuePatch = (apply: (latest: ScriptBoxData) => ScriptBoxPatch) => {
       patchQueue.push(apply);
       if (flushTimer == null) flushTimer = setTimeout(flushPatches, windowMs);
     };

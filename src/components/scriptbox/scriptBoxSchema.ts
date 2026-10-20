@@ -69,11 +69,19 @@ export interface ScriptBoxAsset {
 }
 
 /**
+ * data 的部分更新（`updateData` 的 patch 形状）。
+ * 【P5】原先用 `Record<string, unknown>`：ScriptBoxData 删掉索引签名后，
+ * 「返回 ScriptBoxData 的函数式 patch」就不再能赋给它了 —— 这说明旧类型把
+ * 「随便什么键都能写」当成了契约。写回本就只能写本表登记的字段，故收成 Partial。
+ */
+export type ScriptBoxPatch = Partial<ScriptBoxData>;
+
+/**
  * data 写回通道（引擎 ↔ hook 的跨层契约，收口在此避免两处各写一份）。
  * 支持对象 patch（直接合并）与函数式 patch `(latestData) => patch`（并发安全合并）。
  */
 export type ScriptBoxUpdateData = (
-  patch: Record<string, unknown> | ((latest: ScriptBoxData) => Record<string, unknown>),
+  patch: Record<string, unknown> | ((latest: ScriptBoxData) => ScriptBoxPatch),
 ) => void;
 
 /**
@@ -141,7 +149,6 @@ export interface ScriptBoxData extends ScriptBoxTop {
   genChars?: number | undefined;
   /** 资产区全局选中数（派生值，随 assets 写回） */
   pickedCount?: number | undefined;
-  [key: string]: unknown;
 }
 
 /**
@@ -298,6 +305,39 @@ export function normalizeScriptBoxData(raw: Record<string, unknown> = {}): Scrip
     return norm;
   });
 
+  return d;
+}
+
+/** `s` 是否为可当作 shot 的对象项（与 normalize 的 `s && typeof s === 'object'` 同判据）。 */
+function isScriptBoxShotValue(s: unknown): s is ScriptBoxShot {
+  return !!s && typeof s === 'object';
+}
+
+/** `a` 是否为可当作 asset 的对象项（同上）。 */
+function isScriptBoxAssetValue(a: unknown): a is ScriptBoxAsset {
+  return !!a && typeof a === 'object';
+}
+
+/**
+ * 函数式写回 patch 的 latest 视图：**只补顶层缺省，shots/assets 保持原始项**。
+ *
+ * 【为什么不直接用 `normalizeScriptBoxData`】
+ *   函数式 patch 的返回值会被整体写回 node.data。normalize 会把每个 shot 补成
+ *   `defaultShotFields()` 的形状（promptLoading:false / duration:'5s' / …）—— 于是
+ *   「只复位 busy 标记」的写回会顺带把整套子字段默认值落盘：持久化数据每次写回都膨胀，
+ *   且会让「干净镜头不被改写」这类语义失效。补默认是**读取**契约，不该变成**写回**副作用。
+ *
+ * 【契约】与 `ScriptBoxData` 同形（shots/assets 必为数组、顶层字段带默认值），
+ *   但子数组元素引用原样透传，写回不产生新字段。
+ */
+export function toScriptBoxData(raw: Record<string, unknown> = {}): ScriptBoxData {
+  const d = normalizeScriptBoxData(raw);
+  d.shots = (Array.isArray(raw.shots) ? raw.shots : []).map((s) =>
+    isScriptBoxShotValue(s) ? s : defaultShotFields(),
+  );
+  d.assets = (Array.isArray(raw.assets) ? raw.assets : []).map((a) =>
+    isScriptBoxAssetValue(a) ? a : defaultAssetFields(),
+  );
   return d;
 }
 

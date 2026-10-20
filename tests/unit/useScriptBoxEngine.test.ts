@@ -204,11 +204,12 @@ describe('useScriptBoxEngine', () => {
   it('updateData 支持函数式 patch（并发安全，基于 latest 合并）', () => {
     renderHook(() => useScriptBoxEngine('sb1', { shots: [] }));
     const cfg = at(createScriptBoxEngine.mock.calls, 0)[0]!;
-    cfg.updateData((latest) => ({ title: `${latest.title}＋更新` }));
+    // 用真实契约字段 story（title 不是 ScriptBoxData 字段；旧写法靠索引签名才编得过）
+    cfg.updateData((latest) => ({ story: `${latest.story}＋更新` }));
     const calls = setNodes.mock.calls.filter((c) => typeof c[0] === 'function');
     const call = at(calls, calls.length - 1);
-    const out = call[0]([{ id: 'sb1', data: { title: '旧', a: 1 } }])[0];
-    expect(out.data).toEqual({ title: '旧＋更新', a: 1 });
+    const out = call[0]([{ id: 'sb1', data: { story: '旧', a: 1 } }])[0];
+    expect(out.data).toEqual({ story: '旧＋更新', a: 1 });
   });
 
   it('hook 返回 { updateData } 且稳定（跨 render 引用一致，供 ScriptBoxNode 复用）', () => {

@@ -5,7 +5,7 @@ import {
   normalizeScriptBoxData,
   parseAssetTaskNodeId,
   parseTailFrameTaskNodeId,
-  type ScriptBoxData,
+  toScriptBoxData,
 } from './scriptBoxSchema.ts';
 import { subscribe } from '../base/core/event/eventBus.ts';
 import { TASK_COMPLETED_EVENT } from '../base/core/contracts.ts';
@@ -80,7 +80,12 @@ export function useScriptBoxEngine(
         ns.map((n) => {
           if (n.id !== nodeId) return n;
           const latest = n.data || {};
-          const resolved = typeof patch === 'function' ? patch(latest as ScriptBoxData) : patch;
+          // 【P5】函数式 patch 的入参契约就是 ScriptBoxData ⇒ 边界处经 `toScriptBoxData`
+          // 补顶层缺省，而不是 `latest as ScriptBoxData`（删索引签名后该断言已不成立，
+          // 且它把「patch 里读到的字段到底存不存在」藏了起来）。
+          // 不用 normalizeScriptBoxData：它会把 shot/asset 的默认子字段一起补出来，
+          // 而 patch 的返回值要整体写回 ⇒ 等于每次写回都往持久化数据里塞默认值。
+          const resolved = typeof patch === 'function' ? patch(toScriptBoxData(latest)) : patch;
           return { ...n, data: { ...latest, ...resolved } };
         }),
       ),
