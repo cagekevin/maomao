@@ -339,7 +339,8 @@ function MixamoPersonModel({
       action.clampWhenFinished = true;
       action.play();
       const basePhase = THREE.MathUtils.clamp(
-        Number.isFinite(poseTime) ? poseTime! : preset.phase,
+        // `Number.isFinite` 不做类型窄化 ⇒ 用 `typeof` 先判（缺省回落预设相位）。
+        typeof poseTime === 'number' && Number.isFinite(poseTime) ? poseTime : preset.phase,
         0,
         1,
       );
@@ -409,7 +410,9 @@ function MixamoPersonModel({
         !showBoneGizmo ||
         !onRotateJoints ||
         !effector ||
-        !chainIds?.every((id) => bones[id])
+        !chainIds?.every((id) => bones[id]) ||
+        // IK 拖拽要读相机做屏幕→世界换算；无相机时直接不接管这次手势（不猜像素比例）。
+        !camera
       )
         return false;
       event.stopPropagation();
@@ -418,11 +421,11 @@ function MixamoPersonModel({
       onSelectJoint?.(effectorId ?? '');
       scene.updateMatrixWorld(true);
       const startTarget = effector.getWorldPosition(new THREE.Vector3());
-      const distance = Math.max(0.5, camera!.position.distanceTo(startTarget));
-      const fov = THREE.MathUtils.degToRad(camera!.fov || 42);
+      const distance = Math.max(0.5, camera.position.distanceTo(startTarget));
+      const fov = THREE.MathUtils.degToRad(camera.fov || 42);
       const worldPerPixel = (2 * Math.tan(fov / 2) * distance) / Math.max(1, viewportSize.height);
-      const right = new THREE.Vector3().setFromMatrixColumn(camera!.matrixWorld, 0).normalize();
-      const up = new THREE.Vector3().setFromMatrixColumn(camera!.matrixWorld, 1).normalize();
+      const right = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 0).normalize();
+      const up = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 1).normalize();
       boneDrag.current = {
         kind: 'ik',
         pointerId: event.pointerId,
@@ -546,7 +549,10 @@ function MixamoPersonModel({
             currentDirection.normalize();
             targetDirection.normalize();
             worldDelta.setFromUnitVectors(currentDirection, targetDirection);
-            joint.parent!.getWorldQuaternion(parentWorld);
+            const parent = joint.parent;
+            // 根关节没有父级 ⇒ 无「父级世界四元数」可用，本段跳过（不改方向，不猜单位矩阵）。
+            if (!parent) continue;
+            parent.getWorldQuaternion(parentWorld);
             localDelta.copy(parentWorld).invert().multiply(worldDelta).multiply(parentWorld);
             joint.quaternion.premultiply(localDelta).normalize();
             scene.updateMatrixWorld(true);
@@ -752,7 +758,11 @@ function StudioPerson(props: MixamoPersonModelProps) {
 function ImportedModel({ url, selected }: { url: string; selected?: boolean | undefined }) {
   const gltf = useGLTF(url);
   const root = (Array.isArray(gltf) ? gltf[0] : gltf) as { scene?: THREE.Group };
-  const scene = useMemo(() => skeletonClone(root.scene!), [root.scene]);
+  const sourceScene = root.scene;
+  // gltf 的 `scene` 在类型上可选，缺失意味着资源无效（不是「空模型正常」）⇒ fail-loud，
+  // 由外层 ModelErrorBoundary 呈现为可见错误，而不是渲染一个空 group 假装成功。
+  if (!sourceScene) throw new Error(`模型资源缺少 scene：${url}`);
+  const scene = useMemo(() => skeletonClone(sourceScene), [sourceScene]);
   useLayoutEffect(() => {
     scene.traverse((child) => {
       if ((child as THREE.Mesh).isMesh) {

@@ -33,7 +33,8 @@ function shouldKeepCurrentSelection(
   event: ThreeEvent<PointerEvent>,
   selectedId: string | null | undefined,
   selected: boolean | undefined,
-  transformMode: 'select' | 'translate' | 'rotate' | 'scale',
+  // 相机数据未就绪时 transformMode 可能是 undefined（原调用点写 `transformMode!`）⇒ 声明处认下。
+  transformMode: 'select' | 'translate' | 'rotate' | 'scale' | undefined,
 ) {
   // 当前没有选中目标 → 允许点击选中任意物体
   if (!selected || !selectedId) return false;
@@ -159,7 +160,7 @@ function SceneObject({
   }, [data.id, data['proportionalScale'], data['scaleAxisLocks'], onUpdate, transformMode]);
   const beginObjectInteraction = useCallback(
     (event: ThreeEvent<PointerEvent>) => {
-      if (shouldKeepCurrentSelection(event, selectedId, selected, transformMode!)) return;
+      if (shouldKeepCurrentSelection(event, selectedId, selected, transformMode)) return;
       event.stopPropagation();
       onSelect?.(data.id);
       if (data['locked']) return;
@@ -1209,9 +1210,10 @@ function EditorScene({
           animationTime={animationTime}
         />
       ))}
-      {!cameraView && (
+      {/* 没有相机实体数据就不渲染相机模型（不是「画一个空相机」）。 */}
+      {!cameraView && cameraData && (
         <CameraModel
-          data={cameraData!}
+          data={cameraData}
           selected={selectedId === CAMERA_ID}
           selectedId={selectedId ?? null}
           transformMode={transformMode as 'select' | 'translate' | 'rotate' | 'scale'}
@@ -1235,7 +1237,9 @@ function EditorScene({
         <ContactShadows position={[0, 0.01, 0]} opacity={0.42} scale={18} blur={2.4} far={9} />
       )}
       {cameraView ? (
-        <PreviewCameraController cameraData={cameraData!} cameraAspect={cameraAspect ?? 1} />
+        cameraData ? (
+          <PreviewCameraController cameraData={cameraData} cameraAspect={cameraAspect ?? 1} />
+        ) : null
       ) : (
         <OrbitControls
           makeDefault
@@ -1357,7 +1361,9 @@ function PreviewScene({
       {!performanceMode && !lightweight && (
         <ContactShadows position={[0, 0.01, 0]} opacity={0.35} scale={18} blur={2.2} far={9} />
       )}
-      <PreviewCameraController cameraData={cameraData!} cameraAspect={cameraAspect ?? 1} />
+      {cameraData && (
+        <PreviewCameraController cameraData={cameraData} cameraAspect={cameraAspect ?? 1} />
+      )}
     </>
   );
 }
@@ -1372,7 +1378,8 @@ export function MainViewport(props: EditorSceneProps) {
   }, [cameraData?.rotation]);
   const cameraSettings = props.cameraView
     ? {
-        position: cameraData!.position as [number, number, number],
+        // 展示层默认值（§5.3）：相机数据缺失时用默认机位仍能渲染，不阻断整个视口。
+        position: (cameraData?.position ?? [0, 1, 0]) as [number, number, number],
         rotation: shotCameraRotation,
         fov: 42,
         near: 0.05,
@@ -1440,7 +1447,7 @@ export function CameraPreview({
       dpr={1}
       frameloop="demand"
       camera={{
-        position: cameraData!.position as [number, number, number],
+        position: (cameraData?.position ?? [0, 1, 0]) as [number, number, number],
         fov: 40,
         ...(cameraAspect !== undefined ? { aspect: cameraAspect } : {}),
         near: 0.05,

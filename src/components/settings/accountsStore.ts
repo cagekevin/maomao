@@ -311,11 +311,37 @@ async function chromeApiOrNull<T>(what: string, act: () => Promise<T>): Promise<
   }
 }
 
+/**
+ * 取 Chrome 扩展 API 的**分区**（`chrome.tabs` / `chrome.cookies` / `chrome.scripting` 在
+ * `@types/chrome` 里都是可选成员）。
+ *
+ * 【为什么不是 `chrome.tabs!`】本模块所有调用点前都有 `isExtensionEnv()` 守卫 ⇒ 分区缺失意味着
+ * 「环境判定与真实 API 不一致」，属**不该继续跑**的状态（继续跑只会得到 TypeError 或静默跳过）。
+ * 故这里 **fail-loud**：缺分区即抛，由上层 `chromeApiOrNull` / try-catch 统一归因并留痕。
+ */
+function tabsApi(): NonNullable<typeof chrome.tabs> {
+  const api = chrome.tabs;
+  if (!api) throw new Error('Chrome 扩展 API 不可用：chrome.tabs（不在扩展环境？）');
+  return api;
+}
+
+function cookiesApi(): NonNullable<typeof chrome.cookies> {
+  const api = chrome.cookies;
+  if (!api) throw new Error('Chrome 扩展 API 不可用：chrome.cookies（不在扩展环境？）');
+  return api;
+}
+
+function scriptingApi(): NonNullable<typeof chrome.scripting> {
+  const api = chrome.scripting;
+  if (!api) throw new Error('Chrome 扩展 API 不可用：chrome.scripting（不在扩展环境？）');
+  return api;
+}
+
 // 抓取当前激活标签页（复刻官方 Sa L1882-1897：url/favIcon/cookies/title前5字）
 async function fetchActiveTab(): Promise<ChromeTabLike | null> {
   if (!isExtensionEnv()) return null;
   const tabs = await chromeApiOrNull('tabs.query（当前激活标签页）', () =>
-    chrome.tabs!.query({ active: true, currentWindow: true }),
+    tabsApi().query({ active: true, currentWindow: true }),
   );
   return tabs?.[0] || null;
 }
@@ -381,7 +407,7 @@ async function collectAllCookies(url: string): Promise<AccountCookie[]> {
 
   // 1) 当前 url 域（含父域）兜底
   await attemptQuietlyAsync(async () => {
-    const base = await chrome.cookies!.getAll({ url });
+    const base = await cookiesApi().getAll({ url });
     base.forEach(push);
   });
 
@@ -389,7 +415,7 @@ async function collectAllCookies(url: string): Promise<AccountCookie[]> {
   const host = hostOf(url);
   for (const dom of domainAscendants(host)) {
     await attemptQuietlyAsync(async () => {
-      const list = await chrome.cookies!.getAll({ domain: dom });
+      const list = await cookiesApi().getAll({ domain: dom });
       list.forEach(push);
     });
   }
@@ -425,14 +451,17 @@ async function readTabLocalStorage(): Promise<Record<string, string> | null> {
   // 【TD-18-14 收口】query 原为**裸调**（异常直穿 ⇒ 整个"保存环境"被归因成「切换环境失败」，
   // 与本函数 JSDoc「读取失败返回 null，不阻断保存/切换」矛盾）→ 与 fetchActiveTab 委托同一实现。
   const tabs = await chromeApiOrNull('tabs.query（当前激活标签页）', () =>
-    chrome.tabs!.query({ active: true, currentWindow: true }),
+    tabsApi().query({ active: true, currentWindow: true }),
   );
   const tab = tabs?.[0];
-  if (!tab?.id || !tab?.url || !/^https?:/i.test(tab.url)) return null;
+  // 先把可选字段取出再判（`!tab?.id` 不给编译器收窄 `tab.id` ⇒ 旧写法只能靠 `tab.id!`）。
+  const tabId = tab?.id;
+  const tabUrl = tab?.url;
+  if (!tabId || !tabUrl || !/^https?:/i.test(tabUrl)) return null;
   // 【TD-18-14 收口】scripting 注入失败原为第三份 catch-ok → 委托同一实现（含留痕）。
   const injected = await chromeApiOrNull('scripting.executeScript（读页面 localStorage）', () =>
-    chrome.scripting!.executeScript({
-      target: { tabId: tab.id! },
+    scriptingApi().executeScript({
+      target: { tabId },
       world: 'MAIN',
       func: () => {
         try {
@@ -477,10 +506,10 @@ async function writeTabLocalStorage(
   data: Record<string, string> | null | undefined,
 ): Promise<void> {
   if (!isExtensionEnv() || !data) return;
-  const [tab] = await chrome.tabs!.query({ active: true, currentWindow: true });
+  const [tab] = await tabsApi().query({ active: true, currentWindow: true });
   if (!tab?.id || !tab?.url || !/^https?:/i.test(tab.url)) return;
   try {
-    await chrome.scripting!.executeScript({
+    await scriptingApi().executeScript({
       target: { tabId: tab.id },
       world: 'MAIN',
       func: (store) => {
@@ -625,8 +654,8 @@ export async function activateEnv(envId: string): Promise<void> {
   await syncCookies(env);
   if (isExtensionEnv() && env.siteUrl) {
     await attemptQuietlyAsync(async () => {
-      const [tab] = await chrome.tabs!.query({ active: true, currentWindow: true });
-      if (tab) chrome.tabs!.update(tab.id, { url: env.siteUrl });
+      const [tab] = await tabsApi().query({ active: true, currentWindow: true });
+      if (tab) tabsApi().update(tab.id, { url: env.siteUrl });
     });
   }
   setState({ activeId: envId });
@@ -636,15 +665,15 @@ export async function activateEnv(envId: string): Promise<void> {
 async function syncCookies(env: AccountEnv): Promise<void> {
   if (!isExtensionEnv()) return;
   try {
-    const [tab] = await chrome.tabs!.query({ active: true, currentWindow: true });
+    const [tab] = await tabsApi().query({ active: true, currentWindow: true });
     if (!tab?.url || !tab.url.startsWith('http')) return;
     const url = tab.url;
-    const current = await chrome.cookies!.getAll({ url });
+    const current = await cookiesApi().getAll({ url });
     const envNames = new Set<string>((env.cookies || []).map((e) => e.name));
     for (const c of current) {
       if (!envNames.has(c.name)) {
         await attemptQuietlyAsync(async () => {
-          await chrome.cookies!.remove({ url, name: c.name, storeId: c.storeId });
+          await cookiesApi().remove({ url, name: c.name, storeId: c.storeId });
         });
       }
     }
@@ -659,7 +688,7 @@ async function syncCookies(env: AccountEnv): Promise<void> {
         if (t['expirationDate']) setOpts['expirationDate'] = t['expirationDate'];
         if (t['storeId']) setOpts['storeId'] = t['storeId'];
         if (t['sameSite']) setOpts['sameSite'] = t['sameSite'];
-        await chrome.cookies!.set(setOpts);
+        await cookiesApi().set(setOpts);
       });
     }
     // 连带写回该环境的 localStorage 快照（登录态 token 常存这里，一并恢复免重登）
@@ -684,17 +713,17 @@ export async function clearCookies(
   void envId;
   if (!isExtensionEnv()) return { ok: true, count: 0, error: '' };
   try {
-    const [tab] = await chrome.tabs!.query({ active: true, currentWindow: true });
+    const [tab] = await tabsApi().query({ active: true, currentWindow: true });
     if (!tab?.url || !tab.url.startsWith('http'))
       return { ok: false, count: 0, error: '无法获取当前页面 URL' };
     const url = tab.url;
-    const current = await chrome.cookies!.getAll({ url });
+    const current = await cookiesApi().getAll({ url });
     if (current.length === 0) return { ok: true, count: 0, error: '' };
     let cleared = 0;
     for (const c of current) {
       if (all || LOGIN_COOKIE_WHITELIST.includes(c.name)) {
         await attemptQuietlyAsync(async () => {
-          await chrome.cookies!.remove({ url, name: c.name, storeId: c.storeId });
+          await cookiesApi().remove({ url, name: c.name, storeId: c.storeId });
           cleared++;
         });
       }
@@ -702,7 +731,7 @@ export async function clearCookies(
     if (tab.id) {
       const tid = tab.id;
       await attemptQuietlyAsync(async () => {
-        await chrome.tabs!.reload(tid);
+        await tabsApi().reload(tid);
       });
     }
     return { ok: true, count: cleared, error: '' };

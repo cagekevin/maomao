@@ -908,8 +908,8 @@ function Canvas() {
     }
     const res = createGroupFromNodes(nodesRef.current, selectedIds);
     if (res.ok) {
-      setNodes(res.nodes!);
-      history.record({ nodes: res.nodes!, edges: edgesRef.current });
+      setNodes(res.nodes);
+      history.record({ nodes: res.nodes, edges: edgesRef.current });
       showToast('已编组', { type: 'success' });
     } else {
       showToast(res.error || '编组失败', { type: 'warning' });
@@ -922,8 +922,8 @@ function Canvas() {
     if (!selected) return;
     const res = ungroupNodes(nodesRef.current, selected.id);
     if (res.ok) {
-      setNodes(res.nodes!);
-      history.record({ nodes: res.nodes!, edges: edgesRef.current });
+      setNodes(res.nodes);
+      history.record({ nodes: res.nodes, edges: edgesRef.current });
     }
   }, [setNodes, history]);
 
@@ -1242,16 +1242,16 @@ function Canvas() {
     applyUngroup: (groupId) => {
       const res = ungroupNodes(nodesRef.current, groupId);
       if (res.ok) {
-        setNodes(res.nodes!);
-        history.record({ nodes: res.nodes!, edges: edgesRef.current });
+        setNodes(res.nodes);
+        history.record({ nodes: res.nodes, edges: edgesRef.current });
       }
     },
     applyGroup: () => {
       const selectedIds = nodesRef.current.filter((n) => n.selected).map((n) => n.id);
       const res = createGroupFromNodes(nodesRef.current, selectedIds);
       if (res.ok) {
-        setNodes(res.nodes!);
-        history.record({ nodes: res.nodes!, edges: edgesRef.current });
+        setNodes(res.nodes);
+        history.record({ nodes: res.nodes, edges: edgesRef.current });
       }
     },
     applyDeleteSelected: () => {

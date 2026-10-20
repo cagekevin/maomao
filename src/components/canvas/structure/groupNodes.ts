@@ -25,10 +25,20 @@ function nodeSize(n: Node): { w: number; h: number } {
 /**
  * 编组：建一个 group 节点包住目标节点，并把目标节点设为子节点（parentId + 相对坐标）。
  */
-export function createGroupFromNodes(
-  nodes: Node[],
-  selectedIds: string[],
-): { ok: boolean; nodes?: Node[]; groupId?: string; error?: string } {
+/**
+ * 编组/解组的结果信封（**判别联合**）。
+ *
+ * 旧形态 `{ ok: boolean; nodes?: Node[]; error?: string }` 让每个成功分支的取用点都写成
+ * `res.nodes!`（App.tsx 一处就 8 次）—— 用 `!` 去补一个**声明处就能表达**的不变量。
+ * 改成判别联合后：`ok === true` 分支必有 `nodes`，`ok === false` 分支必有 `error`，取用点无需断言。
+ */
+export type GroupOpResult = { ok: true; nodes: Node[] } | { ok: false; error: string };
+
+/** 建组成功时**必带**新 group 的 id（调用方不必再 `groupId!`）。 */
+export type CreateGroupResult =
+  { ok: true; nodes: Node[]; groupId: string } | { ok: false; error: string };
+
+export function createGroupFromNodes(nodes: Node[], selectedIds: string[]): CreateGroupResult {
   const ids = Array.isArray(selectedIds) ? selectedIds : [];
   // 只编组「普通节点」：排除 group 自身、以及已在其他组内的节点
   const targets = nodes.filter((n) => ids.includes(n.id) && n.type !== 'group' && !n.parentId);
@@ -130,7 +140,8 @@ export function normalizeNodeParents<T extends Record<string, unknown>>(nodes: T
   const order = new Map<string, number>(); // id → 拓扑深度（父越小越靠前）
   const visiting = new Set<string>();
   const resolveDepth = (id: string, guard = 0): number => {
-    if (order.has(id)) return order.get(id)!;
+    const cached = order.get(id);
+    if (cached !== undefined) return cached;
     if (guard > 64 || visiting.has(id)) return 0; // 防环
     const n = byId.get(id);
     const pid = n?.['parentId'] != null ? String(n['parentId']) : undefined;
@@ -161,10 +172,7 @@ export function normalizeNodeParents<T extends Record<string, unknown>>(nodes: T
 /**
  * 取消编组：移除 group 节点，并把其子节点移出组（parentId 置空 + position 转回绝对坐标）。
  */
-export function ungroupNodes(
-  nodes: Node[],
-  groupId: string,
-): { ok: boolean; nodes?: Node[]; error?: string } {
+export function ungroupNodes(nodes: Node[], groupId: string): GroupOpResult {
   const group = nodes.find((n) => n.id === groupId);
   if (!group) return { ok: false, error: '组不存在' };
   const gx = group.position.x;
@@ -359,6 +367,10 @@ export function duplicateSelectedWithEdges(
     .filter((n) => toClone.has(String(n.id)))
     .map((n) => {
       const newId = idMap.get(String(n.id));
+      // 不变式：filter 已限定 `toClone`，且 idMap 对 `toClone` 全量 set ⇒ 取不到即内部逻辑被改坏。
+      if (newId === undefined) {
+        throw new Error(`复制节点失败：id 映射缺失（${String(n.id)}）`);
+      }
       // 【瞬态收口·阶段一】克隆节点必须重开 data 为独立对象，切断与原节点共享引用。
       // 根因：此前 `{ ...n }` 直接复用 n.data，复制带瞬态（如 VideoProcessNode 曾存的
       //   data.loading）/带结果的节点后，两节点共享同一 data 引用，任何读/缓存引用点都
@@ -376,7 +388,7 @@ export function duplicateSelectedWithEdges(
         n.parentId && idMap.has(String(n.parentId)) ? idMap.get(String(n.parentId)) : undefined;
       return {
         ...rest,
-        id: newId!,
+        id: newId,
         data: clonedData,
         ...(mappedParentId !== undefined ? { parentId: mappedParentId } : {}),
         position: {

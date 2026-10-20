@@ -1,5 +1,19 @@
 import { describe, it, expect } from 'vitest';
 import { at } from '../helpers/at';
+
+/**
+ * 断言先行 + 类型收窄：`GroupOpResult` 是判别联合，成功分支才有 `nodes`。
+ * 守卫用 **throw**（不用 return）——否则后续断言被跳过，测试假绿。
+ */
+function assertOk<T extends { ok: boolean }>(r: T): asserts r is Extract<T, { ok: true }> {
+  expect(r.ok).toBe(true);
+  if (!r.ok) throw new Error('预期 ok=true，实际失败');
+}
+
+function assertFail<T extends { ok: boolean }>(r: T): asserts r is Extract<T, { ok: false }> {
+  expect(r.ok).toBe(false);
+  if (r.ok) throw new Error('预期 ok=false，实际成功');
+}
 import type { Node } from '@xyflow/react';
 import { adoptUserNodes, getNodeDimensions } from '@xyflow/system';
 import {
@@ -38,23 +52,25 @@ describe('编组算法 §2.2', () => {
 
   it('至少 2 个节点才能编组', () => {
     const r = createGroupFromNodes(nodes.slice(0, 1), ['a']);
-    expect(r.ok).toBe(false);
+    assertFail(r);
     expect(r.error).toContain('至少');
   });
 
   it('编组成功：生成 group 节点 + 子节点设 parentId + 相对坐标', () => {
     const r = createGroupFromNodes(nodes, ['a', 'b']);
-    expect(r.ok).toBe(true);
+    assertOk(r);
     expect(r.nodes).toHaveLength(4); // 3 原 + 1 group
-    const group = r.nodes!.find((n) => n.type === 'group')!;
-    expect(group).toBeTruthy();
+    const group = r.nodes.find((n) => n.type === 'group');
+    // 守卫用 throw（不用 return）——否则后续断言被跳过，测试假绿。
+    if (!group) throw new Error('编组结果缺少 group 节点');
     expect(group.id).toBe(r.groupId);
     // 显示名唯一字段 = data.label（建组源头不写 data.name，防「名字双字段」回潮）
     expect(group.data['label']).toBe('编组');
     expect(group.data['name']).toBeUndefined();
     // 父节点必须先于子节点声明（unshift 到开头）
-    expect(at(r.nodes!, 0).type).toBe('group');
-    const childA = r.nodes!.find((n) => n.id === 'a')!;
+    expect(at(r.nodes, 0).type).toBe('group');
+    const childA = r.nodes.find((n) => n.id === 'a');
+    if (!childA) throw new Error('编组结果缺少子节点 a');
     expect(childA.parentId).toBe(r.groupId);
     // 相对坐标 = 绝对 - group 位置（group 在 minX-pad, minY-pad = -40,-40）
     expect(childA.position).toEqual({ x: 40, y: 40 });
@@ -73,17 +89,18 @@ describe('编组算法 §2.2', () => {
     ];
     const r = createGroupFromNodes(withChild, ['a', 'g']);
     // g 是 group 类型，应被排除，只编 a → 不足 2 个
-    expect(r.ok).toBe(false);
+    assertFail(r);
   });
 
   it('ungroupNodes 移除 group + 子节点转回绝对坐标', () => {
     const r = createGroupFromNodes(nodes, ['a', 'b']);
-    const groupId = r.groupId!;
-    const grouped = r.nodes!;
+    assertOk(r);
+    const { groupId, nodes: grouped } = r;
     const ug = ungroupNodes(grouped, groupId);
-    expect(ug.ok).toBe(true);
-    expect(ug.nodes!.find((n) => n.id === groupId)).toBeFalsy();
-    const childA = ug.nodes!.find((n) => n.id === 'a')!;
+    assertOk(ug);
+    expect(ug.nodes.find((n) => n.id === groupId)).toBeFalsy();
+    const childA = ug.nodes.find((n) => n.id === 'a');
+    if (!childA) throw new Error('解组结果缺少子节点 a');
     expect(childA.parentId).toBeUndefined();
     // 绝对坐标 = 相对 + group 位置(-40,-40) = (40-40, 40-40) = (0,0)
     expect(childA.position).toEqual({ x: 0, y: 0 });
@@ -91,7 +108,7 @@ describe('编组算法 §2.2', () => {
 
   it('ungroupNodes 组不存在报错', () => {
     const ug = ungroupNodes(nodes, 'nope');
-    expect(ug.ok).toBe(false);
+    assertFail(ug);
     expect(ug.error).toContain('不存在');
   });
 });
@@ -118,7 +135,7 @@ describe('R4 groupId 无碰撞（crypto.randomUUID 替代 Date.now）', () => {
     const ids = new Set();
     for (let i = 0; i < 10; i++) {
       const r = createGroupFromNodes(twoNodes, ['a', 'b']);
-      expect(r.ok).toBe(true);
+      assertOk(r);
       ids.add(r.groupId);
     }
     expect(ids.size).toBe(10); // 全部唯一，无碰撞
@@ -126,9 +143,10 @@ describe('R4 groupId 无碰撞（crypto.randomUUID 替代 Date.now）', () => {
 
   it('id 以 group- 开头且包含随机段', () => {
     const r = createGroupFromNodes(twoNodes, ['a', 'b']);
-    expect(r.groupId!.startsWith('group-')).toBe(true);
+    assertOk(r);
+    expect(r.groupId.startsWith('group-')).toBe(true);
     // crypto.randomUUID 形式：group-xxxxxxxx-xxxx-...
-    expect(r.groupId!.length).toBeGreaterThan('group-'.length + 10);
+    expect(r.groupId.length).toBeGreaterThan('group-'.length + 10);
   });
 });
 
@@ -280,8 +298,9 @@ describe('编组尺寸刷新保真（TASK: 编组后刷新大小变了）', () =
     },
   ];
   // 编组 a/b/c → 外接矩形 (160,160,780x530)，pad 40
-  const { ok, nodes: grouped, groupId } = createGroupFromNodes(nodes, ['a', 'b', 'c']);
-  if (!ok) throw new Error('编组失败');
+  const created = createGroupFromNodes(nodes, ['a', 'b', 'c']);
+  if (!created.ok) throw new Error('编组失败');
+  const { nodes: grouped, groupId } = created;
 
   // 模拟落盘白名单：直接引用快照 schema 真源（TD-02-7 第一步）。
   // 此前此处**手抄**一份 KEEP 副本（「与 NODE_KEEP 一致」靠注释保证）→ 真源改了它不红，给出假信心；
