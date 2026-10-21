@@ -14,6 +14,7 @@
 import React from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, act } from '@testing-library/react';
+import { normalizeScriptBoxData } from '../../src/components/scriptbox/scriptBoxSchema';
 
 const h = vi.hoisted(() => {
   const state: { nodes: Array<{ id: string; data: Record<string, unknown> }> } = { nodes: [] };
@@ -186,21 +187,15 @@ beforeEach(() => {
 });
 
 const nodeId = 'sb1';
-// data 入参用宽松的 Record（测试常喂 number id 等偏窄形状，props 处再断言到精确类型）
+// data 入参保持宽松（用例常喂半成品数据）；统一经**生产同一个归一化函数**补齐后再喂组件
 function setup(data: Record<string, unknown> = {}) {
   // 【TD-09-4】data 不再含引擎回调（回调经 useScriptBoxEngine 返回值下发）——测试喂**纯净 data**，
   // 引擎回调由被 mock 的 createScriptBoxEngine（→ h.engine）经真实 hook 返回值提供。
-  const nodeData0: Record<string, unknown> = { ...data };
+  const nodeData0 = normalizeScriptBoxData(data);
   h.state.nodes = [{ id: nodeId, data: { ...nodeData0 } }];
   h.updateData.mockClear();
   Object.values(h.engine).forEach((fn) => fn.mockClear());
-  return render(
-    <ScriptBoxNode
-      id={nodeId}
-      data={{ ...nodeData0 } as unknown as ScriptBoxNodeData}
-      selected={false}
-    />,
-  );
+  return render(<ScriptBoxNode id={nodeId} data={nodeData0} selected={false} />);
 }
 function nodeData() {
   return h.state.nodes.find((n) => n.id === nodeId)?.data as ScriptBoxNodeData;
@@ -354,7 +349,7 @@ describe('ScriptBoxNode — 端口注册（code-008 回归）', () => {
     rerender(
       <ScriptBoxNode
         id={nodeId}
-        data={{ shots: [{ id: 1 }, { id: 2 }] } as unknown as ScriptBoxNodeData}
+        data={normalizeScriptBoxData({ shots: [{ id: 1 }, { id: 2 }] })}
         selected={false}
       />,
     );
@@ -363,7 +358,7 @@ describe('ScriptBoxNode — 端口注册（code-008 回归）', () => {
     rerender(
       <ScriptBoxNode
         id={nodeId}
-        data={{ shots: [{ id: 1, prompt: 'x' }, { id: 2 }] } as unknown as ScriptBoxNodeData}
+        data={normalizeScriptBoxData({ shots: [{ id: 1, prompt: 'x' }, { id: 2 }] })}
         selected={false}
       />,
     );

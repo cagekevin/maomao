@@ -1,4 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
+import type {
+  ScriptBoxShot,
+  ScriptBoxUpstreamImage,
+  ScriptBoxUpstreamText,
+} from './scriptBoxSchema.ts';
 import { Clapperboard, Settings, Maximize2, Loader2 } from 'lucide-react';
 import { Handle, Position, useUpdateNodeInternals } from '@xyflow/react';
 import NodeShell from '@/components/canvas/parts/NodeShell';
@@ -31,14 +36,19 @@ import type {
  * 变成静默通过（实测漏声明的回调只有在测试 tsconfig 下才暴露）。新增字段请先登记到上述真源。
  */
 interface ScriptBoxNodeData extends Partial<ScriptBoxTop> {
-  label?: string;
-  projectName?: string;
-  shots?: Array<{ id: string; [k: string]: unknown }>;
+  // 各可选字段显式带 `| undefined`：`ScriptBoxData`（数据真源）在 eop 下是这种形态，
+  // 不带的话「把 node.data 原样传给本组件」在类型上不成立，测试只能双重断言（TD-18-49）。
+  label?: string | undefined;
+  projectName?: string | undefined;
+  // 直接引用数据真源的 shot 类型（旧写法手抄成 `{ id: string }` —— 既写窄了 id，
+  // 又因 id 在真源里是可选的而不兼容）
+  shots?: ScriptBoxShot[] | undefined;
   assets?: unknown;
-  genMask?: boolean;
-  genChars?: number;
-  upstreamImages?: Array<{ id?: string; url?: string; label?: string; sourceNodeId?: string }>;
-  upstreamTexts?: Array<{ id?: string; label?: string; text?: unknown; sourceNodeId?: string }>;
+  genMask?: boolean | undefined;
+  genChars?: number | undefined;
+  // 同样直接引用真源（手抄副本在 eop 下与真源不兼容，且会随真源漂移）
+  upstreamImages?: ScriptBoxUpstreamImage[] | undefined;
+  upstreamTexts?: ScriptBoxUpstreamText[] | undefined;
 }
 
 interface ScriptBoxNodeProps {
@@ -279,16 +289,20 @@ function ScriptBoxNode({ id, data, selected }: ScriptBoxNodeProps) {
           setEdges 报 008 Couldn't create edge for source handle」。样式隐藏（对齐官方迷你视图
           `!h-0 !w-0 !bg-transparent`），仅作 React Flow 注册锚点，连线视觉上从节点右侧出发。
           id 走 contracts.shotHandleId（与读侧 parseShotHandle 成对，前缀唯一事实来源）。 */}
-      {(d.shots || []).map((s) => (
-        <Handle
-          key={s.id}
-          type="source"
-          position={'right' as Position}
-          id={shotHandleId(s.id)}
-          className="!absolute !h-0 !w-0 !min-w-0 !min-h-0 !border-0 !bg-transparent !opacity-0"
-          style={{ right: 0, top: '50%' }}
-        />
-      ))}
+      {(d.shots || [])
+        // `ScriptBoxShot.id` 在真源里是**可选**的；没有 id 的镜头无法给出唯一 handle id
+        // （旧写法把 props 声明成 `id: string` 假装它必然存在，渲染的是 `shot-undefined` 且 key 撞车）
+        .flatMap((s) => (s.id === undefined ? [] : [s.id]))
+        .map((shotId) => (
+          <Handle
+            key={shotId}
+            type="source"
+            position={'right' as Position}
+            id={shotHandleId(shotId)}
+            className="!absolute !h-0 !w-0 !min-w-0 !min-h-0 !border-0 !bg-transparent !opacity-0"
+            style={{ right: 0, top: '50%' }}
+          />
+        ))}
 
       {/* 齿轮设置弹窗 */}
       {settingsOpen && (

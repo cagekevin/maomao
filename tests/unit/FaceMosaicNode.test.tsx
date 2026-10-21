@@ -25,21 +25,27 @@ import { mocks } from './_nodeMocks.mjs';
 type MockNode = { id: string; type?: string; data: Record<string, unknown> };
 const h = vi.hoisted(() => {
   const state: { nodes: MockNode[] } = { nodes: [] };
-  const setNodesMock = vi.fn((updater) => {
+  // 三个 mock 都用**变长签名**定型：包装层是 `(...a: unknown[]) => mock(...a)`，
+  // 定长签名会让 spread 报 TS2556（旧写法只能 `as unknown as (...x) => void` 绕过）
+  const setNodesMock = vi.fn<(...args: unknown[]) => void>((updater) => {
     state.nodes = typeof updater === 'function' ? updater(state.nodes) : updater;
   });
-  const applyMosaicMock = vi.fn(async (_url, _opts) => ({
+  const applyMosaicMock = vi.fn<
+    (...args: unknown[]) => Promise<{ dataUrl: string; faceCount: number }>
+  >(async () => ({
     dataUrl: 'data:image/png;base64,AAAA',
     faceCount: 2,
   }));
   // 【2026-09-17】契约改判别联合（成功＝`ok:true` + url）。
-  const uploadMock = vi.fn(async () => ({ ok: true as const, url: 'http://local/mosaic.png' }));
+  const uploadMock = vi.fn<(...args: unknown[]) => Promise<{ ok: true; url: string }>>(
+    async () => ({ ok: true, url: 'http://local/mosaic.png' }),
+  );
   return { state, setNodesMock, applyMosaicMock, uploadMock };
 });
 
 vi.mock('@xyflow/react', () => ({
   useReactFlow: () => ({
-    setNodes: (...a: unknown[]) => (h.setNodesMock as unknown as (...x: unknown[]) => void)(...a),
+    setNodes: (...a: unknown[]) => h.setNodesMock(...a),
     getNodes: () => h.state.nodes,
     // P7：FaceMosaicNode 输出用 getNode(id) 读自身位置（替 getNodes().find），mock 需同步提供
     getNode: (id: any) => h.state.nodes.find((n) => n.id === id),
@@ -63,8 +69,7 @@ vi.mock('../../src/hooks/useConnectedInputs.ts', async (importOriginal) => ({
 vi.mock('../../src/hooks/useAssetDegrade.ts', () => ({ useAssetDegrade: mocks.useAssetDegrade }));
 vi.mock('../../src/components/base/api/filesApi.ts', async (importOriginal) => ({
   ...((await importOriginal()) as Record<string, unknown>),
-  uploadFileToLocal: (...a: unknown[]) =>
-    (h.uploadMock as unknown as (...x: unknown[]) => void)(...a),
+  uploadFileToLocal: (...a: unknown[]) => h.uploadMock(...a),
   toAbsoluteFileUrl: (u: any) => `ABS:${u}`,
 }));
 vi.mock('../../src/components/base/core/event/toastStore.ts', async (importOriginal) => ({
@@ -74,8 +79,7 @@ vi.mock('../../src/components/base/core/event/toastStore.ts', async (importOrigi
   toastWarning: mocks.toastWarning,
 }));
 vi.mock('../../src/components/image/faceMosaic/faceMosaic.ts', () => ({
-  applyMosaic: (...a: unknown[]) =>
-    (h.applyMosaicMock as unknown as (...x: unknown[]) => void)(...a),
+  applyMosaic: (...a: unknown[]) => h.applyMosaicMock(...a),
   MOSAIC_MODES: [
     { mode: 'mosaic', label: '马赛克' },
     { mode: 'bar', label: '黑条' },
@@ -123,7 +127,10 @@ function setup(
   return render(<FaceMosaicNode id={nodeId} data={{ ...data }} selected={false} />);
 }
 function lastData() {
-  return must(h.state.nodes.find((n) => n.id === nodeId), 'h').data;
+  return must(
+    h.state.nodes.find((n) => n.id === nodeId),
+    'h',
+  ).data;
 }
 function spawnedNodes() {
   return h.state.nodes.filter((n) => n.type === 'assetNode');
