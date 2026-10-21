@@ -5,6 +5,7 @@
  */
 import { must } from '../helpers/must';
 import { beforeEach, afterEach, describe, it, expect, vi } from 'vitest';
+import { libraryCardOf } from '../helpers/fixtures';
 import { at } from '../helpers/at';
 import {
   contentClearCache,
@@ -132,9 +133,7 @@ describe('cards mapping', () => {
   it('TD-05-6：mapToLibraryCards 对缺 id 项用 generateId 口径兜底（不再 "preset-<idx>"）', () => {
     // 回归锁：原兜底 `'preset-' + idx` 与 ensureIds/createPreset 的 `generateId('pp')` 两口径并存，
     // 一旦某路径漏补 id → 卡片 id 与 recordRecent 记录不匹配 → 「最近使用」静默失效。
-    const list = [
-      { title: '无 id', type: 'all', prompt: 'P', enabled: true },
-    ] as unknown as Parameters<typeof pm.mapToLibraryCards>[0];
+    const list = [{ title: '无 id', type: 'all', prompt: 'P', enabled: true }];
     const cards = pm.mapToLibraryCards(list);
     expect(at(cards, 0).id).toBeTruthy();
     expect(at(cards, 0).id.startsWith('preset-')).toBe(false); // 不再是旧口径
@@ -145,18 +144,21 @@ describe('cards mapping', () => {
       { id: '1', title: 'A' },
       { id: '2', title: 'B' },
       { id: '3', title: 'C' },
-    ] as unknown as Parameters<typeof pm.getRecentCards>[0];
-    expect(pm.getRecentCards(cards, ['3', '1'])).toEqual([
-      { id: '3', title: 'C' },
-      { id: '1', title: 'A' },
-    ]);
+    ].map((c) => libraryCardOf(c));
+    // 只比对被测语义（顺序 + 身份 + 标题）；卡片上的 presetIndex/isLocal 是工厂补的默认值
+    expect(pm.getRecentCards(cards, ['3', '1']).map((c) => ({ id: c.id, title: c.title }))).toEqual(
+      [
+        { id: '3', title: 'C' },
+        { id: '1', title: 'A' },
+      ],
+    );
   });
 
   it('searchCards 按标题或内容匹配（大小写不敏感）', () => {
     const cards = [
       { id: '1', title: '赛博', content: '城市' },
       { id: '2', title: '小猫', content: '花园' },
-    ] as unknown as Parameters<typeof pm.getRecentCards>[0];
+    ].map((c) => libraryCardOf(c));
     expect(pm.searchCards(cards, '赛博').length).toBe(1);
     expect(pm.searchCards(cards, '花园').length).toBe(1);
     expect(pm.searchCards(cards, '').length).toBe(2);

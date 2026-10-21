@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { fakeAudioBuffer, fakeAudioContext } from '../helpers/audio';
 import { mediaAssetOf, videoTrackOf } from '../helpers/fixtures';
 import { at } from '../helpers/at';
 import type { TimelineTrack, VideoElement } from '../../src/components/videoEditor/types/timeline';
@@ -22,24 +23,11 @@ import {
 type FakeChannels = Float32Array[];
 
 function makeFakeBuffer(channels: FakeChannels, sampleRate = 44100): AudioBuffer {
-  const length = at(channels, 0).length;
-  return {
-    numberOfChannels: channels.length,
-    length,
-    sampleRate,
-    duration: length / sampleRate,
-    getChannelData: (index: number) => channels[index],
-  } as unknown as AudioBuffer;
+  return fakeAudioBuffer({ channels, sampleRate });
 }
 
 function makeFakeContext(): AudioContext {
-  return {
-    createBuffer: (numberOfChannels: number, length: number, sampleRate: number) =>
-      makeFakeBuffer(
-        Array.from({ length: numberOfChannels }, () => new Float32Array(length)),
-        sampleRate,
-      ),
-  } as unknown as AudioContext;
+  return fakeAudioContext();
 }
 
 describe('TD-22-29 · toMonoSamples（单声道导出原语）', () => {

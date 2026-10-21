@@ -134,14 +134,20 @@ export const HEAVY_NODE_LOADERS = {
  * 让"真正渲染"时 chunk 已在模块缓存里，骨架屏一闪而过甚至不出现。
  * 预取失败无需处理：真正渲染时会走 ErrorBoundary 可见降级。
  */
-export function prefetchHeavyNode(type: string) {
-  const load = HEAVY_NODE_LOADERS[type as keyof typeof HEAVY_NODE_LOADERS];
+/** 类型谓词：把任意字符串收窄到 loader 表的键（`in` 判据，替代 `as keyof typeof` 断言）。 */
+function isHeavyNodeType(t: string): t is keyof typeof HEAVY_NODE_LOADERS {
+  return t in HEAVY_NODE_LOADERS;
+}
+
+export function prefetchHeavyNode(type: string | null | undefined) {
+  // 入参可能来自 node.data（未定型）⇒ 收 null/undefined
+  const load = type && isHeavyNodeType(type) ? HEAVY_NODE_LOADERS[type] : undefined;
   if (!load) return;
   // 【失败可见 TD-02-16】预取失败不阻断（真正渲染走 ErrorBoundary），但须留痕：预取失败=渲染时会卡
   load().catch((e) => {
     logger.warn('lazyNode', '重型节点预取失败（真正渲染时将现场加载）', {
       type,
-      reason: e?.message || e,
+      reason: e instanceof Error ? e.message : String(e),
     });
   });
 }

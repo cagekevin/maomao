@@ -12,23 +12,31 @@ import { withNodeSize } from '../nodeSizePatch.ts';
  *
  * 入参放宽为「任意带 target 的事件」：既有调用方涵盖 React 合成事件与原生事件
  * （useCanvasShortcuts 传的是原生 KeyboardEvent），故只约束到 target 这一最小契约。
+ *
+ * `target` 用**鸭子类型**而非 `EventTarget`：本函数只读 tagName / isContentEditable / closest
+ * （此前在函数体里 `as` 成这三项，测试侧也只能靠 `as unknown as Parameters<…>[0]` 造假体）。
+ * 真实事件目标结构上满足它，测试可直接传 `{ target: { tagName: 'INPUT' } }`。
  */
-export function isEditableTarget(e?: { target?: EventTarget | null } | null): boolean {
-  const t = e?.target as
-    | (EventTarget & {
-        tagName?: string;
-        isContentEditable?: boolean;
-        closest?: (sel: string) => Element | null;
-      })
-    | null;
+export interface EditableTargetLike {
+  tagName?: string;
+  isContentEditable?: boolean;
+  closest?: (sel: string) => Element | null;
+}
+
+export function isEditableTarget(
+  e?: { target?: EditableTargetLike | EventTarget | null } | null,
+): boolean {
+  const t = e?.target;
   if (!t) return false;
-  const tag = t.tagName;
-  return (
-    tag === 'INPUT' ||
-    tag === 'TEXTAREA' ||
-    !!t.isContentEditable ||
-    (!!t.closest && !!t.closest('input, textarea, [contenteditable="true"]'))
-  );
+  // `EventTarget` 与 `EditableTargetLike` 无公共成员（weak type）⇒ 用 `in` 收窄，不靠断言。
+  // ⚠️ `closest` 必须以**方法调用**形式使用：抽成局部变量会丢 `this`，jsdom 会抛
+  //   "'closest' called on an object that is not a valid instance of Element"。
+  if ('tagName' in t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA')) return true;
+  if ('isContentEditable' in t && t.isContentEditable) return true;
+  if ('closest' in t && typeof t.closest === 'function') {
+    return !!t.closest('input, textarea, [contenteditable="true"]');
+  }
+  return false;
 }
 
 /**

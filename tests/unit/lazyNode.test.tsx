@@ -56,10 +56,8 @@ describe('lazyNode · 占位与失败降级', () => {
 
 describe('prefetchHeavyNode', () => {
   it('未知类型直接返回，不抛', () => {
-    expect(() =>
-      prefetchHeavyNode('notExist' as unknown as Parameters<typeof prefetchHeavyNode>[0]),
-    ).not.toThrow();
-    expect(() => prefetchHeavyNode(undefined as never)).not.toThrow();
+    expect(() => prefetchHeavyNode('notExist')).not.toThrow();
+    expect(() => prefetchHeavyNode(undefined)).not.toThrow();
   });
 
   it('已知类型触发对应 loader（此处 mock，避免真的拉起 three/mediabunny）', () => {

@@ -22,6 +22,7 @@
  */
 import { must } from '../helpers/must';
 import { describe, expect, it } from 'vitest';
+import { fakeAudioBuffer, fakeAudioContext } from '../helpers/audio';
 import { mediaAssetOf, videoTrackOf, audioTrackOf, textTrackOf } from '../helpers/fixtures';
 import { at } from '../helpers/at';
 import type { MediaAsset } from '../../src/components/videoEditor/types/mediaAssets';
@@ -227,18 +228,11 @@ describe('hidden = 不参与输出（声音）', () => {
   });
 
   it('导出 / 字幕混音路径（createTimelineAudioBuffer）同样不出被隐藏轨的声音', async () => {
-    const decoded = {
-      numberOfChannels: 1,
-      length: 8,
-      sampleRate: 44100,
-      duration: 8 / 44100,
-      getChannelData: () => new Float32Array(8),
-    } as unknown as AudioBuffer;
+    const decoded = fakeAudioBuffer({ channels: [new Float32Array(8)] });
 
-    const audioContext = {
-      decodeAudioData: async () => decoded,
-      createBuffer: () => decoded,
-    } as unknown as AudioContext;
+    // createBuffer 走默认实现（按请求的声道数建缓冲）——旧替身「恒返回同一个单声道 buffer」
+    // 会掩盖「输出取声道越界」，那不是真实 AudioContext 的行为。
+    const audioContext = fakeAudioContext({ decodeAudioData: async () => decoded });
     const mediaWithFile = VIDEO_ASSETS.filter((asset) => asset.id === 'm-main');
 
     const audible = await createTimelineAudioBuffer({
@@ -259,12 +253,12 @@ describe('hidden = 不参与输出（声音）', () => {
   });
 
   it('全部音源解析失败 ⇒ 不产出音轨（null），而不是返回一条全零 buffer', async () => {
-    const failingContext = {
+    const failingContext = fakeAudioContext({
       decodeAudioData: async () => {
         throw new Error('bad file');
       },
-      createBuffer: () => ({}) as AudioBuffer,
-    } as unknown as AudioContext;
+      createBuffer: () => fakeAudioBuffer({ channels: [new Float32Array(0)] }),
+    });
 
     const result = await createTimelineAudioBuffer({
       tracks: [track({})],

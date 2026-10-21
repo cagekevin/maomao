@@ -20,6 +20,7 @@ import type {
 } from '../../src/components/videoEditor/types/timeline';
 import { defaultScriptBoxTop } from '../../src/components/scriptbox/scriptBoxSchema';
 import type { ScriptBoxData } from '../../src/components/scriptbox/scriptBoxSchema';
+import type { LibraryCard } from '../../src/components/creative/promptManager';
 
 /** 素材：补 `name` / `type` / `file` 默认值（`file` 必填，测试用空 File 即可）。 */
 export function mediaAssetOf(init: Partial<MediaAsset> & { id: string }): MediaAsset {
@@ -188,4 +189,10 @@ export function sceneOf(init: Partial<TScene> = {}): TScene {
 /** 剧本盒 node.data：默认值取 schema 基线，只覆盖差异。 */
 export function scriptBoxDataOf(init: Partial<ScriptBoxData> = {}): ScriptBoxData {
   return { ...defaultScriptBoxTop(), shots: [], assets: [], ...init };
+}
+
+/** 提示词库卡片行（`LibraryCard`）：补 `presetIndex` / `isLocal`。 */
+export function libraryCardOf(init: Partial<LibraryCard> & { id: string }): LibraryCard {
+  const { id, ...rest } = init;
+  return { id, presetIndex: 0, isLocal: false, ...rest };
 }
