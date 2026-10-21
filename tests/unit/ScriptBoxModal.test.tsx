@@ -6,6 +6,7 @@
  */
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
+import { must } from '../helpers/must';
 import 'react';
 import ScriptBoxModal from '../../src/components/scriptbox/ScriptBoxModal.tsx';
 
@@ -72,9 +73,10 @@ describe('ScriptBoxModal（剧本盒统一节点内弹层容器）', () => {
         <span>x</span>
       </ScriptBoxModal>,
     );
-    // 卡片是第二个 div（遮罩为第一个）
-    const card = container.querySelector('div[style*="width: 760px"]');
-    expect(card).toBeTruthy();
-    expect((card as unknown as HTMLElement).style.height).toBe('600px');
+    // 卡片是第二个 div（遮罩为第一个）。`querySelector<HTMLElement>` 是 TS 的真泛型参数，
+    // 直接拿到带 `style` 的元素类型；非空前提交给 must（比原来"truthy 断言 + 强转"更严：
+    // 查不到会当场抛「期望非空：卡片」，而不是把 null 强转成 HTMLElement 后再读属性）。
+    const card = must(container.querySelector<HTMLElement>('div[style*="width: 760px"]'), '卡片');
+    expect(card.style.height).toBe('600px');
   });
 });
