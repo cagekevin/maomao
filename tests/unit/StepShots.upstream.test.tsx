@@ -45,21 +45,25 @@ vi.mock('../../src/components/base/core/interaction/uiHooks.ts', () => ({
 }));
 
 import StepShots from '../../src/components/scriptbox/StepShots.tsx';
-import type { ScriptBoxData } from '../../src/components/scriptbox/scriptBoxSchema.ts';
+import { normalizeScriptBoxData } from '../../src/components/scriptbox/scriptBoxSchema.ts';
 
 const nodeId = 'sb1';
 // 两点说明：
-//  1. data 只传被测用到的字段（ScriptBoxData 有 20+ 必填项）；cast 走 as unknown as，
-//     因 Partial<ScriptBoxData> 与 ScriptBoxData 重叠不足，直接 as 会报 TS2352。
-//  2. props 组装成对象再 spread，而非在 JSX 上直接写 id={…}：StepShotsProps 无 id 字段，
+//  1. data 只给被测用到的字段，**经生产同一个归一化函数**补齐缺省后喂组件（与 ScriptBoxNode
+//     的读路径一致）——不再 for cast：`ScriptBoxData` 有 20+ 必填项，Partial 直接 `as` 过不去，
+//     旧写法只能靠双重断言硬跨，掩盖了「用例数据形状不对」这类问题。
+//  2. callbacks 只给本文件断言的那个回调。旧写法把整个 data spread 进去再 cast 成
+//     `Record<string, unknown>`：一是 `ScriptBoxCallbacks` 无索引签名，spread 结果必须靠 cast
+//     才能赋值；二是 data 里根本没有回调，spread 纯属噪声。
+//  3. props 组装成对象再 spread，而非在 JSX 上直接写 id={…}：StepShotsProps 无 id 字段，
 //     直接写会触发 JSX 多余属性检查（TS2322）；spread 不检查多余属性，与生产侧
 //     <StepShots {...stepProps} />（ScriptBoxNode）用法一致。
-function setup(data: Partial<ScriptBoxData> = {}) {
+function setup(data: Record<string, unknown> = {}) {
   const props = {
     id: nodeId,
-    data: data as unknown as ScriptBoxData,
+    data: normalizeScriptBoxData(data),
     updateData: () => {},
-    callbacks: { ...data, onDisconnectUpstream: vi.fn() } as unknown as Record<string, unknown>,
+    callbacks: { onDisconnectUpstream: vi.fn() },
   };
   return render(<StepShots {...props} />);
 }
@@ -87,10 +91,10 @@ describe('StepShots — 上游接入素材区（在剧情上方）', () => {
     const onDisconnect = vi.fn();
     const props = {
       id: nodeId,
-      data: {
+      data: normalizeScriptBoxData({
         story: '',
         upstreamImages: [{ id: 'i1', url: 'http://u/a.png', sourceNodeId: 's1' }],
-      } as unknown as ScriptBoxData,
+      }),
       updateData: () => {},
       callbacks: { onDisconnectUpstream: onDisconnect },
     };
