@@ -32,6 +32,15 @@ function keptMessage(r: ReturnType<typeof applyConversationBudget>, i = 0, j = 0
   return must(keptMessages(r, i)[j], `messages[${j}]`);
 }
 
+/**
+ * 脏数据探针：`sanitizeLastResults` 的输入是**落盘快照**（来源 JSON 不可信），契约就是
+ * 「吞掉 null / 非对象项」。验证容错必须喂入**类型上不成立**的项（`null` / 字符串）。
+ * 故意构造 ⇒ 收口在本函数一处（其余用例一律用真 `LastResultItem[]`，不再各自断言）。
+ */
+function dirtyLastResults(items: readonly unknown[]): LastResultItem[] {
+  return items as unknown as LastResultItem[];
+}
+
 describe('volumePolicy · truncateTo', () => {
   it('短串原样返回', () => {
     expect(truncateTo('abc', 10)).toBe('abc');
@@ -68,12 +77,8 @@ describe('volumePolicy · sanitizeLastResults', () => {
     expect(out.length).toBe(LAST_RESULTS_MAX);
   });
   it('过滤无效项', () => {
-    // 故意喂 null/字符串 等非 LastResultItem 脏数据测容错；unknown as 标注此处为故意
-    const out = sanitizeLastResults([
-      null,
-      { url: 'http://h/x.png' },
-      'bad',
-    ] as unknown as LastResultItem[]);
+    // 故意喂 null/字符串 等非 LastResultItem 脏数据测容错（类型上不成立，见 dirtyLastResults）
+    const out = sanitizeLastResults(dirtyLastResults([null, { url: 'http://h/x.png' }, 'bad']));
     expect(out).toEqual([{ url: 'http://h/x.png' }]);
   });
 });

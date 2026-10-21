@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import type { EditorCore } from '../../src/components/videoEditor/engine/core';
+import type { PlaybackHost } from '../../src/components/videoEditor/engine/core/managers/playback-manager.ts';
 import { PlaybackManager } from '../../src/components/videoEditor/engine/core/managers/playback-manager.ts';
 import { subscribe, clearEvent } from '../../src/components/base/core/event/eventBus.ts';
 
@@ -17,9 +17,9 @@ import { subscribe, clearEvent } from '../../src/components/base/core/event/even
 
 const SEEK_EVENT = 'videoeditor:seek';
 
-/** 最小 editor 替身：PlaybackManager 只经 `timeline.getTotalDuration()` 取真相，其余不触达。 */
-function makeEditor(duration: number): EditorCore {
-  return { timeline: { getTotalDuration: () => duration } } as unknown as EditorCore;
+/** 最小 editor 替身：PlaybackManager 的依赖面就是 `timeline.getTotalDuration()`（`PlaybackHost`），其余不触达。 */
+function makeEditor(duration: number): PlaybackHost {
+  return { timeline: { getTotalDuration: () => duration } };
 }
 
 /** 收集 seek 广播的载荷。 */

@@ -1,6 +1,17 @@
-import type { EditorCore } from '@/components/videoEditor/engine/core';
 import { publish } from '@/components/base/core/event/eventBus';
 import { VIDEOEDITOR_SEEK_EVENT } from '@/components/base/core/contracts';
+
+/**
+ * 播放器对编辑器的**依赖面**：本类对 editor 的唯一消费点是 `timeline.getTotalDuration()`
+ * （全文三处调用全为此方法）。
+ *
+ * 【为什么不再直接要 `EditorCore`】原先声明整对象 ⇒ 单测连「只给时长」的最小替身都构造不出，
+ * 只能整对象 `as unknown as EditorCore`（把真实依赖面藏进断言里）。收窄成结构类型后，
+ * 真实 `EditorCore` 天然满足（其 `timeline` 上有该方法），零适配，测试也不需断言。
+ */
+export interface PlaybackHost {
+  readonly timeline: { getTotalDuration(): number };
+}
 
 export class PlaybackManager {
   private isPlaying = false;
@@ -13,7 +24,7 @@ export class PlaybackManager {
   private playbackTimer: number | null = null;
   private lastUpdate = 0;
 
-  constructor(private editor: EditorCore) {}
+  constructor(private editor: PlaybackHost) {}
 
   play(): void {
     const duration = this.editor.timeline.getTotalDuration();

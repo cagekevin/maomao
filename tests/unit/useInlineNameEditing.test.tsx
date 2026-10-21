@@ -58,7 +58,8 @@ function inputProps(node: ReactNode): Record<string, unknown> | null {
   return el ? (el as { props: Record<string, unknown> }).props : null;
 }
 
-const ITEM = { id: 'n1', url: 'u1', name: '旧名' } as unknown as ResourceItem;
+// `ResourceItem` 除 `id` 外全可选 ⇒ 真形状直接字面量即可，无需断言。
+const ITEM: ResourceItem = { id: 'n1', url: 'u1', name: '旧名' };
 
 /** 基准入参：已连引擎 + 固定路径表达式（与两个消费方的真实用法同形） */
 function base(overrides: Record<string, unknown> = {}) {

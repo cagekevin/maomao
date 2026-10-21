@@ -66,8 +66,15 @@ describe('deepClone', () => {
 // 【TD-06-14】canvas 异步产出唯一出口：产出即校验、失败根部抛出（判据与文案一份）。
 describe('canvasToBlob（canvas 异步产出唯一出口 · TD-06-14）', () => {
   const CANON = '图片超出当前设备可处理的范围';
-  const fakeCanvas = (toBlob: (cb: (b: Blob | null) => void, mime?: string, q?: number) => void) =>
-    ({ toBlob }) as unknown as HTMLCanvasElement;
+  // 真 canvas 元素 + 受控 toBlob（jsdom 的 toBlob 恒回调 null，故按用例换成受控实现）。
+  // 用真元素而非骨架替身 ⇒ 不需要任何类型断言。
+  const fakeCanvas = (
+    toBlob: (cb: (b: Blob | null) => void, mime?: string, q?: number) => void,
+  ): HTMLCanvasElement => {
+    const el = document.createElement('canvas');
+    Object.defineProperty(el, 'toBlob', { value: toBlob, configurable: true });
+    return el;
+  };
 
   it('成功 → 返回 Blob，format / quality 透传', async () => {
     let seen: { mime?: string | undefined; q?: number | undefined } = {};

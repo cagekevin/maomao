@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { fakeAudioBuffer, fakeAudioContext } from '../helpers/audio';
-import { mediaAssetOf, videoTrackOf } from '../helpers/fixtures';
+import { mediaAssetOf, videoTrackOf, videoElementOf } from '../helpers/fixtures';
 import { at } from '../helpers/at';
-import type { TimelineTrack, VideoElement } from '../../src/components/videoEditor/types/timeline';
+import type { TimelineTrack } from '../../src/components/videoEditor/types/timeline';
 import {
   collectAudioSources,
   reverseAudioBuffer,
@@ -82,18 +82,14 @@ describe('TD-22-29 · reverseAudioBuffer（倒序副本原语）', () => {
 
 describe('TD-22-29 · collectAudioSources 采集倒放判据', () => {
   function makeTracks({ reversed }: { reversed: boolean }): TimelineTrack[] {
-    const element = {
+    // 走仓库工厂（真 VideoElement 形状：transform/opacity/mediaId 由工厂补），不再整对象断言。
+    const element = videoElementOf({
       id: 'el-1',
       name: 'clip.mp4',
-      type: 'video',
-      mediaId: 'media-1',
-      startTime: 0,
       duration: 2,
-      trimStart: 0,
       muted: false,
-      opacity: 1,
       reversed,
-    } as unknown as VideoElement;
+    });
 
     return [
       videoTrackOf({
