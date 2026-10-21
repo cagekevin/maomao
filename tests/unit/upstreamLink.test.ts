@@ -6,15 +6,20 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
+import { must } from '../helpers/must';
+
+/** 订阅回调的真实签名：`eventBus.ts` 的 `EventHandler`（`(payload) => void`）未导出，此处按同一形状登记。 */
+type UpstreamHandler = (payload: unknown) => void;
 
 const rfState = vi.hoisted(() => ({ edges: [{ source: 'n1', target: 'n2' }] }));
-const busState = vi.hoisted(() => ({ handler: null }));
+// 替身持有真实的回调类型（而非 null/any）：调用处无需 `as unknown as` 硬拗。
+const busState = vi.hoisted(() => ({ handler: null as UpstreamHandler | null }));
 const loggerState = vi.hoisted(() => ({ info: vi.fn(), warn: vi.fn() }));
 const runNodeGenerationMock = vi.hoisted(() => vi.fn());
 
 vi.mock('@xyflow/react', () => ({ useReactFlow: () => ({ getEdges: () => rfState.edges }) }));
 vi.mock('../../src/components/base/core/event/eventBus.ts', () => ({
-  subscribe: (_evt: any, cb: any) => {
+  subscribe: (_evt: string, cb: UpstreamHandler) => {
     busState.handler = cb;
     return () => {};
   },
@@ -45,12 +50,14 @@ describe('useUpstreamAutoTrigger — 下游触发失败可见（§3.3）', () =>
   it('下游触发失败 → logger.warn 留痕，且不往上抛 rejection', async () => {
     const { result: _result } = renderHook(() => useUpstreamAutoTrigger());
     expect(busState.handler).toEqual(expect.any(Function));
+    const handler = must(busState.handler, 'upstream:updated 订阅回调');
     runNodeGenerationMock.mockRejectedValueOnce(new Error('网络中断'));
-    // handler 同步触发；内部 runNodeGeneration 的 rejection 已被 catch 住，这里 await 不应抛
+    // handler 同步触发；内部 runNodeGeneration 的 rejection 已被 catch 住，这里 await 不应抛。
+    // 回调本身返回 void（见 upstreamLink.ts：箭头函数无 return），故 await 一个微任务刻度
+    // 让内部 `.catch(...)` 链跑完 —— 与原先 await 回调返回值的效果一致。
     await act(async () => {
-      await (busState.handler as unknown as (arg: { sourceNodeId: string }) => Promise<void>)({
-        sourceNodeId: 'n1',
-      });
+      handler({ sourceNodeId: 'n1' });
+      await Promise.resolve();
     });
     expect(runNodeGenerationMock).toHaveBeenCalledWith('n2');
     expect(loggerState.warn).toHaveBeenCalledWith(
@@ -62,11 +69,11 @@ describe('useUpstreamAutoTrigger — 下游触发失败可见（§3.3）', () =>
 
   it('下游触发成功 → 仅 info 不 warn（失败才留痕）', async () => {
     renderHook(() => useUpstreamAutoTrigger());
+    const handler = must(busState.handler, 'upstream:updated 订阅回调');
     runNodeGenerationMock.mockResolvedValueOnce({ ok: true });
     await act(async () => {
-      await (busState.handler as unknown as (arg: { sourceNodeId: string }) => Promise<void>)({
-        sourceNodeId: 'n1',
-      });
+      handler({ sourceNodeId: 'n1' });
+      await Promise.resolve();
     });
     expect(runNodeGenerationMock).toHaveBeenCalledWith('n2');
     expect(loggerState.info).toHaveBeenCalledWith(
