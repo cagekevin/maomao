@@ -35,15 +35,33 @@ import { logger } from '../../src/components/base/core/log/logger.ts';
 import { compressImage } from '../../src/components/base/utils/imageCompress.ts';
 
 // node 环境无 FileReader：stub 一个，readAsDataURL 直接产出预设 dataURL（配合 httpRequest mock 返回 {_dataUrl}）。
-// 显式声明 result/onload 字段（否则 this.xxx 报 TS2339）；stub 缺 EMPTY/LOADING/DONE 等
-// 静态成员，赋值时统一 as unknown as 收尾（踩坑记录 #11）。
+// 显式声明 result/onload 字段（否则 this.xxx 报 TS2339）；stub 缺 EMPTY/LOADING/DONE 等静态成员，
+// 但通过 `vi.stubGlobal` 注入 ⇒ 不需要类型断言（原写法用双重断言收尾，已随 TD-18-49 清掉）。
+/** 测试侧「这个 Blob 应产出什么 dataURL」的登记表（stub FileReader 读它）。
+ *  用 WeakMap 而不是往 Blob 实例上挂 `_dataUrl`：既不必伪造 Blob 形状（省掉双重断言），
+ *  也不会让「Blob 上有个非标准字段」这种假前提流进被测代码。 */
+const stubDataUrlByBlob = new WeakMap<Blob, string>();
+
+/** 造一个「读出来是 dataUrl」的**真 Blob**（stub FileReader 查表得到结果）。 */
+function blobWithDataUrl(dataUrl: string): Blob {
+  const blob = new Blob(['stub']);
+  stubDataUrlByBlob.set(blob, dataUrl);
+  return blob;
+}
+
+/** 历史约定：`httpRequest` 桩把 `{ _dataUrl }` 当作 blob 交回来（见本文件两处 mockResolvedValueOnce）。
+ *  这里按 `in` 收窄读取，不再用断言 —— 该约定本身仍是测试内的私有协议。 */
+function readStubDataUrl(blob: Blob): string | undefined {
+  return '_dataUrl' in blob && typeof blob._dataUrl === 'string' ? blob._dataUrl : undefined;
+}
+
 function stubFileReader() {
   class StubFileReader {
     result: string | ArrayBuffer | null = null;
     onload: (() => void) | null = null;
     readAsDataURL(blob?: Blob) {
       this.result =
-        (blob && (blob as unknown as { _dataUrl?: string })._dataUrl) ||
+        (blob && (stubDataUrlByBlob.get(blob) ?? readStubDataUrl(blob))) ||
         'data:image/png;base64,stubdata';
       this.onload?.();
     }
@@ -146,7 +164,7 @@ describe('assetUrl · normalizeAssetUrlForSend（发送端归一化）', () => {
       '',
       null,
       undefined,
-    ] as unknown as string[]);
+    ]);
     expect(out).toEqual(['http://x/a.png', 'data:image/png;base64,compressed:blob:http://x/b']);
   });
 
@@ -277,16 +295,13 @@ describe('assetUrl · fileToDataUrl（本地文件→dataURL 收口）', () => {
   beforeEach(() => stubFileReader());
 
   it('File → data: base64（FileReader 收口，供发送附件，result 透传）', async () => {
-    // 参数是 Blob；测试用带 _dataUrl 的替身（stub FileReader 读它），故 as unknown as 收尾
-    await expect(
-      fileToDataUrl({ _dataUrl: 'data:image/png;base64,fileimg' } as unknown as Blob),
-    ).resolves.toBe('data:image/png;base64,fileimg');
+    await expect(fileToDataUrl(blobWithDataUrl('data:image/png;base64,fileimg'))).resolves.toBe(
+      'data:image/png;base64,fileimg',
+    );
   });
 
   it('无自定义 result → 使用 FileReader 默认读取结果', async () => {
-    await expect(fileToDataUrl({} as unknown as Blob)).resolves.toBe(
-      'data:image/png;base64,stubdata',
-    );
+    await expect(fileToDataUrl(new Blob(['x']))).resolves.toBe('data:image/png;base64,stubdata');
   });
 });
 
@@ -309,7 +324,7 @@ describe('assetUrl · classifyImageType / summarizeAssetUrls（发送图片可�
       '/files/b.png',
       '',
       null,
-    ] as unknown as string[]);
+    ]);
     expect(s).toEqual({ count: 3, urls: 2, base64s: 1 });
   });
 

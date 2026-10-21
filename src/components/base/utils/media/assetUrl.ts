@@ -472,10 +472,12 @@ export async function normalizeAssetUrlForSend(
  * @returns {Promise<string[]>}
  */
 export async function normalizeAssetUrlsForSend(
-  images: string[] | null | undefined,
+  // 入参本就容忍脏数据（下面按 `typeof === 'string'` 过滤）⇒ 声明如实放宽，
+  // 调用方传含 null/undefined 的数组时不必再靠断言（TD-18-49）。
+  images: readonly (string | null | undefined)[] | null | undefined,
   opts: AssetSendOptions = {},
 ): Promise<string[]> {
-  const urls = (images || []).filter((u) => typeof u === 'string' && u);
+  const urls = (images || []).filter((u): u is string => typeof u === 'string' && !!u);
   // 多图并行压缩/归一化（Promise.all），避免多张图串行累积等待（本地图压缩耗时集中在 canvas 解码）。
   const results = await Promise.all(urls.map((u) => normalizeAssetUrlForSend(u, opts)));
   const sent = results.filter((r): r is string => typeof r === 'string' && r.length > 0);
@@ -535,12 +537,15 @@ export function classifyImageType(url: string): 'url' | 'base64' {
  * @param {Array<string>} images 原始图片 URL 数组
  * @returns {{ count:number, urls:number, base64s:number }}
  */
-export function summarizeAssetUrls(images: string[] | null | undefined): {
+export function summarizeAssetUrls(
+  // 同 normalizeAssetUrlsForSend：入参容忍脏数据，声明如实放宽（TD-18-49）
+  images: readonly (string | null | undefined)[] | null | undefined,
+): {
   count: number;
   urls: number;
   base64s: number;
 } {
-  const list = (images || []).filter((u) => typeof u === 'string' && u);
+  const list = (images || []).filter((u): u is string => typeof u === 'string' && !!u);
   let urls = 0;
   let base64s = 0;
   for (const u of list) {
