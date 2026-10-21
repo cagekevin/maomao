@@ -7,6 +7,7 @@ import 'react';
 import { at } from '../helpers/at';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import type { generateVideo } from '../../src/components/generate/lib/generate.ts';
 
 const mockSetNodes = vi.fn();
 const mockGetNodes = vi.fn(() => []);
@@ -103,12 +104,16 @@ vi.mock('../../src/components/base/api/localToolApi.ts', async (importOriginal) 
   ...((await importOriginal()) as Record<string, unknown>),
   fetchTasks: vi.fn(async () => ({ items: [] })),
 }));
-// 显式声明参数元组：vi.fn(async () => …) 会把参数推断成空元组 []，
-// 导致后续 mock.calls[0][0] 报 TS2493、mockGenerateVideo(...a) 报 TS2556。
-const mockGenerateVideo = vi.fn(async (..._args: unknown[]) => ({ url: 'http://gen.local/v.mp4' }));
+// 用真实签名给 mock 定型：`mock.calls[0][0]` 直接是 `GenerateVideoOptions`
+// （此前参数写成 `..._args: unknown[]`，于是每处读参都要 `as unknown as { prompt… }`）。
+const mockGenerateVideo = vi.fn<typeof generateVideo>(async () => ({
+  ok: true,
+  url: 'http://gen.local/v.mp4',
+}));
 vi.mock('../../src/components/generate/lib/generate.ts', async (importOriginal) => ({
   ...((await importOriginal()) as Record<string, unknown>),
-  generateVideo: (...a: any[]) => mockGenerateVideo(...a),
+  // 必须包一层：工厂被提升到文件顶部，直接引用 mock 会在初始化前取值（TDZ）
+  generateVideo: (...args: Parameters<typeof generateVideo>) => mockGenerateVideo(...args),
 }));
 vi.mock('../../src/components/base/utils/providerModels.ts', () => ({
   buildAllModels: vi.fn(() => []),
@@ -121,7 +126,7 @@ beforeEach(() => {
   mockGetNodes.mockReturnValue([]);
   mockAddNodes.mockClear();
   mockGenerateVideo.mockReset();
-  mockGenerateVideo.mockResolvedValue({ url: 'http://gen.local/v.mp4' });
+  mockGenerateVideo.mockResolvedValue({ ok: true, url: 'http://gen.local/v.mp4' });
   genConfig = null;
   connectedInputs = { images: [], texts: [] };
 });
@@ -142,10 +147,7 @@ describe('VideoGenerate 上游文本/图片合并（修复点）', () => {
     fireEvent.click(screen.getByText('生成'));
 
     await waitFor(() => expect(mockGenerateVideo).toHaveBeenCalled());
-    const call = at(mockGenerateVideo.mock.calls, 0)[0] as unknown as {
-      prompt: string;
-      images?: unknown;
-    };
+    const call = at(mockGenerateVideo.mock.calls, 0)[0];
     expect(call.prompt).toContain('快节奏剪辑');
     expect(call.prompt).toContain('产品开箱视频');
   });
@@ -156,9 +158,7 @@ describe('VideoGenerate 上游文本/图片合并（修复点）', () => {
     expect(genConfig.validate()).toBe('');
     fireEvent.click(screen.getByText('生成'));
     await waitFor(() => expect(mockGenerateVideo).toHaveBeenCalled());
-    expect(
-      (at(mockGenerateVideo.mock.calls, 0)[0] as unknown as { prompt: string }).prompt,
-    ).toContain('夏日促销');
+    expect(at(mockGenerateVideo.mock.calls, 0)[0].prompt).toContain('夏日促销');
   });
 
   it('多个上游文本节点合并', async () => {
@@ -172,7 +172,7 @@ describe('VideoGenerate 上游文本/图片合并（修复点）', () => {
     setup({ prompt: 'vlog' });
     fireEvent.click(screen.getByText('生成'));
     await waitFor(() => expect(mockGenerateVideo).toHaveBeenCalled());
-    const p = (at(mockGenerateVideo.mock.calls, 0)[0] as unknown as { prompt: string }).prompt;
+    const p = at(mockGenerateVideo.mock.calls, 0)[0].prompt;
     expect(p).toContain('vlog');
     expect(p).toContain('镜头一：城市');
     expect(p).toContain('镜头二：海边');
@@ -186,10 +186,7 @@ describe('VideoGenerate 上游文本/图片合并（修复点）', () => {
     setup({ prompt: '模仿' });
     fireEvent.click(screen.getByText('生成'));
     await waitFor(() => expect(mockGenerateVideo).toHaveBeenCalled());
-    const call = at(mockGenerateVideo.mock.calls, 0)[0] as unknown as {
-      prompt: string;
-      images?: unknown;
-    };
+    const call = at(mockGenerateVideo.mock.calls, 0)[0];
     expect(call.prompt).toContain('模仿');
     expect(call.images).toEqual(['http://up/a.png']);
   });
