@@ -222,11 +222,13 @@ describe('M4-C1 writeObjectTrack 统一写入口', () => {
         { frame: 10, interpolation: 'linear', fields: { position: [1, 0, 0] } },
       ],
     };
-    const next = setChannelInterpolation(channels, 10, 'hold') as unknown as {
-      transform: Array<{ interpolation: string }>;
-    };
-    expect(at(next.transform, 0).interpolation).toBe('smooth');
-    expect(at(next.transform, 1).interpolation).toBe('hold');
+    // 返回类型就是 `ChannelTracks`（`Record<string, ChannelKey[]>`）：
+    // `noPropertyAccessFromIndexSignature` + `noUncheckedIndexedAccess` 下按 `['transform']` 取键、
+    // 再用 must() 收口「通道一定存在」，无需整对象断言。
+    const next = setChannelInterpolation(channels, 10, 'hold');
+    const transform = must(next['transform'], 'transform');
+    expect(at(transform, 0).interpolation).toBe('smooth');
+    expect(at(transform, 1).interpolation).toBe('hold');
   });
 });
 

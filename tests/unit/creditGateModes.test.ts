@@ -103,13 +103,15 @@ import type { CreditGate } from '../../src/components/agent/conversation/convers
 
 // vi.mock 工厂已把 executePlan 替换为 vi.fn，vi.mocked() 可恢复其 mock 类型（含 .mock.calls），零 any
 const mockExecutePlan = vi.mocked(executePlan);
-// 对「模块命名空间 convStore」直接写 convMock.__state 会触发 vitest/TS 推断 bug，
-// 连坐同一作用域 vi/expect 变不可调用（canvasAgentTools.test.ts 探针实测）。
-// 合并本地 __state 字段类型（替代原 any 别名），保留规避意图且零 any。
-type ConvMock = typeof convStore & {
-  __state: { awaiting: boolean; creditGate: CreditGate | null };
-};
-const convMock = convStore as unknown as ConvMock;
+// mock 出口读的本地真相（awaiting / creditGate）。
+// 【为什么不再往「模块命名空间」上挂 __state】那让模块类型不成立（只能整对象双重断言），
+// 且实测会触发 vitest/TS 推断 bug，连坐同作用域 vi/expect 不可调用（canvasAgentTools.test.ts 探针）。
+// 直接持有本地对象即可：类型真、零断言。
+const convState: {
+  awaiting: boolean;
+  /** `setCreditGate` 收 Partial（见其签名），出口按 CreditGate 还原需单次断言（用例给的是完整形状） */
+  creditGate: (Partial<CreditGate> & Record<string, unknown>) | null;
+} = { awaiting: false, creditGate: null };
 
 function makeCtx() {
   let nodes: any = [];
@@ -138,20 +140,21 @@ beforeEach(() => {
   vi.clearAllMocks();
   __creditState = true; // 默认开（安全）
   // 配对状态
-  convMock.__state = { awaiting: false, creditGate: null };
-  vi.mocked(convStore.getAwaitingConfirm).mockImplementation(() => convMock.__state.awaiting);
+  convState.awaiting = false;
+  convState.creditGate = null;
+  vi.mocked(convStore.getAwaitingConfirm).mockImplementation(() => convState.awaiting);
   vi.mocked(convStore.setAwaitingConfirm).mockImplementation((v) => {
-    convMock.__state.awaiting = !!v;
+    convState.awaiting = !!v;
   });
-  // __state.creditGate 本地存 Partial 形状，mock 出口处断言回 CreditGate（运行时 g 已是兼容结构）
+  // convState.creditGate 本地存 Partial 形状，mock 出口处断言回 CreditGate（运行时 g 已是兼容结构）
   vi.mocked(convStore.getCreditGate).mockImplementation(
-    () => convMock.__state.creditGate as CreditGate | null,
+    () => convState.creditGate as CreditGate | null,
   );
   vi.mocked(convStore.setCreditGate).mockImplementation((g) => {
-    convMock.__state.creditGate = (g || null) as CreditGate | null;
+    convState.creditGate = g ?? null;
   });
   vi.mocked(convStore.clearCreditGate).mockImplementation(() => {
-    convMock.__state.creditGate = null;
+    convState.creditGate = null;
   });
 });
 
@@ -171,10 +174,10 @@ describe('完全自主 × 积分开关 × execute_plan 唯一入口', () => {
       expect(mockExecutePlan).toHaveBeenCalledTimes(1);
       expect(at(mockExecutePlan.mock.calls, 0)[0].autoRun).toBe(false);
       // creditGate 置位并持久化
-      expect(convMock.__state.creditGate?.pending).toBe(true);
-      expect(convMock.__state.creditGate?.map).toBeTruthy();
+      expect(convState.creditGate?.pending).toBe(true);
+      expect(convState.creditGate?.map).toBeTruthy();
       // 未置 awaiting 态（credit 闸与 awaiting 确认闸两条门禁互相独立）
-      expect(convMock.__state.awaiting).toBe(false);
+      expect(convState.awaiting).toBe(false);
     });
 
     it('开关关【放行】→ 按 auto_run 直接烧积分、不置 creditGate', async () => {
@@ -185,7 +188,7 @@ describe('完全自主 × 积分开关 × execute_plan 唯一入口', () => {
       expect(r.data.awaited).toBeUndefined();
       expect(mockExecutePlan).toHaveBeenCalledTimes(1);
       expect(at(mockExecutePlan.mock.calls, 0)[0].autoRun).toBe(true);
-      expect(convMock.__state.creditGate).toBeNull();
+      expect(convState.creditGate).toBeNull();
     });
   });
 });

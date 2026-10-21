@@ -4,21 +4,24 @@
  * 端口可注入 → 用假端口断言真实分支，不依赖 mediabunny / 真实 WebCodecs。
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import type { MockInstance } from 'vitest';
+import type { AudioCodec, VideoCodec } from 'mediabunny';
 import type {
   EncoderProbeRequest,
   EncoderQueryPort,
 } from '../../src/components/director3d/encoderProbe.ts';
 
 type FakePort = EncoderQueryPort & {
-  video: ReturnType<typeof vi.fn>;
-  audio: ReturnType<typeof vi.fn>;
+  video: MockInstance<EncoderQueryPort['video']>;
+  audio: MockInstance<EncoderQueryPort['audio']>;
 };
 
-function fakePort(video: string | null, audio: string | null): FakePort {
+/** 假端口：按真端口签名收类型（`vi.fn<T>`），返回值直接用真编码器类型 ⇒ 不需要整对象断言。 */
+function fakePort(video: VideoCodec | null, audio: AudioCodec | null): FakePort {
   return {
-    video: vi.fn(async () => video as never),
-    audio: vi.fn(async () => audio as never),
-  } as unknown as FakePort;
+    video: vi.fn<EncoderQueryPort['video']>(async () => video),
+    audio: vi.fn<EncoderQueryPort['audio']>(async () => audio),
+  };
 }
 
 const REQ: EncoderProbeRequest = { videoCodecs: ['avc', 'av1', 'vp9'] as never };

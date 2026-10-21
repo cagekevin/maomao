@@ -36,6 +36,18 @@ import {
 
 // ---- 测试样本：与 objectKeyframeFromObject / addObjectKeyframe 产出形状一致的整快照 key ----
 
+/**
+ * 脏通道数据探针：`normalizeObjectTracks` 的输入是**反序列化后的工程 JSON**（历史工程 / 外部导入），
+ * 「frame 是字符串」这类类型上不成立的脏值真实存在，把它归一成有限数值正是被测契约。
+ * 故意构造 ⇒ 收口在本函数一处，禁止散落到用例里。
+ */
+function dirtyChannelTracks(tracks: {
+  [channelKey: string]: { transform: Array<Record<string, unknown>> };
+}): ChannelTracks {
+  return tracks as unknown as ChannelTracks;
+}
+
+
 const person = {
   id: 'actor-lead',
   type: 'person',
@@ -408,12 +420,12 @@ describe('归一化与通道化工具（幂等/统计/clamp/写入口）', () =>
   });
 
   it('通道化 key 归一化 frame/interpolation（frame 字符串/越界自动规整）', () => {
-    // 故意喂 frame:'3'（字符串脏数据）测 clamp 兜底；用 unknown as 标注此处为故意
-    const noisy = {
+    // 故意喂 frame:'3'（字符串脏数据）测 clamp 兜底 —— 类型上不成立，见 dirtyChannelTracks
+    const noisy = dirtyChannelTracks({
       'actor-lead': {
         transform: [{ frame: '3', interpolation: 'hold', fields: { position: [1, 2, 3] } }],
       },
-    } as unknown as ChannelTracks;
+    });
     const normalized = normalizeObjectTracks(noisy, { 'actor-lead': 'person' });
     expect(at(channelOf(trackOf(normalized, 'actor-lead'), 'transform'), 0).frame).toBe(3);
     expect(at(channelOf(trackOf(normalized, 'actor-lead'), 'transform'), 0).interpolation).toBe(

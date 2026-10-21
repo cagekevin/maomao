@@ -55,8 +55,12 @@ describe('config — 默认值契约（无 env）', () => {
 
 describe('config — isDebugModuleOn（调试开关实时判断）', () => {
   beforeEach(() => {
-    // 每次干净：清空 window.__DEBUG_*（node 环境无 window，用空对象模拟）
-    globalThis.window = globalThis.window || ({} as unknown as Window & typeof globalThis);
+    // 每次干净：清空 window.__DEBUG_*。
+    // node 环境本无 `window`：用 defineProperty 挂一个「只含调试开关」的真宿主对象
+    // （被测 config 只读这几个开关）；defineProperty 的 value 是 any，故不需要任何类型断言。
+    if (!globalThis.window) {
+      Object.defineProperty(globalThis, 'window', { value: {}, configurable: true, writable: true });
+    }
     delete globalThis.window.__DEBUG_ALL;
     delete globalThis.window.__DEBUG_IMAGE;
     delete globalThis.window.__DEBUG_ASSET;

@@ -112,9 +112,9 @@ beforeEach(() => {
   fetchMock.mockClear();
   kv.memKV.clear();
   vi.mocked(providerApi.getProviders).mockReset();
-  vi.mocked(providerApi.getProviders).mockResolvedValue({ data: null } as unknown as Awaited<
-    ReturnType<typeof providerApi.getProviders>
-  >); // 默认无 providers，与既有用例行为一致
+  // 信封按真契约给（`ApiEnvelope<{ providers: unknown[] }>`）：空 providers = 「默认无 API 配置」，
+  // 与既有用例行为一致；不再用 `{ data: null }` 扭曲契约。
+  vi.mocked(providerApi.getProviders).mockResolvedValue({ data: { providers: [] } });
   CloudSyncEngine.isSyncing = false;
   localStorage.clear();
   contentClearCache();
