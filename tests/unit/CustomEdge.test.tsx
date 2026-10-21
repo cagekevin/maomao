@@ -59,6 +59,18 @@ function setup(overrides: Partial<EdgeProps> = {}) {
   return render(<CustomEdge {...BASE_PROPS} {...overrides} />);
 }
 
+/**
+ * 故意构造**类型上不成立**的 markerEnd（对象而不是 string）。
+ *
+ * 【为什么这处断言允许保留】生产侧 `CustomEdge` 显式写了
+ * `markerEnd={typeof markerEnd === 'string' ? markerEnd : undefined}` 的防御分支；画布数据来自
+ * 磁盘 / 旧版本，markerEnd 真可能是对象形态，要覆盖该分支就必须喂一个类型上非法值 ——
+ * 这是**用例故意构造的非法组合**（不是掩盖别处的类型缺口）。强转收在本函数单点，调用点只写语义。
+ */
+function dirtyMarkerEnd(value: unknown): string {
+  return value as unknown as string;
+}
+
 describe('CustomEdge — 未激活态', () => {
   beforeEach(() => {
     h.deleteElements.mockClear();
@@ -83,15 +95,17 @@ describe('CustomEdge — 未激活态', () => {
 
   it('markerEnd 透传给主线 path', () => {
     const view = setup();
-    expect(must(view.container.querySelector('.cust-edge-base'), 'view').getAttribute('marker-end')).toBe(
-      'url(#arrow)',
-    );
+    expect(
+      must(view.container.querySelector('.cust-edge-base'), 'view').getAttribute('marker-end'),
+    ).toBe('url(#arrow)');
   });
 
   it('markerEnd 非字符串时不透传', () => {
     // 故意喂错类型：验证组件对脏数据的防御（markerEnd 正常应为 string）
-    const view = setup({ markerEnd: { id: 'obj' } as unknown as string });
-    expect(must(view.container.querySelector('.cust-edge-base'), 'view').getAttribute('marker-end')).toBeNull();
+    const view = setup({ markerEnd: dirtyMarkerEnd({ id: 'obj' }) });
+    expect(
+      must(view.container.querySelector('.cust-edge-base'), 'view').getAttribute('marker-end'),
+    ).toBeNull();
   });
 
   it('bezier path d 透传给各层', () => {
@@ -121,7 +135,9 @@ describe('CustomEdge — 激活态', () => {
 
   it('data.relatedToSelected=true：关联激活（与选中联动）', () => {
     const view = setup({ data: { relatedToSelected: true } });
-    expect(must(view.container.querySelector('.cust-edge-base'), 'view').className).toContain('is-active');
+    expect(must(view.container.querySelector('.cust-edge-base'), 'view').className).toContain(
+      'is-active',
+    );
     expect(view.container.querySelector('.cust-edge-glow.is-active')).toBeTruthy();
     expect(h.cometProps).toHaveLength(1);
     expect(screen.getByTitle('删除连线')).toBeTruthy();
