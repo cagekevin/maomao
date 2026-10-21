@@ -46,6 +46,24 @@ function validConv(overrides: Record<string, unknown> = {}): Conversation {
   } as never) as Conversation;
 }
 
+/**
+ * 故意构造「未经 normalize 的原始会话」—— **类型上不成立**：`Conversation` 的字段要靠
+ * normalizeConversation 归一后才齐全，而本文件这两条用例要验的正是「校验能兜住归一之前
+ * 就被污染的落盘数据」，故必须在类型外构造。断言只在此一处收口（2026-10-21 收口，
+ * 原为两条用例各自内联的双转断言）。
+ */
+function rawConversation(raw: Record<string, unknown>): Conversation {
+  return raw as unknown as Conversation;
+}
+
+/**
+ * 故意把 string 契约字段塞成数字 —— **类型上不成立**（memory 契约字段声明为 string）。
+ * 用例要验的正是 validateMemory 能捕获这类落盘前的类型违约；断言只在此一处收口。
+ */
+function brokenString(value: number): string {
+  return value as unknown as string;
+}
+
 function errs(v: { level: string; code: string }[]): string[] {
   return v.filter((x) => x.level === 'error').map((x) => x.code);
 }
@@ -107,10 +125,10 @@ describe('validateConversation · 错误注入（I2/S1/S3/S4/P4）', () => {
   });
 
   it('P4：终态残留 streaming:true → error（不变量本身仍捕获，未经 normalize 自愈的原始数据）', () => {
-    const raw = {
+    const raw = rawConversation({
       id: 'ac_1',
       messages: [{ id: 'm1', role: 'assistant', content: '', streaming: true }],
-    } as unknown as Conversation;
+    });
     expect(errs(validateConversation(raw))).toContain('P4');
   });
 
@@ -140,8 +158,7 @@ describe('validateMemory / validateWorkflow', () => {
   it('validateMemory：健康记忆 → 无违规；非 string 契约 → S4', () => {
     expect(validateMemory(must(validConv().memory, 'memory'))).toEqual([]);
     const bad = validConv();
-    must(must(bad.memory, 'memory').global_contract, 'must').unified_style_prompt =
-      5 as unknown as string;
+    must(must(bad.memory, 'memory').global_contract, 'must').unified_style_prompt = brokenString(5);
     expect(errs(validateMemory(must(bad.memory, 'memory')))).toContain('S4');
   });
 
