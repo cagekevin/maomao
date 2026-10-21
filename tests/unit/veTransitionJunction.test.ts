@@ -13,7 +13,7 @@
  * ════════════════════════════════════════════════════════════════
  */
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { sceneOf } from '../helpers/fixtures';
+import { sceneOf, videoElementOf, videoTrackOf } from '../helpers/fixtures';
 import { at } from '../helpers/at';
 import { EditorCore } from '../../src/components/videoEditor/engine/core';
 import {
@@ -28,32 +28,14 @@ import type {
   VideoTrack,
 } from '../../src/components/videoEditor/types/timeline';
 
+// 片段 / 轨道走共享工厂（补 transform / opacity / name / trimStart 等必填字段），
+// 调用点只描述本用例关心的差异 —— 不再把半截对象整块断言成完整类型（详见 fixtures.ts 头注）。
 function videoEl(id: string, startTime: number, duration: number): VideoElement {
-  return {
-    id,
-    type: 'video',
-    mediaId: 'm1',
-    name: id,
-    startTime,
-    duration,
-    trimStart: 0,
-    playbackRate: 1,
-    muted: false,
-    hidden: false,
-    transform: { scale: 1, position: { x: 0, y: 0 }, rotate: 0 },
-    opacity: 1,
-  } as unknown as VideoElement;
+  return videoElementOf({ id, name: id, mediaId: 'm1', startTime, duration });
 }
 
 function videoTrack({ id, elements }: { id: string; elements: VideoElement[] }): VideoTrack {
-  return {
-    id,
-    type: 'video',
-    isMain: false,
-    muted: false,
-    hidden: false,
-    elements,
-  } as unknown as VideoTrack;
+  return videoTrackOf({ id, elements });
 }
 
 describe('转场「相邻」判据 —— 阈值口径（TD-22-49）', () => {
