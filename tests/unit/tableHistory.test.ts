@@ -85,7 +85,7 @@ describe('表格撤销栈（tableHistory）', () => {
   });
 
   it('pushHistory 忽略空快照（防脏数据把栈打穿）', () => {
-    pushHistory(null as unknown as AssistantTableTabs);
+    pushHistory(null); // 入参已声明 `AssistantTableTabs | null`（空快照是其合法输入）
     expect(canUndo()).toBe(false);
   });
 

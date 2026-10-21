@@ -152,7 +152,8 @@ describe('validateTabs 不变量校验（spec §七.L4）', () => {
   });
 
   it('tabs 结构缺失：报 S6 error 不崩', () => {
-    expect(at(validateTabs(null as unknown as AssistantTableTabs), 0).code).toBe('S6');
+    // validateTabs 的入参本就声明为 `AssistantTableTabs | null`（结构缺失是它的合法输入）⇒ 直接传 null
+    expect(at(validateTabs(null), 0).code).toBe('S6');
   });
 });
 

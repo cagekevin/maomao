@@ -196,9 +196,8 @@ describe('剧本盒引擎深度业务 §2.7', () => {
     const s1 = last.shots.find((x: any) => x.id === 's1');
     expect(s1.prompt).not.toContain('@图片1');
     // 承接/钩子上下文也注入（s2 是结尾镜，只有上一镜承接，无下一镜钩子）
-    const s2Call = at(chatCompletionsMock.mock.calls, 1)[0] as unknown as {
-      messages: Array<{ content: string }>;
-    };
+    // mock 已按真 chatCompletions 签名收类型（`vi.mocked`）⇒ messages 直接可读，无需再收窄
+    const s2Call = at(chatCompletionsMock.mock.calls, 1)[0];
     expect(at(s2Call.messages, 1).content).toContain('【剧情承接：上一镜状态描述】镜头1');
     expect(at(s2Call.messages, 1).content).toContain('结尾镜');
     expect(at(s2Call.messages, 1).content).toContain('【负面黑名单·绝对禁止出现】');

@@ -25,8 +25,13 @@ function emit(): void {
   listeners.forEach((l) => l());
 }
 
-/** commit 前快照入栈（仅 commit 后进；新 commit 清空 redo）；上限 50 丢最旧 */
-export function pushHistory(snapshot: AssistantTableTabs): void {
+/**
+ * commit 前快照入栈（仅 commit 后进；新 commit 清空 redo）；上限 50 丢最旧。
+ *
+ * 【为什么入参认 `null`】实现本来就以 `if (!snapshot) return` 挡空快照（防脏数据把栈打穿），
+ * 声明成非空 = 类型把这条真实契约藏起来（调用方/测试只能靠双重断言表达「故意传空」）。
+ */
+export function pushHistory(snapshot: AssistantTableTabs | null): void {
   if (!snapshot) return;
   past = [...past, snapshot].slice(-MAX_STEPS);
   future = [];

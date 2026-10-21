@@ -43,8 +43,13 @@ function fakeSetNodes() {
     },
   };
 }
-const node = (id: string, data: Record<string, unknown> = {}): Node =>
-  ({ id, type: 'assetNode', position: { x: 0, y: 0 }, data }) as unknown as Node;
+// Node 除 id/position/data 外全可选（type 是 string）⇒ 真形状直接字面量，无需断言
+const node = (id: string, data: Record<string, unknown> = {}): Node => ({
+  id,
+  type: 'assetNode',
+  position: { x: 0, y: 0 },
+  data,
+});
 
 describe('replaceNodeImage — 节点主图唯一写入口', () => {
   it('只写 assetUrl 值；**旧身份字段一并失效**（存量 url 不得把新图短路）', () => {

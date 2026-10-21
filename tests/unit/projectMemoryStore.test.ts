@@ -7,6 +7,7 @@
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { at } from '../helpers/at';
+import type { ProjectMemoryInput } from '../../src/components/agent/runtime/projectMemoryStore.ts';
 
 // 用 vi.hoisted 提供内存态，隔离真实 Content 层 IO，且可任意模块态引用。
 const h = vi.hoisted(() => ({ store: new Map() }));
@@ -34,6 +35,14 @@ const {
   getCachedProjectMemories,
   PROJECT_MEMORY_LIMIT,
 } = mod;
+
+/**
+ * 故意喂非法 kind：落盘记忆来自运行时 JSON，`PROJECT_MEMORY_KINDS` 以外的值确实会出现，
+ * 回退 `fact` 正是被测契约。类型上不成立 ⇒ 收口在此一处，禁止散落到用例里。
+ */
+function invalidKind(v: string): ProjectMemoryInput['kind'] {
+  return v as unknown as ProjectMemoryInput['kind'];
+}
 
 beforeEach(async () => {
   h.store.clear();
@@ -89,7 +98,7 @@ describe('saveProjectMemory / loadProjectMemories —— 保存与读取（T2）
 
   it('kind 非法时回退 fact，content 超长截断', async () => {
     const saved = await saveProjectMemory('gw', {
-      kind: 'badKind' as unknown as Parameters<typeof saveProjectMemory>[1]['kind'],
+      kind: invalidKind('badKind'),
       content: 'c'.repeat(600),
     });
     expect(saved.kind).toBe('fact');

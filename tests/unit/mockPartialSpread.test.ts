@@ -18,7 +18,7 @@
  *     }));
  *
  * 【为什么不靠"记得同步改桩"】那是把结构问题交给人的注意力（本仓母体：清单/约定必漏）。
- * 【为什么不用 `as unknown as typeof import(…)`】本仓 TD-24-5 正在清 `as unknown as` 双重断言 ⇒
+ * 【为什么不用「整对象 `typeof import(…)` 双重断言」】本仓 TD-24-5 正在清这类双重断言 ⇒
  * 统一用**单次** `as Record<string, unknown>`（vitest 的 `importOriginal` 返回 `unknown`，单次断言即够；
  * 先例：`creditGateModes.test.ts` 的 contentStore 桩 · `AgentPanel.test.tsx` 的 config 桩）。
  *

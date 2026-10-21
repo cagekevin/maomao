@@ -31,7 +31,7 @@ vi.mock('../../src/components/base/utils/providerModels.ts', () => ({
   buildAllModels: vi.fn(() => [{ id: 'gpt-4o-mini' }]),
 }));
 // 从真模块派生（TD-17-15）：toastStore 属「会长大」类，手写白名单式桩会随它加导出而脱钩。
-/** toast 替身（`vi.hoisted` ⇒ 工厂与用例共享同一组 spy，用例不必 `import + as unknown as`）。 */
+/** toast 替身（`vi.hoisted` ⇒ 工厂与用例共享同一组 spy，用例不必整对象双重断言）。 */
 const toastSpies = vi.hoisted(() => {
   const showToast = vi.fn();
   // 收口（2026-09-20）：业务代码改走 toastSuccess/toastError，二者内部均调 showToast。
