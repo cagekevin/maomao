@@ -21,7 +21,7 @@
  * tracks、不回滚 settings。
  */
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { mediaAssetOf } from '../helpers/fixtures';
+import { mediaAssetOf, sceneOf, videoElementOf, videoTrackOf } from '../helpers/fixtures';
 import { at } from '../helpers/at';
 import { EditorCore } from '../../src/components/videoEditor/engine/core';
 import type { TProject } from '../../src/components/videoEditor/types/project';
@@ -30,6 +30,7 @@ import type {
   TimelineTrack,
   TrackTransition,
   TScene,
+  VideoElement,
   VideoTrack,
 } from '../../src/components/videoEditor/types/timeline';
 
@@ -48,38 +49,17 @@ function makeProject(id: string): TProject {
   } satisfies TProject;
 }
 
-function videoElement(id: string, startTime: number, duration: number) {
-  return {
-    id,
-    type: 'video',
-    name: id,
-    mediaId: `m-${id}`,
-    startTime,
-    duration,
-    trimStart: 0,
-    playbackRate: 1,
-  };
+function videoElement(id: string, startTime: number, duration: number): VideoElement {
+  return videoElementOf({ id, name: id, mediaId: `m-${id}`, startTime, duration });
 }
 
 /** 一条 video 轨（元素由调用方给：相邻 / 不邻接都在此构造）。 */
-function makeScene({ elements }: { elements: unknown[] }): TScene {
-  const track = {
-    id: 't1',
-    type: 'video',
-    isMain: true,
-    muted: false,
-    hidden: false,
-    elements,
-  };
-  return {
+function makeScene({ elements }: { elements: VideoElement[] }): TScene {
+  return sceneOf({
     id: 's1',
     name: 's1',
-    isMain: true,
-    tracks: [track],
-    bookmarks: [],
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  } as unknown as TScene;
+    tracks: [videoTrackOf({ id: 't1', isMain: true, elements })],
+  });
 }
 
 function videoAsset(id: string, width: number, height: number, fps: number): MediaAsset {

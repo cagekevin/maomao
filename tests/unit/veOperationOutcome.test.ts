@@ -67,12 +67,16 @@ function makeAsset(id: string): MediaAsset {
 
 /** `addMediaAsset` 的入参形态（id 由 manager 生成，故 Omit 掉）。 */
 function makeAssetInput(name: string): Omit<MediaAsset, 'id'> {
-  return {
+  // 走同一个工厂补齐必填字段，再把「不该由调用方给」的 id 摘掉 ——
+  // 旧写法只写 4 个字段再硬转，等于让断言替 fixture 补齐其余必填项。
+  const { id: _ignoredId, ...input } = mediaAssetOf({
+    id: `new-${name}`,
     name,
     type: 'video',
     file: new File(['x'], `${name}.mp4`, { type: 'video/mp4' }),
     url: `blob:${name}`,
-  } as unknown as Omit<MediaAsset, 'id'>;
+  });
+  return input;
 }
 
 /**

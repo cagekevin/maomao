@@ -14,21 +14,34 @@
  */
 import { describe, expect, it } from 'vitest';
 import { collectElementsByMediaId } from '../../src/components/videoEditor/engine/timeline/element-utils';
-import type { TimelineTrack } from '../../src/components/videoEditor/types/timeline';
+import { textElementOf, videoElementOf, videoTrackOf } from '../helpers/fixtures';
+import type {
+  TimelineElement,
+  TimelineTrack,
+  VideoElement,
+} from '../../src/components/videoEditor/types/timeline';
 
-/** 造一条轨（只填被测逻辑会读的字段）。 */
-function track(id: string, elements: unknown[]): TimelineTrack {
-  return { id, type: 'video', elements, isMain: false } as unknown as TimelineTrack;
+// 轨道/元素一律走 tests/helpers/fixtures 的工厂补齐必填字段 —— 旧写法只写「被测逻辑会读的字段」
+// 再靠双重断言硬转，等于用断言盖住「fixture 只填了一半」。
+function track(id: string, elements: TimelineElement[]): TimelineTrack {
+  // 本套件**故意**在一条 video 轨里混装 text 元素（验「只收带 mediaId 的」这条判据，
+  // 拆成两条合规轨道就换了语义）。这种组合类型上不成立，故在此单点收口：窄收成
+  // 「元素数组」，不再像旧写法那样把整条轨断成 TimelineTrack。
+  return videoTrackOf({
+    id,
+    isMain: false,
+    elements: elements as VideoElement[],
+  });
 }
 
-/** 造一个「带 mediaId」的元素（video 是最常见的形态）。 */
-function videoElement(id: string, mediaId: string) {
-  return { id, type: 'video', mediaId, name: id, startTime: 0, duration: 1 };
+/** 「带 mediaId」的元素（video 是最常见的形态）。 */
+function videoElement(id: string, mediaId: string): TimelineElement {
+  return videoElementOf({ id, mediaId, name: id });
 }
 
-/** 造一个「不带 mediaId」的元素（text 不带）。 */
-function textElement(id: string) {
-  return { id, type: 'text', name: id, content: '', startTime: 0, duration: 1 };
+/** 「不带 mediaId」的元素（text 不带）。 */
+function textElement(id: string): TimelineElement {
+  return textElementOf({ id, name: id });
 }
 
 describe('collectElementsByMediaId', () => {

@@ -22,7 +22,7 @@
  * TD-22-32 的知识（全局命令栈无法表达跨场景撤销）已移入 scenes-manager 头注释与当日轮次日志。
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { mediaAssetOf } from '../helpers/fixtures';
+import { mediaAssetOf, sceneOf, videoElementOf, videoTrackOf } from '../helpers/fixtures';
 import { EditorCore } from '../../src/components/videoEditor/engine/core';
 import { Command } from '../../src/components/videoEditor/engine/commands/base-command.ts';
 import type { TProject } from '../../src/components/videoEditor/types/project';
@@ -57,40 +57,19 @@ function makeProject(id: string): TProject {
   } satisfies TProject;
 }
 
-function makeScene(id: string, tracks: unknown[] = []): TScene {
-  return {
-    id,
-    name: id,
-    isMain: true,
-    tracks,
-    bookmarks: [],
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  } as unknown as TScene;
+function makeScene(id: string, tracks: TimelineTrack[] = []): TScene {
+  return sceneOf({ id, name: id, isMain: true, tracks });
 }
 
 /** 造一条含单个 video 元素的轨（让 `getTotalDuration()` 非 0，被测的是「有内容」的情形）。 */
 function trackOf(id: string, duration: number): TimelineTrack {
-  return {
+  return videoTrackOf({
     id,
-    type: 'video',
     isMain: true,
-    muted: false,
-    hidden: false,
     elements: [
-      {
-        id: `${id}-e1`,
-        type: 'video',
-        mediaId: 'm1',
-        name: 'e1',
-        startTime: 0,
-        duration,
-        trimStart: 0,
-        playbackRate: 1,
-        volume: 1,
-      },
+      videoElementOf({ id: `${id}-e1`, name: 'e1', mediaId: 'm1', startTime: 0, duration }),
     ],
-  } as unknown as TimelineTrack;
+  });
 }
 
 function makeAsset(id: string): MediaAsset {
