@@ -94,15 +94,10 @@ import VideoProcessNode from '../../src/components/video/nodes/VideoProcessNode.
 beforeEach(() => {
   mocks.resetNodeMockState();
   captureFrameMock.mockClear();
-  // jsdom 不实现 URL.createObjectURL / revokeObjectURL，而抽帧成功后要走 previewUrls.create(blob)
-  // （`create` 内部调 `globalThis.URL.createObjectURL`）—— 不补 stub 会直接抛。
-  // 幂等判断：真实现了就不覆盖（避免掩盖真实行为）。
-  const urlAny = URL as unknown as {
-    createObjectURL?: (b: Blob) => string;
-    revokeObjectURL?: (u: string) => void;
-  };
-  if (typeof urlAny.createObjectURL !== 'function') urlAny.createObjectURL = () => 'blob:preview';
-  if (typeof urlAny.revokeObjectURL !== 'function') urlAny.revokeObjectURL = () => {};
+  // 【2026-10-21】本文件曾在此手补 `URL.createObjectURL/revokeObjectURL`（jsdom 缺口），并为此
+  // 把 `URL` 强转成"这两个方法可能不存在"的宽松形状才敢赋值；该垫片早已由全局 `tests/setup.mjs`
+  // 统一提供（该文件「jsdom 至今不实现 URL.createObjectURL」段，含取舍说明），渲染路径与断言
+  // 都不依赖具体 URL 字符串 ⇒ 此处整段删除，不再各文件各补一份、也不再需要断言。
 });
 const setup = (props = {}) =>
   render(<VideoProcessNode id="vp1" data={{}} selected={false} {...props} />);
