@@ -15,17 +15,33 @@ import {
   type NodeGenerationRunResult,
 } from '../../src/components/base/store/taskStore.ts';
 
-function makePending() {
-  let resolve;
-  const gate = new Promise((r) => {
+/**
+ * 造一个「挂起直到手动放行」的 gate。
+ *
+ * `resolve` 显式定型（`(v?: unknown) => void`）而不是留 evolving-any：否则调用点只能
+ * `(r as unknown as () => void)()` 才能过编译（TD-18-49）。
+ */
+function makePending(): { gate: Promise<unknown>; resolve: (v?: unknown) => void } {
+  let resolve: (v?: unknown) => void = () => {};
+  const gate = new Promise<unknown>((r) => {
     resolve = r;
   });
-  return { gate, resolve };
+  return { gate, resolve: () => resolve() };
 }
 
 beforeEach(() => {
   // 每个用例前清空注册（id 前缀唯一，这里仅保险）
 });
+
+/**
+ * `runNodeGeneration` 的返回值是 `NodeGenerationRunResult | false`（false = 被并发上限跳过）。
+ * 需要读 `.ok` 时先显式区分 false —— 比 `as unknown as NodeGenerationRunResult` 好：
+ * 断言失败时能直接看到"其实没触发"，而不是在 `.ok` 上读到 undefined。
+ */
+function expectStarted(result: NodeGenerationRunResult | false): NodeGenerationRunResult {
+  if (result === false) throw new Error('runNodeGeneration 未触发（被并发上限跳过或前置校验未过）');
+  return result;
+}
 
 describe('taskStore 生图并发上限（最多 6 个同时跑，超出跳过）', () => {
   it('第 7 个并发请求返回 skipped，不触发、不排队', async () => {
@@ -56,9 +72,9 @@ describe('taskStore 生图并发上限（最多 6 个同时跑，超出跳过）
     expect(seventh).toBe(false);
 
     // 释放前 6 个挂起的任务，让它们完成
-    for (const r of resolvers) (r as unknown as () => void)();
+    for (const r of resolvers) r();
     const firstSix = await Promise.all(promises.slice(0, 6));
-    expect(firstSix.every((r) => (r as unknown as NodeGenerationRunResult).ok === true)).toBe(true);
+    expect(firstSix.every((r) => expectStarted(r).ok === true)).toBe(true);
 
     // 清理
     for (let i = 0; i < 7; i++) unregisterTaskRetry(`conc-${i}`);
@@ -74,11 +90,11 @@ describe('taskStore 生图并发上限（最多 6 个同时跑，超出跳过）
     await Promise.resolve();
     // 第二个此时 genActive=1<6，可触发（立即完成）
     const p2 = runNodeGeneration('conc-b');
-    expect(((await p2) as unknown as NodeGenerationRunResult).ok).toBe(true);
+    expect(expectStarted(await p2).ok).toBe(true);
 
     // 释放第一个 → 槽位释放，无异常
-    (resolve as unknown as () => void)();
-    expect(((await p1) as unknown as NodeGenerationRunResult).ok).toBe(true);
+    resolve();
+    expect(expectStarted(await p1).ok).toBe(true);
 
     unregisterTaskRetry('conc-a');
     unregisterTaskRetry('conc-b');
