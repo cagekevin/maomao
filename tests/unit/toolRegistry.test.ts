@@ -10,6 +10,15 @@ beforeEach(() => {
   resetTools();
 });
 
+/**
+ * 故意缺 `name` 的 def —— **类型上不成立**（`ToolDef` 要求 name + execute）。
+ * 本用例要验的正是「非法 def 被 registerTool 忽略、不污染注册表」，故必须交出一个
+ * 类型层不可能的形状；断言只在这一处收口，调用点保持 `registerTool(defMissingName())` 的裸写法。
+ */
+function defMissingName(): ToolDef {
+  return { execute: () => {} } as unknown as ToolDef;
+}
+
 describe('toolRegistry（docs/25 阶段2：工具轴注册表）', () => {
   it('registerTool 追加 + getTools 返回注册表数组（live）', () => {
     registerTool({ name: 'read_canvas', execute: () => ({ ok: true }) });
@@ -19,7 +28,7 @@ describe('toolRegistry（docs/25 阶段2：工具轴注册表）', () => {
   });
 
   it('resetTools 清空（测试隔离）', () => {
-    registerTool({ name: 'a' } as unknown as ToolDef);
+    registerTool({ name: 'a', execute: () => ({ ok: true }) });
     expect(getTools()).toHaveLength(1);
     resetTools();
     expect(getTools()).toHaveLength(0);
@@ -28,7 +37,7 @@ describe('toolRegistry（docs/25 阶段2：工具轴注册表）', () => {
   it('非法 def（无 name / 非对象）被忽略，不污染注册表', () => {
     registerTool({ name: 'ok1', execute: () => {} });
     registerTool(null as never);
-    registerTool({ execute: () => {} } as unknown as ToolDef);
+    registerTool(defMissingName());
     expect(getTools().map((t) => t.name)).toEqual(['ok1']);
   });
 
