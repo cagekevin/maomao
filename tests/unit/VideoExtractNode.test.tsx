@@ -27,13 +27,15 @@ import { mocks } from './_nodeMocks.mjs';
 const h = vi.hoisted(() => {
   let connected: { videos: unknown[] } = { videos: [] };
   const showToast = vi.fn();
-  const contentSet = vi.fn();
+  // 替身按真实调用形状声明参数（contentSet(key, value)）：调用点直传即可，无需绕类型系统硬转
+  const contentSet = vi.fn((..._a: unknown[]) => {});
   const downloadUrl = vi.fn((..._a: unknown[]) => ({ ok: true, msg: '' }));
   const clipboardWrite = vi.fn();
   // 【2026-09-17 契约对齐】组件改为经 clipboard.copyText 复制，统一信封 {ok,msg}。
   // 默认 ok:true（正常路径不触发多窗口剪贴板降级）；fallback 用例按需 mockResolvedValueOnce({ok:false})。
   const copyText = vi.fn().mockResolvedValue({ ok: true, msg: '已复制' });
-  const previewCreate = vi.fn(() => 'blob:upload');
+  // 同上：previewUrl.create(url) 真实带参，替身声明参数后调用点无需硬转
+  const previewCreate = vi.fn((..._a: unknown[]) => 'blob:upload');
   const patchData = vi.fn();
   const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn(), log: vi.fn(), debug: vi.fn() };
   return {
@@ -73,7 +75,7 @@ vi.mock('../../src/components/base/core/contentStore.ts', async (importOriginal)
   ...((await importOriginal()) as Record<string, unknown>),
   // ⚠️ 必须如实返回 PersistWriteOutcome（见下方契约说明），不能返 void。
   contentSet: (...a: unknown[]) => {
-    (h.contentSet as unknown as (...x: unknown[]) => void)(...a);
+    h.contentSet(...a);
     return { ok: true, landed: 'local' } as const;
   },
   // 【mock 契约同步 · 2026-09-17】被测节点间接依赖 `appSettings.load()`（经 assetUrl），
@@ -88,7 +90,7 @@ vi.mock('../../src/components/base/utils/net/clipboard.ts', () => ({
 vi.mock('../../src/components/base/core/log/logger.ts', () => ({ logger: h.logger }));
 vi.mock('../../src/components/base/utils/media/previewUrl.ts', () => ({
   default: {
-    create: (...a: unknown[]) => (h.previewCreate as unknown as (...x: unknown[]) => void)(...a),
+    create: (...a: unknown[]) => h.previewCreate(...a),
     release: vi.fn(),
   },
 }));
