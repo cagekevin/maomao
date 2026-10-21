@@ -67,7 +67,8 @@ beforeEach(() => {
       v.removeAttribute = ((name: string) => {
         removeAttrArgs.push(name);
       }) as typeof v.removeAttribute;
-      (v as unknown as { load: () => void }).load = () => {
+      // load 的真实签名就是 `() => void`，直接赋值即可（旧写法多此一举地断言成 { load }）
+      v.load = () => {
         loadCalls += 1;
       };
       lastVideo = v;
@@ -91,26 +92,34 @@ beforeEach(() => {
         },
         configurable: true,
       });
-      (c as unknown as { getContext: unknown }).getContext = (_type: string, opts?: unknown) => {
-        ctxOptions = opts;
-        return ctxBehavior === 'null'
-          ? null
-          : {
-              drawImage: (...args: unknown[]) => {
-                rec.drawImageArgs.push(args);
-              },
-            };
-      };
-      (c as unknown as { toBlob: unknown }).toBlob = (
-        cb: (b: Blob | null) => void,
-        mime?: string,
-        quality?: number,
-      ) => {
-        toBlobArgs = { mime, quality };
-        cb(toBlobBehavior === 'null' ? null : new Blob(['frame'], { type: mime || 'image/jpeg' }));
-      };
-      (c as unknown as { toDataURL: unknown }).toDataURL = (mime?: string) =>
-        `data:${mime || 'image/jpeg'};base64,ZmFrZQ==`;
+      // getContext/toBlob/toDataURL 的替身签名与 DOM 方法不一致（getContext 是多重载、
+      // 替身只返回部分 ctx）⇒ 用 defineProperty 注入（与本文件 width/height 同款做法，不需要断言）
+      Object.defineProperty(c, 'getContext', {
+        configurable: true,
+        value: (_type: string, opts?: unknown) => {
+          ctxOptions = opts;
+          return ctxBehavior === 'null'
+            ? null
+            : {
+                drawImage: (...args: unknown[]) => {
+                  rec.drawImageArgs.push(args);
+                },
+              };
+        },
+      });
+      Object.defineProperty(c, 'toBlob', {
+        configurable: true,
+        value: (cb: (b: Blob | null) => void, mime?: string, quality?: number) => {
+          toBlobArgs = { mime, quality };
+          cb(
+            toBlobBehavior === 'null' ? null : new Blob(['frame'], { type: mime || 'image/jpeg' }),
+          );
+        },
+      });
+      Object.defineProperty(c, 'toDataURL', {
+        configurable: true,
+        value: (mime?: string) => `data:${mime || 'image/jpeg'};base64,ZmFrZQ==`,
+      });
       return c;
     }
     return nativeCreate(tag);
