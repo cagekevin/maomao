@@ -5,6 +5,7 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { API_BASE } from '../../src/components/base/core/config.ts';
+import { must } from '../helpers/must';
 import {
   moveFile,
   canMoveAsset,
@@ -13,15 +14,18 @@ import {
 } from '@/components/base/api/filesApi.ts';
 
 /**
- * 一次性 fetch mock。
+ * 一次性 fetch mock（**真实签名** `vi.fn<typeof fetch>`）。
  *
- * 【为什么必须显式声明参数元组】`vi.fn(async () => res)` 的泛型会被推断成空元组 `[]`，
- * 于是 `fetchMock.mock.calls[0]` 解构出的 `[url, init]` 双双报 TS2493 / TS18048。
- * 写成 `(..._args: unknown[])` 后 calls 元素类型为 unknown[]，断言处用 as unknown as 收窄即可正常访问。
+ * 【为什么不写 `(..._args: unknown[])`】那样 `mock.calls[0]` 的元素类型是 `unknown[]`，
+ * 解构 `[url, init]` 只能双重断言成手写的 `[string, {...}]`，且把 init 硬指成
+ * 「一定是 string body / Record headers」的假形状。改用真签名后调用记录自带
+ * `[input: RequestInfo | URL, init?: RequestInit]`，断言处按 RequestInit 正常收窄。
+ * 【为什么响应用真 `Response`】与其手搓 `{ok,status,json,text}` 再断言成 Response，
+ * 不如直接用真构造器：`ok` 由 status 派生（原 `ok` 选项与 status 一一对应，已删），
+ * 且 httpClient 全模块只 `res.text()` 一次（见其「body 只能消费一次」注释）。
  */
-function mockFetchOnce(body: any, { ok = true, status = 200 } = {}) {
-  const res = { ok, status, json: async () => body, text: async () => JSON.stringify(body) };
-  const fetchMock = vi.fn(async (..._args: unknown[]) => res);
+function mockFetchOnce(body: unknown, { status = 200 } = {}) {
+  const fetchMock = vi.fn<typeof fetch>(async () => new Response(JSON.stringify(body), { status }));
   vi.stubGlobal('fetch', fetchMock);
   return fetchMock;
 }
@@ -34,19 +38,22 @@ describe('moveFile', () => {
   it('POST /api/files/move，body 传相对 uploadDir 的 src/dst，且不重试', async () => {
     const fetchMock = mockFetchOnce({ code: 0, data: { ok: true } });
     const r = await moveFile('migrated/a.png', 'migrated/主题/a.png');
-    const [url, init] = fetchMock.mock.calls[0] as unknown as [
-      string,
-      { method: string; headers: Record<string, string>; body: string },
-    ];
-    expect(url).toBe(`${API_BASE}/api/files/move`);
+    const [input, rawInit] = must(fetchMock.mock.calls[0], 'fetch 首次调用');
+    const init = must(rawInit, 'fetch init');
+    expect(input).toBe(`${API_BASE}/api/files/move`);
     expect(init.method).toBe('POST');
-    expect(init.headers['Content-Type']).toBe('application/json');
-    expect(JSON.parse(init.body)).toEqual({ src: 'migrated/a.png', dst: 'migrated/主题/a.png' });
+    expect(init.headers).toMatchObject({ 'Content-Type': 'application/json' });
+    // body 是 BodyInit：先确认生产侧传的就是 JSON 字符串，再按对象比对（保持原断言口径）。
+    expect(init.body).toEqual(expect.any(String));
+    expect(JSON.parse(String(init.body))).toEqual({
+      src: 'migrated/a.png',
+      dst: 'migrated/主题/a.png',
+    });
     expect(r).toEqual({ code: 0, data: { ok: true } });
   });
 
   it('非 2xx 抛 HttpError 且透传后端业务 message（不回退误报）', async () => {
-    mockFetchOnce({ error: '目标文件已存在' }, { ok: false, status: 409 });
+    mockFetchOnce({ error: '目标文件已存在' }, { status: 409 });
     await expect(moveFile('a.png', 'b/a.png')).rejects.toMatchObject({
       name: 'HttpError',
       status: 409,
