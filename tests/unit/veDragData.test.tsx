@@ -13,6 +13,7 @@
  * 故此处**锁死「内部拖拽事件不得污染另一次外部拖拽」**这一不变量。
  */
 import { describe, expect, it } from 'vitest';
+import { fakeDataTransfer } from '../helpers/dataTransfer';
 import { render, fireEvent } from '@testing-library/react';
 import {
   hasDragData,
@@ -23,22 +24,15 @@ import { useFileUpload } from '../../src/components/videoEditor/hooks-cutia/use-
 
 /** 一次「外部文件拖入」：`dataTransfer.types` 只有 'Files'（不含内部 MIME）。 */
 function externalFileDrag(fileName = 'b.png') {
-  return {
+  return fakeDataTransfer({
     types: ['Files'],
     files: [new File(['x'], fileName, { type: 'image/png' })],
-    getData: () => '',
-  } as unknown as DataTransfer;
+  });
 }
 
 /** 一次「内部素材拖拽」：`dataTransfer` 自带内部 MIME + 载荷。 */
 function internalMediaDrag() {
-  const store = new Map<string, string>();
-  return {
-    types: ['application/x-timeline-drag', 'text/plain'],
-    files: [],
-    setData: (k: string, v: string) => store.set(k, v),
-    getData: (k: string) => store.get(k) ?? '',
-  } as unknown as DataTransfer;
+  return fakeDataTransfer({ types: ['application/x-timeline-drag', 'text/plain'] });
 }
 
 function Harness({ onFiles }: { onFiles: (f: FileList) => void }) {
@@ -68,13 +62,15 @@ describe('drag-data 契约', () => {
   });
 
   it('getDragData：不回落 text/plain（外部拖入的 JSON 文本不得被当内部载荷）', () => {
-    const dt = {
+    const dt = fakeDataTransfer({
       types: ['text/plain'],
-      getData: (k: string) =>
-        k === 'text/plain'
-          ? JSON.stringify({ id: 'x', type: 'media', mediaType: 'image', name: 'x.png' })
-          : '',
-    } as unknown as DataTransfer;
+      extra: {
+        getData: (k: string) =>
+          k === 'text/plain'
+            ? JSON.stringify({ id: 'x', type: 'media', mediaType: 'image', name: 'x.png' })
+            : '',
+      },
+    });
     expect(hasDragData({ dataTransfer: dt })).toBe(false);
     expect(getDragData({ dataTransfer: dt })).toBeNull();
   });
