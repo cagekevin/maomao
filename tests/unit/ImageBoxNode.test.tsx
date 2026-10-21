@@ -12,21 +12,26 @@
 import 'react';
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { must } from '../helpers/must';
 import { mocks } from './_nodeMocks.mjs';
 
 // 捕获 setNodes 传入的 updater 并执行，得到更新后的 nodes 数组（供断言 data 变更）
 type MockNode = { id: string; data: Record<string, unknown> };
 const h = vi.hoisted(() => {
   const state: { nodes: MockNode[] } = { nodes: [] };
-  const setNodesMock = vi.fn((updater) => {
-    state.nodes = typeof updater === 'function' ? updater(state.nodes) : updater;
+  // 替身按真实调用形状声明（setNodes(updater | nodes[])）：参数走 rest + 运行时收窄，
+  // 于是转发层 `(...a) => setNodesMock(...a)` 无需绕类型系统硬转。
+  const setNodesMock = vi.fn((...args: unknown[]) => {
+    const [updater] = args;
+    if (typeof updater === 'function') state.nodes = updater(state.nodes);
+    else if (Array.isArray(updater)) state.nodes = updater;
   });
   return { state, setNodesMock, clipboardMock: { downloadUrl: vi.fn() } };
 });
 
 vi.mock('@xyflow/react', () => ({
   useReactFlow: () => ({
-    setNodes: (...a: unknown[]) => (h.setNodesMock as unknown as (...x: unknown[]) => void)(...a),
+    setNodes: (...a: unknown[]) => h.setNodesMock(...a),
     getNodes: () => h.state.nodes,
     getEdges: () => [],
     addNodes: () => {},
@@ -149,8 +154,12 @@ describe('ImageBoxNode — 空态与文件选择', () => {
 
   it('点击空态 → 触发隐藏文件选择 input', () => {
     const { container } = setup();
-    const input = container.querySelector('input[type="file"]');
-    const clickSpy = vi.spyOn(input as unknown as HTMLInputElement, 'click');
+    // querySelector 泛型即给出元素类型（不存在则 must 立刻 throw，不把 null 带进 spyOn）
+    const input = must(
+      container.querySelector<HTMLInputElement>('input[type="file"]'),
+      'file input',
+    );
+    const clickSpy = vi.spyOn(input, 'click');
     fireEvent.click(screen.getByText('拖拽 / 粘贴 / 点击添加图片'));
     expect(clickSpy).toHaveBeenCalled();
   });
