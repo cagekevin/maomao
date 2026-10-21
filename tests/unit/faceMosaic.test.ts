@@ -12,9 +12,16 @@ import { fakeCanvas, fakeContext2d, stubCreateElement } from '../helpers/dom';
 import type { MosaicMode } from '../../src/components/image/faceMosaic/faceMosaic.ts';
 
 // mock mediapipe：不加载真实 wasm / 模型
-/** `FaceDetector` 替身：本文件只断言单例身份，不调用 detect。
- *  三方类无法构造完整实现 ⇒ 这一处断言集中在此（原为两处：这里 + mockResolvedValueOnce）。 */
-const fakeFaceDetector = {} as unknown as import('@mediapipe/tasks-vision').FaceDetector;
+/** `FaceDetector` 替身：本文件只断言单例身份，不调用 detect/detectForVideo。
+ *  按真实类签名补齐实例成员（替身方法一律 `vi.fn()` 不实现），于是 `mockResolvedValueOnce`
+ *  等调用点按真实类型校验，无需再绕类型系统硬转（原为两处断言，2026-10 收口）。 */
+const fakeFaceDetector: import('@mediapipe/tasks-vision').FaceDetector = {
+  setOptions: vi.fn(),
+  detect: vi.fn(),
+  detectForVideo: vi.fn(),
+  enableLogging: vi.fn(),
+  close: vi.fn(),
+};
 vi.mock('@mediapipe/tasks-vision', () => ({
   FilesetResolver: {
     forVisionTasks: vi.fn(async () => ({ __wasm: true })),
@@ -29,6 +36,10 @@ import {
   drawMosaicOnBox,
   MOSAIC_PALETTE,
 } from '../../src/components/image/faceMosaic/faceMosaic.ts';
+
+/** 故意违反类型：`MosaicMode` 是四值联合，而运行期要能承受任意字符串（旧存档 / 手改数据）。
+ *  本文件唯一一处此类收口，禁止在用例里散落同类断言。 */
+const rawMode = (v: string): MosaicMode => v as MosaicMode;
 
 function makeCtx() {
   // 2D 上下文替身收口到 helpers/dom.ts（jsdom 不实现 canvas）；此处只声明本文件用到的 spy
@@ -136,9 +147,8 @@ describe('drawMosaicOnBox', () => {
   it('非法 mode 不抛错（回退默认分支）', () => {
     const ctx = makeCtx();
     // 故意传**类型外**的值验证兜底分支：`MosaicMode` 是四值联合，而运行期要能承受任意字符串
-    // （数据可能来自旧存档/手改）。这里保留唯一一处断言，并在注释里说明「是故意违反类型」。
-    const illegalMode = 'unknown-mode' as unknown as MosaicMode;
-    expect(() => drawMosaicOnBox(ctx, SRC, BOX, illegalMode, 0.5)).not.toThrow();
+    // （数据可能来自旧存档/手改）。类型上不成立 ⇒ 单点收口在 rawMode。
+    expect(() => drawMosaicOnBox(ctx, SRC, BOX, rawMode('unknown-mode'), 0.5)).not.toThrow();
   });
 });
 
