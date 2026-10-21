@@ -12,6 +12,9 @@ vi.mock('react', () => ({
 // 用 resetModules 隔离；测试间 localStorage 清空 + 通过重新导入重置模块级 state。
 describe('accountsStore §4 多开账号管理', () => {
   let mod: any;
+  // fetch mock 单独持引用：断言直接读 `fetchMock.mock.calls`，
+  // 不再把 `globalThis.fetch`（类型为 `typeof fetch`）双重断言成 mock 形状。
+  let fetchMock: ReturnType<typeof vi.fn>;
   beforeEach(async () => {
     try {
       localStorage.clear();
@@ -21,12 +24,13 @@ describe('accountsStore §4 多开账号管理', () => {
     vi.resetModules();
     // 账号走后端 kv（contentGetAsync/contentSetAsync → /api/kv/*）。测试无 localTool，
     // 把 fetch mock 成成功响应（读 null / 写 ok），避免真实网络挂起与时序竞态，保证状态机断言确定性。
-    globalThis.fetch = vi.fn().mockResolvedValue({
+    fetchMock = vi.fn().mockResolvedValue({
       ok: true,
       status: 200,
       json: async () => null,
       text: async () => '',
     });
+    globalThis.fetch = fetchMock;
     mod = await import('../../src/components/settings/accountsStore.ts');
   });
 
@@ -261,18 +265,14 @@ describe('accountsStore §4 多开账号管理', () => {
   describe('存储走 KV + 空读不写（doc31 §二）', () => {
     it('保存后经 /api/kv/set 落盘 yimao_accounts（KV 持久化，非浏览器内存）', async () => {
       await createEnv('即梦小号');
-      const setCalls = (
-        globalThis.fetch as unknown as { mock: { calls: any[] } }
-      ).mock.calls.filter((c: unknown[]) => String(c[0]).includes('/api/kv/set'));
+      const setCalls = fetchMock.mock.calls.filter((c) => String(c[0]).includes('/api/kv/set'));
       expect(setCalls.length).toBeGreaterThan(0);
     });
 
     it('load() KV 空 → envs 保持空，不写空覆盖（无 /api/kv/set、不写 localStorage）', async () => {
       await flushAsync(); // 等模块导入时 `void load()` 的异步 KV 读落定
       expect(mod.useAccounts().envs).toEqual([]);
-      const setCalls = (
-        globalThis.fetch as unknown as { mock: { calls: any[] } }
-      ).mock.calls.filter((c: unknown[]) => String(c[0]).includes('/api/kv/set'));
+      const setCalls = fetchMock.mock.calls.filter((c) => String(c[0]).includes('/api/kv/set'));
       expect(setCalls).toHaveLength(0);
       expect(localStorage.getItem('yimao_accounts')).toBeNull();
     });
@@ -298,6 +298,9 @@ describe('accountsStore §4 多开账号管理', () => {
 // ── 扩展端场景：保存环境时连带抓取当前页面 localStorage 快照（登录态 token 一并保存）──
 describe('accountsStore §4 扩展端 · localStorage 隔离', () => {
   let mod: any;
+  // executeScript mock 单独持引用：断言直接读它本身，
+  // 不再把 `globalThis` 双重断言成 `{ chrome?: … }` 形状（也不需要 `?.` 兜空）。
+  let executeScript: ReturnType<typeof vi.fn>;
   beforeEach(async () => {
     try {
       localStorage.clear();
@@ -307,6 +310,8 @@ describe('accountsStore §4 扩展端 · localStorage 隔离', () => {
     vi.resetModules();
     // mock chrome 为「扩展端」环境（chrome.runtime.id 存在 → isExtensionEnv()=true）
     const lsStore = { sid_token: 'abc123' };
+    // chrome.scripting.executeScript 返回数组 [{ result }]（对齐真实 API）
+    executeScript = vi.fn(async () => [{ result: { ...lsStore } }]);
     vi.stubGlobal('chrome', {
       runtime: { id: 'test-ext' },
       tabs: {
@@ -317,10 +322,7 @@ describe('accountsStore §4 扩展端 · localStorage 隔离', () => {
         set: vi.fn(async () => ({})),
         remove: vi.fn(async () => ({})),
       },
-      scripting: {
-        // chrome.scripting.executeScript 返回数组 [{ result }]（对齐真实 API）
-        executeScript: vi.fn(async () => [{ result: { ...lsStore } }]),
-      },
+      scripting: { executeScript },
     });
     globalThis.fetch = vi.fn().mockResolvedValue({
       ok: true,
@@ -354,12 +356,6 @@ describe('accountsStore §4 扩展端 · localStorage 隔离', () => {
     const env = mod.useAccounts().envs[0];
     await mod.activateEnv(env.id);
     // syncCookies 内部最后调 writeTabLocalStorage → executeScript 被调用
-    expect(
-      (
-        globalThis as unknown as {
-          chrome?: { scripting: { executeScript: ReturnType<typeof vi.fn> } };
-        }
-      ).chrome?.scripting.executeScript,
-    ).toHaveBeenCalled();
+    expect(executeScript).toHaveBeenCalled();
   });
 });
