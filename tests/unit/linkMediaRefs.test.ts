@@ -69,7 +69,7 @@ describe('linkMediaRefsToProject：登记引用（不上传）', () => {
     fetchSpy = vi.fn(async () => {
       const blob = new Blob(['x'], { type: 'image/png' });
       // 小体积：未超上限
-      return { ok: true, status: 200, blob: async () => blob } as unknown as Response;
+      return new Response(blob);
     });
     vi.stubGlobal('fetch', fetchSpy);
   });
@@ -135,9 +135,9 @@ describe('linkMediaRefsToProject：登记引用（不上传）', () => {
 
   it('部分失败：一个取不到（fetch 404），另一个照常登记（不丢）', async () => {
     fetchSpy.mockImplementation(async (url: string) => {
-      if (String(url).includes('bad')) return { ok: false, status: 404 } as unknown as Response;
+      if (String(url).includes('bad')) return new Response(null, { status: 404 });
       const blob = new Blob(['x'], { type: 'image/png' });
-      return { ok: true, status: 200, blob: async () => blob } as unknown as Response;
+      return new Response(blob);
     });
 
     const media = mkMedia();
@@ -158,7 +158,7 @@ describe('linkMediaRefsToProject：登记引用（不上传）', () => {
   it('大小上限：超 LINK_MAX_BYTES → failures（不把大 blob 塞进内存）', async () => {
     fetchSpy.mockImplementation(async () => {
       const big = new Blob([new Uint8Array(LINK_MAX_BYTES + 1)], { type: 'video/mp4' });
-      return { ok: true, status: 200, blob: async () => big } as unknown as Response;
+      return new Response(big);
     });
 
     const media = mkMedia();
