@@ -11,14 +11,19 @@ type ExternalizeDeps = {
   save: (dataUrl: string) => Promise<{ ok: boolean; url?: string; message?: string }>;
 };
 
+/**
+ * 「deps 缺少必需 save」的调用方 —— 用例**故意**构造类型上不成立的组合：
+ * 生产侧 `externalizeInlineData` 首行 `if (!save || typeof save !== 'function') throw`
+ * 正是为漏注入依赖的调用方写的守卫，而 `ExternalizeDeps.save` 是必填 ⇒ 只能用 `{}` 硬造。
+ * 断言**只在这一处收口**，其余用例一律走真实形状（`{ save }`）。
+ */
+function depsMissingSave(): ExternalizeDeps {
+  return {} as unknown as ExternalizeDeps;
+}
+
 describe('externalizeInlineData — 内联资源外置', () => {
   it('缺少 save 依赖抛错', async () => {
-    await expect(
-      externalizeInlineData(
-        {} as unknown as Record<string, unknown>,
-        {} as unknown as ExternalizeDeps,
-      ),
-    ).rejects.toThrow('save');
+    await expect(externalizeInlineData({}, depsMissingSave())).rejects.toThrow('save');
   });
 
   it('转换成功：data: 字段被 URL 替换，converted=1 failed=0', async () => {
@@ -90,9 +95,8 @@ describe('externalizeInlineData — 内联资源外置', () => {
       { level: { nested: { poster: 'data:image/jpeg;base64,deep' } } },
       { save },
     );
-    expect(
-      (r.data as unknown as { level: { nested: { poster: string } } }).level.nested.poster,
-    ).toBe('http://x/deep.png');
+    // 整棵 data 比对：既证明深层字段被替换，也顺带锁住「结构不被改形」（原断言只挑 poster 一个字段）
+    expect(r.data).toEqual({ level: { nested: { poster: 'http://x/deep.png' } } });
     expect(r.converted).toBe(1);
   });
 });
