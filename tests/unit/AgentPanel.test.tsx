@@ -951,13 +951,10 @@ describe('AgentPanel — 选文件（参考图 / 导入 Skill · TD-11-63）', (
   });
 
   it('选的图片 ⇒ 进附件（不走 Skill 导入路径）', async () => {
-    // jsdom 没实现 createObjectURL（预览 URL 的唯一外部依赖）；补最小桩，免得把环境缺口当功能缺口
-    const u = URL as unknown as {
-      createObjectURL?: (b: Blob) => string;
-      revokeObjectURL?: (url: string) => void;
-    };
-    u.createObjectURL = () => 'blob:preview';
-    u.revokeObjectURL = () => {};
+    // 【2026-10-21】此处原有一份手补的 `URL.createObjectURL/revokeObjectURL` 桩（jsdom 缺口），
+    // 为此把 `URL` 强转成"这两个方法可能不存在"的宽松形状才敢赋值。现已多余：本文件的
+    // `previewUrl.ts` 已被 mock（`create: vi.fn(() => 'blob:x')`），真实 `URL.createObjectURL`
+    // 根本不在这条路径上；即便别的路径用到，也由全局 `tests/setup.mjs` 统一垫片。⇒ 整段删除。
     render(<AgentPanel {...OPEN_PROPS} />);
 
     pickFiles([new File(['img'], 'a.png', { type: 'image/png' })]);
