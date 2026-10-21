@@ -8,10 +8,11 @@
  *   前端不再用 crypto.subtle（sha1Hex 已删），故无需 webcrypto stub。
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { must } from '../helpers/must';
 import { at } from '../helpers/at';
 
 // setup.mjs 已把 globalThis.fetch 定义为共享 vi.fn；此处做类型对齐以启用 .mock* / mock.calls。
-const fetchMock = globalThis.fetch as unknown as ReturnType<typeof vi.fn>;
+const fetchMock = vi.mocked(globalThis.fetch);
 
 const api = await import('@/components/base/api/filesApi.ts');
 // TD-03-18 用例复用真源常量（不裸写目录名，避免又一处"表外字面量"）
@@ -27,12 +28,10 @@ const { UPLOAD_DIRS } = await import('@/components/base/utils/uploadDirs.ts');
  * 只给 `json()` 的替身与真实 Response **脱钩**：真实链路根本走不到那条分支，测试却绿 = 假绿。
  * 此后新增替身一律经本函数构造，不要再手写 `{ ok, status, json }` 字面量。
  */
-function mockRes(
-  body: unknown,
-  { ok = true, status = 200 }: { ok?: boolean; status?: number } = {},
-) {
+function mockRes(body: unknown, { status = 200 }: { ok?: boolean; status?: number } = {}) {
   const text = typeof body === 'string' ? body : JSON.stringify(body);
-  return { ok, status, text: async () => text, json: async () => JSON.parse(text) };
+  // 真 Response（`ok` 由 status 决定；原第 2 参 ok 保留仅为调用点可读，不参与构造）
+  return new Response(text, { status, headers: { 'content-type': 'application/json' } });
 }
 
 function uploadResp(url: any) {
@@ -98,17 +97,19 @@ describe('filesApi — saveInlineToLocal', () => {
   it('候选 B 收口为透传：body JSON 传 {dataUri, subfolder}（不再前端自算 sha1 文件名）', async () => {
     fetchMock.mockResolvedValue(uploadResp('http://x/a.png'));
     await api.saveInlineToLocal(DATA_PNG, 'tasks');
-    const [reqUrl, opts] = at(fetchMock.mock.calls, 0);
+    const [reqUrl, optsMaybe] = at(fetchMock.mock.calls, 0);
+    const opts = must(optsMaybe, 'fetch init');
     expect(reqUrl).toContain('/api/files/upload');
-    const body = JSON.parse(opts.body);
+    const body = JSON.parse(String(must(opts.body, 'fetch body')));
     expect(body.dataUri).toBe(DATA_PNG);
     expect(body.subfolder).toBe('tasks');
   });
   it('subfolder 缺省 → canvas', async () => {
     fetchMock.mockResolvedValue(uploadResp('http://x/a.png'));
     await api.saveInlineToLocal(DATA_PNG);
-    const [, opts] = at(fetchMock.mock.calls, 0);
-    expect(JSON.parse(opts.body).subfolder).toBe('canvas');
+    const [, optsMaybe] = at(fetchMock.mock.calls, 0);
+    const opts = must(optsMaybe, 'fetch init');
+    expect(JSON.parse(String(must(opts.body, 'fetch body'))).subfolder).toBe('canvas');
   });
   it('非 data: URL → ok:false + message（不抛；与"上传失败"必须可区分）', async () => {
     expect(await api.saveInlineToLocal('http://x/y.png')).toEqual({
@@ -154,11 +155,7 @@ describe('filesApi — saveResultToTasks', () => {
     // 替身说明：blob 分支经 `httpRequest(..., { parseJson:false })` —— 该出口成功时**原样返回 Response**、
     // 不读体（见 httpClient.ts 第 362 行），由调用方 `.blob()` 消费 ⇒ 此处**合法地不需要 `text()`**。
     fetchMock
-      .mockResolvedValueOnce({
-        ok: true,
-        status: 200,
-        blob: async () => new Blob(['x'], { type: 'image/png' }),
-      })
+      .mockResolvedValueOnce(new Response(new Blob(['x'], { type: 'image/png' })))
       .mockResolvedValueOnce(uploadResp('http://127.0.0.1:18080/files/tasks/blob.png'));
     expect(await api.saveResultToTasks('blob:http://x/y', 'image')).toEqual({
       ok: true,
@@ -202,7 +199,8 @@ describe('filesApi — saveResultToTasks 类型→扩展名映射', () => {
   const DATA_PNG = 'data:image/png;base64,iVBORw0KGgo=';
   /** 从上传请求体取"声明的显示名"（【TD-02-58】委托唯一原语后，data: 走 base64 JSON 分支 ⇒ 名字在 displayName） */
   function bodyName(opts: any) {
-    const body = typeof opts.body === 'string' ? JSON.parse(opts.body) : opts.body;
+    const body =
+      typeof opts.body === 'string' ? JSON.parse(String(must(opts.body, 'fetch body'))) : opts.body;
     return String(body?.displayName ?? '');
   }
   it('type=image → .png', async () => {
@@ -253,9 +251,14 @@ describe('filesApi — saveTextToTasks', () => {
   it('自定义 name 前缀清洗非法字符/空格', async () => {
     fetchMock.mockResolvedValue(uploadResp('http://x/t.txt'));
     await api.saveTextToTasks('内容', 'a/b:c*d?e');
-    const [, opts] = at(fetchMock.mock.calls, 0);
-    for (const [k, v] of opts.body.entries()) {
-      if (k === 'file') expect(v.name).toMatch(/^a_b_c_d_e_\d{8}_\d{6}\.txt$/);
+    const [, optsMaybe] = at(fetchMock.mock.calls, 0);
+    const opts = must(optsMaybe, 'fetch init');
+    const fd0 = must(opts.body, 'fetch body');
+    if (!(fd0 instanceof FormData)) throw new Error('期望 FormData body');
+    for (const [k, v] of fd0.entries()) {
+      if (k !== 'file') continue;
+      if (!(v instanceof File)) throw new Error('file 字段应为 File');
+      expect(v.name).toMatch(/^a_b_c_d_e_\d{8}_\d{6}\.txt$/);
     }
   });
   it('上传失败（!res.ok）→ ok:false 不抛', async () => {
@@ -286,11 +289,16 @@ describe('filesApi — uploadFileToLocal', () => {
     fetchMock.mockResolvedValue(uploadResp('http://x/u.png'));
     const file = new File(['x'], 'drop.png', { type: 'image/png' });
     await api.uploadFileToLocal(file, UPLOAD_DIRS.migrated, 'custom.png');
-    const [, opts] = at(fetchMock.mock.calls, 0);
-    const fd = opts.body;
+    const [, optsMaybe] = at(fetchMock.mock.calls, 0);
+    const opts = must(optsMaybe, 'fetch init');
+    const fd = must(opts.body, 'fetch body');
+    if (!(fd instanceof FormData)) throw new Error('期望 FormData body');
     for (const [k, v] of fd.entries()) {
       if (k === 'subfolder') expect(v).toBe(UPLOAD_DIRS.migrated);
-      if (k === 'file') expect(v.name).toBe('custom.png');
+      if (k === 'file') {
+        if (!(v instanceof File)) throw new Error('file 字段应为 File');
+        expect(v.name).toBe('custom.png');
+      }
     }
   });
   // 【TD-03-18】写侧自查：未登记目录 → 早失败，且**不发请求**（不必等后端 400）。
@@ -336,17 +344,19 @@ describe('filesApi — downloadRemoteToLocal（网页拖图后台本地化）', 
     fetchMock.mockResolvedValue(uploadResp('http://127.0.0.1:18080/files/web/abc.png'));
     const url = await api.downloadRemoteToLocal('https://x/cat.png', { folder: 'web' });
     expect(url).toEqual({ ok: true, url: 'http://127.0.0.1:18080/files/web/abc.png' });
-    const [reqUrl, opts] = at(fetchMock.mock.calls, 0);
+    const [reqUrl, optsMaybe] = at(fetchMock.mock.calls, 0);
+    const opts = must(optsMaybe, 'fetch init');
     expect(reqUrl).toContain('/api/files/upload');
-    const body = JSON.parse(opts.body);
+    const body = JSON.parse(String(must(opts.body, 'fetch body')));
     expect(body.fileUrl).toBe('https://x/cat.png');
     expect(body.subfolder).toBe('web');
   });
   it('默认 folder=canvas（未传 folder 时）', async () => {
     fetchMock.mockResolvedValue(uploadResp('http://x/a.png'));
     await api.downloadRemoteToLocal('http://x/a.png');
-    const [, opts] = at(fetchMock.mock.calls, 0);
-    expect(JSON.parse(opts.body).subfolder).toBe('canvas');
+    const [, optsMaybe] = at(fetchMock.mock.calls, 0);
+    const opts = must(optsMaybe, 'fetch init');
+    expect(JSON.parse(String(must(opts.body, 'fetch body'))).subfolder).toBe('canvas');
   });
   it('非 http(s)（data:/blob:/空）→ ok:false + message + skipped（无需下载）且不发请求', async () => {
     const skip = { ok: false, message: expect.any(String), skipped: true };
@@ -470,9 +480,13 @@ describe('filesApi — persistUrlToUploads', () => {
       url: 'http://127.0.0.1:18080/files/migrated/a.png',
       source: 'inline',
     });
-    const [, opts] = at(fetchMock.mock.calls, 0);
+    const [, optsMaybe] = at(fetchMock.mock.calls, 0);
+    const opts = must(optsMaybe, 'fetch init');
     // displayName：行 name = 用户命名（TD-12-12）；磁盘名仍是内容寻址（后端决定）
-    expect(JSON.parse(opts.body)).toMatchObject({ subfolder: 'migrated', displayName: '猫' });
+    expect(JSON.parse(String(must(opts.body, 'fetch body')))).toMatchObject({
+      subfolder: 'migrated',
+      displayName: '猫',
+    });
   });
 
   it('已是本机 /files/ → already-local：原样返回且不发任何请求（不重传）', async () => {
@@ -488,11 +502,7 @@ describe('filesApi — persistUrlToUploads', () => {
     // 同 TD-02-58 用例：`parseJson:false` 出口返回原始 Response（不读体）⇒ 替身只需 `blob()`，
     // 原来多写的 `json: async () => ({})` 是**永不会被调用的死方法**（真实 Response 上 json/blob 互斥），已删。
     fetchMock
-      .mockResolvedValueOnce({
-        ok: true,
-        status: 200,
-        blob: async () => new Blob(['x'], { type: 'image/png' }),
-      })
+      .mockResolvedValueOnce(new Response(new Blob(['x'], { type: 'image/png' })))
       .mockResolvedValueOnce(uploadResp('http://127.0.0.1:18080/files/migrated/n.png'));
     const out = await api.persistUrlToUploads('blob:http://x/y', {
       folder: 'migrated',
@@ -500,10 +510,15 @@ describe('filesApi — persistUrlToUploads', () => {
     });
     expect(out.ok && out.source).toBe('uploaded');
     expect(out.ok && out.url).toBe('http://127.0.0.1:18080/files/migrated/n.png');
-    const [upUrl, opts] = at(fetchMock.mock.calls, 1);
+    const [upUrl, optsMaybe] = at(fetchMock.mock.calls, 1);
+    const opts = must(optsMaybe, 'fetch init');
     expect(upUrl).toContain('/api/files/upload');
-    for (const [k, v] of opts.body.entries()) {
-      if (k === 'file') expect(v.name).toBe('猫.png');
+    const fd0 = must(opts.body, 'fetch body');
+    if (!(fd0 instanceof FormData)) throw new Error('期望 FormData body');
+    for (const [k, v] of fd0.entries()) {
+      if (k !== 'file') continue;
+      if (!(v instanceof File)) throw new Error('file 字段应为 File');
+      expect(v.name).toBe('猫.png');
     }
   });
 
@@ -514,9 +529,10 @@ describe('filesApi — persistUrlToUploads', () => {
       name: '猫',
     });
     expect(out.ok && out.url).toBe('http://127.0.0.1:18080/files/migrated/r.png');
-    const [reqUrl, opts] = at(fetchMock.mock.calls, 0);
+    const [reqUrl, optsMaybe] = at(fetchMock.mock.calls, 0);
+    const opts = must(optsMaybe, 'fetch init');
     expect(reqUrl).toContain('/api/files/upload');
-    expect(JSON.parse(opts.body)).toMatchObject({
+    expect(JSON.parse(String(must(opts.body, 'fetch body')))).toMatchObject({
       fileUrl: 'https://cdn/x.png',
       subfolder: 'migrated',
     });

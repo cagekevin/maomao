@@ -13,7 +13,14 @@ import { contentClearCache } from '../../src/components/base/core/contentStore.t
 
 // 复用 setup.mjs 强制 mock 的全局 fetch（Node 原生 fetch 不可配置，vi.stubGlobal 会静默失效）
 // 类型对齐：TS 默认把 globalThis.fetch 当 typeof fetch，cast 为 vi.fn 类型以启用 .mock* / mock.calls。
-const fetchMock = globalThis.fetch as unknown as ReturnType<typeof vi.fn>;
+const fetchMock = vi.mocked(globalThis.fetch);
+
+/** 取某次 fetch 调用的字符串 body（缺失/非字符串即抛，替代 `c[1].body` 的 any 读取）。 */
+function callBody(call: readonly [unknown, (RequestInit | undefined)?]): string {
+  const init = must(call[1], 'fetch init');
+  if (typeof init.body !== 'string') throw new Error('fetch body 不是字符串');
+  return init.body;
+}
 
 // 账号 KV mock：走内存 Map，让 contentSetAsync('yimao_accounts') 先落 KV 再被 collectLocal 读回，
 // 走真实 KV 读写路径；若缺 kvGet/kvSet，将退化为「写读都降级到本地副本」的误导链。
@@ -86,7 +93,7 @@ function gasCalls(action: any) {
   return fetchMock.mock.calls.filter((c) => {
     if (!String(c[0]).startsWith('https://script.google.com')) return false;
     try {
-      return JSON.parse(c[1].body).action === action;
+      return JSON.parse(callBody(c)).action === action;
     } catch {
       return false;
     }
@@ -97,7 +104,7 @@ function gasCalls(action: any) {
 function pushLs() {
   const calls = gasCalls('push_data');
   expect(calls.length, '应存在发往 GAS 的 push 请求').toBeGreaterThan(0);
-  return JSON.parse(at(calls, 0)[1].body).data.data;
+  return JSON.parse(callBody(at(calls, 0))).data.data;
 }
 
 beforeEach(() => {
@@ -121,7 +128,7 @@ describe('cloudSync — CloudSyncEngine.callGateway 守卫', () => {
   });
 
   it('fetch 返回 html → 抛权限拦截错误', async () => {
-    fetchMock.mockResolvedValue({ ok: true, text: async () => '<html>login</html>' });
+    fetchMock.mockResolvedValue(new Response('<html>login</html>'));
     await expect(CloudSyncEngine.callGateway('push_data', {})).rejects.toThrow('权限拦截');
   });
 
@@ -337,13 +344,16 @@ describe('cloudSync — uploadConfig / downloadConfig 边界', () => {
 
 describe('cloudSync — 防覆盖保护：云端包解析（GAS 两种回包形态）', () => {
   it('形态A（完整包）：取外层 rev/updatedAt，data 剔除 __meta', () => {
-    const snap = must(normalizeCloudPayload({
-      type: 'cloud_config',
-      version: 5,
-      rev: 7,
-      updatedAt: 111,
-      data: { app_settings: { a: 1 }, __meta: { rev: 7, updatedAt: 111 } },
-    }), 'normalizeCloudPayload');
+    const snap = must(
+      normalizeCloudPayload({
+        type: 'cloud_config',
+        version: 5,
+        rev: 7,
+        updatedAt: 111,
+        data: { app_settings: { a: 1 }, __meta: { rev: 7, updatedAt: 111 } },
+      }),
+      'normalizeCloudPayload',
+    );
     expect(snap.hasMeta).toBe(true);
     expect(snap.rev).toBe(7);
     expect(snap.updatedAt).toBe(111);
@@ -352,10 +362,13 @@ describe('cloudSync — 防覆盖保护：云端包解析（GAS 两种回包形�
   });
 
   it('形态B（GAS 只回 data 内容）：rev/updatedAt 从 data.__meta 兜底取回', () => {
-    const snap = must(normalizeCloudPayload({
-      app_settings: { a: 1 },
-      __meta: { rev: 3, updatedAt: 222 },
-    }), 'normalizeCloudPayload');
+    const snap = must(
+      normalizeCloudPayload({
+        app_settings: { a: 1 },
+        __meta: { rev: 3, updatedAt: 222 },
+      }),
+      'normalizeCloudPayload',
+    );
     expect(snap.hasMeta).toBe(false);
     expect(snap.rev).toBe(3);
     expect(snap.updatedAt).toBe(222);
@@ -363,7 +376,10 @@ describe('cloudSync — 防覆盖保护：云端包解析（GAS 两种回包形�
   });
 
   it('无版本信息的旧包 → rev/updatedAt 归 0（表示「不知道」，不做新旧判断）', () => {
-    const snap = must(normalizeCloudPayload({ type: 'cloud_config', version: 5, data: { a: 1 } }), 'normalizeCloudPayload');
+    const snap = must(
+      normalizeCloudPayload({ type: 'cloud_config', version: 5, data: { a: 1 } }),
+      'normalizeCloudPayload',
+    );
     expect(snap.rev).toBe(0);
     expect(snap.updatedAt).toBe(0);
   });
@@ -516,11 +532,14 @@ describe('cloudSync — 防覆盖保护：弹窗文案', () => {
 
   it('下载无冲突 → null（静默下载）；有冲突 → 列条目清单', () => {
     expect(describeDownloadConflict({ conflicts: [], cloudOnly: [], localOnly: [] })).toBeNull();
-    const copy = must(describeDownloadConflict({
-      conflicts: [{ key: 'app_settings', label: '应用设置' }],
-      cloudOnly: [],
-      localOnly: [],
-    }), 'describeDownloadConflict');
+    const copy = must(
+      describeDownloadConflict({
+        conflicts: [{ key: 'app_settings', label: '应用设置' }],
+        cloudOnly: [],
+        localOnly: [],
+      }),
+      'describeDownloadConflict',
+    );
     expect(copy.title).toContain('1 项');
     expect(copy.items).toEqual(['应用设置']);
     expect(copy.danger).toBe(true);
@@ -558,7 +577,7 @@ describe('cloudSync — 防覆盖保护：端到端（用户取消 / 用户确�
     fetchMock.mockImplementation((_url, opt) => {
       let action = '';
       try {
-        action = JSON.parse(opt.body).action;
+        action = JSON.parse(String(must(opt?.body, 'fetch body'))).action;
       } catch {
         /* 非 GAS 报文 */
       }
@@ -582,7 +601,7 @@ describe('cloudSync — 防覆盖保护：端到端（用户取消 / 用户确�
     expect(res.ok).toBe(true);
     const pushed = gasCalls('push_data');
     expect(pushed.length).toBe(1);
-    const body = JSON.parse(at(pushed, 0)[1].body).data;
+    const body = JSON.parse(callBody(at(pushed, 0))).data;
     expect(body.rev).toBe(5); // 云端 4 → 本次 5
     expect(body.data.__meta.rev).toBe(5); // 形态B 兜底元字段同步写入
   });
@@ -717,7 +736,7 @@ describe('cloudSync — autoSync 链路（uploadConfig 三态 onAutoConflict + i
     expect(res.ok).toBe(true);
     const pushed = gasCalls('push_data');
     expect(pushed.length).toBe(1);
-    expect(JSON.parse(at(pushed, 0)[1].body).data.rev).toBe(10); // 云端 9 → 本次 10
+    expect(JSON.parse(callBody(at(pushed, 0))).data.rev).toBe(10); // 云端 9 → 本次 10
   });
 
   it('decision.inSync → ok:true + skipped:true 且未发起 push（内容一致零副作用）', async () => {
