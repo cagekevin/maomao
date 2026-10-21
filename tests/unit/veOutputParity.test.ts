@@ -23,7 +23,16 @@
 import { must } from '../helpers/must';
 import { describe, expect, it } from 'vitest';
 import { fakeAudioBuffer, fakeAudioContext } from '../helpers/audio';
-import { mediaAssetOf, videoTrackOf, audioTrackOf, textTrackOf } from '../helpers/fixtures';
+import {
+  audioElementOf,
+  audioTrackOf,
+  mediaAssetOf,
+  stickerElementOf,
+  textElementOf,
+  textTrackOf,
+  videoElementOf,
+  videoTrackOf,
+} from '../helpers/fixtures';
 import { at } from '../helpers/at';
 import type { MediaAsset } from '../../src/components/videoEditor/types/mediaAssets';
 import type {
@@ -62,7 +71,9 @@ function makeVideoAsset({ id }: { id: string }): MediaAsset {
     type: 'video',
     name: `${id}.mp4`,
     url: `https://example.test/${id}`,
-    file: { arrayBuffer: async () => new ArrayBuffer(8) } as unknown as File,
+    // 真 File：probeMediaDimensions 走 file.arrayBuffer()（jsdom/node 都实现），
+    // 不再用 `{ arrayBuffer } as unknown as File` 造假
+    file: new File([new Uint8Array(8)], `${id}.mp4`, { type: 'video/mp4' }),
   });
 }
 
@@ -80,7 +91,9 @@ function makeVideoElement({
   mediaId: string;
   hidden?: boolean | undefined;
 }): VideoElement {
-  return {
+  // 走共享工厂（补 transform/opacity 等默认值），不再整块断言成 VideoElement；
+  // hidden 可能未给 ⇒ 条件展开（eop 下不能把显式 undefined 传给可选字段）
+  return videoElementOf({
     id,
     name: id,
     type: 'video',
@@ -88,12 +101,12 @@ function makeVideoElement({
     startTime: 0,
     duration: 1,
     trimStart: 0,
-    hidden,
+    ...(hidden !== undefined ? { hidden } : {}),
     muted: false,
     opacity: 1,
     reversed: false,
     transform: { scale: 1, position: { x: 0, y: 0 }, rotate: 0 },
-  } as unknown as VideoElement;
+  });
 }
 
 function makeVideoTrack({
@@ -300,17 +313,17 @@ describe('文本几何（与渲染同一份排版）', () => {
     textAlign?: 'left' | 'center' | 'right';
     boxWidth?: number;
   } = {}): TextElement {
-    return {
+    // 走共享工厂补样式默认值；可选字段条件展开（eop 下不写显式 undefined）
+    return textElementOf({
       id: 'el-text',
       name,
-      type: 'text',
       content,
       fontSize: 15,
       fontFamily: 'Arial',
       fontWeight: 400,
       fontStyle: 'normal',
-      textAlign,
-      boxWidth,
+      ...(textAlign !== undefined ? { textAlign } : {}),
+      ...(boxWidth !== undefined ? { boxWidth } : {}),
       color: '#ffffff',
       backgroundColor: 'transparent',
       startTime: 0,
@@ -318,7 +331,7 @@ describe('文本几何（与渲染同一份排版）', () => {
       trimStart: 0,
       opacity: 1,
       transform: { scale: 1, position: { x: 0, y: 0 }, rotate: 0 },
-    } as unknown as TextElement;
+    });
   }
 
   function rectOf(element: TextElement) {
@@ -376,7 +389,13 @@ describe('文本几何（与渲染同一份排版）', () => {
 });
 
 describe('开关判据（每个开关一个谓词，消费方禁直读字段）', () => {
-  const el = (fields: Record<string, unknown>) =>
+  /**
+   * 「跨类型混挂字段」的元素构造：用例**故意**给 text 元素挂 `muted`、给 video 元素不挂 mediaId，
+   * 为的是证明 `canElementHaveAudio` 只看「能不能出声」，而不是看字段齐不齐。
+   * 这不是构造偷懒（偷懒会直接用工厂），而是需要**类型上不成立的组合**才能验出判据 ——
+   * 故单点收口在此并写明理由（同 faceMosaic 的「非法 mode」用例）。
+   */
+  const el = (fields: Record<string, unknown>): TimelineElement =>
     ({ id: 'el', startTime: 0, duration: 1, ...fields }) as unknown as TimelineElement;
 
   it('元素静音：只有能出声的元素（video／audio）才谈静音，`muted` 缺失 = 不静音', () => {
@@ -397,10 +416,8 @@ describe('开关判据（每个开关一个谓词，消费方禁直读字段）'
 });
 
 describe('元素时间区间（唯一定义 + 两个边界判据）', () => {
-  const element = { id: 'el', startTime: 2, duration: 3 } as unknown as TimelineElement;
-  const tracks = [
-    { id: 't', type: 'video', muted: false, elements: [element] },
-  ] as unknown as TimelineTrack[];
+  const element = videoElementOf({ id: 'el', startTime: 2, duration: 3 });
+  const tracks = [videoTrackOf({ id: 't', type: 'video', muted: false, elements: [element] })];
 
   it('区间 = `[startTime, startTime + duration)`（唯一定义）', () => {
     expect(getElementTimeRange({ element })).toEqual({ start: 2, end: 5 });
@@ -429,7 +446,7 @@ describe('元素时间区间（唯一定义 + 两个边界判据）', () => {
 });
 
 describe('「这一刻该不该显示 / 命中」唯一判据（半开区间）', () => {
-  const element = { startTime: 2, duration: 3 } as unknown as TimelineElement;
+  const element = videoElementOf({ startTime: 2, duration: 3 });
 
   it('区间 = `[startTime, startTime + duration)`：起点算、终点不算', () => {
     expect(isElementActiveAtTime({ element, time: 1.999 })).toBe(false);
@@ -509,17 +526,16 @@ describe('元素矩形唯一（画面 / 框子 / 命中同源）', () => {
       originalCanvasSize: { width: 500, height: 500 },
       background: { type: 'color' as const, color: 'transparent' },
     };
-    const element = {
+    const element = stickerElementOf({
       id: 'el-sticker',
       name: 's',
-      type: 'sticker',
       iconName: 'mdi:star',
       startTime: 0,
       duration: 1,
       trimStart: 0,
       opacity: 1,
       transform: { scale: 1, position: { x: 0, y: 0 }, rotate: 0 },
-    } as unknown as TimelineElement;
+    });
 
     // 源边长 200：适配基准 500 ⇒ contain 2.5 ⇒ 500。
     // 旧实现用**当前画布** 1000 ⇒ 5 ⇒ 1000（框子是画面的两倍）。
@@ -533,7 +549,8 @@ describe('元素矩形唯一（画面 / 框子 / 命中同源）', () => {
   });
 
   it('音频元素没有画布矩形（不参与叠加层 / 命中）', () => {
-    const element = { id: 'el-audio', type: 'audio' } as unknown as TimelineElement;
+    // 音频元素：工厂给的是 upload 变体（含 mediaId/volume），此处只要「不参与叠加」这一事实
+    const element = audioElementOf({ id: 'el-audio' });
 
     expect(
       getElementCanvasRect({
