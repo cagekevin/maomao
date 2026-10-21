@@ -310,9 +310,13 @@ describe('编组尺寸刷新保真（TASK: 编组后刷新大小变了）', () =
   // 模拟落盘白名单：直接引用快照 schema 真源（TD-02-7 第一步）。
   // 此前此处**手抄**一份 KEEP 副本（「与 NODE_KEEP 一致」靠注释保证）→ 真源改了它不红，给出假信心；
   // 改为 import 后白名单变更时本用例必然同步感知。
-  const sanitize = (arr: Node[]) =>
+  // 落盘快照的真实形态：白名单裁剪后的裸 JSON 对象 —— NodeBase 必需字段（id/position/data）齐备，
+  // 其余字段由 NODE_KEEP 动态决定。此前该层写成 Record<string, unknown>，于是喂给 adoptUserNodes
+  // 只能绕过类型系统硬转；现在由类型本身表达「这是能进 adoptUserNodes 的持久化节点」。
+  type PersistedNode = Pick<Node, 'id' | 'position' | 'data'> & Record<string, unknown>;
+  const sanitize = (arr: Node[]): PersistedNode[] =>
     arr.map((n: Node) => {
-      const out: Record<string, unknown> = {};
+      const out: PersistedNode = { id: n.id, position: n.position, data: n.data };
       for (const k of NODE_KEEP) {
         const val = (n as Record<string, unknown>)[k];
         if (val !== undefined && val !== null) out[k] = val;
@@ -332,7 +336,7 @@ describe('编组尺寸刷新保真（TASK: 编组后刷新大小变了）', () =
     const snapshot = sanitize(must(grouped, 'grouped'));
     const lookup = new Map();
     const parentLookup = new Map();
-    adoptUserNodes(snapshot as unknown as Node[], lookup, parentLookup, { nodeOrigin: [0, 0] });
+    adoptUserNodes(snapshot, lookup, parentLookup, { nodeOrigin: [0, 0] });
     const g = lookup.get(groupId);
     const dims = getNodeDimensions(g);
     expect(dims.width).toBe(780);
@@ -353,9 +357,9 @@ describe('编组尺寸刷新保真（TASK: 编组后刷新大小变了）', () =
 
   it('落盘必须保留 style/initialWidth/initialHeight（缺则面积塌 0）', () => {
     const badKeep = ['id', 'type', 'position', 'data', 'width', 'height', 'parentId', 'extent']; // 旧白名单：无 style/initialWidth
-    const badSanitize = (arr: Node[]) =>
+    const badSanitize = (arr: Node[]): PersistedNode[] =>
       arr.map((n: Node) => {
-        const out: Record<string, unknown> = {};
+        const out: PersistedNode = { id: n.id, position: n.position, data: n.data };
         for (const k of badKeep) {
           const val = (n as Record<string, unknown>)[k];
           if (val !== undefined && val !== null) out[k] = val;
@@ -364,7 +368,7 @@ describe('编组尺寸刷新保真（TASK: 编组后刷新大小变了）', () =
       });
     const snapshot = badSanitize(must(grouped, 'grouped'));
     const lookup = new Map();
-    adoptUserNodes(snapshot as unknown as Node[], lookup, new Map(), { nodeOrigin: [0, 0] });
+    adoptUserNodes(snapshot, lookup, new Map(), { nodeOrigin: [0, 0] });
     const dims = getNodeDimensions(lookup.get(groupId));
     // 旧白名单即使有 width/height（本次修复新增），也会因丢 initialWidth 退化；
     // 该用例守住「缺 initialWidth/height 会塌」的边界，提醒后续不要删这些字段。

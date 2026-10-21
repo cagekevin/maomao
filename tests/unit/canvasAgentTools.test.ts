@@ -111,73 +111,57 @@ function genPromptAt(gate: Partial<CreditGate> | null, index: number): string | 
   return typeof prompt === 'string' ? prompt : undefined;
 }
 
-// 测试侧构造的节点/边只需实现被测用到的字段（宽松本地类型）。这里只保留"能直接构造"的
-// 宽松类型，与 @xyflow/react 的 Node/Edge 的转换收口到 toNodes/toEdges 两个函数
-// （此前是 getNodes/setNodes/addNodes 六处各写一次 as unknown as）。
+// 测试侧构造的节点只需写本用例关心的字段（`{ id: 'a' }`、`position: {}` 之类），缺省的
+// `position`/`data` 由 toNodes 一次性补齐；边（id/source/target 就是 `Edge` 的必填三项）
+// 本身即可直接构造成 `Edge`，不需要中间宽松类型。
+// （此前是 getNodes/setNodes/addNodes 六处各写一次 `as unknown as`，后收敛成 toNodes/toEdges
+//  里的双转；现改为逐字段构造 —— 宽松输入与真契约(Node)的差只在补默认值，不需要断言。）
 type TestNode = {
   id: string;
   // 各可选字段显式带 `| undefined`：反方向赋值（Node → TestNode）时才与 xyflow 的类型兼容
   // （exactOptionalPropertyTypes 下 `type?: string` 不接受 `string | undefined`）。
   type?: string | undefined;
   data?: Record<string, unknown> | undefined;
-  position?: { x: number; y: number } | Record<string, unknown> | undefined;
+  /** 可只写 x/y 之一或 `{}`（用例不关心布局时），toNodes 把缺省坐标补 0。 */
+  position?: Partial<{ x: number; y: number }> | undefined;
   selected?: boolean | undefined;
   width?: number | undefined;
-  [k: string]: unknown;
-};
-type TestEdge = {
-  id: string;
-  source: string;
-  target: string;
-  [k: string]: unknown;
 };
 
 /**
  * 宽松测试节点 → ctx 契约要求的 `Node`。
  *
- * 【为什么这里有一次双转】测试侧用宽松字面量构造节点（`position` 常写 `{}`、可选字段可能显式
- * 给 undefined），而 xyflow 的 `Node` 在 `exactOptionalPropertyTypes` 下要求「可选字段要么不写、
- * 要么写非 undefined 值」—— 两个方向的赋值都不成立。这是**测试构造便利性**与**真契约**的差，
- * 收口在本函数（此前是 getNodes/setNodes/addNodes 六处各写一次双重断言）。
+ * 【为什么还要这一层】测试只写关心的字段（`{ id: 'a' }` / `position: {}`），而 xyflow 的 `Node`
+ * 要求 `position`/`data` 必填、且 `exactOptionalPropertyTypes` 下可选字段不许显式写 undefined。
+ * 这里**逐字段**补默认值再构造，两个方向都合法 ⇒ 不需要任何断言
+ * （此前这里是双重断言，更早是六处调用点各写一次）。
  */
 function toNodes(ts: TestNode[]): Node[] {
   return ts.map((t) => {
-    const { position, data, ...rest } = t;
-    const filled: Record<string, unknown> = {
-      ...rest,
-      position: position ?? { x: 0, y: 0 },
-      data: data ?? {},
+    const node: Node = {
+      id: t.id,
+      position: { x: t.position?.x ?? 0, y: t.position?.y ?? 0 },
+      data: t.data ?? {},
     };
-    for (const [k, v] of Object.entries(filled)) {
-      if (v === undefined) delete filled[k];
-    }
-    return filled as unknown as Node;
+    if (t.type !== undefined) node.type = t.type;
+    if (t.selected !== undefined) node.selected = t.selected;
+    if (t.width !== undefined) node.width = t.width;
+    return node;
   });
 }
 
-/** 宽松测试边 → ctx 契约要求的 `Edge`（id/source/target 已齐，其余按可选处理）。 */
-function toEdges(ts: TestEdge[]): Edge[] {
-  return ts.map((t) => {
-    const filled: Record<string, unknown> = { ...t };
-    for (const [k, v] of Object.entries(filled)) {
-      if (v === undefined) delete filled[k];
-    }
-    return filled as unknown as Edge;
-  });
-}
-
-function makeCtx(initialNodes: TestNode[] = [], initialEdges: TestEdge[] = []): CanvasAgentCtx {
+function makeCtx(initialNodes: TestNode[] = [], initialEdges: Edge[] = []): CanvasAgentCtx {
   let nodes: TestNode[] = [...initialNodes];
-  let edges: TestEdge[] = [...initialEdges];
+  let edges: Edge[] = [...initialEdges];
   return {
     getNodes: () => toNodes(nodes),
     // P11：setNodes/setEdges 用 vi.fn 包装，便于断言「批量写合并为单次调用」
     setNodes: vi.fn((fn: Node[] | ((ns: Node[]) => Node[])) => {
       nodes = typeof fn === 'function' ? fn(toNodes(nodes)) : fn;
     }),
-    getEdges: () => toEdges(edges),
+    getEdges: () => [...edges],
     setEdges: vi.fn((fn: Edge[] | ((es: Edge[]) => Edge[])) => {
-      edges = typeof fn === 'function' ? fn(toEdges(edges)) : fn;
+      edges = typeof fn === 'function' ? fn([...edges]) : fn;
     }),
     addNodes: (ns: Node[]) => {
       nodes = [...nodes, ...ns];
