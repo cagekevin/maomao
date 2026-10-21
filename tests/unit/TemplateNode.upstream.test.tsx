@@ -9,6 +9,7 @@ import { at } from '../helpers/at';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
+import type { generateImage } from '../../src/components/generate/lib/generate.ts';
 
 interface GenConfigLike {
   run?: (opts: {
@@ -130,14 +131,16 @@ vi.mock('../../src/components/base/api/localToolApi.ts', async (importOriginal) 
   ...((await importOriginal()) as Record<string, unknown>),
   fetchTasks: vi.fn(async () => ({ items: [] })),
 }));
-// 显式声明参数元组：vi.fn(async () => …) 会把参数推断成空元组 []，
-// 导致后续 mock.calls[0][0] 报 TS2493、mockGenerateImage(...a) 报 TS2556。
-const mockGenerateImage = vi.fn(async (..._args: unknown[]) => ({
+// 用真实签名给 mock 定型：`mock.calls[0][0]` 直接是 `GenerateImageOptions`
+// （此前参数写成 `..._args: unknown[]`，于是每处读参都要 `as unknown as { prompt… }`）。
+const mockGenerateImage = vi.fn<typeof generateImage>(async () => ({
+  ok: true,
   url: 'http://gen.local/img.png',
 }));
 vi.mock('../../src/components/generate/lib/generate.ts', async (importOriginal) => ({
   ...((await importOriginal()) as Record<string, unknown>),
-  generateImage: (...a: unknown[]) => mockGenerateImage(...a),
+  // 必须包一层：工厂被提升到文件顶部，直接引用 mockGenerateImage 会在初始化前取值（TDZ）
+  generateImage: (...args: Parameters<typeof generateImage>) => mockGenerateImage(...args),
 }));
 vi.mock('../../src/components/base/utils/providerModels.ts', () => ({
   buildAllModels: vi.fn(() => []),
@@ -150,7 +153,7 @@ beforeEach(() => {
   mockGetNodes.mockReturnValue([]);
   mockAddNodes.mockClear();
   mockGenerateImage.mockReset();
-  mockGenerateImage.mockResolvedValue({ url: 'http://gen.local/img.png' });
+  mockGenerateImage.mockResolvedValue({ ok: true, url: 'http://gen.local/img.png' });
   genConfig = null;
   connectedInputs = { images: [], texts: [] };
 });
@@ -171,10 +174,7 @@ describe('TemplateNode 上游文本/图片合并（修复点）', () => {
     fireEvent.click(screen.getByText('生成'));
 
     await waitFor(() => expect(mockGenerateImage).toHaveBeenCalled());
-    const call = at(mockGenerateImage.mock.calls, 0)[0] as unknown as {
-      prompt: string;
-      images?: unknown;
-    };
+    const call = at(mockGenerateImage.mock.calls, 0)[0];
     expect(call.prompt).toContain('海报');
     expect(call.prompt).toContain('国潮风格模板');
   });
@@ -185,9 +185,7 @@ describe('TemplateNode 上游文本/图片合并（修复点）', () => {
     expect(must(genConfig, 'genConfig').validate()).toBe('');
     fireEvent.click(screen.getByText('生成'));
     await waitFor(() => expect(mockGenerateImage).toHaveBeenCalled());
-    expect(
-      (at(mockGenerateImage.mock.calls, 0)[0] as unknown as { prompt: string }).prompt,
-    ).toContain('电商主图');
+    expect(at(mockGenerateImage.mock.calls, 0)[0].prompt).toContain('电商主图');
   });
 
   it('多个上游文本节点合并', async () => {
@@ -201,9 +199,7 @@ describe('TemplateNode 上游文本/图片合并（修复点）', () => {
     setup({ prompt: '模板' });
     fireEvent.click(screen.getByText('生成'));
     await waitFor(() => expect(mockGenerateImage).toHaveBeenCalled());
-    const p = (
-      at(mockGenerateImage.mock.calls, 0)[0] as unknown as { prompt: string; images?: unknown }
-    ).prompt;
+    const p = at(mockGenerateImage.mock.calls, 0)[0].prompt;
     expect(p).toContain('模板');
     expect(p).toContain('标题文案');
     expect(p).toContain('副标题');
@@ -220,10 +216,7 @@ describe('TemplateNode 上游文本/图片合并（修复点）', () => {
     setup({ prompt: '合成' });
     fireEvent.click(screen.getByText('生成'));
     await waitFor(() => expect(mockGenerateImage).toHaveBeenCalled());
-    const call = at(mockGenerateImage.mock.calls, 0)[0] as unknown as {
-      prompt: string;
-      images?: unknown;
-    };
+    const call = at(mockGenerateImage.mock.calls, 0)[0];
     expect(call.prompt).toContain('融合两张图');
     expect(call.images).toHaveLength(2);
     expect(call.images).toEqual(['http://up/a.png', 'http://up/b.png']);
