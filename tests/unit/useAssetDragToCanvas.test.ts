@@ -10,6 +10,7 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { fakeDragEvent } from '../helpers/events';
+import { fakeDataTransfer } from '../helpers/dataTransfer';
 import { renderHook, waitFor } from '@testing-library/react';
 
 const {
@@ -23,19 +24,8 @@ const {
 // setup.mjs 已把 globalThis.fetch 定义为共享 vi.fn；此处做类型对齐以启用 .mock* / mock.calls。
 const fetchMock = vi.mocked(globalThis.fetch);
 
-function fakeDataTransfer() {
-  const store: Record<string, any> = {};
-  // 仅 mock 被测用到的 setData/getData/setDragImage/effectAllowed；cast 成 DataTransfer 以满足 onDragStart 入参类型
-  return {
-    setData: (k: any, v: any) => {
-      store[k] = v;
-    },
-    getData: (k: any) => store[k],
-    setDragImage: vi.fn(),
-    effectAllowed: '',
-    _store: store,
-  } as unknown as DataTransfer;
-}
+// DataTransfer 替身统一走 `helpers/dataTransfer`（jsdom 的 DataTransfer 不完整属能力缺口，
+// 断言已收口在 helper 内，用例只描述差异）。
 
 describe('makeAssetDragProps', () => {
   beforeEach(() => {

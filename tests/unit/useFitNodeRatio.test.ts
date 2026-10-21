@@ -34,17 +34,38 @@ function lastSetNodesUpdate() {
 
 /**
  * 构造仅带媒体尺寸的合成事件替身。
- * React 合成事件无法直接 new，而 hook 只读取 e.currentTarget 的宽高属性，
- * 故用真实 DOM 元素（naturalWidth/videoWidth 是只读属性，只能 defineProperty 注入）拼最小形状。
+ * React 合成事件只能由 React 自己派发，测试无法 `new`；这里按 `BaseSyntheticEvent` 的**全形状**
+ * 逐项填齐（被测不读的成员给安全实现）⇒ 缺成员时 tsc 直接报错，不靠断言骗类型。
+ * `naturalWidth` / `videoWidth` 是只读属性，只能用 defineProperty 注入。
  */
-function mediaEvent<T extends Element>(
-  tag: 'img' | 'video',
-  dims: Record<string, number>,
-): SyntheticEvent<T> {
+function mediaEvent(tag: 'img', dims: Record<string, number>): SyntheticEvent<HTMLImageElement>;
+function mediaEvent(tag: 'video', dims: Record<string, number>): SyntheticEvent<HTMLVideoElement>;
+function mediaEvent(tag: 'img' | 'video', dims: Record<string, number>): SyntheticEvent<Element> {
   const el = document.createElement(tag);
   for (const [k, v] of Object.entries(dims))
     Object.defineProperty(el, k, { value: v, configurable: true });
-  return { currentTarget: el } as unknown as SyntheticEvent<T>;
+  return syntheticOf(el);
+}
+
+/** 全形状 `BaseSyntheticEvent`（`Element extends Node extends EventTarget`，故 `currentTarget` 可直接赋值）。 */
+function syntheticOf<E extends Element>(currentTarget: E): SyntheticEvent<E> {
+  return {
+    nativeEvent: new Event('load'),
+    currentTarget,
+    target: currentTarget,
+    bubbles: false,
+    cancelable: false,
+    defaultPrevented: false,
+    eventPhase: 0,
+    isTrusted: true,
+    preventDefault: () => undefined,
+    isDefaultPrevented: () => false,
+    stopPropagation: () => undefined,
+    isPropagationStopped: () => false,
+    persist: () => undefined,
+    timeStamp: 0,
+    type: 'load',
+  };
 }
 
 describe('useFitNodeRatio', () => {
@@ -79,13 +100,13 @@ describe('useFitNodeRatio', () => {
     const { result } = renderHook(() => useFitNodeRatio('n1'));
     getNode.mockClear();
     result.current.fitFromImage(
-      mediaEvent<HTMLImageElement>('img', { naturalWidth: 800, naturalHeight: 400 }),
+      mediaEvent('img', { naturalWidth: 800, naturalHeight: 400 }),
     );
     // handler 透传 media 尺寸 → fitByRatio 读取当前节点尺寸
     expect(getNode).toHaveBeenCalled();
     getNode.mockClear();
     result.current.fitFromVideo(
-      mediaEvent<HTMLVideoElement>('video', { videoWidth: 1600, videoHeight: 400 }),
+      mediaEvent('video', { videoWidth: 1600, videoHeight: 400 }),
     );
     expect(getNode).toHaveBeenCalled();
   });

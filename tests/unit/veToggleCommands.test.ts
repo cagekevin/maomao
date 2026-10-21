@@ -49,7 +49,7 @@ vi.mock('@/components/videoEditor/engine/core/editorInstance', () => ({
       setSelectedElements: () => undefined,
     },
     // 删除命令在「删掉的元素带 mediaId」时会问 project 拿 id 做 ephemeral 清理；
-    // 旧断言（整轨/整元素 as unknown as）把这条依赖藏住了，补上真实桩。
+    // 旧写法（整轨/整元素一次性双重断言）把这条依赖藏住了，补上真实桩。
     project: {
       getActiveOrNull: () => null,
     },

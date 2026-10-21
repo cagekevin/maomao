@@ -52,7 +52,9 @@ describe('useContextMenu', () => {
 
   it('onNodeContextMenu → node 菜单带 nodeId', () => {
     const e = makeEvent();
-    act(() => hook.current.onNodeContextMenu(e, { id: 'n1' } as unknown as Node));
+    // 真 `Node` 形状（id + position + data；其余全可选）⇒ 直接字面量，不再整对象断言。
+    const node: Node = { id: 'n1', position: { x: 0, y: 0 }, data: {} };
+    act(() => hook.current.onNodeContextMenu(e, node));
     expect(must(hook.current.state, 'state').type).toBe('node');
     expect(must(hook.current.state, 'state').nodeId).toBe('n1');
   });

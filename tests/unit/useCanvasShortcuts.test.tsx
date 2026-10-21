@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import 'react';
 import { render, act } from '@testing-library/react';
+import { must } from '../helpers/must';
 import { useCanvasShortcuts } from '../../src/hooks/useCanvasShortcuts.ts';
 import { useFullscreenEditorKeys } from '../../src/components/base/core/interaction/modalLayer.ts';
 
@@ -32,9 +33,18 @@ function fireKeyDown(init: any) {
   return e;
 }
 
-// jsdom 的 Selection 无法直接构造；hook 只调用 toString()，故用最小替身
+// jsdom 的 Selection 没有公开构造器，但**能真造出来**：建文本节点 → 用真 Range 选中 →
+// `document.getSelection()` 拿真 Selection（hook 只调 `toString()`）。故不再用骨架替身 + 断言。
 function stubSelection(text: string): Selection {
-  return { toString: () => text } as unknown as Selection;
+  const host = document.createElement('div');
+  host.textContent = text;
+  document.body.appendChild(host);
+  const sel = must(document.getSelection(), 'getSelection');
+  const range = document.createRange();
+  range.selectNodeContents(host);
+  sel.removeAllRanges();
+  sel.addRange(range);
+  return sel;
 }
 
 // 可控的 window.getSelection（保留 vi.fn 以便被 restoreAllMocks 统一回收）
@@ -49,6 +59,8 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.restoreAllMocks();
+  // 清掉 stubSelection 挂到 body 的文本节点（每个用例都会新挂，避免跨用例堆积）
+  document.body.innerHTML = '';
 });
 
 describe('useCanvasShortcuts 守卫（防回退）', () => {

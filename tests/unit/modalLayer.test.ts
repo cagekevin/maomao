@@ -29,7 +29,7 @@ import {
 import { useCanvasKeydown } from '../../src/components/canvas/topology/canvasHotkeys.ts';
 import FullscreenShell from '../../src/components/base/panels/FullscreenShell.tsx';
 
-/** 造一个只含必要字段的 KeyboardEvent（describeKey 只读这几个标志位与 key）。 */
+/** 真 KeyboardEvent（jsdom 可构造）：describeKey 只读 key 与四个修饰位，构造参数一一对应。 */
 function keyEvent(init: {
   key: string;
   ctrlKey?: boolean;
@@ -37,13 +37,13 @@ function keyEvent(init: {
   shiftKey?: boolean;
   altKey?: boolean;
 }): KeyboardEvent {
-  return {
-    ctrlKey: false,
-    metaKey: false,
-    shiftKey: false,
-    altKey: false,
-    ...init,
-  } as unknown as KeyboardEvent;
+  return new KeyboardEvent('keydown', {
+    key: init.key,
+    ctrlKey: init.ctrlKey ?? false,
+    metaKey: init.metaKey ?? false,
+    shiftKey: init.shiftKey ?? false,
+    altKey: init.altKey ?? false,
+  });
 }
 
 afterEach(() => {

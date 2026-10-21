@@ -182,7 +182,7 @@ describe('useScriptBoxEngine', () => {
   it('createScriptBoxEngine 用最新 data（getData 读 getNodes）', () => {
     renderHook(() => useScriptBoxEngine('sb1', { shots: [] }));
     const cfg = must(at(createScriptBoxEngine.mock.calls, 0)[0], 'at');
-    expect((cfg.getData as unknown as () => unknown)()).toMatchObject({ shots: [] });
+    expect(cfg.getData()).toMatchObject({ shots: [] });
     expect(cfg.getProviderState?.()).toEqual({
       providers: [{ id: 'p1', isPrimary: true }],
       primary: { id: 'p1', isPrimary: true },
