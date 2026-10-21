@@ -11,6 +11,7 @@
 
 import { must } from '../helpers/must';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import type { ScriptBoxData } from '../../src/components/scriptbox/scriptBoxSchema';
 import { at } from '../helpers/at';
 
 // 隔离外部依赖（网络 / 模型 / toast），仅保留 scriptBoxPrompts（纯提示词拼接）
@@ -30,20 +31,20 @@ vi.mock('../../src/components/base/utils/providerModels.ts', () => ({
   buildAllModels: vi.fn(() => [{ id: 'gpt-4o-mini' }]),
 }));
 // 从真模块派生（TD-17-15）：toastStore 属「会长大」类，手写白名单式桩会随它加导出而脱钩。
-vi.mock('../../src/components/base/core/event/toastStore.ts', async (importOriginal) => {
+/** toast 替身（`vi.hoisted` ⇒ 工厂与用例共享同一组 spy，用例不必 `import + as unknown as`）。 */
+const toastSpies = vi.hoisted(() => {
   const showToast = vi.fn();
   // 收口（2026-09-20）：业务代码改走 toastSuccess/toastError，二者内部均调 showToast。
   // 让语义化出口的 spy 转发到 showToast，既保留「提示被触发」断言，又跟随新 API（不直调 showToast）。
   const toastSuccess = vi.fn((m: string, o?: unknown) => showToast(m, o));
   const toastError = vi.fn((m: string, o?: unknown) => showToast(m, o));
-  return {
-    ...((await importOriginal()) as Record<string, unknown>),
-    showToast,
-    toastSuccess,
-    toastError,
-    toastStore: { showToast, toastSuccess, toastError },
-  };
+  return { showToast, toastSuccess, toastError };
 });
+vi.mock('../../src/components/base/core/event/toastStore.ts', async (importOriginal) => ({
+  ...((await importOriginal()) as Record<string, unknown>),
+  ...toastSpies,
+  toastStore: { ...toastSpies },
+}));
 vi.mock('../../src/components/resource/resourceStore.ts', async (importOriginal) => ({
   ...((await importOriginal()) as Record<string, unknown>),
   localizeAndStoreToResourceLibrary: vi.fn(),
@@ -273,15 +274,25 @@ type EmittedNode = {
   data: Record<string, unknown>;
 };
 
+/**
+ * 测试侧 store：`ScriptBoxData` + 用例自己挂的 `_edges`（引擎的 setEdges 会写它）。
+ * `_edges` 的元素形状按用例真实读的两个字段声明（source / sourceHandle），不写 unknown[] ——
+ * 否则断言处只能 `at(...)[0] as ...` 或直接报 unknown。
+ */
+type TestStore = ScriptBoxData & {
+  _edges: { source: string; sourceHandle: string }[];
+};
+
 describe('scriptBoxEngine · 引擎编排', () => {
-  function makeEngine(initial: any) {
-    const store = { ...initial };
+  function makeEngine(initial: Record<string, unknown> = {}) {
+    // 种子数据走**生产同一个归一化函数**（引擎真实读路径也是它）：shots/assets 的缺字段会被补齐，
+    // 因此这里可以继续用「半成品数据」造用例，而 store 本身是类型完备的 ScriptBoxData
+    // （旧写法是 `{...initial}` + getData 里整块断言，少字段时引擎读到 undefined 也没人发现）。
+    const store: TestStore = { ...normalizeScriptBoxData(initial), _edges: [] };
     // 泛型必须写 unknown[]：hooks 签名是 `(nodes: unknown[]) => void`，参数逆变，
     // 写成 EmittedNode[] 会报 TS2322（接收方要求能装任意 unknown 元素）。
     const addNodes = vi.fn<(nodes: unknown[]) => void>();
-    const getData = vi.fn(
-      () => store as unknown as import('@/components/scriptbox/scriptBoxSchema.ts').ScriptBoxData,
-    );
+    const getData = vi.fn(() => store);
     const updateData = vi.fn((patch) => {
       Object.assign(store, patch);
       return true;
@@ -310,19 +321,11 @@ describe('scriptBoxEngine · 引擎编排', () => {
 
   it('onGenerateScript 校验：无剧情时仅 toast 不调用 chat', async () => {
     const { chatCompletions } = await import('@/components/generate/lib/generate');
-    // toastStore 由本文件顶部 vi.mock 工厂提供（src 无该具名导出），用本地类型收窄
-    const { toastStore } =
-      (await import('../../src/components/base/core/event/toastStore.ts')) as unknown as {
-        toastStore: {
-          showToast: (msg: string, opts?: unknown) => void;
-          toastError: (msg: string, opts?: unknown) => void;
-          toastSuccess: (msg: string, opts?: unknown) => void;
-        };
-      };
+    // toast 替身来自文件顶部的 vi.hoisted（无需 import + 断言）
     const { engine, store } = makeEngine({});
     await engine.onGenerateScript();
     expect(chatCompletions).not.toHaveBeenCalled();
-    expect(toastStore.toastError).toHaveBeenCalledWith(expect.stringContaining('剧情'));
+    expect(toastSpies.toastError).toHaveBeenCalledWith(expect.stringContaining('剧情'));
     expect(store.genMask).toBeUndefined();
   });
 
@@ -390,20 +393,12 @@ describe('scriptBoxEngine · 引擎编排', () => {
 
   it('onGenerateScript 模型返回非 JSON 时回退 genMask=false 并 toast', async () => {
     const { chatCompletions } = await import('@/components/generate/lib/generate');
-    // toastStore 由本文件顶部 vi.mock 工厂提供（src 无该具名导出），用本地类型收窄
-    const { toastStore } =
-      (await import('../../src/components/base/core/event/toastStore.ts')) as unknown as {
-        toastStore: {
-          showToast: (msg: string, opts?: unknown) => void;
-          toastError: (msg: string, opts?: unknown) => void;
-          toastSuccess: (msg: string, opts?: unknown) => void;
-        };
-      };
+    // toast 替身来自文件顶部的 vi.hoisted（无需 import + 断言）
     vi.mocked(chatCompletions).mockResolvedValueOnce({ ok: true, content: '不是json' });
     const { engine, store } = makeEngine({ story: 'x' });
     await engine.onGenerateScript();
     expect(store.genMask).toBe(false);
-    expect(toastStore.toastError).toHaveBeenCalled();
+    expect(toastSpies.toastError).toHaveBeenCalled();
   });
 
   it('onConnectShot 建下游 imageGenerateNode 并自动连线', async () => {
@@ -416,8 +411,8 @@ describe('scriptBoxEngine · 引擎编排', () => {
     expect(node.type).toBe('imageGenerateNode');
     expect(node.data['prompt']).toBe('p');
     expect(store._edges.length).toBe(1);
-    expect(store._edges[0].source).toBe('node-1');
-    expect(store._edges[0].sourceHandle).toBe('shot-s1');
+    expect(at(store._edges, 0).source).toBe('node-1');
+    expect(at(store._edges, 0).sourceHandle).toBe('shot-s1');
   });
 
   // ── P0-②：下游参考图字段名统一为 images（生图/生视频不再各用各的名字）──
@@ -472,7 +467,9 @@ describe('scriptBoxEngine · 引擎编排', () => {
     //    下游 ImageGenerate 的 refImages = mergeRefImages(connected.images(实时), data.images(快照))，
     //    connected.images 走 useConnectedInputs 实时从 scriptBoxNode.data.assets 重新 collectAssets ——
     //    资产生成后被实时链路自动补上，无需重连。（engine 单测无法触达 hook，故仅断言快照字段不变）
-    store.assets = [{ id: 'asset-城堡', name: '城堡', assetUrl: '/files/x.png' }];
+    store.assets = [
+      { ...defaultAssetFields(), id: 'asset-城堡', name: '城堡', assetUrl: '/files/x.png' },
+    ];
     expect(node.data['images']).toEqual([]);
   });
 
@@ -541,10 +538,10 @@ describe('scriptBoxEngine · 引擎编排', () => {
       ],
     });
     engine.onPickAssetImage('a1', '/files/migrated/人物/主角.png');
-    expect(store.assets[0].has).toBe(true);
-    expect(store.assets[0].imageStatus).toBe('uploaded');
-    expect(store.assets[0].assetUrl).toContain('/files/migrated/人物/主角.png');
-    expect(store.assets[0].thumbnailUrl).toBe(store.assets[0].assetUrl);
+    expect(at(store.assets, 0).has).toBe(true);
+    expect(at(store.assets, 0).imageStatus).toBe('uploaded');
+    expect(at(store.assets, 0).assetUrl).toContain('/files/migrated/人物/主角.png');
+    expect(at(store.assets, 0).thumbnailUrl).toBe(at(store.assets, 0).assetUrl);
   });
 
   it('onPickAssetImage：空 URL 不写资产，资产不存在不抛错', async () => {
@@ -552,7 +549,7 @@ describe('scriptBoxEngine · 引擎编排', () => {
       assets: [{ id: 'a1', name: '主角', category: 'character', assetUrl: '', has: false }],
     });
     engine.onPickAssetImage('a1', ''); // 空 url → 只 toast，不写入
-    expect(store.assets[0].has).toBe(false);
+    expect(at(store.assets, 0).has).toBe(false);
     expect(() => engine.onPickAssetImage('nope', '/files/x.png')).not.toThrow(); // 资产不存在 → 静默
   });
 
@@ -604,14 +601,19 @@ describe('scriptBoxEngine · 引擎编排', () => {
 // 契约：① 合并生效（updateData/setNodes 调用次数显著少于 N×2）；
 //       ② 合并不丢数据（所有分镜 prompt 最终都完整写回）。
 describe('scriptBoxEngine · P11 批量写回合并', () => {
-  function makeBatchEngine(shots: any, assets = []) {
-    const store = { shots: shots.map((s: any) => ({ ...s })), assets };
+  function makeBatchEngine(
+    shots: Record<string, unknown>[],
+    assets: Record<string, unknown>[] = [],
+  ) {
+    // 同 makeEngine：种子走生产归一化（shots/assets 缺字段会被补齐），store 类型完备
+    const store: ScriptBoxData = normalizeScriptBoxData({
+      shots: shots.map((s) => ({ ...s })),
+      assets,
+    });
     // 真实记录每次 setNodes 调用（函数式补丁也计一次）；不直接应用，留给 flush 统一应用，
     // 以模拟 ReactFlow 的「一次 setNodes = 一次全图重建」代价。
-    const setNodesCalls: any = [];
-    const getData = vi.fn(
-      () => store as unknown as import('@/components/scriptbox/scriptBoxSchema.ts').ScriptBoxData,
-    );
+    const setNodesCalls: unknown[] = [];
+    const getData = vi.fn(() => store);
     const updateData = vi.fn((patch) => {
       setNodesCalls.push(patch);
       const next = typeof patch === 'function' ? patch(store) : patch;
