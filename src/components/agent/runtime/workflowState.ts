@@ -59,13 +59,23 @@ export function wfStart(patch: Record<string, unknown> = {}): Record<string, unk
  * 若尚无 workflow 则以 running 起步（与 useAgentChat 原「无则建 running」语义等价）。
  * @param {string} text  补充指令原文
  * @param {Array}  attachments 附带附件（默认 []）
+ * @returns {{ steerQueue: unknown[], status?: WorkflowStatus }}
+ *   返回形状是固定的两项，故不沿用 `Record<string, unknown>`（更新 2026-10-21：宽返回类型逼
+ *   调用方/测试用 `as unknown as` 才能读 `.steerQueue` —— 收窄为实形，与 wfFinish/wfAwaitConfirm
+ *   的显式返回类型同口径，运行时行为零变化；steerQueue 元素仍是 unknown，因为持久化里就是
+ *   `unknown[]`，逐条校验见 wfNextSteer）。
  */
-export function wfSteer(text: string, attachments?: unknown[]): Record<string, unknown> {
+export function wfSteer(
+  text: string,
+  attachments?: unknown[],
+): { steerQueue: unknown[]; status?: WorkflowStatus } {
   const wf = getCurrentWorkflow();
-  return {
+  const patch: { steerQueue: unknown[]; status?: WorkflowStatus } = {
     steerQueue: [...((wf && wf.steerQueue) || []), { text, attachments: attachments || [] }],
-    ...(wf ? {} : { status: 'running' }),
   };
+  // 无 workflow 时以 running 起步；已有 workflow 则不覆盖状态（patch 不带 status 键）。
+  if (!wf) patch.status = 'running';
+  return patch;
 }
 
 /**

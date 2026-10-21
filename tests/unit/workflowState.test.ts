@@ -53,10 +53,7 @@ describe('wfSteer — 补充指令入队', () => {
       startedAt: 0,
       updatedAt: 0,
     });
-    const patch = wfSteer('b', [{ type: 'image', url: 'x' }]) as unknown as {
-      steerQueue: Array<{ text: string; attachments?: unknown[] }>;
-      status?: string;
-    };
+    const patch = wfSteer('b', [{ type: 'image', url: 'x' }]);
     expect(patch.steerQueue).toHaveLength(2);
     expect(patch.steerQueue[1]).toEqual({ text: 'b', attachments: [{ type: 'image', url: 'x' }] });
     expect(patch.status).toBeUndefined(); // 已有 workflow，不额外盖状态
@@ -64,12 +61,9 @@ describe('wfSteer — 补充指令入队', () => {
 
   it('无 workflow 时以 running 起步（与 useAgentChat 原「无则建 running」语义等价）', () => {
     vi.mocked(convStore.getCurrentWorkflow).mockReturnValue(null);
-    const patch = wfSteer('补充') as unknown as {
-      steerQueue: Array<{ text: string; attachments?: unknown[] }>;
-      status?: string;
-    };
-    expect(patch.steerQueue).toHaveLength(1);
-    expect(at(patch.steerQueue, 0).text).toBe('补充');
+    const patch = wfSteer('补充');
+    // steerQueue 元素类型是 unknown（持久化原生形状），故整条比对取代逐字段读取。
+    expect(patch.steerQueue).toEqual([{ text: '补充', attachments: [] }]);
     expect(patch.status).toBe('running');
   });
 
