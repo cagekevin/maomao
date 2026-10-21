@@ -8,18 +8,22 @@ import 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import { mocks } from './_nodeMocks.mjs';
+import type { Node } from '@xyflow/react';
 
 // 覆盖 @xyflow/react：setNodes 真正执行 updater 维护 nodes state，供断言 patchData 写回 node.data
+// 桩按**真签名**定型（`ReactFlowInstance.setNodes`：`Node[] | ((nodes: Node[]) => Node[])`），
+// 于是 useReactFlow() 桩里直接转发 `h.setNodes` 即可 —— 不再需要 `(...a: unknown[]) =>`
+// 的转发壳 + 把 spy 强转成 `(...x: unknown[]) => void`（此前那处双转就是为了绕过参数类型不匹配）。
 const h = vi.hoisted(() => {
-  const state = { nodes: [] as Array<{ id: string; data?: Record<string, unknown> }> };
-  const setNodes = vi.fn((updater) => {
+  const state = { nodes: [] as Node[] };
+  const setNodes = vi.fn<(payload: Node[] | ((nodes: Node[]) => Node[])) => void>((updater) => {
     state.nodes = typeof updater === 'function' ? updater(state.nodes) : updater;
   });
   return { state, setNodes };
 });
 vi.mock('@xyflow/react', () => ({
   useReactFlow: () => ({
-    setNodes: (...a: unknown[]) => (h.setNodes as unknown as (...x: unknown[]) => void)(...a),
+    setNodes: h.setNodes,
     setEdges: (...a: any[]) => a[0],
     getNodes: () => h.state.nodes,
     getEdges: () => [],
@@ -161,7 +165,7 @@ beforeEach(() => {
 function setup(props: { id?: string; data?: Record<string, unknown> } = {}) {
   const id = props.id || 't1';
   const data = props.data || {};
-  h.state.nodes = [{ id, data: { ...data } }];
+  h.state.nodes = [{ id, position: { x: 0, y: 0 }, data: { ...data } }];
   return render(<TemplateNode id={id} data={{ ...data }} selected={false} />);
 }
 function nodeData(id = 't1') {
@@ -187,7 +191,9 @@ describe('TemplateNode', () => {
     const cfg = getGenConfig();
     expect(cfg).toBeTruthy();
     act(() => cfg.onRecover({ resultUrl: 'http://127.0.0.1:18080/files/tasks/x.png' }));
-    expect(must(nodeData(), 'nodeData')['assetUrl']).toBe('http://127.0.0.1:18080/files/tasks/x.png');
+    expect(must(nodeData(), 'nodeData')['assetUrl']).toBe(
+      'http://127.0.0.1:18080/files/tasks/x.png',
+    );
   });
 });
 

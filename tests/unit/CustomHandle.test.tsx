@@ -16,20 +16,23 @@ import { must } from '../helpers/must';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render } from '@testing-library/react';
 import { fireEvent } from '@testing-library/react';
+import type { HandleProps } from '@xyflow/react';
 
 const h = vi.hoisted(() => {
-  const handleProps: Array<Record<string, unknown>> = [];
+  // 捕获的是 @xyflow/react 真实 Handle 收到的 props（此前误标成 CustomHandleProps，
+  // 与本文件断言的 type/position/id/style 对不上，只能绕类型系统硬转）。
+  const handleProps: HandleProps[] = [];
   return {
     handleProps,
-    HandleMock: (props: CustomHandleProps) => {
-      h.handleProps.push(props as unknown as Record<string, unknown>);
+    HandleMock: (props: HandleProps) => {
+      h.handleProps.push(props);
       return null;
     },
   };
 });
 
 vi.mock('@xyflow/react', () => ({
-  Handle: (props: CustomHandleProps) => h.HandleMock(props),
+  Handle: (props: HandleProps) => h.HandleMock(props),
 }));
 
 import CustomHandle, {
@@ -94,7 +97,7 @@ describe('CustomHandle — 变体与定位', () => {
 
   it('Handle 本体透明铺满端口区域（视觉由 CSS 伪元素提供）', () => {
     setup({ position: 'left' });
-    const s = at(h.handleProps, 0)['style'] as unknown as Record<string, unknown>;
+    const s = must(at(h.handleProps, 0)['style'], 'Handle 的 style 属性');
     expect(s['opacity']).toBe(0);
     expect(s['background']).toBe('transparent');
     expect(s['border']).toBe(0);
