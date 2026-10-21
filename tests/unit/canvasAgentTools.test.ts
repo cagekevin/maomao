@@ -79,6 +79,7 @@ import { getNodeAssetUrl, getNodeMedia } from '../../src/components/base/utils/m
 /** 无 resource 可解析（本组用例均不含 contentId，等价于真实调用方在无 resource 时的行为） */
 const noRes = () => null;
 import * as convStore from '../../src/components/agent/conversation/conversationStore.ts';
+import type { CreditGate } from '../../src/components/agent/conversation/conversationSkillState.ts';
 import '../../src/components/agent/conversation/conversationSnapshot.ts';
 import * as taskStore from '../../src/components/base/store/taskStore.ts';
 import {
@@ -91,33 +92,37 @@ import {
 // 测试侧用 .mock.calls 断言，故用 vi.mocked 恢复 mock 类型。
 const mockExecutePlan = vi.mocked(executePlan);
 
-// 对「模块命名空间 convStore」直接写 convMock.__state = {...} 会触发 vitest/TS
-// 推断 bug：会连坐同一作用域里 vi/expect 变成不可调用（探针实测）。故统一收口到本地别名，
-// 用合并类型保留 __state 扩展字段（参考 creditGateModes 的 ConvMock 方案）。
-type CreditGateMock = {
-  pending: boolean;
-  gens: { id: string; prompt: string }[];
-  map: Record<string, string>;
+// 会话 store 的测试侧状态（下方 mock 的 getX/setX 都读写它）。
+// 以前是 `convStore as unknown as ConvMock`，把 `__state` 挂到**模块命名空间**上只为塞一个测试字段；
+// 现在独立成普通对象：不需要任何断言，也不依赖「往命名空间塞字段」的 TS/vitest 怪癖。
+/** creditGate 用真实类型 `CreditGate`（含 index signature），不再自建窄化副本。 */
+const convState = {
+  awaiting: false,
+  pending: null as unknown[] | null,
+  refImages: [] as string[],
+  creditGate: null as CreditGate | null,
 };
-type ConvMock = typeof convStore & {
-  __state: {
-    awaiting: boolean;
-    pending: unknown[] | null;
-    refImages: string[];
-    creditGate: CreditGateMock | null;
-  };
-};
-const convMock = convStore as unknown as ConvMock;
 
-// 测试侧构造的节点/边只需实现被测用到的字段（宽松本地类型），
-// 经 as unknown as 收窄到 @xyflow/react 的 Node/Edge 以满足 CanvasAgentCtx 契约。
+/** 取 creditGate.gens 里第 i 项的 prompt（gens 的元素类型是 unknown ⇒ 读取处收窄，不用断言）。 */
+function genPromptAt(gate: Partial<CreditGate> | null, index: number): string | undefined {
+  const item = gate?.gens?.[index];
+  if (item === null || typeof item !== 'object') return undefined;
+  const prompt = (item as { prompt?: unknown }).prompt;
+  return typeof prompt === 'string' ? prompt : undefined;
+}
+
+// 测试侧构造的节点/边只需实现被测用到的字段（宽松本地类型）。这里只保留"能直接构造"的
+// 宽松类型，与 @xyflow/react 的 Node/Edge 的转换收口到 toNodes/toEdges 两个函数
+// （此前是 getNodes/setNodes/addNodes 六处各写一次 as unknown as）。
 type TestNode = {
   id: string;
-  type?: string;
-  data?: Record<string, unknown>;
-  position?: { x: number; y: number } | Record<string, unknown>;
-  selected?: boolean;
-  width?: number;
+  // 各可选字段显式带 `| undefined`：反方向赋值（Node → TestNode）时才与 xyflow 的类型兼容
+  // （exactOptionalPropertyTypes 下 `type?: string` 不接受 `string | undefined`）。
+  type?: string | undefined;
+  data?: Record<string, unknown> | undefined;
+  position?: { x: number; y: number } | Record<string, unknown> | undefined;
+  selected?: boolean | undefined;
+  width?: number | undefined;
   [k: string]: unknown;
 };
 type TestEdge = {
@@ -127,25 +132,55 @@ type TestEdge = {
   [k: string]: unknown;
 };
 
+/**
+ * 宽松测试节点 → ctx 契约要求的 `Node`。
+ *
+ * 【为什么这里有一次双转】测试侧用宽松字面量构造节点（`position` 常写 `{}`、可选字段可能显式
+ * 给 undefined），而 xyflow 的 `Node` 在 `exactOptionalPropertyTypes` 下要求「可选字段要么不写、
+ * 要么写非 undefined 值」—— 两个方向的赋值都不成立。这是**测试构造便利性**与**真契约**的差，
+ * 收口在本函数（此前是 getNodes/setNodes/addNodes 六处各写一次双重断言）。
+ */
+function toNodes(ts: TestNode[]): Node[] {
+  return ts.map((t) => {
+    const { position, data, ...rest } = t;
+    const filled: Record<string, unknown> = {
+      ...rest,
+      position: position ?? { x: 0, y: 0 },
+      data: data ?? {},
+    };
+    for (const [k, v] of Object.entries(filled)) {
+      if (v === undefined) delete filled[k];
+    }
+    return filled as unknown as Node;
+  });
+}
+
+/** 宽松测试边 → ctx 契约要求的 `Edge`（id/source/target 已齐，其余按可选处理）。 */
+function toEdges(ts: TestEdge[]): Edge[] {
+  return ts.map((t) => {
+    const filled: Record<string, unknown> = { ...t };
+    for (const [k, v] of Object.entries(filled)) {
+      if (v === undefined) delete filled[k];
+    }
+    return filled as unknown as Edge;
+  });
+}
+
 function makeCtx(initialNodes: TestNode[] = [], initialEdges: TestEdge[] = []): CanvasAgentCtx {
   let nodes: TestNode[] = [...initialNodes];
   let edges: TestEdge[] = [...initialEdges];
   return {
-    getNodes: () => nodes as unknown as Node[],
+    getNodes: () => toNodes(nodes),
     // P11：setNodes/setEdges 用 vi.fn 包装，便于断言「批量写合并为单次调用」
     setNodes: vi.fn((fn: Node[] | ((ns: Node[]) => Node[])) => {
-      nodes = (typeof fn === 'function'
-        ? fn(nodes as unknown as Node[])
-        : fn) as unknown as TestNode[];
+      nodes = typeof fn === 'function' ? fn(toNodes(nodes)) : fn;
     }),
-    getEdges: () => edges as unknown as Edge[],
+    getEdges: () => toEdges(edges),
     setEdges: vi.fn((fn: Edge[] | ((es: Edge[]) => Edge[])) => {
-      edges = (typeof fn === 'function'
-        ? fn(edges as unknown as Edge[])
-        : fn) as unknown as TestEdge[];
+      edges = typeof fn === 'function' ? fn(toEdges(edges)) : fn;
     }),
     addNodes: (ns: Node[]) => {
-      nodes = [...nodes, ...(ns as unknown as TestNode[])];
+      nodes = [...nodes, ...ns];
     },
     screenToFlowPosition: (p: { x: number; y: number }) => p || { x: 0, y: 0 },
     fitView: vi.fn(),
@@ -158,31 +193,42 @@ function makeCtx(initialNodes: TestNode[] = [], initialEdges: TestEdge[] = []): 
 
 beforeEach(() => {
   vi.clearAllMocks();
-  // 配对状态：getX 始终读 __state，setX 写 __state（用例可直接翻转 __state 模拟前端确认）
-  convMock.__state = { awaiting: false, pending: null, refImages: [], creditGate: null };
-  vi.mocked(convStore.getAwaitingConfirm).mockImplementation(() => convMock.__state.awaiting);
+  // 配对状态：getX 始终读 convState，setX 写 convState（用例可直接翻转 convState 模拟前端确认）
+  convState.awaiting = false;
+  convState.pending = null;
+  convState.refImages = [];
+  convState.creditGate = null;
+  vi.mocked(convStore.getAwaitingConfirm).mockImplementation(() => convState.awaiting);
   vi.mocked(convStore.setAwaitingConfirm).mockImplementation((v) => {
-    convMock.__state.awaiting = !!v;
+    convState.awaiting = !!v;
   });
-  vi.mocked(convStore.getCreditGate).mockImplementation(() => convMock.__state.creditGate);
+  vi.mocked(convStore.getCreditGate).mockImplementation(() => convState.creditGate);
   vi.mocked(convStore.setCreditGate).mockImplementation((g) => {
-    convMock.__state.creditGate = (g || null) as unknown as CreditGateMock;
+    // 真实签名收的是 `Partial<CreditGate> & Record<string, unknown>`，而 getCreditGate 返回完整
+    // `CreditGate` ⇒ 在这里把缺省字段补全（旧写法用双重断言把 Partial 硬说成完整值）。
+    convState.creditGate =
+      g === null || g === undefined
+        ? null
+        : {
+            ...g,
+            pending: g.pending === true,
+            gens: Array.isArray(g.gens) ? g.gens : [],
+            map: typeof g.map === 'object' && g.map !== null ? g.map : {},
+          };
   });
   vi.mocked(convStore.clearCreditGate).mockImplementation(() => {
-    convMock.__state.creditGate = null;
+    convState.creditGate = null;
   });
   // 注意：注入必须打在 barrel 真符号上。getPendingGenerations/setPendingGenerations 是
   // useCanvasAgentTools.ts:106-113 的本地兼容壳，不是 conversationStore 的导出——
   // 打在壳名上会形成死通道：写入无人读，真身读到的 getActivePendingGenerations 恒返回 mock 默认 null。
-  vi.mocked(convStore.getActivePendingGenerations).mockImplementation(
-    () => convMock.__state.pending,
-  );
+  vi.mocked(convStore.getActivePendingGenerations).mockImplementation(() => convState.pending);
   vi.mocked(convStore.setActivePendingGenerations).mockImplementation((g) => {
-    convMock.__state.pending = g;
+    convState.pending = g;
   });
-  vi.mocked(convStore.getCurrentRefImages).mockImplementation(() => convMock.__state.refImages);
+  vi.mocked(convStore.getCurrentRefImages).mockImplementation(() => convState.refImages);
   vi.mocked(convStore.setCurrentRefImages).mockImplementation((u?: unknown[]) => {
-    convMock.__state.refImages = Array.isArray(u) ? (u as string[]) : [];
+    convState.refImages = Array.isArray(u) ? (u as string[]) : [];
   });
 });
 
@@ -767,7 +813,7 @@ describe('画布 Agent 工具层 §2.5', () => {
     const t = buildCanvasAgentTools(ctx);
     const r = await toolOf(t, 'generate_node')({ nodeId: 'a' });
     expect(r.ok).toBe(false);
-    expect((r as unknown as { nodeId: string }).nodeId).toBe('a'); // 失败也带 nodeId
+    expect(r.nodeId).toBe('a'); // 失败也带 nodeId
     expect(r.error).toBe('模型超时');
   });
 
@@ -778,7 +824,7 @@ describe('画布 Agent 工具层 §2.5', () => {
     const r = await toolOf(t, 'generate_node')({ nodeId: 'a' });
     expect(r.ok).toBe(false);
     expect(r.error).toContain('未注册生成契约');
-    expect((r as unknown as { nodeId: string }).nodeId).toBe('a');
+    expect(r.nodeId).toBe('a');
   });
 
   it('generate_node 节点不存在 → 回填可用 id 引导自愈（防 LLM 自猜 imageGenerateNode_1）', async () => {
@@ -797,7 +843,7 @@ describe('画布 Agent 工具层 §2.5', () => {
   });
 
   it('execute_plan 未确认被拒', async () => {
-    convMock.__state.awaiting = true; // 模拟已进入待确认
+    convState.awaiting = true; // 模拟已进入待确认
     const ctx = makeCtx();
     const t = buildCanvasAgentTools(ctx);
     const r = await toolOf(t, 'execute_plan')({ generations: [{ id: 'g1', prompt: '猫' }] });
@@ -892,7 +938,7 @@ describe('画布 Agent 工具层 §2.5', () => {
   });
 
   it('【T4】execute_plan credit 命中（creditSwitch 默认开）→ 只建节点待确认，不真生成', async () => {
-    convMock.__state.awaiting = false;
+    convState.awaiting = false;
     // 2026-08-27 简化：credit = creditSwitch（全局总闸）。开关默认开即命中。
     const ctx = makeCtx();
     const t = buildCanvasAgentTools(ctx);
@@ -905,15 +951,15 @@ describe('画布 Agent 工具层 §2.5', () => {
     expect(mockExecutePlan).toHaveBeenCalledTimes(1);
     expect(at(mockExecutePlan.mock.calls, 0)[0].autoRun).toBe(false);
     // 节点已建好（ready）、置 per-conv creditGate 持久化
-    expect(convMock.__state.creditGate?.pending).toBe(true);
-    expect(convMock.__state.creditGate?.map).toBeTruthy();
-    expect(at(convMock.__state.creditGate?.gens ?? [], 0).prompt).toBe('猫');
+    expect(convState.creditGate?.pending).toBe(true);
+    expect(convState.creditGate?.map).toBeTruthy();
+    expect(genPromptAt(convState.creditGate, 0)).toBe('猫');
     // 未置 awaiting 态（credit 闸与 awaiting 确认闸两条门禁互相独立）
-    expect(convMock.__state.awaiting).toBe(false);
+    expect(convState.awaiting).toBe(false);
   });
 
   it('【T5】execute_plan credit 未命中（creditSwitch=关）→ 行为与改动前一致（autoRun 按入参放行）', async () => {
-    convMock.__state.awaiting = false;
+    convState.awaiting = false;
     // 2026-08-27 简化：credit = creditSwitch（全局总闸）。
     // 未命中只由「开关关」决定。
     setCreditSwitch(false);
@@ -927,12 +973,12 @@ describe('画布 Agent 工具层 §2.5', () => {
     expect(r.data.awaited).toBeUndefined(); // 未命中积分闸
     expect(mockExecutePlan).toHaveBeenCalledTimes(1);
     expect(at(mockExecutePlan.mock.calls, 0)[0].autoRun).toBe(true); // 原 autoRun 语义保留
-    expect(convMock.__state.creditGate).toBeNull(); // 不置积分待确认态
+    expect(convState.creditGate).toBeNull(); // 不置积分待确认态
     setCreditSwitch(true); // 还原默认开，避免污染后续
   });
 
   it('【T6】runExistingPlanTool 前置：creditGate 未置位 → 拒绝且不触发任何生成', async () => {
-    convMock.__state.creditGate = null; // 无待点生成的计划
+    convState.creditGate = null; // 无待点生成的计划
     const ctx = makeCtx();
     const r = await runExistingPlanTool(ctx);
     expect(r.ok).toBe(false);
@@ -941,7 +987,7 @@ describe('画布 Agent 工具层 §2.5', () => {
   });
 
   it('用户在积分确认卡片点确认（creditGate pending）→ runExistingPlanTool 补跑并清 gate', async () => {
-    convMock.__state.creditGate = {
+    convState.creditGate = {
       pending: true,
       gens: [{ id: 'g1', prompt: '猫' }],
       map: { g1: 'n1' },
@@ -953,12 +999,12 @@ describe('画布 Agent 工具层 §2.5', () => {
     const arg = at(mockExecutePlan.mock.calls, 0)[0];
     expect(arg.mode).toBe('runExisting'); // D5：复用执行器，不重建节点
     expect(arg.nodeMappings).toEqual({ g1: 'n1' }); // D6：映射来自同一次 execute_plan
-    expect(convMock.__state.creditGate).toBeNull(); // 成功清 gate（失败保留待重试）
+    expect(convState.creditGate).toBeNull(); // 成功清 gate（失败保留待重试）
   });
 
   it('execute_plan 未传 generations 且无暂存 → 报错（不死循环/不崩溃）', async () => {
-    convMock.__state.awaiting = false;
-    convMock.__state.pending = null;
+    convState.awaiting = false;
+    convState.pending = null;
     const ctx = makeCtx();
     const t = buildCanvasAgentTools(ctx);
     const r = await toolOf(t, 'execute_plan')({}); // 无 generations 也无暂存
@@ -969,9 +1015,9 @@ describe('画布 Agent 工具层 §2.5', () => {
   });
 
   it('execute_plan 有阶段1暂存 → 主通道取暂存（pendingUsed 分支）', async () => {
-    convMock.__state.awaiting = false;
+    convState.awaiting = false;
     // 主来源①「阶段1 暂存 pendingGenerations」内存优先（见 useCanvasAgentTools.ts:918-919）
-    convMock.__state.pending = [{ id: 'g1', prompt: '一只猫' }];
+    convState.pending = [{ id: 'g1', prompt: '一只猫' }];
     const ctx = makeCtx();
     const t = buildCanvasAgentTools(ctx);
     const r = await toolOf(t, 'execute_plan')({}); // 不传 generations，只靠暂存
@@ -985,7 +1031,7 @@ describe('画布 Agent 工具层 §2.5', () => {
   });
 
   it('execute_plan：按 attachment_indices 精确取用户参考图（对齐大雄，每步独立）', async () => {
-    convMock.__state.awaiting = false;
+    convState.awaiting = false;
     // 参考图池 = 用户引用图的 URL 数组（useAgentChat.send 写入）
     setCurrentReferenceImages(['http://ref/1.png', 'http://ref/2.png']);
     const ctx = makeCtx();
@@ -1016,8 +1062,8 @@ describe('画布 Agent 工具层 §2.5', () => {
   });
 
   it('【对齐大雄 agentLastUserAttachments】本轮无图时 execute_plan 回退用历史 user 图（attachment_indices 精确取）', async () => {
-    convMock.__state.awaiting = false;
-    convMock.__state.refImages = []; // 本轮无参考图
+    convState.awaiting = false;
+    convState.refImages = []; // 本轮无参考图
     // 历史 user 图（当前对话最近一条带图 user 消息，模拟 getLastUserReferenceImages 返回）
     vi.mocked(convStore.getLastUserReferenceImages).mockReturnValue([
       'http://hist/1.png',
@@ -1046,8 +1092,8 @@ describe('画布 Agent 工具层 §2.5', () => {
   });
 
   it('【对齐大雄 direct_refs】execute_plan 按图编号引用历史/生成图，prompt 里「图N」翻译成「第X张参考图」', async () => {
-    convMock.__state.awaiting = false;
-    convMock.__state.refImages = [];
+    convState.awaiting = false;
+    convState.refImages = [];
     // 当前可引用图编号映射：图1=上一轮生成，图2=上一轮生成（agentCurrentImageMap）
     vi.mocked(convStore.getCurrentImageMap).mockReturnValue([
       { num: 1, url: 'http://x/gen1.png', name: '主图', source: 'gen' },
@@ -1098,8 +1144,8 @@ describe('画布 Agent 工具层 §2.5', () => {
   });
 
   it('execute_plan 无 generations 且无暂存 → 报错（不死循环/不崩溃）', async () => {
-    convMock.__state.awaiting = false;
-    convMock.__state.pending = null;
+    convState.awaiting = false;
+    convState.pending = null;
     const ctx = makeCtx();
     const t = buildCanvasAgentTools(ctx);
     const r = await toolOf(t, 'execute_plan')({}); // 无 generations 也无暂存

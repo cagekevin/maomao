@@ -58,6 +58,8 @@ export type ToolResult = {
   /** 工具执行返回值（任意 JSON 值）。 */
   data?: any;
   error?: unknown;
+  /** 失败时携带的节点 id（对话侧「重试此步骤」定位用；见 generate_node 的失败分支）。 */
+  nodeId?: string;
 };
 
 const tools: ToolDef[] = [];
