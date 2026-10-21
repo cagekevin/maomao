@@ -5,6 +5,8 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { at } from '../helpers/at';
+import { fakeDragEvent } from '../helpers/events';
+import { fakeDataTransfer } from '../helpers/dataTransfer';
 import { renderHook } from '@testing-library/react';
 import type { DragEvent } from 'react';
 import {
@@ -48,23 +50,23 @@ function payload(item: any) {
   });
 }
 /**
- * 拖拽事件 mock：只实现被测用到的字段（preventDefault/stopPropagation/dataTransfer），
- * 缺 DragEvent 的其余必填成员 → 统一 as unknown as 收尾（踩坑记录 #11）。
+ * 拖拽事件替身：形状收口到 `tests/helpers/events.ts`（jsdom 没有 DragEvent 构造器、React 合成事件
+ * 无法 `new`，替身只实现被测读到的成员 —— 这属于既有的能力缺口例外，已在 helper 内单点说明）。
+ * 本文件的两个工厂只描述"用例要控什么"：drop 给 `getData` 的返回值，dragstart 给可断言的 `setData` spy。
  */
-function makeDropEvent(data: any) {
-  return {
-    preventDefault: vi.fn(),
-    stopPropagation: vi.fn(),
-    dataTransfer: { getData: () => data },
-  } as unknown as DragEvent<Element>;
+function makeDropEvent(data: string): DragEvent<Element> {
+  return fakeDragEvent({ dataTransfer: fakeDataTransfer({ extra: { getData: () => data } }) });
 }
+/**
+ * dragstart 事件 + 可断言的 `setData` spy。
+ *
+ * spy 与事件分开返回：替身上的 `dataTransfer.setData` 是 `DataTransfer` 的成员类型（无 `.mock`），
+ * 断言写入内容用这里拿到的同一个 spy 实例，不靠断言把替身说成完整 DataTransfer。
+ */
 function makeDragStartEvent() {
   const setData = vi.fn();
-  const dt = { setData, effectAllowed: '' };
-  // 交叉类型：既是合法 DragEvent（可传给 onDragStart），又保留 setData 供断言访问
-  return { dataTransfer: dt, setData } as unknown as DragEvent<Element> & {
-    setData: ReturnType<typeof vi.fn>;
-  };
+  const evt = fakeDragEvent({ dataTransfer: fakeDataTransfer({ extra: { setData } }) });
+  return { evt, setData };
 }
 
 beforeEach(() => {
@@ -86,12 +88,12 @@ describe('sourceDragProps（源·文件卡片）', () => {
       url: 'x',
     });
     expect(p.draggable).toBe(true);
-    const evt = makeDragStartEvent();
+    const { evt, setData } = makeDragStartEvent();
     p.onDragStart?.(evt);
-    expect(evt.setData).toHaveBeenCalledTimes(1);
-    expect(at(evt.setData.mock.calls, 0)[0]).toBe(RESOURCE_MOVE_MIME);
+    expect(setData).toHaveBeenCalledTimes(1);
+    expect(at(setData.mock.calls, 0)[0]).toBe(RESOURCE_MOVE_MIME);
     // url 必须随 payload 传出（TD-12-8：磁盘定位真源由 url 派生，不能只用 UI folder/name）
-    expect(JSON.parse(at(evt.setData.mock.calls, 0)[1])).toEqual({
+    expect(JSON.parse(at(setData.mock.calls, 0)[1])).toEqual({
       folder: 'migrated',
       name: 'a.png',
       url: 'x',
