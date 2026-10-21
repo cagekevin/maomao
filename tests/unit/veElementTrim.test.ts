@@ -14,30 +14,34 @@
  * ════════════════════════════════════════════════════════════════
  */
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { mediaAssetOf } from '../helpers/fixtures';
+import {
+  mediaAssetOf,
+  sceneOf,
+  textElementOf,
+  videoElementOf,
+  videoTrackOf,
+} from '../helpers/fixtures';
 import { at } from '../helpers/at';
 import { EditorCore } from '../../src/components/videoEditor/engine/core';
 import { getElementSourceDuration } from '../../src/components/videoEditor/engine/timeline/element-utils';
 import type { MediaAsset } from '../../src/components/videoEditor/types/mediaAssets';
 import type { TProject } from '../../src/components/videoEditor/types/project';
-import type { TScene, TimelineElement } from '../../src/components/videoEditor/types/timeline';
+import type { TScene, VideoElement } from '../../src/components/videoEditor/types/timeline';
 
 function media(id: string, duration?: number): MediaAsset {
   return mediaAssetOf({ id, name: id, type: 'video', duration });
 }
 
-function element(overrides: Record<string, unknown>): TimelineElement {
-  return {
+/** 视频片段基准形态（e1 / mediaId m1 / 时长 3 / 原速），用例只覆盖差异字段。 */
+function element(init: Partial<VideoElement> = {}): VideoElement {
+  return videoElementOf({
     id: 'e1',
-    type: 'video',
-    mediaId: 'm1',
     name: 'e1',
-    startTime: 0,
+    mediaId: 'm1',
     duration: 3,
-    trimStart: 0,
     playbackRate: 1,
-    ...overrides,
-  } as unknown as TimelineElement;
+    ...init,
+  });
 }
 
 describe('getElementSourceDuration —— 拖拽边界问真源，不靠副本反推（TD-22-21）', () => {
@@ -67,7 +71,7 @@ describe('getElementSourceDuration —— 拖拽边界问真源，不靠副本�
   });
 
   it('文本/贴纸：无源素材概念 → 退回已用长度（duration 5）', () => {
-    const text = element({ type: 'text', duration: 5, mediaId: undefined });
+    const text = textElementOf({ id: 'e1', name: 'e1', duration: 5 });
     expect(getElementSourceDuration({ element: text, mediaAssets: [media('m1', 10)] })).toBe(5);
   });
 
@@ -92,24 +96,12 @@ function makeProject(id: string): TProject {
 }
 
 function makeScene(): TScene {
-  return {
+  return sceneOf({
     id: 's1',
     name: 's1',
     isMain: true,
-    tracks: [
-      {
-        id: 't1',
-        type: 'video',
-        isMain: true,
-        muted: false,
-        hidden: false,
-        elements: [element({})],
-      },
-    ],
-    bookmarks: [],
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  } as unknown as TScene;
+    tracks: [videoTrackOf({ id: 't1', isMain: true, elements: [element()] })],
+  });
 }
 
 describe('updateElementTrim 提交 duration —— 拖右边缘改时长能落库（TD-22-21 顺带修复）', () => {
