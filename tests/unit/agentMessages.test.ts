@@ -11,8 +11,13 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { at } from '../helpers/at';
 import type { agentChatMessage } from '../../src/components/agent/runtime/agentCore.ts';
 
-// 测试用消息：在 ChatMessage 基础上扩展测试夹具需要的 id/streaming 字段
-type TestChatMessage = agentChatMessage & { id?: string; streaming?: boolean };
+// 测试用消息：在 ChatMessage 基础上扩展测试夹具需要的 id/streaming 字段。
+// 末尾索引签名 = 落盘侧 `ConversationMessage` 的形状（存储要容纳历史遗留字段）⇒ 夹具可直接当快照 messages 用，无需断言。
+type TestChatMessage = agentChatMessage & {
+  id?: string;
+  streaming?: boolean;
+  [key: string]: unknown;
+};
 
 // 内存 store 夹具：消息用 TestChatMessage[]（src 侧真实类型 + 测试字段），保证 .id/.role/.content 等可读。
 // .current 为最新消息数组，.set 整体替换（模拟 setCurrentSnapshot 写语义）。
@@ -49,18 +54,25 @@ beforeEach(() => {
   store.set = (arr) => {
     store.current = arr;
   };
-  getCurrentSnapshot.mockImplementation(
-    () =>
-      ({
-        messages: store.current,
-        skills: [],
-        attachments: [],
-        draft: '',
-        workflow: null,
-        pending: null,
-        memory: {},
-      }) as unknown as import('../../src/components/agent/conversation/conversationSnapshot.ts').ConversationSnapshot,
-  );
+  // 快照字段逐项给全（memory 按 ConversationMemory 真形状填齐）⇒ 无需整对象断言
+  getCurrentSnapshot.mockImplementation(() => ({
+    messages: store.current,
+    skills: [],
+    attachments: [],
+    draft: '',
+    workflow: null,
+    pending: null,
+    memory: {
+      summary: '',
+      facts: [],
+      lastPlan: null,
+      lastSharedStyle: '',
+      notes: [],
+      global_contract: null,
+      artifacts: null,
+      assistantTables: null,
+    },
+  }));
   setCurrentSnapshot.mockImplementation((p) => {
     if (p?.messages) store.set(must(p, 'p').messages as TestChatMessage[]);
   });

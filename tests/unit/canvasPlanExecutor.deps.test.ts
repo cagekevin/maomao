@@ -33,25 +33,22 @@ type GenStep = {
 
 type MockCtx = AgentCanvasHostCtx & { nodes: () => Node[]; edges: () => Edge[] };
 function makeCtx(): MockCtx {
-  let nodes: any = [];
-  let edges: any = [];
+  let nodes: Node[] = [];
+  let edges: Edge[] = [];
+  // 只实现 MockCtx 声明的成员：真实契约（AgentCanvasHostCtx 的四个原语）+ 测试侧读取口 nodes()/edges()。
+  // 键都在类型里 ⇒ 不需要整对象断言（多出的键会被对象字面量的多余属性检查直接拦下）。
   return {
     nodes: () => nodes,
     edges: () => edges,
     getNodes: () => nodes,
-    addNodes: (ns: any) => {
-      nodes = [...nodes, ...ns];
+    getEdges: () => edges,
+    setNodes: (updater) => {
+      nodes = typeof updater === 'function' ? updater(nodes) : updater;
     },
-    addEdges: (es: any) => {
-      edges = [...edges, ...es];
+    setEdges: (updater) => {
+      edges = typeof updater === 'function' ? updater(edges) : updater;
     },
-    setNodes: (fn: any) => {
-      nodes = typeof fn === 'function' ? fn(nodes) : fn;
-    },
-    setEdges: (fn: any) => {
-      edges = typeof fn === 'function' ? fn(edges) : fn;
-    },
-  } as unknown as MockCtx;
+  };
 }
 
 beforeEach(() => {

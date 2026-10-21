@@ -125,6 +125,14 @@ describe('nodePrefs —— 节点上次参数记忆', () => {
 // TODO: 浏览器依赖未测 —— 真实 canvas drawImage/toDataURL 的像素输出未在 node 环境断言
 // ───────────────────────────────────────────────────────────
 const mockImage = { naturalWidth: 0, naturalHeight: 0 };
+
+/** 真 img 元素 + 受控尺寸（`naturalWidth/Height` 是只读属性，只能 defineProperty 注入）⇒ 不需要骨架替身 + 断言。 */
+function imageOf(w: number, h: number): HTMLImageElement {
+  const img = document.createElement('img');
+  Object.defineProperty(img, 'naturalWidth', { value: w, configurable: true });
+  Object.defineProperty(img, 'naturalHeight', { value: h, configurable: true });
+  return img;
+}
 // 【部分 mock（2026-09-15 修正）】原实现把整个模块**整体替换**成 3 个导出 ——
 // `asyncGuard.ts` 随后新增了 `attemptQuietly` / `releaseQuietly` 等（02 区「静默豁免成本层」收口），
 // 本文件里 `nodePrefs` 的消费者随即拿到 `undefined` → 3 例莫名变红。
@@ -160,8 +168,8 @@ describe('imageCompress —— 压缩（含浏览器依赖，部分 mock）', ()
     // 验证：相对 /files/ 路径会被补全成 API_BASE 绝对地址
     const loadSpy = vi.mocked(asyncGuard.loadImageWithTimeout).mockImplementation(async (url) => {
       expect(url.startsWith('http://127.0.0.1:18080/files/')).toBe(true);
-      // loadImageWithTimeout 真实返回 HTMLImageElement；此处用最小替身满足类型（naturalWidth/Height 是测试关心的字段）
-      return { naturalWidth: 100, naturalHeight: 100 } as unknown as HTMLImageElement;
+      // loadImageWithTimeout 真实返回 HTMLImageElement：给真元素，只注入被测读的尺寸字段
+      return imageOf(100, 100);
     });
     // mock canvas
     setupCanvasMock(100, 100, 'data:image/jpeg;base64,AAAA');
