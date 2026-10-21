@@ -9,6 +9,10 @@ import { at } from '../helpers/at';
 import type { ReactNode } from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import type {
+  ChatCompletionsOptions,
+  GenerateResult,
+} from '../../src/components/generate/lib/generate.ts';
 
 /** useNodeGeneration 注入的 config 形状（仅标注测试用到的字段）。 */
 interface GenConfigLike {
@@ -126,12 +130,16 @@ vi.mock('../../src/components/base/api/localToolApi.ts', async (importOriginal) 
   ...((await importOriginal()) as Record<string, unknown>),
   fetchTasks: vi.fn(async () => ({ items: [] })),
 }));
-// 显式声明参数元组：vi.fn(async () => …) 会把参数推断成空元组 []，
-// 导致后续 mock.calls[0][0] 报 TS2493、mockChat(...a) 报 TS2556。
-const mockChat = vi.fn(async (..._args: unknown[]) => ({ ok: true, content: '生成结果' }));
+// 用真实签名给 mock 定型：`mock.calls[0][0]` 直接就是 `ChatCompletionsOptions`
+// （此前参数写成 `..._args: unknown[]`，于是每处读参都要 `as unknown as { messages… }`）。
+const mockChat = vi.fn<(opts: ChatCompletionsOptions) => Promise<GenerateResult>>(async () => ({
+  ok: true,
+  content: '生成结果',
+}));
 vi.mock('../../src/components/generate/lib/generate.ts', async (importOriginal) => ({
   ...((await importOriginal()) as Record<string, unknown>),
-  chatCompletions: (...a: unknown[]) => mockChat(...a),
+  // 必须包一层：工厂被提升到文件顶部，直接 `chatCompletions: mockChat` 会在 mockChat 初始化前取值（TDZ）
+  chatCompletions: (opts: ChatCompletionsOptions) => mockChat(opts),
 }));
 vi.mock('../../src/components/base/utils/providerModels.ts', () => ({
   buildAllModels: vi.fn(() => []),
@@ -165,9 +173,7 @@ describe('TextGenerate 上游文本/图片合并（修复点）', () => {
     fireEvent.click(screen.getByText('生成'));
 
     await waitFor(() => expect(mockChat).toHaveBeenCalled());
-    const call = at(mockChat.mock.calls, 0)[0] as unknown as {
-      messages: Array<{ role: string; [k: string]: unknown }>;
-    };
+    const call = at(mockChat.mock.calls, 0)[0];
     const userMsg = call.messages.find((m) => m.role === 'user');
     expect(must(userMsg, 'userMsg')['content']).toContain('改写成小红书风格');
     expect(must(userMsg, 'userMsg')['content']).toContain('原始文案：今天天气好');
@@ -179,11 +185,7 @@ describe('TextGenerate 上游文本/图片合并（修复点）', () => {
     expect(must(genConfig, 'genConfig').validate()).toBe('');
     fireEvent.click(screen.getByText('生成'));
     await waitFor(() => expect(mockChat).toHaveBeenCalled());
-    const userMsg = (
-      at(mockChat.mock.calls, 0)[0] as unknown as {
-        messages: Array<{ role: string; [k: string]: unknown }>;
-      }
-    ).messages.find((m) => m.role === 'user');
+    const userMsg = at(mockChat.mock.calls, 0)[0].messages.find((m) => m.role === 'user');
     expect(must(userMsg, 'userMsg')['content']).toContain('产品卖点');
   });
 
@@ -198,11 +200,7 @@ describe('TextGenerate 上游文本/图片合并（修复点）', () => {
     setup({ prompt: '汇总' });
     fireEvent.click(screen.getByText('生成'));
     await waitFor(() => expect(mockChat).toHaveBeenCalled());
-    const userMsg = (
-      at(mockChat.mock.calls, 0)[0] as unknown as {
-        messages: Array<{ role: string; [k: string]: unknown }>;
-      }
-    ).messages.find((m) => m.role === 'user');
+    const userMsg = at(mockChat.mock.calls, 0)[0].messages.find((m) => m.role === 'user');
     expect(must(userMsg, 'userMsg')['content']).toContain('汇总');
     expect(must(userMsg, 'userMsg')['content']).toContain('段落A');
     expect(must(userMsg, 'userMsg')['content']).toContain('段落B');
@@ -216,10 +214,7 @@ describe('TextGenerate 上游文本/图片合并（修复点）', () => {
     setup({ prompt: '看图说话' });
     fireEvent.click(screen.getByText('生成'));
     await waitFor(() => expect(mockChat).toHaveBeenCalled());
-    const call = at(mockChat.mock.calls, 0)[0] as unknown as {
-      messages: Array<{ role: string; [k: string]: unknown }>;
-      images?: unknown;
-    };
+    const call = at(mockChat.mock.calls, 0)[0];
     expect(call.images).toEqual(['http://up/a.png']);
     const userMsg = call.messages.find((m) => m.role === 'user');
     expect(must(userMsg, 'userMsg')['content']).toContain('看图说话');
@@ -239,10 +234,7 @@ describe('TextGenerate 上游文本/图片合并（修复点）', () => {
     setup({ prompt: '请描述 @{i1:参考图|http%3A%2F%2Fup%2Fref.png} 的画面', text: '' });
     fireEvent.click(screen.getByText('生成'));
     await waitFor(() => expect(mockChat).toHaveBeenCalled());
-    const call = at(mockChat.mock.calls, 0)[0] as unknown as {
-      messages: Array<{ role: string; [k: string]: unknown }>;
-      images?: unknown;
-    };
+    const call = at(mockChat.mock.calls, 0)[0];
     // 芯片被解析为显式垫图引用（图片 → [img=图片N]），绝不把 @{id:label|url} 噪音原样发给 LLM
     const userMsg = call.messages.find((m) => m.role === 'user');
     expect(must(userMsg, 'userMsg')['content']).not.toContain('@{i1');
