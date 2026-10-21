@@ -8,11 +8,13 @@
  *  - MOSAIC_PALETTE 色板常量
  */
 import { vi, describe, it, expect } from 'vitest';
-import { fakeCanvas, stubCreateElement } from '../helpers/dom';
+import { fakeCanvas, fakeContext2d, stubCreateElement } from '../helpers/dom';
 import type { MosaicMode } from '../../src/components/image/faceMosaic/faceMosaic.ts';
 
 // mock mediapipe：不加载真实 wasm / 模型
-const fakeFaceDetector: Record<string, unknown> = {};
+/** `FaceDetector` 替身：本文件只断言单例身份，不调用 detect。
+ *  三方类无法构造完整实现 ⇒ 这一处断言集中在此（原为两处：这里 + mockResolvedValueOnce）。 */
+const fakeFaceDetector = {} as unknown as import('@mediapipe/tasks-vision').FaceDetector;
 vi.mock('@mediapipe/tasks-vision', () => ({
   FilesetResolver: {
     forVisionTasks: vi.fn(async () => ({ __wasm: true })),
@@ -29,7 +31,8 @@ import {
 } from '../../src/components/image/faceMosaic/faceMosaic.ts';
 
 function makeCtx() {
-  return {
+  // 2D 上下文替身收口到 helpers/dom.ts（jsdom 不实现 canvas）；此处只声明本文件用到的 spy
+  return fakeContext2d({
     save: vi.fn(),
     restore: vi.fn(),
     drawImage: vi.fn(),
@@ -50,7 +53,7 @@ function makeCtx() {
     stroke: vi.fn(),
     strokeStyle: '',
     lineWidth: 1,
-  } as unknown as CanvasRenderingContext2D;
+  });
 }
 
 // mosaic/blur 内部会 document.createElement('canvas') 取离屏 2d context，
@@ -63,7 +66,11 @@ function installOffscreenCanvasSpy() {
   );
 }
 
-const SRC = { width: 100, height: 100 } as unknown as CanvasImageSource;
+// 真 canvas 元素就是 CanvasImageSource（jsdom 下可建，只是没有 2D 实现）⇒ 不再用 {width,height} 假对象
+const SRC: CanvasImageSource = Object.assign(document.createElement('canvas'), {
+  width: 100,
+  height: 100,
+});
 const BOX = { x: 10, y: 10, w: 30, h: 30 };
 
 describe('loadFaceDetector', () => {
@@ -85,9 +92,7 @@ describe('loadFaceDetector', () => {
     vi.mocked(FaceDetector.createFromOptions).mockRejectedValueOnce(new Error('wasm init fail'));
     await expect(load2()).rejects.toThrow('wasm init fail');
     // 失败后再次调用应重新尝试（单例已被 catch 清空）
-    vi.mocked(FaceDetector.createFromOptions).mockResolvedValueOnce(
-      fakeFaceDetector as unknown as import('@mediapipe/tasks-vision').FaceDetector,
-    );
+    vi.mocked(FaceDetector.createFromOptions).mockResolvedValueOnce(fakeFaceDetector);
     const retry = await load2();
     expect(retry).toBe(fakeFaceDetector);
     expect(FaceDetector.createFromOptions).toHaveBeenCalledTimes(2);
@@ -130,9 +135,10 @@ describe('drawMosaicOnBox', () => {
 
   it('非法 mode 不抛错（回退默认分支）', () => {
     const ctx = makeCtx();
-    expect(() =>
-      drawMosaicOnBox(ctx, SRC, BOX, 'unknown-mode' as unknown as MosaicMode, 0.5),
-    ).not.toThrow();
+    // 故意传**类型外**的值验证兜底分支：`MosaicMode` 是四值联合，而运行期要能承受任意字符串
+    // （数据可能来自旧存档/手改）。这里保留唯一一处断言，并在注释里说明「是故意违反类型」。
+    const illegalMode = 'unknown-mode' as unknown as MosaicMode;
+    expect(() => drawMosaicOnBox(ctx, SRC, BOX, illegalMode, 0.5)).not.toThrow();
   });
 });
 
