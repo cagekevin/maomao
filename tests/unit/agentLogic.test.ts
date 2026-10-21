@@ -18,8 +18,24 @@ import {
   buildSkillIndexText,
 } from '../../src/components/agent/skill/model/skillInjectText.ts';
 
-// buildRequestMessages 输出的 content 块类型（测试按块读 type/text）
-type ContentBlock = { type: string; text?: string; image_url?: { url: string } };
+/**
+ * `content` 可能是字符串，也可能是内容块数组（真实类型见 `agentChatMessage.content`）。
+ * 本文件只针对「数组形态」断言 ⇒ 收窄一次即可，不需要把整个数组断言成本地块类型。
+ */
+function contentBlocks(content: agentChatMessage['content']): Array<{
+  type: string;
+  [k: string]: unknown;
+}> {
+  return Array.isArray(content) ? content : [];
+}
+
+/** 取内容块里第一个 text 块的文本（块上除 type 外都是 unknown ⇒ 逐层收窄）。 */
+function textBlockText(content: agentChatMessage['content']): string {
+  for (const block of contentBlocks(content)) {
+    if (block.type === 'text' && typeof block['text'] === 'string') return block['text'];
+  }
+  return '';
+}
 
 // §2.15 AI 助手前端逻辑：parseSSEChunk（SSE 流式解析） + buildRequestMessages（发 LLM 的消息组装）
 // 这两个是 AI 助手多轮工具循环的核心纯函数（不依赖 React DOM），可直接单测。
@@ -50,7 +66,9 @@ describe('AI 助手 parseSSEChunk（SSE 解析）§2.15', () => {
     );
     expect(must(acc.toolCalls[0], 'acc').id).toBe('call1');
     expect(must(must(acc.toolCalls[0], 'acc').function, 'must').name).toBe('create');
-    expect(must(must(acc.toolCalls[0], 'acc').function, 'must').arguments).toBe('{"type":"imageGenerateNode"}');
+    expect(must(must(acc.toolCalls[0], 'acc').function, 'must').arguments).toBe(
+      '{"type":"imageGenerateNode"}',
+    );
   });
 
   it('忽略非 data: 前缀 / [DONE] / 空', () => {
@@ -184,8 +202,14 @@ describe('AI 助手 buildRequestMessages（发 LLM 消息组装）§2.15', () =>
       index,
     );
     const sys = out.filter((m) => m.role === 'system').map((m) => String(m.content));
-    const indexBlk = must(sys.find((t) => t.includes('仅表示存在')), 'sys');
-    const docsBlk = must(sys.find((t) => t.includes('本次启用 Skill')), 'sys');
+    const indexBlk = must(
+      sys.find((t) => t.includes('仅表示存在')),
+      'sys',
+    );
+    const docsBlk = must(
+      sys.find((t) => t.includes('本次启用 Skill')),
+      'sys',
+    );
     expect(indexBlk).toBeTruthy();
     expect(docsBlk).toBeTruthy();
     expect(indexBlk).not.toContain('本次启用 Skill'); // 块① 不含块② 的措辞
@@ -325,11 +349,9 @@ describe('AI 助手 buildRequestMessages（发 LLM 消息组装）§2.15', () =>
     const out = buildRequestMessages(msgs, '', false);
     const user = out.find((m) => m.role === 'user');
     // 图片转 image_url（带附件时 content 运行时为内容块数组，此处断言为数组）
-    expect(at(must(user, 'user').content as unknown as ContentBlock[], 0).type).toBe('image_url');
+    expect(at(contentBlocks(must(user, 'user').content), 0).type).toBe('image_url');
     // 坐标文本附加在 content 里，LLM 能感知参考图来自画布哪个位置
-    const text =
-      (must(user, 'user').content as unknown as ContentBlock[]).find((c) => c.type === 'text')
-        ?.text || '';
+    const text = textBlockText(must(user, 'user').content);
     expect(text).toContain('画布坐标 x=100, y=200');
   });
 
@@ -343,9 +365,7 @@ describe('AI 助手 buildRequestMessages（发 LLM 消息组装）§2.15', () =>
     ];
     const out = buildRequestMessages(msgs, '', false);
     const user = out.find((m) => m.role === 'user');
-    const text =
-      (must(user, 'user').content as unknown as ContentBlock[]).find((c) => c.type === 'text')
-        ?.text || '';
+    const text = textBlockText(must(user, 'user').content);
     expect(text).not.toContain('画布坐标');
     expect(text).toContain('生成一张图');
   });

@@ -19,6 +19,7 @@
  */
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { at } from '../helpers/at';
+import { mediaAssetOf, sceneOf } from '../helpers/fixtures';
 import { EditorCore } from '../../src/components/videoEditor/engine/core';
 import { RemoveMediaAssetCommand } from '../../src/components/videoEditor/engine/commands/media/remove-media-asset.ts';
 import type { TProject } from '../../src/components/videoEditor/types/project';
@@ -37,7 +38,7 @@ function makeProject(id: string): TProject {
       background: { type: 'color', color: '#000000' },
     },
     version: 3,
-  } as unknown as TProject;
+  };
 }
 
 function videoElement(id: string, startTime: number) {
@@ -56,6 +57,11 @@ function textElement(id: string) {
   return { id, type: 'text', name: id, content: id, startTime: 0, duration: 1 };
 }
 
+/**
+ * 刻意构造「**同一轨里混装video + text 元素**」——本套件测的是「选中列表里出现跨类型/跨轨元素时
+ * 如何判定有效性」，需要的就是类型上不成立的组合（拆成两条合规轨道会改变用例语义：
+ * 选择项会落到不同 trackId 上）。故单点收口 + 注释，而不是硬套工厂。
+ */
 function track(id: string, elements: unknown[]): TimelineTrack {
   return {
     id,
@@ -68,19 +74,13 @@ function track(id: string, elements: unknown[]): TimelineTrack {
 }
 
 function makeScene(tracks: TimelineTrack[]): TScene {
-  return {
-    id: 's1',
-    name: 's1',
-    isMain: true,
-    tracks,
-    bookmarks: [],
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  } as unknown as TScene;
+  // 走共享工厂（补 bookmarks / 时间戳），不再整块断言成 TScene
+  return sceneOf({ id: 's1', name: 's1', isMain: true, tracks });
 }
 
 function videoAsset(id: string): MediaAsset {
-  return { id, name: id, type: 'video', url: `blob:${id}` } as unknown as MediaAsset;
+  // 走共享工厂（补 file 等必填字段），不再整块断言成 MediaAsset
+  return mediaAssetOf({ id, name: id, type: 'video', url: `blob:${id}` });
 }
 
 /** 选中 e1（t1 上）。 */

@@ -18,7 +18,9 @@ const taskCtlMock = vi.hoisted(() => ({
   fail: vi.fn(),
 }));
 const busState = vi.hoisted(() => ({
-  handler: null,
+  /** eventBus 的订阅回调：被测代码只读 nodeId / status / resultUrl 三个字段 */
+  handler: null as
+    null | ((payload: { nodeId?: string; status?: string; resultUrl?: string }) => void),
   logger: { info: vi.fn(), debug: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
 // 【TD-01-17】saveResultToTasks 现返回判别联合 SaveTasksOutcome（不再 string|null）
@@ -127,20 +129,29 @@ describe('useNodeGeneration — resultKey 声明式写回（唯一写回路径�
     await act(async () => {
       expect(busState.handler).toEqual(expect.any(Function));
       // 非本节点 → 忽略
-      (busState.handler as unknown as (...a: any[]) => void)({
+      must(
+        busState.handler,
+        'eventBus handler',
+      )({
         nodeId: 'other',
         status: 'completed',
         resultUrl: 'http://x/ignored.png',
       });
       // 非 completed → 忽略
-      (busState.handler as unknown as (...a: any[]) => void)({
+      must(
+        busState.handler,
+        'eventBus handler',
+      )({
         nodeId: 'n1',
         status: 'running',
         resultUrl: 'http://x/ignored2.png',
       });
       expect(patchDataMock).not.toHaveBeenCalled();
       // 本节点 + completed → 自动回填
-      (busState.handler as unknown as (...a: any[]) => void)({
+      must(
+        busState.handler,
+        'eventBus handler',
+      )({
         nodeId: 'n1',
         status: 'completed',
         resultUrl: 'http://x/rec.png',
@@ -155,7 +166,10 @@ describe('useNodeGeneration — resultKey 声明式写回（唯一写回路径�
     // 本用例锁住「没有 resultKey 就不写回」，防未来再把第二个开关加回来。
     renderHook(() => useNodeGeneration(baseProps));
     await act(async () => {
-      (busState.handler as unknown as (...a: any[]) => void)({
+      must(
+        busState.handler,
+        'eventBus handler',
+      )({
         nodeId: 'n1',
         status: 'completed',
         resultUrl: 'http://x/nope.png',
