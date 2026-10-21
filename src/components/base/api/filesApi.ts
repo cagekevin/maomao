@@ -125,7 +125,9 @@ export async function moveFile(src: string, dst: string): Promise<FileOpResult> 
 
 // 是否可移动到文件夹：仅本地文件型资源（local-tool）可移动；文件夹 / 远程 / 收藏类不提供移动入口。
 // 纯函数，供拖拽移动到文件夹（useResourceMoveToFolder）+ 单测。禁止在组件里手写 source/type 判断。
-export function canMoveAsset(item: { source?: string | undefined; type?: string | undefined } = {}): boolean {
+export function canMoveAsset(
+  item: { source?: string | undefined; type?: string | undefined } = {},
+): boolean {
   return item.source === 'local-tool' && item.type !== 'folder';
 }
 
@@ -758,7 +760,8 @@ export async function saveResultToTasks(url: string, type: string): Promise<Save
  * @param {string} [name] 文件名前缀（默认 generated）
  * @returns {Promise<string|null>} 落盘后的 18080 url；失败返回 null（不抛，不影响主流程）
  */
-export async function saveTextToTasks(text: string, name?: string): Promise<UploadOutcome> {
+// text 声明为 unknown：实现第一行就 `typeof text !== 'string'` 兜底（非字符串返回 ok:false）
+export async function saveTextToTasks(text: unknown, name?: string): Promise<UploadOutcome> {
   if (typeof text !== 'string' || !text.trim()) {
     return { ok: false, message: '文本为空，无需落盘' };
   }

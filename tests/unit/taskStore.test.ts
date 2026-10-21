@@ -275,7 +275,7 @@ describe('taskStore §P4 进度落库节流', () => {
     vi.mocked(saveTask).mockClear(); // 只统计终态路径的落库
     handle.progress(30, '阶段');
     // 上游偶发返回对象（历史 bug 会让 .startsWith 崩）→ 原语必须防御，不得把对象写进 resultUrl
-    completeTask(handle.taskId, { url: 'oops' } as unknown as string);
+    completeTask(handle.taskId, { url: 'oops' });
     expect(saveTask).toHaveBeenCalledTimes(1);
     const last = must(vi.mocked(saveTask).mock.calls.at(-1), 'vi')[0] as Task;
     expect(last.status).toBe('completed');

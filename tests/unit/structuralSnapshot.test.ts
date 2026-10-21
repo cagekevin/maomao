@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { at } from '../helpers/at';
-import type { Edge, Node } from '@xyflow/react';
+import type { Node } from '@xyflow/react';
 import {
   applyStructuralSnapshot,
   extractStructuralSnapshot,
@@ -49,7 +49,7 @@ describe('TD-04-31 · 结构快照提取', () => {
     const edges = [
       { id: 'e1', source: 'a', target: 'b', sourceHandle: 'out', targetHandle: null },
       { id: 'e2', source: 'b', target: 'c' },
-    ] as unknown as Edge[];
+    ];
     const s = extractStructuralSnapshot([], edges);
     expect(at(s.edges, 0)).toEqual({
       id: 'e1',
@@ -130,9 +130,7 @@ describe('TD-04-31 · 结构判等（防重复入栈）', () => {
 
   it('边结构变化 → false', () => {
     const noEdge = extractStructuralSnapshot([], []);
-    const withEdge = extractStructuralSnapshot([], [
-      { id: 'e1', source: 'a', target: 'b' },
-    ] as unknown as Edge[]);
+    const withEdge = extractStructuralSnapshot([], [{ id: 'e1', source: 'a', target: 'b' }]);
     expect(isSameStructure(noEdge, withEdge)).toBe(false);
   });
 });

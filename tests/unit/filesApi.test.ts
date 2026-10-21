@@ -243,7 +243,7 @@ describe('filesApi — saveTextToTasks', () => {
       ok: false,
       message: expect.any(String),
     });
-    expect(await api.saveTextToTasks(123 as unknown as string)).toEqual({
+    expect(await api.saveTextToTasks(123)).toEqual({
       ok: false,
       message: expect.any(String),
     });

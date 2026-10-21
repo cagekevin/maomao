@@ -458,7 +458,9 @@ function onTerminalRowMissing(id: string): void {
  *
  * @param resultUrl 已持久化的 /files/ URL（调用方先落盘再调本函数，见 P0-C 单向落盘契约）
  */
-export function completeTask(id: string, resultUrl: string): void {
+// resultUrl 声明为 unknown：实现里本就做 `typeof === 'string'` 防御（上游偶发返回对象/undefined）
+// ⇒ 签名比实现窄会让测试只能靠断言传非法值（TD-18-49）。
+export function completeTask(id: string, resultUrl: unknown): void {
   // 防御：resultUrl 必须是字符串（历史 bug：上游偶发返回对象/undefined，导致 .startsWith 崩）
   const safeUrl = typeof resultUrl === 'string' ? resultUrl : '';
   const cur = tasks.find((t) => t.id === id);
