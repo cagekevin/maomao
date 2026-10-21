@@ -29,6 +29,13 @@ import {
   buildMergedVideoUser,
 } from '@/components/scriptbox/scriptBoxPrompts.ts';
 
+/** 故意喂「类型上不成立」的原始数据 —— 本文件两处兜底分支用例的唯一收口点。
+ *  为什么类型上不成立：① `dlgToText` 声明 `Dialogue[] | null`，但编剧模型按 SCRIPT_WRITER_FORMAT
+ *  返回的是字符串（见 textToDlg 注释）、存量快照同形；② `Shot.dialogue` 声明 `Dialogue[]`，落盘 JSON
+ *  里同样可能是字符串。两处测的正是「未归一」时函数自身的 `Array.isArray` 兜底分支，因此不能改走
+ *  生产读路径（normalizeDialogue / normalizeScriptBoxData）—— 归一后该分支就不被覆盖了。 */
+const rawField = <T>(v: unknown): T => v as T;
+
 describe('剧本盒纯函数 §2.7/2.17', () => {
   it('ZgPrompt：描述 + 模板拼接，style 前置', () => {
     const r = ZgPrompt('character', '蓝发少女', '皮克斯');
@@ -129,8 +136,8 @@ describe('剧本盒纯函数 §2.7/2.17', () => {
 
   it('dlgToText：非数组 → 空串', () => {
     expect(dlgToText(null)).toBe('');
-    // 故意喂字符串（非 Dialogue[]）测兜底分支，用 unknown as 标注
-    expect(dlgToText('字符串' as unknown as Dialogue[])).toBe('');
+    // 故意喂字符串（非 Dialogue[]）测兜底分支；类型不成立的写法收口在 rawField
+    expect(dlgToText(rawField<Dialogue[]>('字符串'))).toBe('');
   });
 
   it('formatLineBreaks：句号类标点（。！？；）后补换行，标点留在行尾', () => {
@@ -175,12 +182,10 @@ describe('剧本盒纯函数 §2.7/2.17', () => {
 
   it('applyTailFrameSelection：选帧 → usePrevShotVideoTail=true + 参考 URL 数组', () => {
     const shots = [{ id: 1, usePrevShotVideoTail: false, prevShotImageRefUrls: [] }];
-    const next = must(applyTailFrameSelection(
-      shots,
-      1,
-      { id: 'v2', assetUrl: '/files/tail.png' },
-      true,
-    ), 'applyTailFrameSelection');
+    const next = must(
+      applyTailFrameSelection(shots, 1, { id: 'v2', assetUrl: '/files/tail.png' }, true),
+      'applyTailFrameSelection',
+    );
     expect(at(next, 0)).toMatchObject({
       usePrevShotVideoTail: true,
       selectedTailFrameVariantId: 'v2',
@@ -613,14 +618,14 @@ describe('剧本盒纯函数 · 合并生成视频', () => {
     });
 
     it('dialogue 是字符串（非数组）→ 当前 dialogueText 返回空，标"（无）"（潜在 bug：有对白却标无）', () => {
-      // dialogue 为 string（真实边界输入），用 as Shot 标注故意偏类型
-      const shot = {
+      // dialogue 为 string（真实边界输入，类型上不成立），收口在 rawField
+      const shot = rawField<Shot>({
         id: 's1',
         index: 1,
         duration: '3s',
         description: 'a',
         dialogue: '小狗：好吃吗',
-      } as unknown as Shot;
+      });
       const user = buildMergedVideoUser([shot], []);
       // 当前行为：dialogueText('小狗：好吃吗') 非数组 → '' → 标（无）。先固化，标注潜在坑。
       expect(user).toContain('对白/旁白：（无）');
