@@ -266,7 +266,10 @@ function FaceMosaicNode({ id, data, selected }: FaceMosaicNodeProps) {
             <div className="grid grid-cols-4 gap-1.5">
               {assetUrls().map((u, i) => (
                 <div
-                  key={i}
+                  /* key 用 url（docs/plan/151 §6.2 2-6 / §11.3）：原为 `key={i}` 位置型 key ——
+                     输入图增删后会把 DOM 与图片错配（<img> 复用上一张的缓存态）。输入图本身无 id
+                     （来自连线，可能同一 url 多路进入），url 是本节点内可用的最稳定判据。 */
+                  key={u}
                   className="relative aspect-square bg-surface-black rounded-md overflow-hidden border border-edge group"
                 >
                   <img
@@ -356,7 +359,12 @@ function FaceMosaicNode({ id, data, selected }: FaceMosaicNodeProps) {
           <div className="nodrag nowheel mt-1 mb-2 grid grid-cols-2 gap-1.5 max-h-[140px] overflow-y-auto pr-1 custom-scrollbar">
             {resultUrls.map((u, i) => (
               <div
-                key={i}
+                /* 同上：位置型 key → **内容 key**。但结果图**可能重复**（同一张源图被处理两次、
+                   或批量处理里出现相同输出 url），纯 `key={u}` 会触发 React 重复 key 告警 ⇒
+                   用「url + 该 url 在本次结果里的出现序号」做 key：仍以内容为主、只在重复时消歧。
+                   本列表每次处理**整体重建**（不是增删换序），故不含位置漂移问题。
+                   结果图无 id 且 resultUrls 是会话态（不落盘，见本文件 :43 注释），不物化身份。 */
+                key={`${u}#${i}`}
                 className="relative aspect-video bg-surface-black rounded-md overflow-hidden border border-edge group"
               >
                 <img

@@ -18,6 +18,8 @@ import {
   shotHandleId,
   parseShotHandle,
 } from '../../src/components/base/core/contracts.ts';
+// 身份键唯一实现：断言按行为比较（不写死下标字面量），见 §5.2 1-11
+import { imageKeyOf } from '../../src/components/base/utils/media/imageIdentity.ts';
 import {
   mergeResourcesFromBackend,
   resetResourceStoreForTest,
@@ -128,7 +130,12 @@ describe('管线契约 getNodeOutput', () => {
       data: { extractedImages: ['data:image/png;base64,aaa', 'data:image/png;base64,bbb'] },
     });
     expect(r.images).toHaveLength(2);
-    expect(at(r.images, 0).id).toBe('frame-0');
+    // 【docs/plan/151 §5.2 1-11（2026-11-01）】原断言写死下标身份 `'frame-0'`。
+    // 现改为**行为断言**：同一 url 得同一键、不同 url 得不同键（不写死字面量，
+    // 源码换成任何确定性键实现都不会假绿/假红）。
+    expect(at(r.images, 0).id).toBe(imageKeyOf({ url: 'data:image/png;base64,aaa' }));
+    expect(at(r.images, 1).id).toBe(imageKeyOf({ url: 'data:image/png;base64,bbb' }));
+    expect(at(r.images, 0).id).not.toBe(at(r.images, 1).id);
     expect(at(r.images, 1).label).toBe('帧 2');
   });
 
@@ -138,9 +145,13 @@ describe('管线契约 getNodeOutput', () => {
       type: 'gridSplitNode',
       data: { extractedImages: ['u1', 'u2'] },
     });
-    expect(sp.images.map((x) => x.id)).toEqual(['split-0', 'split-1']);
+    // 同上：行为断言（同 url 同键、不同 url 不同键），不再写死 'split-0' / 'split-1'
+    expect(sp.images.map((x) => x.id)).toEqual([
+      imageKeyOf({ url: 'u1' }),
+      imageKeyOf({ url: 'u2' }),
+    ]);
     const mg = getNodeOutput({ id: 'm', type: 'gridMergeNode', data: { extractedImages: ['u1'] } });
-    expect(at(mg.images, 0).id).toBe('merge-0');
+    expect(at(mg.images, 0).id).toBe(imageKeyOf({ url: 'u1' }));
   });
 
   it('通用兜底 assetUrl → images', () => {
@@ -436,7 +447,9 @@ describe('P0-B ③ 聚合（aggregateUpstream 与旧 useMemo 体语义等价）'
     const src = mkNode('u1', 'imageGenerateNode', { assetUrl: '/files/a.png' });
     const out = aggregateUpstream([{ node: src, sourceHandle: undefined }]);
     expect(must(must(out.images, 'images')[0], 'must').url).toContain('/files/a.png');
-    expect(must(must(must(out.images, 'images')[0], 'must').url, 'must').startsWith('http')).toBe(true);
+    expect(must(must(must(out.images, 'images')[0], 'must').url, 'must').startsWith('http')).toBe(
+      true,
+    );
   });
 
   it('无上游 → 空聚合', () => {

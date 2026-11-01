@@ -24,7 +24,9 @@ import { showToast } from '@/components/base/core/event/toastStore';
 import { generateImage } from '@/components/generate/lib/generate';
 import { toAbsoluteFileUrl } from '@/components/base/api/index';
 import { useRenderAssetResolver } from '@/components/base/utils/media/assetUrl';
-import { mergeRefImages, buildEffectivePrompt } from '@/components/base/core/utils';
+import { buildEffectivePrompt } from '@/components/base/core/utils';
+// 参考图素材类型真源（原本地 `interface RefImage` 已删，见下方注释；docs/plan/151 §5.2 1-9）
+import { mergeRefImages, type RefImageItem } from '@/components/base/utils/media/imageIdentity';
 import { useNodeData } from '@/hooks/useNodeData';
 import { useNodeExpanded } from '@/hooks/useNodeExpanded';
 import { useNodeField } from '@/hooks/useNodeField';
@@ -120,14 +122,9 @@ import { PROMPT_PANEL_PAD_X } from '@/components/canvas/shell/promptLayout';
  *  - 按钮 hover 统一 hover:bg-surface-hover + hover:text-white
  */
 
-/** 参考图素材形态（ResourceStrip / PromptInput / generateImage 共用） */
-interface RefImage {
-  id: string;
-  url: string;
-  label?: string;
-  sourceNodeId?: string;
-}
-
+/** 参考图素材形态：**类型真源已外置**（docs/plan/151 §5.2 1-9，2026-11-01）。
+ *  原此处与 `image/nodes/ImageGenerate.tsx` 有一份**逐字重复**的 `interface RefImage` —— 两份声明
+ *  必然漂移。现统一从 `base/utils/media/imageIdentity.ts` 取 `RefImageItem`（与 imageKeyOf 同住）。 */
 /** 参考文本形态（resolvePromptChips 要求 id/label 必填） */
 interface RefText {
   id: string;
@@ -146,7 +143,7 @@ interface TemplateNodeData {
   expanded?: boolean;
   inputWidth?: number;
   inputHeight?: number;
-  images?: RefImage[];
+  images?: RefImageItem[];
   texts?: RefText[];
 }
 

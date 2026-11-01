@@ -14,6 +14,7 @@ import {
   type ScriptAsset,
 } from '../components/scriptbox/scriptBoxPrompts.ts';
 import { toAbsoluteFileUrl } from '../components/base/api/index.ts';
+import { readExtractedImages } from '../components/base/utils/media/imageIdentity.ts';
 import { resolveAssetType } from '../components/base/utils/media/assetType.ts';
 import {
   resolveAssetDisplayUrl,
@@ -125,18 +126,28 @@ function objField(obj: unknown, key: string): string | undefined {
   return obj && typeof obj === 'object' ? str((obj as Record<string, unknown>)[key]) : undefined;
 }
 
-function arrayImages(
-  list: unknown,
-  prefix = 'img',
-  labelFn?: (i: number) => string,
-): NodeOutputItem[] {
-  // 数组型产出（extractedImages 等 dataURL 列表）：统一归一为 {id,url,label}。
-  // url 用 typeof 控制流收窄才算诚实——只有真是非空 string 才 push，编译期据此拿到 string 形态。
+/**
+ * 数组型产出（`extractedImages[]` 等 dataURL 字符串列表）→ `{id,url,label}[]` 归一。
+ *
+ * 【id 口径 · docs/plan/151 §5.2 1-3（2026-11-01）】原签名带 `prefix`，产出**前缀+下标**
+ * （**下标当身份**，违反 §2 R2：上游断线重连 / 重排 / Agent 重写 data 后，同一下标指向另一张图，
+ * 而 `data.prompt` 里已持久化的 `@{id}` 芯片会静默指错 —— 第 0 步已为它加了 thumb 兜底安全网）。
+ * 第 1 步曾改走 `imageKeyOf({ url })`（内容派生退化键），`prefix` 随之删掉（三个调用点的
+ * `'frame'/'split'/'merge'` 前缀同时移除）。**第 2 步再进一步**：`data.extractedImages` 已物化成
+ * `{id,url}[]`，本层改为 `readExtractedImages` **透传**写边界生成的真 UUID（不再自己算键）。
+ *
+ * ⚠️ 这是**退化键**，不是身份：URL 形态一变（落盘 dataURL → /files/）键就变；真正跨刷新稳定的
+ * UUID 由**写边界物化**（第 2 步 `withImageIds`）。同内容多帧会撞成同一键（静止画面抽帧）——
+ * 已知代价，见 `imageIdentity.ts` 文件头「退化键不是身份」。
+ */
+function arrayImages(list: unknown, labelFn?: (i: number) => string): NodeOutputItem[] {
+  // 【读侧只取不造 · docs/plan/151 §6.2 2-3（2026-11-01）】原只认 `typeof === 'string'`（旧裸字符串形态）。
+  // 第 2 步把 `data.extractedImages` 物化成 `{id,url}[]` 后，那样过滤会把**所有**切片判成脏项
+  // ⇒ 下游静默 0 张。现统一走 `readExtractedImages`（新旧两形态都能读，缺 id 用退化键，绝不生成 UUID）。
+  // ⚠️ id **直接透传**物化结果（不再在这里 imageKeyOf 重算）：写边界已生成真 UUID，读侧重算等于把它覆盖掉。
   const out: NodeOutputItem[] = [];
-  const arr = Array.isArray(list) ? list : [];
-  arr.forEach((url: unknown, i: number) => {
-    if (typeof url === 'string' && url)
-      out.push({ id: `${prefix}-${i}`, url, label: labelFn ? labelFn(i) : '' });
+  readExtractedImages(list).forEach((im, i) => {
+    out.push({ id: im.id, url: im.url, label: labelFn ? labelFn(i) : '' });
   });
   return out;
 }
@@ -187,14 +198,15 @@ export const NODE_OUTPUTS: Record<string, NodeOutputResolver> = {
     return { images };
   },
   // 视频抽帧 / 网格切图 / 网格合并：data.extractedImages[]（dataURL 字符串数组）
+  // id 由 arrayImages 经 readExtractedImages 透传（写边界已物化真 UUID；旧数据退化为确定性键）
   videoExtractNode: (d) => ({
-    images: arrayImages(d['extractedImages'], 'frame', (i) => `帧 ${i + 1}`),
+    images: arrayImages(d['extractedImages'], (i) => `帧 ${i + 1}`),
   }),
   gridSplitNode: (d) => ({
-    images: arrayImages(d['extractedImages'], 'split', (i) => `切片 ${i + 1}`),
+    images: arrayImages(d['extractedImages'], (i) => `切片 ${i + 1}`),
   }),
   gridMergeNode: (d) => ({
-    images: arrayImages(d['extractedImages'], 'merge', (i) => `图 ${i + 1}`),
+    images: arrayImages(d['extractedImages'], (i) => `图 ${i + 1}`),
   }),
 };
 

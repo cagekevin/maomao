@@ -2,6 +2,7 @@ import React, { useState, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useOutsideClick } from '@/components/base/core/interaction/uiHooks';
 import { clamp } from '@/components/base/core/utils';
+import { imageKeyOf } from '@/components/base/utils/media/imageIdentity';
 import LazyImage from '@/components/base/ui/display/LazyImage';
 import {
   isChipEl,
@@ -41,6 +42,11 @@ import {
  *  - 打字/粘贴/blur 后经 maybeAutoLinkAtCaret → commitOccurrencesInRun 就地转已封口的 @名；
  *  - 判定规则（§8.2 frontier/extendable/弹层候选）与 effect 全量重建（autoLinkAssetsByName）
  *    共用同一匹配源，行为无分叉；IME 组字中不判，共享 value 的其它实例经 el.contains 守卫不抢转。
+ *
+ * 更新(2026-11-01 · docs/plan/151 §5.2 1-4)：@弹层候选的图片 id 兜底从**下标**改为唯一实现
+ * `imageKeyOf({ url })`（退化键）。理由：这个 id 会经 `buildChipEl` 写进
+ * `data.prompt` 的 `@{id}` 芯片并**跨会话存活**，下标在断线重连 / 重排后会指错图。
+ * 文本侧 `text-${idx}` 按计划 §10 **不动**。
  */
 interface PromptInputProps {
   value?: string | undefined;
@@ -79,10 +85,13 @@ function PromptInput({
   portalTarget = document.body, // null → 全屏弹窗内保持内联；默认 portal 到 body
 }: PromptInputProps & { ref?: React.Ref<HTMLDivElement> }) {
   // 素材候选统一形态（memo：作为 useCallback 依赖须保持引用稳定）
+  // id · docs/plan/151 §5.2 1-4（2026-11-01）：图片侧原为**下标当身份**（违反 §2 R2）
+  // → 改走唯一实现 imageKeyOf（有 id 用 id，无 id 得内容派生退化键；同 url 同键，与芯片 id 口径一致）。
+  // 文本侧 `text-${idx}` **刻意不动**（计划 §10「不动文本素材 id」，文本不参与换序）。
   const all = React.useMemo<PromptAssetItem[]>(
     () => [
       ...refImages.map((i, idx): PromptAssetItem => ({
-        id: i.id ?? `img-${idx}`,
+        id: imageKeyOf({ id: i.id, url: i.url }),
         label: i.label || `图片${idx + 1}`,
         ...(i.url !== undefined ? { url: i.url } : {}),
         kind: 'image',

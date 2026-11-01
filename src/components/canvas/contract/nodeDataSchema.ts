@@ -44,6 +44,8 @@ export const NODE_DATA_DEFAULTS: Partial<Record<NodeTypeKey, Record<string, unkn
   imageBoxNode: { images: [], activeIndex: 0, expanded: false },
   gridSplitNode: {
     assetUrl: '',
+    // 更新(2026-11-01 · docs/plan/151 §6.1)：形态 string[] → Array<{id,url}>（元素 id 由写边界物化）。
+    // 默认值仍为 `[]`（空数组对新旧两形态都合法），旧画布数据经 readExtractedImages 读侧归一。
     extractedImages: [],
     rows: 3,
     cols: 3,
@@ -98,7 +100,10 @@ export const NODE_DATA_DEFAULTS: Partial<Record<NodeTypeKey, Record<string, unkn
 
   // ── 顶部快捷（Q/W/E）──
   textGenerateNode: { text: '', creativePresets: {} },
-  imageGenerateNode: { prompt: '', creativePresets: {} },
+  // 更新(2026-11-01 · docs/plan/151 §8.2 / 3-1)：新增 `imageOrder`（参考图顺序表，身份键数组）。
+  // 为什么用**数组序**而不是 zIndex：参考图没有「谁盖住谁」语义，用 zIndex 会把顺序伪装成视觉层级，
+  // 且每次换序要重算全部数值（对照 OverlayEditor 的 zIndex 用法，见 §8.2 的取舍说明）。
+  imageGenerateNode: { prompt: '', creativePresets: {}, imageOrder: [] },
   videoGenerateNode: { prompt: '', creativePresets: {} },
 };
 

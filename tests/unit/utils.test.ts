@@ -9,7 +9,6 @@ import {
   throttle,
   useDebouncedEffect,
   createRafBatch,
-  mergeRefImages,
   buildEffectivePrompt,
   clampSeconds,
   clamp,
@@ -163,30 +162,6 @@ describe('dataUrlToBlob（dataURL → Blob 统一出口）', () => {
 
   it('meta 无 mime 时回退 octet-stream', () => {
     expect(dataUrlToBlob('data:;base64,TQ==').type).toBe('application/octet-stream');
-  });
-});
-
-describe('mergeRefImages（多路图片源去重）', () => {
-  it('同 id 图片两路进入 → 去重后仅 1 张（保留首次出现）', () => {
-    const a = [{ id: 'script-asset-1', url: '/files/a.png' }];
-    const b = [
-      { id: 'script-asset-1', url: '/files/a.png' },
-      { id: 'script-asset-2', url: '/files/b.png' },
-    ];
-    expect(mergeRefImages(a, b)).toEqual([
-      { id: 'script-asset-1', url: '/files/a.png' },
-      { id: 'script-asset-2', url: '/files/b.png' },
-    ]);
-  });
-
-  it('无 id 时按 url 去重；id/url 皆空的项丢弃', () => {
-    const g = [{ url: '/x.png' }, { url: '/x.png' }, {}, { url: '/y.png' }];
-    expect(mergeRefImages(g)).toEqual([{ url: '/x.png' }, { url: '/y.png' }]);
-  });
-
-  it('空/非数组入参安全（不抛）', () => {
-    expect(mergeRefImages(null, undefined, [])).toEqual([]);
-    expect(mergeRefImages([], [])).toEqual([]);
   });
 });
 

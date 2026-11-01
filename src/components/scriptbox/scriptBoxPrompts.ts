@@ -10,6 +10,10 @@
  * 铁律：本文件 100% 纯函数，无 React、无 state、无副作用。
  * UI 与引擎都从这里取函数，保证「依赖单向：UI→引擎→纯函数」。
  * 更新(2026-08-31)：本文件自 base/ 迁入 scriptbox/（解 base⇄scriptbox 循环，见 download/REPORT）。
+ * 更新(2026-11-01 · docs/plan/151 §5.2 1-4)：`mergeShotsForVideo` 的图片 id 兜底从**数组长度当身份**
+ * 改为唯一实现 `imageKeyOf({ url })`（退化键）——
+ * 长度当身份在少/多一张时就整体错位，而这个 id 会随 `data.images` 与 `data.prompt` 芯片跨会话存活。
+ * 本文件仍保持**纯函数**：只 import 零副作用的 `imageIdentity.ts`（它只依赖 idGen/utils 纯函数）。
  */
 
 import { SCRIPT_BOX_WORKFLOWS } from './scriptBoxWorkflows.ts';
@@ -24,6 +28,7 @@ import {
 // 资产类别真源在 `@/types` 的 `ASSET_CATEGORY_META`（§五 #5／§七 #6 收口）；原 `export type AssetCategory = string`
 // 的放宽已收窄为联合，边界一律走 `isAssetCategory` 守卫。本文件**不 re-export** 该类型（消费方从 `@/types` 取，免多头入口）。
 import { isAssetCategory, type AssetCategory } from '../../types';
+import { imageKeyOf } from '../base/utils/media/imageIdentity.ts';
 
 /**
  * 【边界】scriptBoxWorkflows 仍是 .js（真相源，暂不转），其结构按下游实际消费的字段
@@ -576,7 +581,10 @@ export function mergeShotsForVideo(
     for (const im of collectAssets(s, assets)) {
       if (!im?.url || seen.has(im.url)) continue;
       seen.add(im.url);
-      images.push({ id: im.id || `script-asset-${images.length}`, url: im.url });
+      // id 兜底 · docs/plan/151 §5.2 1-4（2026-11-01）：原为**长度当身份**（少一张/多一张就整体错位），
+      // （违反 §2 R2：少一张/多一张就整体错位，而这个 id 会进 `data.prompt` 芯片）→ 改走唯一实现
+      // imageKeyOf 的退化键（同 url 同键；退化键不是身份，见 imageIdentity.ts 文件头）。
+      images.push({ id: im.id || imageKeyOf({ url: im.url }), url: im.url });
     }
   }
   const seconds = list.reduce((sum, s) => sum + shotSeconds(s?.duration), 0);

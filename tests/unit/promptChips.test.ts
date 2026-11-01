@@ -2,6 +2,7 @@
 import { must } from '../helpers/must';
 import { describe, it, expect } from 'vitest';
 import { at } from '../helpers/at';
+import { buildThumbnailUrl } from '../../src/components/base/utils/media/assetUrl.ts';
 import {
   serializeDOM,
   renderPromptToNodes,
@@ -225,6 +226,42 @@ describe('resolvePromptChips（生成端解析）', () => {
     expect(text).toBe('');
     // 纯文本三参原样
     expect(resolvePromptChips('普通', refImages, refTexts).text).toBe('普通');
+  });
+
+  // ── docs/plan/151 §4.2 0-4：id 失配 + thumb 兜底（修「界面有缩略图、发送静默丢图」）──
+  it('① id 失配 + 有 thumb → 仍产出参考图（兜底键按 thumb，不发空）', () => {
+    // 芯片 id 与当前 refImages 对不上（上游重连/Agent 重写 data.images 后的真实形态）
+    const serialized = `用 @{stale-1:人物|${encodeURIComponent('http://x/stale.png')}} 生成`;
+    const { text, refImages: out } = resolvePromptChips(serialized, refImages, refTexts);
+    expect(text).toBe('用 [img=图片1] 生成');
+    expect(out).toEqual([{ id: 'stale-1', url: 'http://x/stale.png' }]);
+  });
+
+  it('② id 失配 + 无 thumb → 保持现状（替换为空，不凭空造参考图）', () => {
+    const { text, refImages: out } = resolvePromptChips('@{stale-1:人物}', refImages, refTexts);
+    expect(text).toBe('');
+    expect(out).toHaveLength(0);
+  });
+
+  it('③ thumb 是缩略图端点 URL → 还原为原图；不可还原则丢弃（绝不静默发坏图）', () => {
+    // 可还原：render 侧按需出图端点（缩略图）→ 发送守卫还原为原图绝对地址
+    const thumb = buildThumbnailUrl('/files/tasks/x.png', { maxDim: 320 });
+    expect(thumb).toMatch(/\/api\/files\/thumbnail\?/); // 前提：输入确实是缩略图端点
+    const restorable = `看 @{stale-2:人物|${encodeURIComponent(thumb)}} 的构图`;
+    const r1 = resolvePromptChips(restorable, refImages, refTexts);
+    expect(r1.text).toBe('看 [img=图片1] 的构图');
+    expect(r1.refImages).toEqual([
+      { id: 'stale-2', url: 'http://127.0.0.1:18080/files/tasks/x.png' },
+    ]);
+    expect(at(r1.refImages, 0).url).not.toContain('/files/thumbnail');
+
+    // 不可还原（缩略图端点但缺 url 参数）→ 丢弃该图，不把端点当原图发出去
+    const broken = `看 @{stale-3:人物|${encodeURIComponent(
+      'http://127.0.0.1:18080/api/files/thumbnail?maxDim=640',
+    )}} 的构图`;
+    const r2 = resolvePromptChips(broken, refImages, refTexts);
+    expect(r2.text).toBe('看  的构图');
+    expect(r2.refImages).toHaveLength(0);
   });
 });
 
@@ -494,5 +531,58 @@ describe('mergeReferenceImageUrls（参考图合并去重唯一实现 · TD-01-1
     mergeReferenceImageUrls(chip, up);
     expect(chip).toEqual(chipCopy);
     expect(up).toEqual(upCopy);
+  });
+});
+
+// ── docs/plan/151 §8.3 3-9：顺序表变化 → [img=图片N] 跟着变（编号 = 重排后数组下标）──
+describe('resolvePromptChips · order 参数（编号同源 3-6）', () => {
+  const refImages = [
+    { id: 'img-1', url: 'http://x/1.png' },
+    { id: 'img-2', url: 'http://x/2.png' },
+  ];
+  const refTexts = [{ id: 't-1', label: '参考文本' }];
+
+  it('不传 order → 回落旧口径（首次出现序），四参调用逐字节不变（I3）', () => {
+    const { text } = resolvePromptChips('@{img-2:第二张}', refImages, refTexts);
+    expect(text).toBe('[img=图片1]'); // 旧口径：prompt 里第一个出现的芯片 = 图片1
+  });
+
+  it('传 order → N = 该图在顺序表里的位次（与缩略图条同源）', () => {
+    // 缩略图条顺序 = [img-2, img-1]（用户把第 2 张拖到第 1 位）
+    const order = ['img-2', 'img-1'];
+    const { text } = resolvePromptChips('@{img-2:第二张}', refImages, refTexts, undefined, order);
+    expect(text).toBe('[img=图片1]'); // img-2 现在排第 1 位 ⇒ 图片1（与缩略图第 1 个一致）
+    const r2 = resolvePromptChips('@{img-1:第一张}', refImages, refTexts, undefined, order);
+    expect(r2.text).toBe('[img=图片2]'); // img-1 排第 2 位 ⇒ 图片2
+  });
+
+  it('顺序表变化 → 同一 prompt 的编号跟着变（"拖了就生效"）', () => {
+    const before = resolvePromptChips('@{img-2:b}', refImages, refTexts, undefined, [
+      'img-1',
+      'img-2',
+    ]);
+    const after = resolvePromptChips('@{img-2:b}', refImages, refTexts, undefined, [
+      'img-2',
+      'img-1',
+    ]);
+    expect(before.text).toBe('[img=图片2]');
+    expect(after.text).toBe('[img=图片1]');
+  });
+
+  it('顺序表里没有该图（表外新增）→ 回落旧口径，不抛、不产出图片0', () => {
+    const { text } = resolvePromptChips('@{img-1:a}', refImages, refTexts, undefined, ['img-2']);
+    expect(text).toBe('[img=图片1]');
+  });
+
+  it('同一图多次引用 → 编号一致、参考图只入一次', () => {
+    const { text, refImages: out } = resolvePromptChips(
+      '@{img-2:a} 与 @{img-2:b}',
+      refImages,
+      refTexts,
+      undefined,
+      ['img-2', 'img-1'],
+    );
+    expect(text).toBe('[img=图片1] 与 [img=图片1]');
+    expect(out).toHaveLength(1);
   });
 });

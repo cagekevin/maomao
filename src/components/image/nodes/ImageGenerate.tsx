@@ -48,7 +48,16 @@ import { commitNewNodes } from '@/components/canvas/structure/deriveNodes';
 import { useCanvasEdges } from '@/components/canvas/structure/CanvasEdgesContext';
 import { useRenderAssetResolver } from '@/components/base/utils/media/assetUrl';
 import { resolveProviderModel } from '@/components/base/utils/providerModels';
-import { mergeRefImages, buildEffectivePrompt } from '@/components/base/core/utils';
+import { buildEffectivePrompt } from '@/components/base/core/utils';
+// 参考图素材类型真源（原本地 `interface RefImage` 已删，见下方注释；docs/plan/151 §5.2 1-9）
+import {
+  applyImageOrder,
+  imageKeyOf,
+  mergeRefImages,
+  type RefImageItem,
+} from '@/components/base/utils/media/imageIdentity';
+// 顺序表重排（3-4）：身份键优先 / 表外追加 / 失效丢弃；发送数组与缩略图条同源（§8.1）
+// 注：applyImageOrder / imageKeyOf / mergeRefImages 已随上方 import 一并引入（同模块，合并为一条）
 import { resolvePromptChips, mergeReferenceImageUrls } from '@/components/canvas/shell/promptChips';
 import { PROMPT_PANEL_PAD_X } from '@/components/canvas/shell/promptLayout';
 import { CameraStudioPanel, CameraSettingsSelector, applyCameraSettingsToPrompt } from '../editors';
@@ -71,13 +80,10 @@ import type { PixelSize } from '@/components/generate/lib/imagePixel';
  * 【2026-09-30】原 `useAssetDegrade`（lodLevel>=2 藏生图结果）已删 —— 静止 `<img>` 解码一次即纹理，
  * 不重绘就不烧，降它≈0 收益（docs/plan/139 §3.2 A 类）。性能模式对图片节点不再有任何隐藏。
  */
-/** 参考图素材形态（ResourceStrip / PromptInput / generateImage 共用） */
-interface RefImage {
-  id: string;
-  url: string;
-  label?: string;
-  sourceNodeId?: string;
-}
+/** 参考图素材形态：**类型真源已外置**（docs/plan/151 §5.2 1-9，2026-11-01）。
+ *  原此处与 `_template/TemplateNode.tsx` 有一份**逐字重复**的 `interface RefImage` —— 两份声明
+ *  必然漂移（改一处忘另一处，且编译器不会提醒）。现统一从 `base/utils/media/imageIdentity.ts`
+ *  取 `RefImageItem`（与 imageKeyOf / makeImageId 同住，媒体域概念）。 */
 
 /** 参考文本形态（resolvePromptChips 要求 id/label 必填） */
 interface RefText {
@@ -102,12 +108,18 @@ interface ImageGenerateData {
   expanded?: boolean;
   inputWidth?: number;
   inputHeight?: number;
-  images?: RefImage[];
+  images?: RefImageItem[];
   texts?: RefText[];
   /** 摄影参数（焦距/快门效果/光圈/曝光时间）；缺省 = 全自动，不写入提示词 */
   cameraSettings?: CameraGenerationSettings;
   /** 创作库预设字典（键 = cp_ 前缀 id；形态真源 = creativePresets.CreativePresetsDict）；生成时按正文胶囊替换 */
   creativePresets?: CreativePresetsDict;
+  /**
+   * 参考图**顺序表**（身份键数组，docs/plan/151 §8.2 / 3-1）。
+   * 用户拖拽缩略图换序时写回；`applyImageOrder` 按它重排 → 缩略图条、@弹层、发送数组三处**同源**。
+   * 缺省 = 不做重排（既有画布行为逐字节不变）。
+   */
+  imageOrder?: string[];
 }
 
 /** 上游产出（来自 useConnectedInputs）的共享返回类型真相源：src/hooks/useConnectedInputs.ts NodeOutputGroup。
@@ -150,8 +162,11 @@ function ImageGenerate({ id, data, selected }: ImageGenerateProps) {
   const refImages = useMemo(
     // 合并「连线上游产出」+「剧本盒等塞给本节点的 data.images」时，可能同一批资产图
     // 走了两条路重复进入（同 id，如 script-asset-xxx），mergeRefImages 按 id 去重避免渲染 key 重复。
-    () => mergeRefImages(connected.images, data.images),
-    [connected.images, data.images],
+    // 【按 imageOrder 重排（docs/plan/151 §8.3 3-4）】用户拖拽过的顺序表 → applyImageOrder
+    // （表内优先 / 表外新增追加末尾 / 表内失效 id 丢弃）。缺省（无顺序表）⇒ 原样，行为逐字节不变。
+    // ⚠️ 这一步同时决定了**缩略图条顺序**与**发送数组顺序**（3-5），故二者天然同源。
+    () => applyImageOrder(mergeRefImages(connected.images, data.images), data.imageOrder),
+    [connected.images, data.images, data.imageOrder],
   );
   const refTexts = useMemo(
     () => [...(connected.texts || []), ...(data.texts?.length ? data.texts : [])],
@@ -167,7 +182,16 @@ function ImageGenerate({ id, data, selected }: ImageGenerateProps) {
   // 生成前统一解析：chipResolved.text 是发给 AI 的纯文本；chipResolved.refImages 是用户显式 @ 的参考图
   // （其顺序对应 text 里的「图片N」序号）。memo 稳定引用，避免每次 render 重算。
   const chipResolved = useMemo(
-    () => resolvePromptChips(effectivePrompt, refImages, refTexts, data.creativePresets ?? {}),
+    // 第 5 参 order = 重排后的身份键数组（docs/plan/151 3-6）：让 `[img=图片N]` 的 N 与
+    // 缩略图条位次、@弹层编号**同源**。其余 3 个节点仍用 4 参调用（逐字节旧行为，§10 分两批提交）。
+    () =>
+      resolvePromptChips(
+        effectivePrompt,
+        refImages,
+        refTexts,
+        data.creativePresets ?? {},
+        refImages.map((im) => imageKeyOf({ id: im.id, url: im.url })),
+      ),
     [effectivePrompt, refImages, refTexts, data.creativePresets],
   );
   // 提示词输入框双击全屏编辑（复刻 TextGenerate 的交互：ResizeFullscreenHandle 双击 → 弹层）
@@ -384,10 +408,17 @@ function ImageGenerate({ id, data, selected }: ImageGenerateProps) {
         selectedModel,
         primary,
       );
-      // 参考图 = 用户显式 @ 的芯片图（顺序对应 prompt 里的「图片N」）+ 其余连线上游图（去重）。
+      // 参考图 = 用户显式 @ 的芯片图 + 其余连线上游图（去重）。
       // 图生图：把参考图传下去（网关 image_urls 字段）；signal 支持真取消（Step C）
-      // 芯片图在前、上游图在后（顺序对应 prompt 里的「图片N」）；合并去重收口到唯一实现（TD-01-14）
-      const refUrls = mergeReferenceImageUrls(chipResolved.refImages, refImages);
+      //
+      // 【★顺序语义变更（docs/plan/151 §8.1，用户裁定 2026-11-01）】原为
+      // `mergeReferenceImageUrls(chipResolved.refImages, refImages)` —— **芯片图前置、上游图在后**，
+      // 于是"只 @ 第 2 张"时模型收到的 [img=图片1] 指 B，而缩略图第 1 个是 A（既存错位）。
+      // 现改为**按 refImages（已按 imageOrder 重排）构造发送数组**：芯片图不再前置，
+      // 编号 = 该数组下标 ⇒ 缩略图序 / @弹层编号 / 发送数组序**三处同源**。
+      // 代价（已知）：prompt 里 `[img=图片N]` 的 N 与"用户点 @ 的顺序"不再绑定，而与缩略图位次绑定 ——
+      // 这正是本次要的语义（用户拖了顺序，模型看到的顺序也跟着变）。
+      const refUrls = mergeReferenceImageUrls(refImages);
       // 摄影参数 → 提示词片段（仅在本节点为生图时生效）：拼接在最终提示词末尾
       // （"Camera settings: <英文片段>."），与参考项目 AINodeDialog 完全一致。
       const finalPrompt = applyCameraSettingsToPrompt(
@@ -779,6 +810,17 @@ function ImageGenerate({ id, data, selected }: ImageGenerateProps) {
                 texts={refTexts}
                 onInsert={insertMention}
                 onDisconnect={disconnectSource}
+                /* 拖拽换序（3-4）：把新顺序写成**身份键数组**落盘（顺序真源只有一个 = data.imageOrder）。
+                   不可变写回；refImages 下次经 applyImageOrder 按它重排 ⇒ 缩略图/发送数组同源。 */
+                onReorder={(from, to) => {
+                  const keys = refImages.map((im) => imageKeyOf({ id: im.id, url: im.url }));
+                  if (from < 0 || to < 0 || from >= keys.length || to >= keys.length) return;
+                  const next = keys.slice();
+                  const moved = next.splice(from, 1)[0];
+                  if (moved === undefined) return; // 界内已判（不可达兜底）
+                  next.splice(to, 0, moved);
+                  patchData({ imageOrder: next });
+                }}
               />
 
               {/* 提示词输入（基座 PromptInput，contentEditable 富文本，含 @素材弹层与芯片插入） */}

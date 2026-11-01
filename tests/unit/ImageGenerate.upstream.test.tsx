@@ -233,3 +233,75 @@ describe('ImageGenerate 上游文本/图片合并（修复点）', () => {
     expect(genConfig.validate()).toBe('请输入提示词');
   });
 });
+
+// ── docs/plan/151 §8.3 3-4 / 3-5 / 3-9：imageOrder → 缩略图序 + 发送数组序同源 ──
+describe('ImageGenerate 参考图顺序表（imageOrder）', () => {
+  it('无 imageOrder → 发送数组保持旧顺序（既有画布行为逐字节不变）', async () => {
+    connectedInputs = {
+      images: [
+        { id: 'a', url: 'http://x/a.png' },
+        { id: 'b', url: 'http://x/b.png' },
+      ],
+      texts: [],
+    };
+    setup({ prompt: '画' });
+    fireEvent.click(screen.getByText('生成'));
+    await waitFor(() => expect(mockGenerateImage).toHaveBeenCalled());
+    expect(at(mockGenerateImage.mock.calls, 0)[0].images).toEqual([
+      'http://x/a.png',
+      'http://x/b.png',
+    ]);
+  });
+
+  it('有 imageOrder → **发送数组**按顺序表重排（3-5 核心：模型看图序 = 缩略图序）', async () => {
+    connectedInputs = {
+      images: [
+        { id: 'a', url: 'http://x/a.png' },
+        { id: 'b', url: 'http://x/b.png' },
+      ],
+      texts: [],
+    };
+    // 用户把 b 拖到第 1 位
+    setup({ prompt: '画', imageOrder: ['b', 'a'] });
+    fireEvent.click(screen.getByText('生成'));
+    await waitFor(() => expect(mockGenerateImage).toHaveBeenCalled());
+    expect(at(mockGenerateImage.mock.calls, 0)[0].images).toEqual([
+      'http://x/b.png',
+      'http://x/a.png',
+    ]);
+  });
+
+  it('顺序表含已失效 id → 丢弃，新图追加末尾（不丢图、不空洞）', async () => {
+    connectedInputs = {
+      images: [
+        { id: 'a', url: 'http://x/a.png' },
+        { id: 'c', url: 'http://x/c.png' },
+      ],
+      texts: [],
+    };
+    setup({ prompt: '画', imageOrder: ['gone', 'c'] });
+    fireEvent.click(screen.getByText('生成'));
+    await waitFor(() => expect(mockGenerateImage).toHaveBeenCalled());
+    expect(at(mockGenerateImage.mock.calls, 0)[0].images).toEqual([
+      'http://x/c.png',
+      'http://x/a.png',
+    ]);
+  });
+
+  it('芯片编号与发送数组同源：order 重排后 `[img=图片N]` 的 N 跟缩略图位次一致（3-6 C 点）', async () => {
+    connectedInputs = {
+      images: [
+        { id: 'a', url: 'http://x/a.png' },
+        { id: 'b', url: 'http://x/b.png' },
+      ],
+      texts: [],
+    };
+    // 只 @ 了 b，且用户把 b 拖到第 1 位 ⇒ b 必须是「图片1」
+    setup({ prompt: '@{b:第二张}', imageOrder: ['b', 'a'] });
+    fireEvent.click(screen.getByText('生成'));
+    await waitFor(() => expect(mockGenerateImage).toHaveBeenCalled());
+    const call = at(mockGenerateImage.mock.calls, 0)[0];
+    expect(call.prompt).toContain('[img=图片1]');
+    expect(at(call.images ?? [], 0)).toBe('http://x/b.png'); // 图片1 = b（与 prompt 里的引用一致）
+  });
+});

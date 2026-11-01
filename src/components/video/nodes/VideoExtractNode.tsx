@@ -18,6 +18,14 @@ import { classifyError, getRetryableObserved } from '@/components/base/utils/gen
 import previewUrls from '@/components/base/utils/media/previewUrl';
 import { drawVideoFrame, setCrossOriginForReadable } from '@/components/base/utils/captureFrame';
 import { fileNameFromUrl, canvasToImageDataUrl } from '@/components/base/core/utils';
+// 身份读/写边界（docs/plan/151 §6.2）：读侧 readExtractedImages（旧裸字符串兼容）、
+// 写侧 withImageIds / makeImageId（唯一允许生成真 UUID 的地方，R1）。
+import {
+  readExtractedImages,
+  withImageIds,
+  makeImageId,
+  type ExtractedImage,
+} from '@/components/base/utils/media/imageIdentity';
 import { KEY_MULTIWINDOW_CLIPBOARD } from '@/components/base/core/contracts';
 
 /** 多窗口剪贴板存储键（值 = contracts 真源 · TD-13-7：本节点不再自持第二份字面量） */
@@ -57,7 +65,13 @@ interface VideoExtractNodeData {
    */
   videoUrl?: string;
   videoName?: string;
-  extractedImages?: string[];
+  /**
+   * 抽帧结果 —— **物化形态**（docs/plan/151 §6.1，2026-11-01）：`string[]` → `Array<{id,url}>`。
+   * 为什么升结构：裸字符串装不下身份，下游只能按下标兜底；下标在重排/重连后会指错图，
+   * 而 `data.prompt` 里已持久化的 `@{id}` 芯片会静默失效（第 0 步已加 thumb 兜底安全网）。
+   * 旧画布读出来仍是裸 `string[]` ⇒ 读侧一律经 `readExtractedImages` 归一（**读路径不生成 UUID**）。
+   */
+  extractedImages?: Array<{ id?: string; url?: string } | string>;
 }
 
 interface VideoExtractNodeProps {
@@ -106,7 +120,11 @@ function VideoExtractNode({ id, data, selected }: VideoExtractNodeProps) {
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState(0);
   const [errorMessage, setErrorMessage] = useState('');
-  const [extractedImages, setExtractedImages] = useState(data.extractedImages || []);
+  // 读侧归一（docs/plan/151 §6.2 2-4）：旧画布是裸 string[]，新形态是 {id,url}[]；
+  // 一律经 readExtractedImages（缺 id 用**确定性退化键**，**绝不在此生成随机 UUID** —— R1）。
+  const [extractedImages, setExtractedImages] = useState<ExtractedImage[]>(() =>
+    readExtractedImages(data.extractedImages),
+  );
   // 结果落盘唯一入口（P0-2 收口）：本地处理无 server 任务，不走 useNodeGeneration，
   // 抽帧结果写 node.data.extractedImages 随画布快照落盘恢复（对齐 CONTEXT 真相源契约 ③文本类例外）。
   const { patchData } = useNodeData(id);
@@ -280,7 +298,8 @@ function VideoExtractNode({ id, data, selected }: VideoExtractNodeProps) {
         for (const [i, time] of list.entries()) {
           setProgress(50 + Math.round((i / list.length) * 50));
           frames.push(await seekTo(video, time));
-          setExtractedImages([...frames]);
+          // 预览态：退化键（不生成 UUID —— 物化只在落盘的写边界做一次，见下方 withImageIds）
+          setExtractedImages(readExtractedImages(frames));
         }
       } else {
         // 智能转场检测
@@ -326,13 +345,19 @@ function VideoExtractNode({ id, data, selected }: VideoExtractNodeProps) {
         for (const [i, time] of allTimes.entries()) {
           setProgress(50 + Math.round((i / allTimes.length) * 50));
           frames.push(await seekTo(video, time));
-          setExtractedImages([...frames]);
+          // 预览态：用退化键（不生成 UUID —— 物化只在下方写边界做一次）
+          setExtractedImages(readExtractedImages(frames));
         }
       }
       setProgress(100);
       setLoading(false);
-      // 结果落盘：最终帧数组一次性写 node.data（逐帧仅 state 实时预览，避免高频大数组写快照）
-      patchData({ extractedImages: frames });
+      // 结果落盘：最终帧数组一次性写 node.data（逐帧仅 state 实时预览，避免高频大数组写快照）。
+      // 【物化 id · docs/plan/151 §6.2 2-2】这是「id 会进 node.data」的写边界 ⇒ 用 withImageIds 生成真 UUID
+      // （唯一允许生成的地方，R1）。本节点**不落盘**（frames 仍是 dataURL），故 id 与 url 一次性定死，
+      // 之后无论 url 形态怎么变，id 都不跟着换（消除"落盘即换身份"的爆点）。
+      const materialized = withImageIds(frames, 'frame');
+      setExtractedImages(materialized);
+      patchData({ extractedImages: materialized });
       logger.debug('抽帧', 'done', { nodeId: id, frames: frames.length });
       showToast(`抽帧完成！共提取 ${frames.length} 张图片`);
       video.src = '';
@@ -377,8 +402,10 @@ function VideoExtractNode({ id, data, selected }: VideoExtractNodeProps) {
       canvas.height = h;
       ctx.drawImage(v, 0, 0, w, h);
       const img = canvasToImageDataUrl(canvas, 'image/jpeg', 0.8);
-      // 手动截取是低频用户操作：state 与 node.data 同步追加（结果落盘，刷新不丢）
-      const next = [...extractedImages, img];
+      // 手动截取是低频用户操作：state 与 node.data 同步追加（结果落盘，刷新不丢）。
+      // 物化 id：只给**新增的这张**生成 UUID，已存在的帧 id 原样保留（withImageIds 会重开身份，
+      // 故这里手写单条，避免把整批老帧的身份全部重开）。
+      const next = [...extractedImages, { id: makeImageId('frame'), url: img }];
       setExtractedImages(next);
       patchData({ extractedImages: next });
       showToast('已截取当前帧');
@@ -411,7 +438,12 @@ function VideoExtractNode({ id, data, selected }: VideoExtractNodeProps) {
       return;
     }
     try {
-      const payload = JSON.stringify({ type: 'mutiwindow-images', images: extractedImages });
+      // 【2-5 剪贴板载荷（必改）】接收侧（useAssetDropPaste）只认 `typeof x === 'string'`
+      // ⇒ 物化后必须发 url 列表，否则粘贴**静默 0 张**（过滤后 length 0 直接 return，无提示）。
+      const payload = JSON.stringify({
+        type: 'mutiwindow-images',
+        images: extractedImages.map((i) => i.url),
+      });
       const r = await copyText(payload);
       if (!r.ok) {
         // 同 copySingle：降级路径的落盘失败必须留痕
@@ -545,13 +577,15 @@ function VideoExtractNode({ id, data, selected }: VideoExtractNodeProps) {
                 </span>
               </div>
               <div className="grid grid-cols-[repeat(auto-fill,minmax(110px,1fr))] gap-3 auto-rows-max">
-                {extractedImages.map((img, idx) => (
+                {extractedImages.map((frame, idx) => (
                   <div
-                    key={idx}
+                    /* key 用物化 id（docs/plan/151 §6.2 2-6 / §11.3）：原为 `key={idx}`（位置型 key，
+                       换序/删一张就会把 DOM 与图片错配）。id 由写边界物化，稳定且唯一。 */
+                    key={frame.id}
                     className="aspect-video bg-black rounded-lg border relative group/img border-edge overflow-hidden"
                   >
                     <img
-                      src={render(img)}
+                      src={render(frame.url)}
                       loading="lazy"
                       decoding="async"
                       className="w-full h-full object-cover"
@@ -560,7 +594,7 @@ function VideoExtractNode({ id, data, selected }: VideoExtractNodeProps) {
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          copySingle(img);
+                          copySingle(frame.url);
                         }}
                         className="p-2 bg-surface-1 hover:bg-white rounded-full text-body hover:text-black transition-all shadow-lg cursor-pointer border-none"
                         title="复制为新节点 (Ctrl+V粘贴)"
@@ -570,7 +604,7 @@ function VideoExtractNode({ id, data, selected }: VideoExtractNodeProps) {
                       <button
                         onClick={async (e) => {
                           e.stopPropagation();
-                          const res = await downloadUrl(img, `frame-${idx + 1}.jpg`);
+                          const res = await downloadUrl(frame.url, `frame-${idx + 1}.jpg`);
                           if (!res.ok) showToast(res.msg, { type: 'error' });
                         }}
                         className="p-2 bg-surface-1 hover:bg-white rounded-full text-body hover:text-black transition-all shadow-lg cursor-pointer border-none"

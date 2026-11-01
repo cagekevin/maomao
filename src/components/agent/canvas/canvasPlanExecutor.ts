@@ -12,9 +12,14 @@
  *  建 A→B 连线后，B 生成时自动读到 A 的图当参考图，无需手动注入、无需改下游节点代码。
  *
  * 【依赖第 1 步异步执行器】触发用 taskStore.runNodeGeneration（await 拿已落盘 resultUrl）。
+ *
+ * 更新(2026-11-01 · docs/plan/151 §5.2 1-7)：写进 `data.images` 的参考图补 `id: makeImageId('ref')`
+ * —— 原形态 `{ url, name }` 无 id，下游只能按下标兜底、芯片拿不到稳定身份。这是「id 会落进 node.data」
+ * 的诞生点，按 §2 R1 **只在这里生成一次**（读取路径禁止生成随机 id）。
  */
 import { runNodeGeneration, isNodeRegistered } from '../../base/store/taskStore.ts';
 import { generateId } from '../../base/core/idGen.ts';
+import { makeImageId } from '../../base/utils/media/imageIdentity.ts';
 import { logger } from '@/components/base/core/log/logger';
 import { toAbsoluteFileUrl } from '@/components/base/utils/media/assetUrl';
 import { createAgentCanvasHost, type AgentCanvasHostCtx } from './agentCanvasHost.ts';
@@ -515,18 +520,27 @@ export async function executePlan({
         // 优先用该步自己的 referenceImages（execute_plan 按 attachment_indices 解析后的），否则用整批共享的。
         // 【TASK-012 缺口 1】use_attachments === false（product_reference 步）时：不写任何用户参考图到 data.images，
         // 只靠 Wave2 连线读产品定稿，避免"用户上传图 + 产品定稿"两张混喂（对齐大雄 L10213）。
+        //
+        // 【id 必须在这里补（docs/plan/151 §5.2 1-7 / §2 R1，2026-11-01）】原注入形态是 `{ url, name }`
+        // —— **无 id**：下游 ResourceStrip 只好按下标兜底、芯片也拿不到稳定身份。这是「id 会落进
+        // node.data」的**诞生点**，按 R1 只允许在这里生成一次（读取路径永远不许补随机 id）。
+        // 已是对象形态的项（`u` 非 string）原样透传：它可能自带 id，本层不覆盖。
         ...(step.use_attachments === false
           ? {}
           : stepRefImages(step).length
             ? {
                 images: stepRefImages(step).map((u: unknown) =>
-                  typeof u === 'string' ? { url: toAbsoluteFileUrl(u), name: 'reference' } : u,
+                  typeof u === 'string'
+                    ? { id: makeImageId('ref'), url: toAbsoluteFileUrl(u), name: 'reference' }
+                    : u,
                 ),
               }
             : referenceImages && referenceImages.length
               ? {
                   images: referenceImages.map((u) =>
-                    typeof u === 'string' ? { url: toAbsoluteFileUrl(u), name: 'reference' } : u,
+                    typeof u === 'string'
+                      ? { id: makeImageId('ref'), url: toAbsoluteFileUrl(u), name: 'reference' }
+                      : u,
                   ),
                 }
               : {}),

@@ -21,6 +21,12 @@
  *       意外重编码）、横跨前后端改动大且回归风险高 → 否决。现状已足够干净，勿再为此重构。
  *
  * 收敛原则：任何新增节点/面板要显示或发送图片，一律用这里，不各写各的 URL 处理。
+ *
+ * 更新(2026-11-01 · docs/plan/151 §4.2 0-3)：新增**同步版发送守卫** `normalizeImageUrlForSendSync`，
+ * 并把「是不是缩略图端点」抽成唯一探测原语 `isThumbnailEndpointUrl`（`thumbnailToOriginal` 与它共用）。
+ * 起因：芯片 `@{id:label|thumb}` 的 thumb 兜底路径（`canvas/shell/promptChips.ts resolvePromptChips`）
+ * 是**同步**的（跑在 useMemo 里，不能 await），但「发送侧禁止携带缩略图端点 URL」这条契约不能因此破例
+ * ⇒ 同步版只做「端点 → 原图 / 不可还原即丢弃」，压缩与 base64 仍只由异步出口承担。
  */
 import { useCallback } from 'react';
 import { logger } from '@/components/base/core/log/logger';
@@ -116,6 +122,24 @@ export function toRelativeFileUrl(u: string | null | undefined): string | null {
 }
 
 /**
+ * 是否为「缩略图端点」URL（render 侧 `/api/files/thumbnail?url=...`）——**探测原语唯一实现**。
+ *
+ * 更新(2026-11-01 · docs/plan/151 §4.2 0-3)：从 `thumbnailToOriginal` 内部抽成独立判据，供
+ * **同步**发送守卫 `normalizeImageUrlForSendSync` 共用 —— 同步调用方（`resolvePromptChips`，
+ * 在 `useMemo` 里、不能 await）也需要「这是不是缩略图端点」这一事实，但**不得**在别处再手写
+ * `endsWith('/files/thumbnail')`（同一语义只允许一种实现，CLAUDE.md §5.4(9)）。
+ * @param {string} u
+ * @returns {boolean} 命中缩略图端点路径且带 query
+ */
+function isThumbnailEndpointUrl(u: string): boolean {
+  if (typeof u !== 'string' || !u) return false;
+  const qIndex = u.indexOf('?');
+  if (qIndex === -1) return false;
+  // 仅当确实命中缩略图端点路径才处理（避免误拆普通带 query 的原图 URL）。
+  return u.slice(0, qIndex).endsWith('/files/thumbnail');
+}
+
+/**
  * 发送侧防御：把「缩略图端点 URL」还原成其背后对应的原图片地址。
  *
  * 背景：显示侧（scope='render'）会把本地图转换成 `/api/files/thumbnail?url=...&maxDim=640` 端点，
@@ -133,13 +157,8 @@ export function toRelativeFileUrl(u: string | null | undefined): string | null {
  * @returns {string} 原图绝对地址；无法还原返回 ''
  */
 function thumbnailToOriginal(u: string): string {
-  if (typeof u !== 'string' || !u) return '';
-  const qIndex = u.indexOf('?');
-  if (qIndex === -1) return '';
-  // 仅当确实命中缩略图端点路径才处理（避免误拆普通带 query 的原图 URL）。
-  const path = u.slice(0, qIndex);
-  if (!path.endsWith('/files/thumbnail')) return '';
-  const rel = new URLSearchParams(u.slice(qIndex + 1)).get('url');
+  if (!isThumbnailEndpointUrl(u)) return '';
+  const rel = new URLSearchParams(u.slice(u.indexOf('?') + 1)).get('url');
   if (!rel) return '';
   return toAbsoluteFileUrl(rel);
 }
@@ -463,6 +482,28 @@ export async function normalizeAssetUrlForSend(
   if (u.startsWith('blob:')) return blobToDataUrl(u);
   if (u.startsWith('data:') || opts.preferBase64) return urlToDataUrl(u);
   return u;
+}
+
+/**
+ * 发送端归一化的**同步版守卫**（供「同步且不能 await」的调用方用，如 `resolvePromptChips` 在 useMemo 内）。
+ *
+ * 更新(2026-11-01 · docs/plan/151 §4.2 0-3)：为什么需要它 —— 芯片 thumb 兜底要把 `@{id:label|thumb}`
+ * 的 thumb 当成参考图发出去，但 thumb **不能直接当发送 url**：它可能是 render 侧缩略图端点
+ * （`/api/files/thumbnail?url=...`），发出去就是小图/404。契约与异步出口**同源**（同一份
+ * `isThumbnailEndpointUrl` / `thumbnailToOriginal`）：
+ *   · 非缩略图端点 → 原样返回（后续真正的发送出口 `normalizeAssetUrlsForSend` 还会再归一一次）；
+ *   · 缩略图端点 → 还原为**原图绝对地址**；
+ *   · 无法还原（无 `url` 参数 / 非法）→ 返回 `''`，由调用方**丢弃该图**（不静默发坏图）。
+ *
+ * 诚实边界：本函数**不做**压缩 / base64 / 相对 `/files/` 归一 —— 那些需要 canvas 与网络，只有异步出口能做。
+ * 它只守「绝不把缩略图端点当原图发出去」这一条，别把它当 `normalizeAssetUrlForSend` 的替代品。
+ * @param {string} u 可能来自芯片 thumb 段的 URL
+ * @returns {string} 可发送的原图 URL；不可还原则 ''
+ */
+export function normalizeImageUrlForSendSync(u: string): string {
+  if (typeof u !== 'string' || !u) return '';
+  if (!isThumbnailEndpointUrl(u)) return u;
+  return thumbnailToOriginal(u);
 }
 
 /**

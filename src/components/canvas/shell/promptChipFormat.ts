@@ -27,6 +27,10 @@
  * 【诚实边界】本文件只搬「格式契约」这一件事，**不搬任何 DOM 函数**
  * （`buildChipEl` / `serializeDOM` / `renderPromptToNodes` 等一律留在 `promptChips.ts`）。
  * 格式契约是字符串级事实，DOM 操作是实现层 —— 两者本就该分层。
+ *
+ * 更新(2026-11-01 · docs/plan/151 §7-1)：新增 `rewriteChipIds`（按 id 映射重写芯片 id，供复制/粘贴
+ * 重开身份用）。它仍是**零依赖纯函数**（只用本文件的 `promptChipRe` / `buildChipText`），
+ * 因此可以被画布域（`groupNodes` / `clipboard` 的调用方）注入给横切层的 `reopenImageIdentities`。
  * ════════════════════════════════════════════════════════════════
  */
 
@@ -56,6 +60,26 @@ export const CHIP_PATTERN_SOURCE = promptChipRe().source;
 const encodeThumb = (url: string): string => (url ? encodeURIComponent(url) : '');
 
 /**
+ * 缩略图 URL **解码**（与上方 `encodeThumb` 成对的格式契约另一半）。
+ *
+ * 【为什么必须有它（2026-11-01 · docs/plan/151 §7-1 施工中由单测抓出）】`promptChipRe` 的 group3
+ * 是**已编码**的值。任何「读 group3 → 再用 `buildChipText` 写回」的路径（如 `rewriteChipIds`）
+ * 若不解码就直传，会被 `encodeThumb` **二次编码**（`%2F` → `%252F`）⇒ 缩略图地址被写坏、
+ * 刷新后芯片显示破图。编码与解码是同一份格式知识，必须同住本文件、成对出现。
+ * 解码失败（非法百分号序列）→ 原样返回（不让一个坏 thumb 把整段 prompt 解析炸掉）。
+ * @param s group3 原文（已编码）
+ * @returns 原始缩略图 URL
+ */
+export function decodeChipThumb(s: string): string {
+  if (!s) return '';
+  try {
+    return decodeURIComponent(s);
+  } catch {
+    return s;
+  }
+}
+
+/**
  * 芯片串的**唯一构造函数**（写侧唯一入口，与 `promptChipRe` 读侧成对）。
  *
  * 【为什么必须有它（TD-04-65）】格式 `@{id:label|thumb}` 此前在 `promptChips.ts`
@@ -69,4 +93,33 @@ const encodeThumb = (url: string): string => (url ? encodeURIComponent(url) : ''
 export function buildChipText(id: string, label: string, thumbUrl?: string): string {
   const thumb = encodeThumb(thumbUrl ?? '');
   return thumb ? `@{${id}:${label}|${thumb}}` : `@{${id}:${label}}`;
+}
+
+/**
+ * 按 id 映射重写 prompt 里的芯片 id：`@{oldId:label|thumb}` → `@{newId:label|thumb}`。
+ *
+ * 【为什么住在本文件（2026-11-01 · docs/plan/151 §7-1）】复制/粘贴 = 新实例 ⇒ 必须重开图片身份（R4）。
+ * 「重开 id」的纯逻辑在 `base/utils/media/imageIdentity.ts`（横切层），但**芯片字符串怎么写**
+ * 属本文件的格式契约 —— 横切层不得反向依赖画布域（check-arch 规则 2）⇒ 由调用方把本函数注入。
+ *
+ * 【为什么不用手写正则】`promptChipRe` / `buildChipText` 是本文件内的读/写两侧唯一真源；
+ * 手抄一份必然与格式变更漂移（TD-04-65 的原始病灶）。
+ * 未命中映射的芯片（上游连线图 / 已失配的旧芯片）**原样保留** —— 第 0 步的 thumb 兜底继续为它保底。
+ *
+ * @param prompt 含 `@{id:label}` 的原始 prompt
+ * @param idMap 旧 id → 新 id（只含「原本有 id」的项）
+ * @returns 重写后的 prompt（无命中时逐字节原样返回）
+ */
+export function rewriteChipIds(prompt: string, idMap: ReadonlyMap<string, string>): string {
+  if (!prompt || idMap.size === 0) return prompt;
+  return prompt.replace(
+    promptChipRe(),
+    (match: string, id: string, label: string, thumb?: string) => {
+      const mapped = idMap.get(id);
+      if (!mapped) return match;
+      // ★ group3 是**已编码**值：必须先 decode 再交给 buildChipText（否则二次编码写坏 URL）。
+      // 这一处由单测「命中映射 → 换 id，label 与 thumb 原样保留」锁住（曾漏掉，测试直接抓出）。
+      return buildChipText(mapped, label, thumb ? decodeChipThumb(thumb) : undefined);
+    },
+  );
 }

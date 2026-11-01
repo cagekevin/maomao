@@ -12,6 +12,7 @@ import { useScriptBoxEngine } from '@/components/scriptbox/useScriptBoxEngine';
 import { useConnectedInputs } from '@/hooks/useConnectedInputs';
 import { useDisconnectSource } from '@/hooks/useDisconnectSource';
 import { useOutsideClick, useContentHeightSync } from '@/components/base/core/interaction/uiHooks';
+import { imageKeyOf } from '@/components/base/utils/media/imageIdentity';
 import { shotHandleId } from '@/components/base/core/contracts';
 import StepShots from '@/components/scriptbox/StepShots';
 import StepAssets from '@/components/scriptbox/StepAssets';
@@ -95,10 +96,12 @@ function ScriptBoxNode({ id, data, selected }: ScriptBoxNodeProps) {
     if (upstreamTexts && upstreamTexts !== curText) patch['upstreamStory'] = upstreamTexts;
     else if (!upstreamTexts && curText) patch['upstreamStory'] = '';
     const imgList = (connected.images || [])
-      .map((im, i) =>
+      .map((im) =>
         im && im.url
           ? {
-              id: im.id || `up-img-${i}`,
+              // id 兜底 · docs/plan/151 §5.2 1-4（2026-11-01）：原为**下标**（违反 §2 R2）
+              // → 改走唯一实现 imageKeyOf 的退化键（同 url 同键）。文本侧 `up-txt-${i}` 按 §10 不动。
+              id: imageKeyOf({ id: im.id, url: im.url }),
               url: im.url,
               label: im.label || '',
               sourceNodeId: im.sourceNodeId,
@@ -107,9 +110,20 @@ function ScriptBoxNode({ id, data, selected }: ScriptBoxNodeProps) {
       )
       .filter(Boolean);
     const curImgs = d.upstreamImages || [];
+    // 【判等口径 · docs/plan/151 §5.2 1-10（2026-11-01，必改）】原为**只比 url**：
+    // 第 1 步把 id 从下标改成 imageKeyOf 后 url 不变 ⇒ 判等恒真 ⇒ `data.upstreamImages` 里的旧假 id
+    // **永远不更新**，而 `StepShots.tsx` 正读它渲染 ResourceStrip（界面上会一直挂着失效 id）。
+    // 现按 imageKeyOf 比较（id 与 url 都一致才算"同一项"）。退化键是 url 的纯函数 ⇒ 对无 id 项仍等价于比 url。
     const sameImgs =
       imgList.length === curImgs.length &&
-      imgList.every((im, i) => im != null && curImgs[i] && curImgs[i].url === im.url);
+      imgList.every(
+        (im, i) =>
+          im != null &&
+          curImgs[i] != null &&
+          curImgs[i].url === im.url &&
+          imageKeyOf({ id: curImgs[i].id, url: curImgs[i].url }) ===
+            imageKeyOf({ id: im.id, url: im.url }),
+      );
     if (!sameImgs) patch['upstreamImages'] = imgList;
     const txtList = (connected.texts || [])
       .map((t, i) =>

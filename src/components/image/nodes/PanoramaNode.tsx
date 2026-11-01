@@ -27,6 +27,7 @@ import { useConnectedInputs } from '@/hooks/useConnectedInputs';
 import { PanoViewer } from '../editors';
 import type { PanoViewerHandle } from '../editors';
 import { generateId } from '@/components/base/core/idGen';
+import { makeImageId } from '@/components/base/utils/media/imageIdentity';
 // 编辑器内的交互归编辑器（ADR-0029）：判据走共用原语，禁自写（自写必漏）。
 import { isEditableTarget } from '@/components/base/core/interaction/uiHooks';
 import { buildSpawnNodes, spawnAndCommit } from '@/components/canvas/structure/deriveNodes';
@@ -392,7 +393,10 @@ function PanoramaNode({ id, data, selected }: PanoramaNodeProps) {
             .map((e) => e.target)
             .filter((tid) => getNode(tid)?.type === 'imageBoxNode');
           const newImages = shots.map((url, i) => ({
-            id: `${generateId('panoShot')}-${i}`,
+            // 身份生成唯一入口（docs/plan/151 §5.2 1-8/R1）：原为直呼 generateId **且带位置后缀**
+            // —— 绕过原语（同一张图换个顺序就是另一个身份）
+            // → 收口到 `makeImageId('pano')`，去掉位置后缀。**id 格式本身不改**（格式收口是第 2 步的事）。
+            id: makeImageId('pano'),
             url,
             label: `全景截图 ${angles[i] || 0}度`,
             source: 'gen',
@@ -408,6 +412,7 @@ function PanoramaNode({ id, data, selected }: PanoramaNodeProps) {
             const existingUrls = new Set(existing.map((x) => x.url));
             const fresh = newImages.filter((x) => !existingUrls.has(x.url));
             const merged = [...existing, ...fresh];
+            // 【A11 白名单 · 追加语义，非换序重映射】把新截图追加进盒子后选中最后一张（docs/plan/151 §9）
             patchNodeDataById(setNodes, boxId, { images: merged, activeIndex: merged.length - 1 });
           } else {
             // 无图片盒子下游：新建图片盒子 + 自动连线
@@ -432,6 +437,7 @@ function PanoramaNode({ id, data, selected }: PanoramaNodeProps) {
                   style: { ...IMAGE_BOX_NODE_SIZE }, // 尺寸单源（TD-16-48）；与导演台同档
                   data: {
                     images: newImages,
+                    // 【A11 白名单 · 追加语义】新建盒子装的是刚截的这批，默认选最后一张（非重映射）
                     activeIndex: newImages.length - 1,
                     expanded: newImages.length > 1,
                     label: '图片盒子',

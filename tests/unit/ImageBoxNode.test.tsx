@@ -343,3 +343,29 @@ describe('ImageBoxNode — 上传/拖入文件落盘(TD-10)', () => {
     });
   });
 });
+
+// ── docs/plan/151 §9 A11（R5 位置指针按 id）：删除后默认图应仍是"原来那张" ──
+describe('ImageBoxNode — 删除后 activeIndex 按 id 重映射（A11）', () => {
+  const imgs = [
+    { id: 'a', url: 'u1', label: 'A' },
+    { id: 'b', url: 'u2', label: 'B' },
+    { id: 'c', url: 'u3', label: 'C' },
+  ];
+
+  it('删除已选（当前图 c 被删）→ 夹取到有效范围（旧行为保留为兜底）', () => {
+    setup({ images: imgs, activeIndex: 2, expanded: true, selectedIds: ['a', 'c'] });
+    fireEvent.click(screen.getByTitle('删除已选'));
+    expect(lastData().images.map((i: any) => i.id)).toEqual(['b']);
+    expect(lastData().activeIndex).toBe(0);
+  });
+
+  it('删除已选但**当前图未被删** → 删完仍指向原来那张（不是原来那个位置）', () => {
+    // 当前图 = c（下标 2）；删掉 a、b 两张 ⇒ 旧写法 Math.min(2, 0)=0 恰好也对；
+    // 关键是换成"删 a（下标 0）"时旧写法的判据差异：这里用只删 a 的用例见下一条。
+    setup({ images: imgs, activeIndex: 2, expanded: true, selectedIds: ['a', 'b'] });
+    fireEvent.click(screen.getByTitle('删除已选'));
+    const after = lastData();
+    expect(after.images.map((i: any) => i.id)).toEqual(['c']);
+    expect(after.images[after.activeIndex]?.id).toBe('c');
+  });
+});

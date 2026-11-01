@@ -43,6 +43,11 @@ import {
   type SelectedAsset,
 } from './components/canvas/lib/selectedAssets.ts';
 import { getNodeAssetUrl } from './components/base/utils/media/nodeMedia.ts';
+// 粘贴重开身份（docs/plan/151 §7-2）：纯逻辑在横切层 imageIdentity，芯片格式由画布域注入
+// （`rewriteChipIds` 零依赖纯函数）。放在这里（App 编排层）而不是 clipboard.ts ——
+// 后者属 `base/utils`（横切层），check-arch 规则 2 禁止它依赖 canvas/ 业务域。
+import { reopenImageIdentities } from './components/base/utils/media/imageIdentity.ts';
+import { rewriteChipIds } from './components/canvas/shell/promptChipFormat.ts';
 import { buildContentUrlResolver } from './components/base/utils/media/assetUrl.ts';
 import { getResources } from './components/resource/resourceStore.ts';
 // 画布节点只读快照桥（docs/136 地基）：剪辑器在 ReactFlowProvider 之外、拿不到 useReactFlow，
@@ -963,7 +968,26 @@ function Canvas() {
     async (jsonStr: string, pos: { x: number; y: number }) => {
       const rebuilt = buildNodesFromClipboard(jsonStr, pos);
       if (!rebuilt) return false;
-      const { nodes: p, edges: m, count } = rebuilt;
+      // 【粘贴 = 新实例 ⇒ 重开图片身份（R4，docs/plan/151 §7-2）】buildNodesFromClipboard 只做 deepClone，
+      // 深拷断引用但 **id 原样带过去** ⇒ 粘贴体与源节点共享 `data.images[].id` 与 `data.prompt` 的
+      // `@{id}` 芯片（幽灵引用：源节点换图后，粘贴体的芯片指向一张不再属于它的图）。
+      // 这里在**编排层**重开（纯逻辑在 imageIdentity，芯片格式由画布域注入 —— 保持依赖方向）。
+      const rebuiltNodes = rebuilt.nodes.map((node) => ({
+        ...node,
+        data: reopenImageIdentities(
+          (node.data ?? {}) as Record<string, unknown>,
+          rewriteChipIds,
+        ) as typeof node.data,
+      }));
+      const {
+        nodes: p,
+        edges: m,
+        count,
+      } = {
+        nodes: rebuiltNodes,
+        edges: rebuilt.edges,
+        count: rebuilt.count,
+      };
       const beforeNodes = nodesRef.current;
       const beforeEdges = edgesRef.current;
       // 旧节点取消选中，新节点/边并入（对齐官方 xi:9751-9766）

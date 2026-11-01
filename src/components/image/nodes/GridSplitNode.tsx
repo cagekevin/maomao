@@ -24,6 +24,9 @@ import { useRenderAssetResolver } from '@/components/base/utils/media/assetUrl';
 import { loadImageWithTimeout } from '@/components/base/utils/net/asyncGuard';
 import { logger } from '@/components/base/core/log/logger';
 import { generateId } from '@/components/base/core/idGen';
+// 身份读/写边界（docs/plan/151 §6.2）：读侧 readExtractedImages（旧裸字符串兼容），
+// 写侧 withImageIds（唯一允许生成真 UUID 的地方，R1）。
+import { readExtractedImages, withImageIds } from '@/components/base/utils/media/imageIdentity';
 import { buildSpawnNodes, spawnAndCommit } from '@/components/canvas/structure/deriveNodes';
 import { useCanvasEdges } from '@/components/canvas/structure/CanvasEdgesContext';
 import {
@@ -204,7 +207,11 @@ interface GridSplitNodeData {
   lassoShapes?: LassoShape[];
   titlePattern?: string;
   sendToImageBox?: boolean;
-  extractedImages?: string[];
+  /**
+   * 预切图结果 —— **物化形态**（docs/plan/151 §6.1，2026-11-01）：`string[]` → `Array<{id,url}>`。
+   * 旧画布读出来仍是裸 `string[]`（无迁移入口）⇒ 读侧一律经 `readExtractedImages` 归一。
+   */
+  extractedImages?: Array<{ id?: string; url?: string } | string>;
 }
 interface GridSplitNodeProps {
   id: string;
@@ -336,10 +343,13 @@ function GridSplitNode({ id, data, selected }: GridSplitNodeProps) {
   useEffect(() => {
     if (splitMode === 'lasso') return;
     let cancelled = false;
-    const writeBack = (images: unknown[]) => {
+    // 【写边界物化 · docs/plan/151 §6.2 2-2】urls 已在下方经 persistInlineOrKeep 落盘换持久 URL；
+    // 这里给**最终 url** 物化真 UUID（落盘前后 id 不变 ⇒ 消除"落盘即换身份"的爆点）。
+    // 旧帧 id 不保留是有意的：整批结果是一次新派生（切分参数变了就是另一批图）。
+    const writeBack = (urls: string[]) => {
       if (cancelled) return;
       patchData({
-        extractedImages: images,
+        extractedImages: withImageIds(urls, 'split'),
         rows: rowCount,
         cols: colCount,
         gridSize: Math.max(rowCount, colCount),
@@ -432,8 +442,13 @@ function GridSplitNode({ id, data, selected }: GridSplitNodeProps) {
         tiles.map((t) => (t ? persistInlineOrKeep(t) : Promise.resolve(null))),
       );
       if (!cancelled) {
+        // 同上：lasso 结果也是一次新派生 ⇒ 物化真 UUID（null 已在上方被过滤前的 map 里被 ? 处理，
+        // 此处 urls 可能含 null —— withImageIds 会按「非空 string」过滤掉）
         patchData({
-          extractedImages: urls,
+          extractedImages: withImageIds(
+            urls.filter((u): u is string => typeof u === 'string' && !!u),
+            'split',
+          ),
           rows: 1,
           cols: closed.length,
           gridSize: Math.max(1, closed.length),
@@ -677,14 +692,16 @@ function GridSplitNode({ id, data, selected }: GridSplitNodeProps) {
       toastWarning('请先连接包含图片的节点');
       return;
     }
-    const valid = (data.extractedImages || []).filter((x) => typeof x === 'string' && !!x);
+    // 读侧只取不造（docs/plan/151 §6.2 2-3）：原 `typeof x === 'string'` 过滤只认旧形态，
+    // 物化后（{id,url}）会把所有切片判成脏项 ⇒ 静默"没有可用的切片"。改走统一读侧归一。
+    const valid = readExtractedImages(data.extractedImages);
     if (valid.length === 0) {
       toastWarning('没有可用的切片，请先连接图片');
       return;
     }
     // sendToImageBox：推送已有图片盒子，没有则新建一个（简化：统一生成 assetNode 网格）
-    const items = valid.map((url, i) => ({
-      url,
+    const items = valid.map((im, i) => ({
+      url: im.url,
       label: titlePattern.replace('{num}', String(i + 1)),
     }));
     spawnImageNodes(items);
@@ -698,19 +715,15 @@ function GridSplitNode({ id, data, selected }: GridSplitNodeProps) {
         toastWarning('请先连接包含图片的节点');
         return;
       }
-      const list = data.extractedImages || [];
-      let url;
-      if (splitMode === 'manual' || splitMode === 'lasso') {
-        url = list[index];
-        if (!url) return;
-      } else {
-        url = list[index];
-      }
+      // 读侧归一（同上）：按**下标定位**（cell 覆盖层与切片一一对应，index 语义必须保留，
+      // 见 docs/plan/151 §11.3「GridSplitNode 不改位置 key」），但取值走 {id,url} 的 url。
+      const list = readExtractedImages(data.extractedImages);
+      const url = list[index]?.url;
       if (!url) return;
       const label = titlePattern.replace('{num}', String(index + 1));
       spawnImageNodes([{ url, label }]);
     },
-    [assetUrl, data.extractedImages, splitMode, titlePattern, spawnImageNodes],
+    [assetUrl, data.extractedImages, titlePattern, spawnImageNodes],
   );
 
   // 模式切换按钮

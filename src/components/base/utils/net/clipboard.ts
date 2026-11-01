@@ -320,6 +320,11 @@ export function buildNodesFromClipboard(
   const p = e.map((x) => {
     const id = `${x.type}-${generateId('n')}`;
     f.set(x.id, id);
+    // 更新(2026-11-01 · docs/plan/151 §7-2)：deepClone 只断引用、**id 原样带过去** ⇒ 粘贴出的节点与
+    // 源节点共享 `data.images[].id` 与 `data.prompt` 的 `@{id}` 芯片（幽灵引用）。
+    // 身份重开**在本层不做**：本文件属 `base/utils`（横切层），check-arch 规则 2 禁止它依赖画布域
+    // （芯片格式真源 `canvas/shell/promptChipFormat.ts`）。⇒ 由调用方（App.pasteNodeGroup，画布编排层）
+    // 在拿到重建结果后统一重开（见该处注释）。
     const data = deepClone(x.data || {});
     return {
       ...x,

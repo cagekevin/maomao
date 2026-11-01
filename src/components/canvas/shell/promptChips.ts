@@ -24,10 +24,29 @@
  *    使「批量全量重建」与「运行期就地提交」共用同一匹配源，根治两套规则分叉；
  *  - 新增 extendable（@名 是否可扩展为更长素材名）、isTerminatedByBreak（BREAK 集
  *    单一真源在 promptMention.ts）、commitOccurrencesInRun（就地 DOM 手术转换）。
+ *
+ * 更新(2026-11-01，docs/plan/151 §4 第 0 步 · 修已存在的「静默丢图」bug)：
+ *  - 现象：`data.prompt` 持久化的芯片是 `@{id:label|thumb}`。id 与当前 refImages 对不上时
+ *    （上游断线重连 / data.images 被 Agent 重写 / 剧本盒重新派发），`renderPromptToNodes` 有
+ *    match[3] thumb 兜底 ⇒ **界面芯片照常显示缩略图**；而 `resolvePromptChips` 的回调签名只有
+ *    `(_match, id, label)`，把 group3 整个丢弃 ⇒ 发送时该参考图被静默丢弃、零提示。
+ *  - 修法：回调收第 4 参 `thumb`，id 查不到时按 thumb 兜底，仍产出 `[img=图片N]` 并进 resolvedRefImages；
+ *    兜底键走 `imageKeyOf`（**唯一实现在 `base/utils/media/imageIdentity.ts`**；第 0 步此处曾是
+ *    局部等价实现，第 1 步已按计划删除并改为 import），保证「同一失配芯片多次出现仍算同一张」。
+ *  - ★安全校验：thumb **不能直接当发送 url** —— 一律过 `normalizeImageUrlForSendSync`
+ *    （`base/utils/media/assetUrl.ts`，与异步出口共用同一份「缩略图端点」判据）：端点还原为原图，
+ *    不可还原则**丢弃该图**，绝不静默发坏图。禁 `decodeThumb(thumb)` 直接塞进发送数组。
+ *  - 兜底命中时打 `logger.debug('promptChips', …)`（默认安静，不新增 console）。
  */
 
 import { BREAK } from './promptMention.ts';
 import { logger } from '@/components/base/core/log/logger';
+// 发送侧同步守卫：thumb 兜底拿到的 URL 必须先过它（缩略图端点 → 原图 / 不可还原即丢弃）。
+// 同一份「是不是缩略图端点」判据与异步出口 normalizeAssetUrlForSend 共用（见 assetUrl.ts 文件头 2026-11-01）。
+import { normalizeImageUrlForSendSync } from '@/components/base/utils/media/assetUrl';
+// 身份键（R2/R3）：唯一实现在 imageIdentity.ts。第 0 步此处曾有一份**局部等价实现**（临时占位），
+// 第 1 步按计划删掉并改为 import —— 不留第二份身份规则（CLAUDE.md §5.4(9) 单一规则原则）。
+import { imageKeyOf } from '@/components/base/utils/media/imageIdentity';
 
 /**
  * ★ TD-22-68 断环（2026-09-20）：`promptChipRe` 的真源已下沉到零依赖的
@@ -39,7 +58,7 @@ import { logger } from '@/components/base/core/log/logger';
  * 【不在此转发】原 `export { promptChipRe }` 已撤：域外消费者（`creativePresets`）改直连叶子，
  * 经本文件转发即无人消费的冗余出口（死代码闸会如实报）。
  */
-import { buildChipText, promptChipRe } from './promptChipFormat.ts';
+import { buildChipText, decodeChipThumb, promptChipRe } from './promptChipFormat.ts';
 
 /** 芯片 token 的素材元信息（renderPromptToNodes 的 metaMap 值形态；导出供调用方标注 Map 泛型） */
 export interface ChipMeta {
@@ -51,15 +70,13 @@ export interface ChipMeta {
 /** 零宽空格：芯片前后光标落点占位 */
 export const ZWSP: string = '\u200B';
 
-/** 缩略图字符串片段 → URL 解码（编码侧在 `promptChipFormat.buildChipText`；集中处理，避免散落 try/catch） */
-const decodeThumb = (s: string): string => {
-  if (!s) return '';
-  try {
-    return decodeURIComponent(s);
-  } catch {
-    return s;
-  }
-};
+/**
+ * 缩略图字符串片段 → URL 解码。
+ * 更新(2026-11-01 · docs/plan/151 §7-1)：实现已下沉到格式契约 `promptChipFormat.decodeChipThumb`
+ * （与编码侧 `buildChipText/encodeThumb` 成对同住）—— 此前本文件持有一份**同语义副本**，
+ * 而 `rewriteChipIds` 也需要解码 ⇒ 两份必然漂移（实测已漂出二次编码 bug）。现只留一处。
+ */
+const decodeThumb = decodeChipThumb;
 
 /**
  * 判断节点是否为「芯片元素」（携带 data-ref-id 的 span）。
@@ -238,8 +255,11 @@ export function renderPromptToNodes(text: string, metaMap?: Map<string, ChipMeta
 
 /**
  * 生成前解析：把 prompt 里的 `@{id:label}` 芯片解析为「纯文本 + 参考图」。
- *   - 图片素材芯片 → 其 url 加入 refImages 参考图列表（同一 id 去重），位置替换为显式垫图引用
+ *   - 图片素材芯片 → 其 url 加入 refImages 参考图列表（同一图去重），位置替换为显式垫图引用
  *     `[img=图片N]`（seedance 富文本垫图语法，避免裸词「图片N」被模型当成画面描述词汇而忽略垫图）；
+ *   - **id 失配但字符串自带 thumb** → 按 thumb 兜底仍产出参考图（2026-11-01 · docs/plan/151 第 0 步）：
+ *     thumb 先过 `normalizeImageUrlForSendSync`（缩略图端点 → 原图；不可还原 → **丢弃该图**，不发坏图），
+ *     兜底键 `imageKeyOf({ id, url: thumbUrl })` 保证同一失配芯片多次出现仍算同一张，并打一条 debug 日志；
  *   - 文本素材芯片 → 替换为其 label（作为纯文本随 prompt 发出）；
  *   - 创作库预设芯片（id 以 `cp_` 开头，第 4 参 `presets` 提供）→ 命中则替换为该条 `prompt`
  *     片段（**原文照搬，不 trim / 不压换行 / 不剥标签头**，§一.4）；未命中 → 置空但留可见标记
@@ -257,28 +277,71 @@ export function resolvePromptChips(
   refImages: Array<{ id?: string; url?: string }> = [],
   refTexts: Array<{ id?: string; label?: string }> = [],
   presets?: Record<string, { prompt?: string }>,
+  order?: readonly string[] | null,
 ): { text: string; refImages: Array<{ id: string; url: string }> } {
   const imgById = new Map<string, string>();
   for (const im of refImages) if (im && im.id && im.url) imgById.set(im.id, im.url);
   const textById = new Map<string, string>();
   for (const t of refTexts) if (t && t.id && t.label) textById.set(t.id, t.label);
 
-  const imageKeyToIndex = new Map<string, number>(); // 图引用去重：id → [img=图片N]
+  /**
+   * 「图片 N」编号的唯一来源（docs/plan/151 §8.3 3-6 / §11.2 的 C 点）。
+   *
+   * 【旧口径（已废）】N = 芯片在 prompt 里**首次出现顺序**（`imageKeyToIndex.size + 1`）——
+   * 于是"只 @ 第 2 张"时 C 编成「图片1」，而缩略图（A）与 @弹层（B）显示「图片2」⇒ 模型与用户
+   * 指的不是同一张（既存不一致）。
+   *
+   * 【新口径（2026-11-01 用户裁定 §8.1）】传入 `order`（重排后的身份键数组）时，
+   * **N = 该图在重排后数组里的下标 + 1** ⇒ 与缩略图条、@弹层、发送数组三处同源。
+   * 未传 `order`（TemplateNode 等旧调用点）⇒ 回落旧口径，**四参调用逐字节不变**（I3 兼容）。
+   */
+  const orderIndexByKey = new Map<string, number>();
+  if (Array.isArray(order)) {
+    order.forEach((key, i) => {
+      if (key && !orderIndexByKey.has(key)) orderIndexByKey.set(key, i + 1);
+    });
+  }
+  /** 取某图的「图片 N」：优先顺序表位次，否则回落旧口径（首次出现序） */
+  const indexOf = (key: string): number => {
+    const fromOrder = orderIndexByKey.get(key);
+    if (fromOrder !== undefined) return fromOrder;
+    let idx = imageKeyToIndex.get(key);
+    if (idx === undefined) {
+      idx = imageKeyToIndex.size + 1;
+      imageKeyToIndex.set(key, idx);
+    }
+    return idx;
+  };
+
+  const imageKeyToIndex = new Map<string, number>(); // 图引用去重（旧口径位次）：身份键 → [img=图片N]
   const resolvedRefImages: Array<{ id: string; url: string }> = [];
 
   const text = String(rawPrompt || '').replace(
     promptChipRe(), // TD-05-5：replace 传新实例（replace 内部会用完重置，但独占更稳）
-    (_match: string, id: string, label: string) => {
+    (_match: string, id: string, label: string, thumb?: string) => {
       const imgUrl = imgById.get(id);
       if (imgUrl) {
-        let idx = imageKeyToIndex.get(id);
-        if (idx === undefined) {
-          idx = imageKeyToIndex.size + 1;
-          imageKeyToIndex.set(id, idx);
+        const key = imageKeyOf({ id, url: imgUrl });
+        const idx = indexOf(key);
+        if (!resolvedRefImages.some((r) => r.id === id))
           resolvedRefImages.push({ id, url: imgUrl });
-        }
         // seedance 富文本垫图语法：显式 `[img=图片N]` 声明垫图引用，而非裸词「图片1」，
         // 避免模型把「图片1」当成画面描述词汇而忽略垫图 / 凭空重画。
+        return `[img=图片${idx}]`;
+      }
+      // ── id 失配兜底（docs/plan/151 §4.2 0-2/0-3）：字符串自带 thumb ⇒ 仍按参考图发送 ──
+      // 为什么必须先过发送守卫：thumb 可能是 render 侧缩略图端点（/api/files/thumbnail?...），
+      // 直接塞进发送数组 = 发小图/404。守卫还原原图；不可还原（无 url 参数）返回 '' ⇒ 丢弃该图。
+      // 禁：decodeThumb(thumb) 直接当发送 url（那正是 0-3 要防的坏图）。
+      const thumbUrl = thumb ? normalizeImageUrlForSendSync(decodeThumb(thumb)) : '';
+      if (thumbUrl) {
+        const key = imageKeyOf({ id, url: thumbUrl });
+        const idx = indexOf(key);
+        // id 保留芯片里的 id（它就是这条数据的身份），url 用校验过的原图地址。
+        if (!resolvedRefImages.some((r) => r.id === id))
+          resolvedRefImages.push({ id, url: thumbUrl });
+        // 默认安静的排查线索：界面看着正常、发送少一张时，开 debug 位即可看到是哪条芯片失配。
+        logger.debug('promptChips', '芯片 id 失配，按 thumb 兜底', { id, label });
         return `[img=图片${idx}]`;
       }
       const textLabel = textById.get(id);
@@ -312,16 +375,24 @@ export function resolvePromptChips(
  * **且已漂移**：TemplateNode/VideoGenerate 写 `!!u`，ImageGenerate/TextGenerate 写 `u != null`
  * （`u != null` 会放行空串 `''`，`!!u` 不会 → 同一份"参考图"判定，两种口径）。
  *
- * 【顺序语义（勿改）】**芯片图在前、上游图在后**。芯片顺序对应 prompt 里的「图片N」编号
- * （见 resolvePromptChips 的 `[img=图片N]`），重排会错位垫图引用。
+ * 【顺序语义 · 2026-11-01 用户裁定，见 docs/plan/151 §8.1 —— **已推翻原「芯片图在前」契约**】
+ * 原写「**芯片图在前、上游图在后**，芯片顺序对应 prompt 里的「图片N」编号」。该契约有两个问题：
+ *  ① 它让**发送数组序**与**缩略图条序**天然不同（只 @ 第 2 张时发送数组 = `[B, A]`，缩略图第 1 个是 A
+ *     ⇒ 模型看到的 `[img=图片1]` 是 B，用户以为的「图片1」是 A，**既存错位**，与拖拽无关）；
+ *  ② 它把"用户点 @ 的顺序"当编号真源，而用户真正能操作的顺序是**缩略图条**（拖拽换序）。
+ * 现语义：**发送数组由调用方按 `data.imageOrder`（已重排的 refImages）构造**，`[img=图片N]` 的 N =
+ * 该数组下标 ⇒ 缩略图序 / @弹层编号 / 发送数组序**三处同源**。
+ * ⚠️ 本函数仍保留 `chipImages` 在前、`upstreamImages` 在后的**参数语义**（它是纯去重工具，不该知道
+ * 谁在前）；"发送数组怎么排"已上移到调用方 —— ImageGenerate 现在只传一个参数（§8.1 分两批提交：
+ * 先只改 ImageGenerate，其余 3 节点保持旧行为观察一轮）。
  *
  * 【依赖说明】本函数**不 import 任何东西**（保持 promptChips 的可单测纯函数面）；
  * `resolvePromptChips` 的 refImages 已保证 `url: string` 非空（`if (im && im.id && im.url)`），
  * 故此处只需处理上游侧与并集去重。
  *
- * @param {{ url?: unknown }[]} chipImages 显式 @ 的芯片参考图（顺序敏感，对应「图片N」）
- * @param {{ url?: unknown }[]} upstreamImages 连线上游图（顺序次之）
- * @returns {string[]} 去重后的非空 URL 列表（芯片优先，其余按首次出现顺序）
+ * @param {{ url?: unknown }[]} chipImages 第一组参考图（顺序敏感 —— 调用方通常直接传**已重排的 refImages**）
+ * @param {{ url?: unknown }[]} upstreamImages 第二组参考图（顺序次之；ImageGenerate 已改为不传）
+ * @returns {string[]} 去重后的非空 URL 列表（按入参出现顺序，首个重复保留）
  */
 export function mergeReferenceImageUrls(
   chipImages: Array<{ url?: unknown }> = [],

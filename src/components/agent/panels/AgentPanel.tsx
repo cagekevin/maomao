@@ -1877,7 +1877,11 @@ function AgentPanel({
               <div className="agent-att-row">
                 {attachments.map((a, i) => (
                   <AttMediaChip
-                    key={i}
+                    /* key 用 url（docs/plan/151 §6.2 2-6 / §11.3）：原为 `key={i}` 位置型 key ——
+                       移除中间一张后，后面的 chip 会复用前一张的 DOM/预览态。
+                       url 是附件在本面板内最稳定的判据（同一 url 重复时由下方 onRemove 按下标移除，
+                       故 key 冲突风险可接受；如出现同 url 两条，React 只会告警、不会崩）。 */
+                    key={a.url}
                     item={a}
                     removeTitle="移除"
                     onRemove={() => removeAttachment(i)}

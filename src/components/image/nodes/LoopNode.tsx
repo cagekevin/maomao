@@ -9,6 +9,7 @@ import { toastWarning } from '@/components/base/core/event/toastStore';
 import { useSyncNodeData } from '@/hooks/useSyncNodeData';
 import { useOutsideClick } from '@/components/base/core/interaction/uiHooks';
 import { generateId } from '@/components/base/core/idGen';
+import { imageKeyOf } from '@/components/base/utils/media/imageIdentity';
 import { buildSpawnNodes, spawnAndCommit } from '@/components/canvas/structure/deriveNodes';
 import { useCanvasEdges } from '@/components/canvas/structure/CanvasEdgesContext';
 
@@ -50,6 +51,10 @@ const SPAWN_DEFAULTS = { aspectRatio: '1:1', imageSize: '1K' }; // 生成节点�
  *  - 同步生成：防重入用 ref 锁（running state 在 React 批处理下无法作为同步锁）。
  *  - 分段手动编辑 overrides 以「段 index」为 key：切换拆分方式 / 上游文案内容变化时清空，
  *    避免旧编辑错位到新段（上游内容签名是字符串值比较，运行建节点不会误清）。
+ *
+ * 更新(2026-11-01 · docs/plan/151 §5.2 1-6)：下发给每个生图节点的参考图 id，原为 **url 当 id**
+ * （url 一落盘就从 dataURL 变成 /files/ ⇒ 同一张图两个身份）→ 改走唯一实现 `imageKeyOf`
+ * （有 id 用 id，无 id 走内容派生退化键）。**只改 id 来源，不改数据结构与下发字段**。
  */
 
 /**
@@ -219,9 +224,12 @@ function LoopNode({ id, data, selected }: LoopNodeProps) {
     // 统一参考图：循环节点从自己上游接到的图片（连线），塞给每个生图节点当参考图。
     // 结构对齐管线契约 { id, url, label }（ResourceStrip 显示名 / mergeRefImages 去重），
     // 不带 sourceNodeId —— 与剧本盒资产参考图同义，在生图节点中不可断开。
+    // id · docs/plan/151 §5.2 1-6（2026-11-01）：原为 **url 当 id**（越界的另一种形态：
+    // url 一落盘就从 dataURL 变 /files/ ⇒ 同一个图两个身份）→ 改走唯一实现 imageKeyOf
+    // （有 id 用 id；无 id 得内容派生退化键 `img_<hash(url)>`，冒号已替换，芯片格式安全）。
     const refImages = (connected.images || [])
       .map((img, i) => ({
-        id: img.id || img.url,
+        id: imageKeyOf({ id: img.id, url: img.url }),
         url: img.url,
         label: img.label || `参考图 ${i + 1}`,
       }))

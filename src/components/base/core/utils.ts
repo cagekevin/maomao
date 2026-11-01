@@ -11,6 +11,13 @@
  *  · dataUrlToBlob / safeFileName     各自语义唯一实现（曾散落多文件，已收口）
  *  · canvasToImageDataUrl             canvas → 图像 dataURL 唯一出口（**产出即校验**，禁假成功；边界见函数头）
  *  · debounce / throttle / formatTime  防抖 / 节流 / 时间格式化唯一入口
+ *
+ * 【已迁出 · 2026-11-01（docs/plan/151 §9 A8「判同只有一个实现」）】原 `mergeRefImages`（多路图片源
+ * 合并去重）住在本文件，判据是 `im.id ?? im.url` —— 与 `base/utils/media/imageIdentity.ts` 的
+ * `imageKeyOf`（R3 判同唯一实现）是**同一语义的两套规则**。它已迁到 imageIdentity.ts 并改走 `imageKeyOf`：
+ *   · 为什么迁而不是就地改：`core/utils` 是**横切层叶子**，若 import imageIdentity 会形成
+ *     `core/utils ↔ media/imageIdentity` 结构环（arch 闸已实测登记为结构债）；
+ *   · 为什么它本就该住 media：`mergeRefImages` 是**图片域语义**（"多路参考图去重"），不是通用纯工具。
  * 改本文件必须同步本文件头注释（CLAUDE.md §零 决策记录铁律）。
  */
 
@@ -234,25 +241,6 @@ export function canvasToBlob(
       reject(e instanceof Error ? e : badImage());
     }
   });
-}
-
-/** 多路图片源合并去重（ImageGenerate/TemplateNode refImages 公共实现）：
- *  按 id（缺省回退 url）去重，保留首次出现；无 key（id/url 皆空）的项丢弃。
- *  解决同一批资产图经「连线上游 + data.images」双路进入导致渲染 key 重复 / 图显示两份。 */
-export function mergeRefImages<T extends { id?: string; url?: string }>(
-  ...groups: Array<Array<T> | T | null | undefined>
-): T[] {
-  const seen = new Set<string>();
-  const merged: T[] = [];
-  groups.forEach((g) => {
-    (Array.isArray(g) ? g : []).forEach((im) => {
-      const key = im && (im.id ?? im.url);
-      if (!key || seen.has(key)) return;
-      seen.add(key);
-      merged.push(im);
-    });
-  });
-  return merged;
 }
 
 /** 有效提示词 = 本地 prompt + 上游文本合并（ImageGenerate/TextGenerate/TemplateNode/VideoGenerate 公共实现）：

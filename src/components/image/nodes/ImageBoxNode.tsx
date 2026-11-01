@@ -27,7 +27,7 @@ import { copyImageToClipboard } from '@/components/base/utils/net/clipboard';
 import { loadImageWithTimeout, attemptQuietly } from '@/components/base/utils/net/asyncGuard';
 import { logger } from '@/components/base/core/log/logger';
 import { useCopyNode } from '@/components/image/hooks/useCopyNode';
-import { generateId } from '@/components/base/core/idGen';
+import { makeImageId, imageKeyOf } from '@/components/base/utils/media/imageIdentity';
 import { canvasToImageDataUrl } from '@/components/base/core/utils';
 import { downloadUrl as clipboardDownload } from '@/components/base/utils/net/clipboard';
 
@@ -57,6 +57,11 @@ import { UPLOAD_DIRS } from '@/components/base/utils/uploadDirs';
  *   </NodeShell>
  *   portal 缩略图更多菜单（fixed 定位）
  *   <FullscreenModal> 放大查看大图 </FullscreenModal>
+ *
+ * 更新(2026-11-01 · docs/plan/151 §5.2 1-5 / 1-7)：
+ *  - 诞生点 id 由直呼 generateId 收口到唯一生成点 `makeImageId('img')`（格式不变、可 grep 审计）；
+ *  - 上游导入 id 由**前缀叠加**（链式成 `up-up-frame-0`，永不收敛）改为 `imageKeyOf`
+ *    （有 id 原样用，无 id 走内容派生退化键）。两处都只是"把散写收口"，不改数据结构。
  */
 interface ImageBoxItem {
   id: string;
@@ -202,7 +207,9 @@ function ImageBoxNode({ id, data, selected }: ImageBoxNodeProps) {
             thumb = undefined;
           }
           return {
-            id: generateId('img'),
+            // 身份生成唯一入口（docs/plan/151 §5.2 1-7/R1）：原直呼 generateId，现收口到
+            // `makeImageId`（可 grep、可审计；**格式不变**，本步不动 id 格式）。
+            id: makeImageId('img'),
             url: it.url,
             thumb,
             label: it.label || '',
@@ -212,10 +219,38 @@ function ImageBoxNode({ id, data, selected }: ImageBoxNodeProps) {
         }),
       );
       const next = [...images, ...enriched];
+      // 【A11 白名单 · 追加语义，非换序重映射】加图后选中最后一张（用户刚加的那张，docs/plan/151 §9）
       updateData({ images: next, activeIndex: next.length - 1 });
     },
     [images, updateData, makeThumb],
   );
+
+  /**
+   * 删除后重算 `activeIndex`（docs/plan/151 §9 A11 必改项 · R5「位置指针必须按 id 重映射」）。
+   *
+   * 【旧写法（已废）】`activeIndex: Math.min(activeIndex, Math.max(0, rest.length - 1))`
+   * —— 纯**按下标夹取**：删掉中间一张时，若当前选中的是它后面的图，下标会整体前移，
+   * 结果"选中的还是那个位置、但已经是另一张图"（用户看到默认图自己跳了）。
+   * 【新写法（照抄本文件 :293-299 换序范式）】删前先记住**当前图的 id**，删后在剩余数组里
+   * `findIndex` 找回它；找得到就停在原图（位置变了但身份没变）；找不到（说明删的就是它）
+   * 才回落到"夹取到有效范围"。
+   *
+   * @param rest 删除后的剩余图片数组
+   * @param currentId 删除前 `activeIndex` 指向的图片 id（可能为空 = 无当前图）
+   * @param prevIndex 删除前的 activeIndex（找不到 currentId 时的夹取基准）
+   */
+  function activeIndexAfterRemove<T extends { id: string }>(
+    rest: T[],
+    currentId: string | undefined,
+    prevIndex: number,
+  ): number {
+    if (currentId) {
+      const found = rest.findIndex((n) => n.id === currentId);
+      if (found >= 0) return found; // 原图还在 → 停在它身上（身份不变，位置可变）
+    }
+    // 删的就是当前图 / 无当前图 → 夹取到有效范围（旧行为，作为"找不到"时的兜底）
+    return Math.min(prevIndex, Math.max(0, rest.length - 1));
+  }
 
   // ---- 删除单个（对齐官方 k）----
   const removeAt = useCallback(
@@ -224,7 +259,8 @@ function ImageBoxNode({ id, data, selected }: ImageBoxNodeProps) {
       const rest = images.filter((_, n) => n !== index);
       updateData({
         images: rest,
-        activeIndex: Math.min(activeIndex, Math.max(0, rest.length - 1)),
+        // 按 id 重映射（R5）：删中间一张后，默认图应仍是**原来那张**，不是"原来那个位置"
+        activeIndex: activeIndexAfterRemove(rest, target?.id, activeIndex),
         selectedIds: target ? selectedIds.filter((x) => x !== target.id) : selectedIds,
       });
     },
@@ -236,9 +272,11 @@ function ImageBoxNode({ id, data, selected }: ImageBoxNodeProps) {
     if (selectedIds.length === 0) return;
     const set = new Set(selectedIds);
     const rest = images.filter((n) => !set.has(n.id));
+    // 同上（R5）：若当前默认图**不在**被删集合里，删完应继续停在它身上（位置可能变了）
+    const currentId = images[activeIndex]?.id;
     updateData({
       images: rest,
-      activeIndex: Math.min(activeIndex, Math.max(0, rest.length - 1)),
+      activeIndex: activeIndexAfterRemove(rest, currentId, activeIndex),
       selectedIds: [],
     });
   }, [selectedIds, images, activeIndex, updateData]);
@@ -313,7 +351,10 @@ function ImageBoxNode({ id, data, selected }: ImageBoxNodeProps) {
         isAssetUrl(img.url) &&
         detectFileType({ name: img.url }) === 'image'
       ) {
-        list.push({ id: `up-${img.id}`, url: img.url });
+        // id · docs/plan/151 §5.2 1-5（2026-11-01）：原为**前缀叠加**（每多跳一层多一层 up-）
+        // （链式会成 `up-up-frame-0`，且每多跳一层就多一层前缀，永远不会收敛）→ 改走唯一实现
+        // imageKeyOf：有 id 就原样用它（**禁止再叠前缀**），无 id 走内容派生退化键。
+        list.push({ id: imageKeyOf({ id: img.id, url: img.url }), url: img.url });
       }
     });
     // 上游如果是图片盒子 → 取它全部 images

@@ -1,6 +1,10 @@
 import { generateId, generateUUID } from '@/components/base/core/idGen';
 import { withNodeSize } from '@/components/base/core/nodeSizePatch';
 import type { Node, Edge } from '@xyflow/react';
+// 复制 = 新实例 ⇒ 必须重开图片身份（docs/plan/151 §7-1 / R4）。横切原语只负责"重开 id + 给映射"，
+// 芯片字符串格式由本域注入（`rewriteChipsInPrompt`）—— 依赖方向保持 业务 → 横切（base/utils 不得反向依赖）。
+import { reopenImageIdentities } from '@/components/base/utils/media/imageIdentity';
+import { rewriteChipIds } from '@/components/canvas/shell/promptChipFormat';
 
 /**
  * 通用编组能力（治根：Agent group_nodes 与右键「编组」共用同一套逻辑）。
@@ -379,7 +383,11 @@ export function duplicateSelectedWithEdges(
       //   ⚠️ 只会原地修改 data 的读点需要独立顶层集合：此刻先做顶层展开（足够断原引用）；
       //   若后续发现 data 内「会被写者原地改的集合字段」（images[]/texts[]/outputs[]等）
       //   仍串扰，再对这类字段逐一浅拷成新数组（非无脑递归深拷，避免无谓体积）。
-      const clonedData = n.data ? { ...n.data } : n.data;
+      // 更新(2026-11-01 · docs/plan/151 §7-1)：浅拷之后**必须重开图片身份**（R4）。
+      // 原写法只做顶层展开 ⇒ 克隆体与原节点的 `data.images[].id`、以及 `data.prompt` 里
+      // `@{id}` 芯片指向的 id **完全相同** ⇒ 任一节点换图后，另一节点的芯片成了幽灵引用。
+      // 现在：images/extractedImages 每项换新 UUID，prompt 芯片按映射同步重写（见 promptChipFormat.rewriteChipIds）。
+      const clonedData = n.data ? reopenImageIdentities(n.data, rewriteChipIds) : n.data;
       // 先剔除原 parentId，再按映射结果决定是否写回：
       // 父节点未被克隆时必须**不写这个键**（eop 下不能显式赋 undefined）；
       // 若只是从展开里省略，`...rest` 会残留原 parentId（指向旧组），故必须解构剔除。

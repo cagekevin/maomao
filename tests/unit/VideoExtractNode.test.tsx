@@ -328,6 +328,8 @@ describe('VideoExtractNode — 结果操作（复制/下载）', () => {
     fireEvent.click(screen.getByText('复制全部'));
     // copyAll 是 async：clipboard 写入后的 toast 在微任务里，需 waitFor
     await waitFor(() => {
+      // 【2-5 剪贴板载荷（必改）】接收侧只认 `typeof x === 'string'` ⇒ 物化后必须发 **url 列表**，
+      // 发 {id,url} 对象会让粘贴端过滤成 0 张（静默无提示）。
       expect(h.copyText).toHaveBeenCalledWith(
         JSON.stringify({
           type: 'mutiwindow-images',
@@ -376,30 +378,45 @@ describe('VideoExtractNode — 结果落盘 node.data（刷新不丢）', () => 
     });
     fireEvent.click(screen.getByText('开始处理'));
     expect(await screen.findByText('已提取 9 帧')).toBeTruthy();
-    const calls = h.patchData.mock.calls.map((c) => c[0] as { extractedImages?: string[] });
+    // 形态已物化（docs/plan/151 §6.1）：string[] → Array<{id,url}>，故断言按新形态读 url
+    const calls = h.patchData.mock.calls.map(
+      (c) => c[0] as { extractedImages?: Array<{ id?: string; url?: string }> },
+    );
     // 开始先清空旧帧
     expect(calls).toContainEqual({ extractedImages: [] });
     // 完成时写入 9 帧（mock canvas 每帧返回同一 base64）
     const finalCall = calls.find((c) => c.extractedImages?.length === 9);
     expect(finalCall).toBeTruthy();
-    expect(
-      must(must(finalCall, 'finalCall').extractedImages, 'must').every(
-        (f: string) => f === 'data:image/jpeg;base64,frame',
-      ),
-    ).toBe(true);
+    const finalFrames = must(must(finalCall, 'finalCall').extractedImages, 'must');
+    expect(finalFrames.every((f) => f.url === 'data:image/jpeg;base64,frame')).toBe(true);
+    // 写边界必须物化真 UUID（不是退化键、不是下标）：每个元素都有非空 id 且互不相同
+    const ids = finalFrames.map((f) => f.id ?? '');
+    expect(ids.every((id) => id.length > 0)).toBe(true);
+    expect(new Set(ids).size).toBe(ids.length);
   });
 
   it('手动截取 → 逐帧追加到 node.data', () => {
     installMediaMocks();
     setup({ data: { videoUrl: 'http://x/v.mp4', videoName: 'v.mp4', mode: 'manual' } });
     fireEvent.click(screen.getByText('截取'));
-    expect(h.patchData).toHaveBeenLastCalledWith({
-      extractedImages: ['data:image/jpeg;base64,frame'],
-    });
+    // 物化形态：每次截取追加一条 {id,url}，id 由写边界生成（两次截取各自新 id）
+    const first = h.patchData.mock.calls.at(-1)?.[0] as {
+      extractedImages?: Array<{ id?: string; url?: string }>;
+    };
+    const firstList = must(first?.extractedImages, 'first');
+    expect(firstList).toHaveLength(1);
+    expect(firstList[0]?.url).toBe('data:image/jpeg;base64,frame');
+    expect(firstList[0]?.id).toBeTruthy();
+
     fireEvent.click(screen.getByText('截取'));
-    expect(h.patchData).toHaveBeenLastCalledWith({
-      extractedImages: ['data:image/jpeg;base64,frame', 'data:image/jpeg;base64,frame'],
-    });
+    const second = h.patchData.mock.calls.at(-1)?.[0] as {
+      extractedImages?: Array<{ id?: string; url?: string }>;
+    };
+    const secondList = must(second?.extractedImages, 'second');
+    expect(secondList).toHaveLength(2);
+    // 已存在帧的 id 必须原样保留（只给新增那张开身份，不许整批重开）
+    expect(secondList[0]?.id).toBe(firstList[0]?.id);
+    expect(secondList[1]?.id).not.toBe(firstList[0]?.id);
   });
 
   it('抽帧失败 → 只清空不写结果（data 无帧数组）', async () => {
@@ -434,7 +451,9 @@ describe('VideoExtractNode — 结果落盘 node.data（刷新不丢）', () => 
     setup({ data: { videoUrl: 'http://x/bad.mp4', videoName: 'bad.mp4' } });
     fireEvent.click(screen.getByText('开始处理'));
     expect(await screen.findByText('无法加载视频')).toBeTruthy();
-    const calls = h.patchData.mock.calls.map((c) => c[0]);
+    const calls = h.patchData.mock.calls.map(
+      (c) => c[0] as { extractedImages?: Array<{ id?: string; url?: string }> },
+    );
     expect(calls.some((c) => (c.extractedImages?.length || 0) > 0)).toBe(false);
   });
 });
