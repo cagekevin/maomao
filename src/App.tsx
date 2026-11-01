@@ -24,7 +24,9 @@ import {
   useStore,
   useStoreApi,
 } from '@xyflow/react';
-import type { Node, Edge, Connection, Viewport } from '@xyflow/react';
+import type { Node, Edge, Connection, Viewport, NodeChange } from '@xyflow/react';
+// 框选误选守卫（纯函数）：见下方 onNodesChange 包装与 selectionGuard.ts 文件头。
+import { filterSelectionOutsideRect } from './components/canvas/structure/selectionGuard.ts';
 import { Zap, ChevronUp, RefreshCw } from 'lucide-react';
 import CanvasToolbar from './components/canvas/shell/CanvasToolbar.tsx';
 import ArrangeConfirm from './components/canvas/structure/ArrangeConfirm.tsx';
@@ -248,7 +250,7 @@ function Canvas() {
   // 项目系统：画布状态按当前项目初始化/持久化。
   // 画布快照走 localTool KV（异步）：挂载后从 KV 读当前项目快照，有值（含空画布）则覆盖；
   // 无快照（首次）保持空画布 → 触发 EmptyCanvasGuide 空状态引导（完整复刻官方）。
-  const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
+  const [nodes, setNodes, baseOnNodesChange] = useNodesState<Node>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
 
   // P2-G 拓扑触发安全网：上游完成可选自动触发直接下游（AUTO_TRIGGER_DOWNSTREAM 默认关）
@@ -407,6 +409,58 @@ function Canvas() {
   // 视窗尺寸只读通道（引用稳定）：arrangeCanvas 读 width/height 传给按视窗择优换行。
   // 用 useStoreApi 而非 useStore，避免 App 因视窗尺寸变化重渲染（P0-C 性能红线，同 ZoomPercent）。
   const store = useStoreApi();
+
+  /**
+   * 框选误选**守卫**（2026-11-01 · 用户报障：复制到很远处的节点，框选时没碰到也被选中）。
+   *
+   * 根因在 React Flow `getNodesInside()` 的一行短路（`@xyflow/system` :383）：
+   *     forceInitialRender = !node.internals.handleBounds
+   * ⇒ `handleBounds` 缺失的节点被**无条件判进框选结果**。而 `handleBounds` 只在节点被真实渲染
+   * 测量后才写入，`onlyRenderVisibleElements` 下视口外的节点**永不渲染 ⇒ 永不测量**
+   * ⇒ 复制/新建到远处的节点此后**每次**框选都被误选。
+   *
+   * 修法（为什么不改节点内部状态）：给节点声明 `handles` 虽能让框选立刻正常，但实测会
+   * **每次 setNodes 都把 handleBounds 重算回占位坐标**（真实 y=210 → 重置 y=1），导致连线端点
+   * 每次都在节点内乱跳 —— 比误选更糟，已否决。故改为**只在框选结果上做几何二次校验**：
+   * 对框选产生的 `select: true` 变更，用节点真实几何判断是否与框选矩形相交，不相交即丢弃。
+   * 纯函数与完整取证见 `canvas/structure/selectionGuard.ts` 的文件头。
+   *
+   * ⚠️ 只影响「框选」这一条路径：点击选中 / Ctrl+A / 程序化选中都没有框选矩形 ⇒ 原样放行。
+   */
+  const onNodesChange = useCallback(
+    (changes: NodeChange<Node>[]) => {
+      const { userSelectionRect, transform, nodeLookup } = store.getState();
+      // userSelectionRect 是**屏幕坐标**；换算成 flow 坐标（与库内 pointToRendererPoint 同式）
+      const [tx, ty, scale] = transform;
+      const rect =
+        userSelectionRect && userSelectionRect.width > 0 && userSelectionRect.height > 0
+          ? {
+              x: (userSelectionRect.x - tx) / scale,
+              y: (userSelectionRect.y - ty) / scale,
+              width: userSelectionRect.width / scale,
+              height: userSelectionRect.height / scale,
+            }
+          : null;
+      const geometryOf = (id: string) => {
+        const it = nodeLookup.get(id);
+        if (!it) return null;
+        // 尺寸来源与 React Flow 的 getNodesInside 同序：measured → width/height → initial*
+        const w = it.measured?.width ?? it.width ?? it.initialWidth ?? 0;
+        const h = it.measured?.height ?? it.height ?? it.initialHeight ?? 0;
+        if (!w || !h) return null; // 尺寸未知 → 不做判断（宁多选不漏选）
+        return {
+          id,
+          x: it.internals.positionAbsolute.x,
+          y: it.internals.positionAbsolute.y,
+          width: w,
+          height: h,
+        };
+      };
+      // 泛型由 changes 推导（T = NodeChange<Node>），返回同型数组 ⇒ 无需断言
+      baseOnNodesChange(filterSelectionOutsideRect(changes, rect, geometryOf));
+    },
+    [baseOnNodesChange, store],
+  );
   // 始终指向最新 viewport（onViewportChange 更新），persistCanvas 保存时无需实时 useReactFlow 查询
   const viewportRef = React.useRef<Viewport | null>(null);
   // 视窗拖拽/缩放结束后的落盘：与内容变更合流进 projectStore.scheduleCanvasSave 单一定时器
