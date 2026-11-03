@@ -115,7 +115,7 @@ function VideoGenerate({ id, data, selected }: VideoGenerateProps) {
   // TD-04-12：收口到 useDisconnectSource（原先 4 节点逐字重复）。
   const disconnectSource = useDisconnectSource(id);
   // 提示词落盘：本地 state + 防抖写回 node.data（唯一入口 useNodeField；卸载 flush 由 useNodeData 承接）
-  const { patchDebounced, addCreativePreset } = useNodeData(id);
+  const { patchData, patchDebounced, addCreativePreset } = useNodeData(id);
   const [prompt, setPrompt] = useNodeField('prompt', data.prompt || '', patchDebounced);
   // 有效提示词 = 本地 prompt + 上游文本，两者都参与生成
   const effectivePrompt = buildEffectivePrompt(prompt, refTexts);
@@ -140,6 +140,18 @@ function VideoGenerate({ id, data, selected }: VideoGenerateProps) {
   const [resolution, setResolution] = useState(data.resolution ?? '1080p');
   const [seconds, setSeconds] = useState(data.selectedSeconds ?? '10');
   const [selectedModel, setSelectedModel] = useState(data.selectedModel ?? '');
+  // 【模型改选即写，不等生成成功】此前只有 onSuccess 里写记忆（`setVidPrefs({model:selectedModel})`），
+  // 于是「选了模型但这次没跑成功」（如上游报错）既不进记忆也不进 data ⇒ 新建节点回到默认模型、
+  // 刷新后本节点也回默认模型 —— 这正是「图片能记住、视频记不住」的差别来源：ImageGenerate 的
+  // handleModelChange 在**点击那一刻**就写 记忆 + data。这里与它同构，三处一次写齐。
+  const handleModelChange = useCallback(
+    (m: string) => {
+      setSelectedModel(m);
+      setVidPrefs({ model: m });
+      patchData({ selectedModel: m });
+    },
+    [setVidPrefs, patchData],
+  );
   // 抽屉展开/收起：本地 state + 写回 data.expanded + 外部（Tab/Agent）同步，收口到 useNodeExpanded
   const { expanded, toggleExpanded } = useNodeExpanded(id, data.expanded);
   const [videoUrl, setVideoUrl] = useState(data.videoUrl || '');
@@ -226,8 +238,16 @@ function VideoGenerate({ id, data, selected }: VideoGenerateProps) {
     setPrefs: setVidPrefs,
     selectedModel,
     setSelectedModel,
-    // 收编外部同步：Agent 更新 / 视频处理 spawn 写回 data.videoUrl → 同步本地 state（替手写 effect）
-    sync: { videoUrl: (v: unknown) => setVideoUrl(v as string) },
+    // 收编外部同步：Agent 更新 / 视频处理 spawn 写回 data 字段 → 同步本地 state（替手写 effect）
+    // 参数四项对齐 ImageGenerate 的 sync（此前只同步 videoUrl ⇒ Agent 改模型/比例/时长时节点 UI 不跟变，
+    // 与生图节点的行为不一致）。
+    sync: {
+      videoUrl: (v: unknown) => setVideoUrl(v as string),
+      selectedModel: (v: unknown) => setSelectedModel(v as string),
+      size: (v: unknown) => setRatio(v as string),
+      resolution: (v: unknown) => setResolution(v as string),
+      selectedSeconds: (v: unknown) => setSeconds(String(v)),
+    },
     resultKey: 'videoUrl', // 唯一写回路径：成功首写 / 落盘后覆盖 / 广播恢复
     // 前置校验：本地 prompt（含芯片解析后的文本或参考图）或上游文本任一非空即可生成
     validate: () =>
@@ -480,6 +500,8 @@ function VideoGenerate({ id, data, selected }: VideoGenerateProps) {
                             onClick={() => {
                               setRatio(o.value);
                               setVidPrefs({ size: o.value });
+                              // 同一次点击写回 node.data：记忆只管「新建节点」，data 才管「本节点刷新后还在」
+                              patchData({ size: o.value });
                             }}
                           >
                             {o.label}
@@ -497,6 +519,7 @@ function VideoGenerate({ id, data, selected }: VideoGenerateProps) {
                             onClick={() => {
                               setResolution(r);
                               setVidPrefs({ resolution: r });
+                              patchData({ resolution: r });
                             }}
                           >
                             {r}
@@ -523,6 +546,7 @@ function VideoGenerate({ id, data, selected }: VideoGenerateProps) {
                             const v = String(e.target.value);
                             setSeconds(v);
                             setVidPrefs({ seconds: v });
+                            patchData({ selectedSeconds: v });
                           }}
                           className="nodrag accent-blue-500 w-32 shrink-0"
                         />
@@ -536,7 +560,7 @@ function VideoGenerate({ id, data, selected }: VideoGenerateProps) {
               </div>
 
               {/* 模型选择（基座 ModelSelect） */}
-              <ModelSelect value={selectedModel} onChange={setSelectedModel} models={models} />
+              <ModelSelect value={selectedModel} onChange={handleModelChange} models={models} />
 
               {/* 预设：打开创作库面板（风格/滤镜/运镜/MJ码图/提示词）→ 落胶囊到当前提示词 */}
               <CreativeLibraryButton initialTab="style" onApply={handleCreativeApply} />
