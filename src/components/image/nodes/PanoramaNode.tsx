@@ -25,7 +25,7 @@ import { IMAGE_BOX_NODE_SIZE } from '@/components/canvas/contract/nodeDefaults';
 import HoverToolbar from '@/components/canvas/shell/HoverToolbar';
 import { useConnectedInputs } from '@/hooks/useConnectedInputs';
 import { PanoViewer } from '../editors';
-import type { PanoViewerHandle } from '../editors';
+import type { PanoView, PanoViewerHandle } from '../editors';
 import { generateId } from '@/components/base/core/idGen';
 import { makeImageId } from '@/components/base/utils/media/imageIdentity';
 // 编辑器内的交互归编辑器（ADR-0029）：判据走共用原语，禁自写（自写必漏）。
@@ -83,6 +83,13 @@ import { replaceNodeImage } from '@/components/base/utils/media/nodeImage';
  *  - 删除柱状模式（panoType 'cylinder'）：720 全景事实标准为等距柱状，柱状几何/限位/角标一并移除。
  *  - 删除视角 HUD（罗盘 + yaw/pitch 数字）：连带 PanoViewer 的 onViewChange 上报链路。
  *  - 删除 orbitRef / highQuality 纯转发 plumbing（唯一调用点本就写死 false）。
+ *
+ * 更新(2026-11-02) 截图朝向修复（治「当前视角/截图 永远输出默认视角」）：
+ *  - 根因：doCapture 的「当前视角」传的是常量 [0]，PanoViewer.capture 又按 (yaw=0, pitch=0) 重建相机
+ *    ⇒ 无论用户转到哪，输出都是接缝正前方。真实朝向只存在于相机 quaternion，原链路从未读过。
+ *  - 现：doCapture 改收 mode（'current' | 'four' | 'twelve'），与 shotKind 同域；
+ *    'current' 取 PanoViewer.getView()（由相机视线反算 yaw/pitch），四大/12大仍走固定水平角表。
+ *    同时补上 pitch——原 capture 只认水平角，抬头/低头必丢。
  */
 
 const RATIO_OPTIONS = ['16:9', '9:16', '1:1', 'custom'];
@@ -90,6 +97,10 @@ const RATIO_OPTIONS = ['16:9', '9:16', '1:1', 'custom'];
 const ANGLES_12 = [0, 30, 60, 90, 120, 150, 180, 210, 240, 270, 300, 330];
 /** 四大视角 */
 const ANGLES_4 = [90, 180, 270, 0];
+
+/** 固定水平环视角度表 → 截图朝向（pitch=0：四大/12大视角定义在水平面上）。 */
+const yawViews = (angles: number[]): PanoView[] =>
+  angles.map((yawDeg) => ({ yawDeg, pitchDeg: 0 }));
 
 /** 玻璃拟态图标按钮（全屏漫游层统一控件，避免各处手写 hover/禁用态）。 */
 function IconButton({
@@ -357,32 +368,36 @@ function PanoramaNode({ id, data, selected }: PanoramaNodeProps) {
   }, [fullscreen]);
 
   // 截图（复刻官方 F：在全屏球体里选视角裁切输出局部）
+  // mode 与 shotKind 同域：'current' = 用户此刻看到的朝向（PanoViewer.getView 从相机视线反算），
+  // 'four'/'twelve' = 固定水平环视角度表。朝向只在 PanoViewer 内部成立，本层不自己算。
   const doCapture = useCallback(
-    async (angles: number[] = [0]) => {
+    async (mode: 'current' | 'four' | 'twelve' = 'current') => {
       // 【并发守卫】capturing 期间忽略再次触发，避免两个 capture 共享同一 gl 互相污染
       if (capturingRef.current) return;
       // 【可见反馈】全景未就绪（纹理加载中/失败，PanoViewer 未挂载，viewerRef 为 null）时
       // 不静默——明确提示用户原因，而不是"点了没反应"
-      if (!viewerRef.current) {
+      const viewer = viewerRef.current;
+      if (!viewer) {
         toastWarning('全景加载中，请稍候再试');
         return;
       }
+      const views: PanoView[] =
+        mode === 'current' ? [viewer.getView()] : yawViews(mode === 'four' ? ANGLES_4 : ANGLES_12);
       capturingRef.current = true;
-      const kind = angles.length >= 12 ? 'twelve' : angles.length >= 4 ? 'four' : 'current';
-      setShotKind(kind);
-      logger.info('panoNode', '截图开始', { kind, count: angles.length, ratio: ratioStr });
+      setShotKind(mode);
+      logger.info('panoNode', '截图开始', { kind: mode, count: views.length, ratio: ratioStr });
       toastInfo(
-        kind === 'twelve'
+        mode === 'twelve'
           ? '正在截取12大视角…'
-          : kind === 'four'
+          : mode === 'four'
             ? '正在截取四大视角…'
             : '正在截取当前视角…',
       );
       setCapturing(true);
       try {
-        const shots = await viewerRef.current.capture(angles, ratioStr);
+        const shots = await viewer.capture(views, ratioStr);
         if (shots && shots.length > 0) {
-          if (angles.length === 1 && shots[0]) {
+          if (views.length === 1 && shots[0]) {
             replaceNodeImage({ id, dataUrl: shots[0] }, setNodes);
           }
           // 输出到图片盒子（对齐官方 onCaptureToBox / H_.jsx xr）：
@@ -398,7 +413,7 @@ function PanoramaNode({ id, data, selected }: PanoramaNodeProps) {
             // → 收口到 `makeImageId('pano')`，去掉位置后缀。**id 格式本身不改**（格式收口是第 2 步的事）。
             id: makeImageId('pano'),
             url,
-            label: `全景截图 ${angles[i] || 0}度`,
+            label: `全景截图 ${views[i]?.yawDeg ?? 0}度`,
             source: 'gen',
             createdAt: Date.now(),
           }));
@@ -506,13 +521,13 @@ function PanoramaNode({ id, data, selected }: PanoramaNodeProps) {
           setShowFrame((v) => !v);
           break;
         case '1':
-          void doCapture([0]);
+          void doCapture('current');
           break;
         case '2':
-          void doCapture(ANGLES_4);
+          void doCapture('four');
           break;
         case '3':
-          void doCapture(ANGLES_12);
+          void doCapture('twelve');
           break;
         default:
           break;
@@ -575,7 +590,7 @@ function PanoramaNode({ id, data, selected }: PanoramaNodeProps) {
         title="截取当前视角 (1)"
         loading={shotKind === 'current'}
         disabled={capturing}
-        onClick={() => doCapture([0])}
+        onClick={() => doCapture('current')}
       />
       <TextButton
         icon={<Grid3X3 size={15} />}
@@ -583,7 +598,7 @@ function PanoramaNode({ id, data, selected }: PanoramaNodeProps) {
         title="前/后/左/右四视角 (2)"
         loading={shotKind === 'four'}
         disabled={capturing}
-        onClick={() => doCapture(ANGLES_4)}
+        onClick={() => doCapture('four')}
       />
       <TextButton
         icon={<Scan size={15} />}
@@ -591,7 +606,7 @@ function PanoramaNode({ id, data, selected }: PanoramaNodeProps) {
         title="每 30° 一镜共 12 张 (3)"
         loading={shotKind === 'twelve'}
         disabled={capturing}
-        onClick={() => doCapture(ANGLES_12)}
+        onClick={() => doCapture('twelve')}
       />
     </div>
   );
@@ -678,7 +693,7 @@ function PanoramaNode({ id, data, selected }: PanoramaNodeProps) {
               loading={shotKind === 'current'}
               disabled={capturing}
               title="截取当前视角 (1)"
-              onClick={() => doCapture([0])}
+              onClick={() => doCapture('current')}
             />
             <div className="w-px h-5 bg-white/10 mx-1" />
             <button

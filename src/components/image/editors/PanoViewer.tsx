@@ -16,8 +16,14 @@ import { canvasToImageDataUrl } from '@/components/base/core/utils';
  *  - autoRotate     自动漫游（绕水平轴缓慢自转）
  *
  * 【对外能力】ref：
- *  - capture(angles, ratio) 截图，返回 dataURL 数组（WebGLRenderTarget 2560 宽渲染各视角）
+ *  - getView()              读当前画面朝向（yaw/pitch），即用户此刻看到的方向
+ *  - capture(views, ratio)  按给定朝向逐张截图，返回 dataURL 数组（WebGLRenderTarget 2560 宽）
  *  - reset()                复位到初始朝向
+ *
+ * 【朝向语义】yawDeg：绕 Y 轴，0 = 看向 -Z（球体贴图的接缝正前方）；pitchDeg：抬头为正。
+ * 更新(2026-11-02)：原 capture(angles: number[], …) 只认水平角、pitch 恒 0，且调用方一律传 [0]，
+ * 导致「当前视角/截图」两个按钮永远输出默认朝向。现改为按 PanoView 逐张渲染，
+ * 当前视角由 getView() 从真实相机方向反算（相机在原点附近绕原点旋转，视线 = getWorldDirection）。
  *
  * 纹理映射：等距柱状 → EquirectangularReflectionMapping(303)。
  */
@@ -30,9 +36,16 @@ export interface PanoViewerProps {
   autoRotate?: boolean;
 }
 
-/** 对外能力：capture 截图 / reset 复位 */
+/** 一个截图朝向：yawDeg 绕 Y 轴（0 = 看向 -Z），pitchDeg 抬头为正（度）。 */
+export interface PanoView {
+  yawDeg: number;
+  pitchDeg: number;
+}
+
+/** 对外能力：getView 读当前朝向 / capture 截图 / reset 复位 */
 export interface PanoViewerHandle {
-  capture: (angles: number[], ratioStr: string) => Promise<string[]>;
+  getView: () => PanoView;
+  capture: (views: PanoView[], ratioStr: string) => Promise<string[]>;
   reset: () => void;
 }
 
@@ -100,7 +113,16 @@ function PanoViewer({
     reset: () => {
       controlsRef.current?.reset();
     },
-    capture: async (angles, ratioStr) => {
+    // 当前朝向 = 相机视线（相机在原点附近绕原点旋转，OrbitControls 每帧写 position + lookAt(target)）。
+    // getWorldDirection 内部会先 updateWorldMatrix，故拖拽中途/阻尼未收敛时读到的也是本帧真实朝向。
+    getView: () => {
+      const dir = camera.getWorldDirection(new THREE.Vector3());
+      return {
+        yawDeg: THREE.MathUtils.radToDeg(Math.atan2(dir.x, -dir.z)),
+        pitchDeg: THREE.MathUtils.radToDeg(Math.asin(THREE.MathUtils.clamp(dir.y, -1, 1))),
+      };
+    },
+    capture: async (views, ratioStr) => {
       const out = [];
       // 用「当前真实 fov」而非目标 fov：fov 是平滑插值的，用户看到什么就截什么（WYSIWYG）。
       const shotFov = camera instanceof THREE.PerspectiveCamera ? camera.fov : fov;
@@ -121,9 +143,12 @@ function PanoViewer({
       shotCam.updateProjectionMatrix();
       const prevTarget = gl.getRenderTarget();
       try {
-        for (const deg of angles) {
-          const rad = THREE.MathUtils.degToRad(deg);
-          shotCam.lookAt(Math.sin(rad), 0, -Math.cos(rad));
+        for (const view of views) {
+          const yaw = THREE.MathUtils.degToRad(view.yawDeg);
+          const pitch = THREE.MathUtils.degToRad(view.pitchDeg);
+          // 与 getView 同一套球坐标：yaw 绕 Y、pitch 抬头为正，两者互为逆运算（改了这里必须同步 getView）。
+          const cosPitch = Math.cos(pitch);
+          shotCam.lookAt(Math.sin(yaw) * cosPitch, Math.sin(pitch), -Math.cos(yaw) * cosPitch);
           shotCam.updateMatrixWorld(true);
           gl.setRenderTarget(target);
           gl.clear(true, true, true);

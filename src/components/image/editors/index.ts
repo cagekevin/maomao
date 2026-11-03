@@ -24,7 +24,7 @@
 export { default as ImageEditor } from './ImageEditor.tsx';
 export { default as InlineImageCropper } from './InlineImageCropper.tsx';
 export { default as PanoViewer } from './PanoViewer.tsx';
-export type { PanoViewerHandle } from './PanoViewer.tsx';
+export type { PanoView, PanoViewerHandle } from './PanoViewer.tsx';
 
 /* 图层编辑 */
 export { default as OverlayEditor, renderOverlayCanvas } from './OverlayEditor.tsx';
