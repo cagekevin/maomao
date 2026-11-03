@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { ChevronDown, Plus, MoreVertical, Pencil, Trash2 } from 'lucide-react';
+import { ChevronDown, Copy, Plus, MoreVertical, Pencil, Trash2 } from 'lucide-react';
 import {
   useProjects,
   createProject,
@@ -19,12 +19,17 @@ import { PROJECT_IMPORT_EVENT, PROJECT_EXPORT_EVENT } from '../core/contracts.ts
  * 项目选择器（复刻官方 Vr.jsx L3308-3370 项目下拉 + L3713-3749 新建/重命名弹窗）。
  * UI/交互与官方一致：触发器纯文字+底部线、下拉 hover 展开（项目列表+⋮菜单）、+ 新建按钮、
  * 新建(项目名称)/重命名(项目名称)弹窗 `bg-surface-hover w-64`。
+ *
+ * 【官方之外新增】⋮ 菜单「复制项目」：官方无此项；本仓项目 = 画布快照，复制 = 新建 + 快照复制，
+ * 逻辑全在 `projectStore.duplicateCurrentProject`（本组件只转发点击，不碰存储）。
  */
 export interface ProjectSelectorProps {
   /** 切换项目回调（缺省走 projectStore.switchProject） */
   onSwitch?: (id: string) => void;
   /** 新建项目回调（App 传入，需先用旧项目 id 保存旧画布） */
   onCreate?: (proj: Project, prevProjectId: string) => void;
+  /** 复制项目回调（App 传入：内存画布写入新项目 key 后再切过去） */
+  onDuplicate: () => void | Promise<void>;
 }
 
 interface ProjectModalState {
@@ -33,7 +38,7 @@ interface ProjectModalState {
   name?: string;
 }
 
-export default function ProjectSelector({ onSwitch, onCreate }: ProjectSelectorProps) {
+export default function ProjectSelector({ onSwitch, onCreate, onDuplicate }: ProjectSelectorProps) {
   const { projects, currentProjectId } = useProjects();
   const [modal, setModal] = useState<ProjectModalState | null>(null);
   const [name, setName] = useState('');
@@ -150,6 +155,14 @@ export default function ProjectSelector({ onSwitch, onCreate }: ProjectSelectorP
             className="w-full text-left px-3 py-2.5 text-sm text-body hover:bg-surface-hover-strong hover:text-white flex items-center gap-2 cursor-pointer border-none bg-transparent"
           >
             <Pencil size={14} /> 重命名项目
+          </button>
+          {/* 复制项目：新建 + 画布快照复制 + 切过去，顺序不变量由 projectStore.duplicateCurrentProject 保证 */}
+          <button
+            type="button"
+            onClick={() => void onDuplicate()}
+            className="w-full text-left px-3 py-2.5 text-sm text-body hover:bg-surface-hover-strong hover:text-white flex items-center gap-2 cursor-pointer border-none bg-transparent"
+          >
+            <Copy size={14} /> 复制项目
           </button>
           {/* 导入/导出走 eventBus（职责分离）：ProjectSelector 是纯 UI 菜单，只发"用户点了导入/导出"的信号，
               不 import 任何导入导出逻辑。真正的业务实现（导出=exportAll 打包下载 JSON；导入=读 .json→importAll→reload）

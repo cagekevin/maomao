@@ -15,6 +15,7 @@ import {
   saveCanvasState,
   loadCanvasState,
   getLoadedVersion,
+  duplicateCurrentProject,
   resetProjectStoreForTest,
 } from '../../src/components/base/store/projectStore.ts';
 // 409 判定用真实 HttpError：projectStore 用 `instanceof HttpError` 识别冲突，
@@ -462,5 +463,66 @@ describe('TD-18-18 项目 id 唯一性（落库键不得只由时间戳决定）
     const ids = Array.from({ length: 20 }, (_, i) => createProject(`并发项${i}`).id);
     // 旧实现下 20 次全得到同一个 `proj-<同一毫秒>` ⇒ 此处必红
     expect(new Set(ids).size).toBe(ids.length);
+  });
+});
+
+// ── 复制项目：新建 + 快照复制 + 切换（顺序不变量：先写快照、后切当前）──
+describe('duplicateCurrentProject 复制项目', () => {
+  it('复制节点/边/视窗到新项目并切过去，源项目快照不变', async () => {
+    const nodes = [node('n1'), node('n2')];
+    const edges = [{ id: 'e1', source: 'n1', target: 'n2' }];
+    await saveCanvasState('default', nodes, edges, { x: 10, y: 20, zoom: 1.5 });
+
+    const proj = must(
+      await duplicateCurrentProject({ nodes, edges, viewport: { x: 10, y: 20, zoom: 1.5 } }),
+      'duplicate 返回值',
+    );
+    expect(proj.name).toBe('默认项目 副本');
+    expect(getCurrentProject().id).toBe(proj.id);
+
+    const copied = must(await loadCanvasState(proj.id), '复制出的快照');
+    expect(copied.nodes).toHaveLength(2);
+    expect(copied.edges).toHaveLength(1);
+    expect(copied.viewport).toEqual({ x: 10, y: 20, zoom: 1.5 });
+
+    // 源项目快照不被复制动作改写（仍能独立读回）
+    const source = must(await loadCanvasState('default'), '源项目快照');
+    expect(source.nodes).toHaveLength(2);
+  });
+
+  it('新项目名重名时自动加序号（不覆盖已有项目）', async () => {
+    createProject('默认项目 副本');
+    switchProject('default');
+
+    const proj = must(
+      await duplicateCurrentProject({ nodes: [node('n1')], edges: [], viewport: null }),
+      'duplicate 返回值',
+    );
+    expect(proj.name).toBe('默认项目 副本 (1)');
+  });
+
+  it('空画布复制：照常建项目，不写快照（saveCanvasState 的 skipped 语义）', async () => {
+    const proj = must(
+      await duplicateCurrentProject({ nodes: null, edges: null, viewport: null }),
+      'duplicate 返回值',
+    );
+    expect(getCurrentProject().id).toBe(proj.id);
+    expect(H.kvSetCalls.some((c) => c.key === `canvas-state-v1-${proj.id}`)).toBe(false);
+    expect(await loadCanvasState(proj.id)).toBeNull();
+  });
+
+  it('快照写入失败 → 返回 null，且不留下半个空项目（项目列表与当前项目不变）', async () => {
+    H.kvSetOverride = () => {
+      throw new Error('KV 不可用');
+    };
+    const beforeIds = (contentGet('projects') as Array<{ id: string }>).map((p) => p.id);
+    const currentId = getCurrentProject().id;
+
+    const r = await duplicateCurrentProject({ nodes: [node('n1')], edges: [], viewport: null });
+
+    expect(r).toBeNull();
+    expect(getCurrentProject().id).toBe(currentId);
+    const afterIds = (contentGet('projects') as Array<{ id: string }>).map((p) => p.id);
+    expect(afterIds).toEqual(beforeIds);
   });
 });

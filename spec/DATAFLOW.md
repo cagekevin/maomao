@@ -209,6 +209,10 @@ core/contentStore（STORAGE_KEYS 路由 + resolveBackend 唯一判定 + 失败�
 画布快照 CAS 链路：projectStore（CAS 基线 / 单飞 / 冲突提示，L3 编排）
   → contentStore 严格族 → localToolApi.kv*（L1）；useCanvasSync 版本轮询同经 contentKvGetVersion
 
+复制项目：ProjectSelector「复制项目」→ App.handleDuplicateProject（传内存 nodesRef/edgesRef/viewportRef）
+  → projectStore.duplicateCurrentProject（flushCanvasSave → saveCanvasState(force) 写新 key → 切当前 → writeProjects）
+  顺序不变量：**先写快照、后切当前**（loadedVersion 是模块级全局 CAS 基线，先切会让新 key 的空读把基线置 0）
+
 就绪度：storageAdapter.isStorageReady() / onStorageReady(cb)（非插件环境恒就绪）
   loadFromLocal 未就绪 → 返回 undefined 且不写缓存（杜绝「未加载＝不存在」的粘性假真相）
   projectStore / resourceStore / appSettings 就绪后重读一次

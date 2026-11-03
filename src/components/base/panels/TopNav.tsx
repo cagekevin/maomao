@@ -15,6 +15,7 @@ import { showToast } from '../core/event/toastStore.ts';
  *  - onNavigate       切视图回调（App 传 setView）
  *  - onSwitchProject  项目切换回调（App 负责保存/加载画布快照）
  *  - onCreateProject  新建项目回调
+ *  - onDuplicateProject 复制项目回调（App 把内存画布写入新项目后切过去）
  *  - agentOpen        AI 助手面板开关
  *  - onToggleAgent    切换 AI 助手回调
  */
@@ -46,6 +47,8 @@ export interface TopNavProps {
   onSwitchProject: (id: string) => void;
   /** 新建项目回调 */
   onCreateProject: (proj: Project, prevProjectId: string) => void;
+  /** 复制项目回调（App 负责把内存画布写入新项目并切换） */
+  onDuplicateProject: () => void | Promise<void>;
   /** AI 助手面板开关 */
   agentOpen: boolean;
   /** 切换 AI 助手回调 */
@@ -61,6 +64,7 @@ function TopNav({
   onNavigate,
   onSwitchProject,
   onCreateProject,
+  onDuplicateProject,
   agentOpen,
   onToggleAgent,
   onPushToCloud,
@@ -156,7 +160,11 @@ function TopNav({
 
         {/* 项目选择器：紧跟 tab 组「多开」右边（复刻官方 L3308 在 Logo 左侧组内、tab 组之后） */}
         {view === 'canvas' && (
-          <ProjectSelector onSwitch={onSwitchProject} onCreate={onCreateProject} />
+          <ProjectSelector
+            onSwitch={onSwitchProject}
+            onCreate={onCreateProject}
+            onDuplicate={onDuplicateProject}
+          />
         )}
       </div>
 

@@ -70,6 +70,7 @@ import {
   saveCanvasState,
   scheduleCanvasSave,
   flushCanvasSave,
+  duplicateCurrentProject,
   getCurrentProject,
   initProjects,
   useCurrentProjectId,
@@ -726,6 +727,25 @@ function Canvas() {
     },
     [setNodes, setEdges, history, persistCanvas, syncAgentKey],
   );
+
+  // 复制项目：把内存画布（最新真源，KV 有 600ms 滞后）交给 store 写入新项目 key，再切过去。
+  // 顺序（先快照、后切当前）由 duplicateCurrentProject 保证 —— 这里不清空画布、不手动 load：
+  // 新项目快照已就位，App 的加载 effect 会随 activeProjectId 变化重载同一份内容。
+  const handleDuplicateProject = useCallback(async () => {
+    const from = getCurrentProject().id;
+    const proj = await duplicateCurrentProject({
+      nodes: nodesRef.current,
+      edges: edgesRef.current,
+      viewport: viewportRef.current,
+    });
+    if (!proj) {
+      // 失败已由 saveCanvasState 自己 reportDegrade 呈现（禁止转发层再造一条），这里只留痕。
+      logger.warn('项目', '复制失败：新项目画布未写入', { from });
+      return;
+    }
+    logger.info('项目', 'duplicate', { from, to: proj.id, name: proj.name });
+    showToast(`已复制为「${proj.name}」`, { type: 'success' });
+  }, []);
 
   // 【推送到云端】收集本地全量配置/用户数据 → 云端更新时先问用户 → CloudSyncEngine 推送（不含画布）。
   // 确认统一走 confirmStore（全局唯一确认入口，弹窗由根节点的 ConfirmContainer 渲染）：
@@ -1600,6 +1620,7 @@ function Canvas() {
           onNavigate={setView}
           onSwitchProject={handleSwitchProject}
           onCreateProject={handleCreateProject}
+          onDuplicateProject={handleDuplicateProject}
           onPushToCloud={handlePushToCloud}
           onPullFromCloud={handlePullFromCloud}
           agentOpen={agentOpen}

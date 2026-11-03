@@ -6,6 +6,9 @@
  *  - 每次变更「同时写」localStorage（兜底，localTool 断开也能用）+ localTool /api/projects（持久化，跨端共享）。
  *  - 启动时 `initProjects()` 从后端加载，以后端为准（localTool 连上时项目跨端共享）。
  *  - 画布快照 canvas-state-v1-${projectId} 走 KV（跨端共享，见 kvStore）。
+ *
+ * 项目生命周期唯一入口：createProject / switchProject / deleteProject / renameProject /
+ * duplicateCurrentProject（复制 = 新建 + 画布快照复制 + 切换；顺序不变量见该函数注释）。
  */
 import { useSyncExternalStore } from 'react';
 import { useStoreSelector } from '../../../hooks/useStoreSelector.ts';
@@ -612,6 +615,46 @@ export function createProject(name?: string): Project {
     '项目',
     '[新建]',
     { id: proj.id, name: proj.name, total: projects.length },
+    { module: 'project' },
+  );
+  return proj;
+}
+
+/**
+ * 复制当前项目：新建项目（名 =「源名 副本」，重名自动加序号）→ 把画布快照写进新项目 key → 再切过去。
+ *
+ * 【顺序不变量：先写快照、后切当前，不可调换】`loadedVersion` 是模块级全局 CAS 基线（不是 per-project）。
+ * 若先切，App 的加载 effect 会立刻读新 key（此刻为空）→ 基线被置 0；随后写快照成功再被这次迟到的读
+ * 覆盖回 0 ⇒ 下一次自动保存拿 0 当基线 → 409 假冲突红条。
+ *
+ * 【快照由调用方传内存值，不读 KV】画布落盘有 600ms 防抖，读 KV 会复制到旧内容；App 的 nodesRef/edgesRef
+ * 才是最新真源（与 handleCreateProject 用 prevProjectId 的取舍同源）。
+ *
+ * @returns 新项目；快照写失败（非「空画布 skipped」）时返回 null 且**不建项目**，不留半个空副本
+ */
+export async function duplicateCurrentProject(snapshot: {
+  nodes: Record<string, unknown>[] | null;
+  edges: Record<string, unknown>[] | null;
+  viewport?: { x?: number; y?: number; zoom?: number } | null;
+}): Promise<Project | null> {
+  const source = getCurrentProject();
+  // 先把源项目待落盘的改动写下去：否则复制期间残留的防抖定时器会用新项目的 CAS 基线写旧 key → 假冲突。
+  await flushCanvasSave();
+  const proj: Project = { id: genId(), name: makeUniqueProjectName(`${source.name} 副本`) };
+  // force：新项目没有历史版本，不该受 CAS 约束；复用备份导入同一条写路径（保 sanitize/normalize 不变量）。
+  const r = await saveCanvasState(proj.id, snapshot.nodes, snapshot.edges, snapshot.viewport, {
+    force: true,
+  });
+  if (!r.success && !r.skipped) {
+    logger.warn('projectStore', '复制项目失败：新项目画布未写入', { from: source.id, to: proj.id });
+    return null;
+  }
+  currentProjectId = proj.id;
+  writeProjects([...projects, proj]);
+  logger.debug(
+    '项目',
+    '[复制]',
+    { from: source.id, to: proj.id, name: proj.name, empty: r.skipped === true },
     { module: 'project' },
   );
   return proj;
