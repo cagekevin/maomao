@@ -40,9 +40,9 @@ const BUILTIN_MODELS = {
   // 文生视频模型（来自 main.py _VIDEO_RULES，共 16 项）
   // 注：kling 与 kling-v3 在网关侧均映射到 generate_video_kling_v3，
   // 但两者都是官方别名，字段契约需保留，不能去重。
-  video: ['seedance-2.0-fast', 'seedance-2', 'kling-v3-omni'],
+  video: ['seedance-2.0-fast', 'seedance-2', 'kling-v3-omni', 'gemini-omni-1.1-flash'],
   // 特惠视频与普通视频共享同一套 Lovart 模型
-  discountVideo: ['seedance-2.0-fast', 'seedance-2', 'kling-v3-omni'],
+  discountVideo: ['seedance-2.0-fast', 'seedance-2', 'kling-v3-omni', 'gemini-omni-1.1-flash'],
   text: [],
   discountVideoSpecs: {} as Record<string, unknown>,
   power: {},
@@ -56,6 +56,7 @@ const BUILTIN_MODEL_SERIES: Array<{ name: string; seriesKey: string; seriesLabel
   { name: 'seedance-2.0-fast', seriesKey: 'seedance', seriesLabel: 'Seedance 系列' },
   { name: 'seedance-2', seriesKey: 'seedance', seriesLabel: 'Seedance 系列' },
   { name: 'kling-v3-omni', seriesKey: 'kling', seriesLabel: 'Kling 系列' },
+  { name: 'gemini-omni-1.1-flash', seriesKey: 'gemini-omni', seriesLabel: 'Gemini Omni 系列' },
   { name: 'gpt-image-2-low', seriesKey: 'gpt-image', seriesLabel: 'GPT Image 系列' },
   { name: 'gpt-image-2-medium', seriesKey: 'gpt-image', seriesLabel: 'GPT Image 系列' },
   { name: 'gpt-image-2', seriesKey: 'gpt-image', seriesLabel: 'GPT Image 系列' },

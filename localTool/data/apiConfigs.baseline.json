@@ -72,11 +72,16 @@
           "id": "kling-v3-omni",
           "type": "video",
           "label": "Kling V3 Omni"
+        },
+        {
+          "id": "gemini-omni-1.1-flash",
+          "type": "video",
+          "label": "Gemini Omni 1.1 Flash"
         }
       ]
     }
   ],
-  "discountVideoModel": "seedance-2.0-mini\nseedance-2.0-fast\nseedance-2\nminimax-h3\nkling-v3-omni",
+  "discountVideoModel": "seedance-2.0-mini\nseedance-2.0-fast\nseedance-2\nminimax-h3\nkling-v3-omni\ngemini-omni-1.1-flash",
   "drawingModel": "gpt-image-2-low\ngpt-image-2-medium\nano-bn-2-lite\nnano-bn-2.1\nano-bn-pro",
   "textModel": "lovart-chat"
 }

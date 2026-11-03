@@ -143,6 +143,26 @@ export const LOVART_VIDEO_RULES: ReadonlyArray<readonly [readonly string[], stri
   ],
   [['seedance-2', 'seedance2', 'seedance-v2', 'seedance 2'], 'generate_video_seedance_v2_0'],
   [['minimax-h3', 'minimax h3', 'hailuo h3'], ''],
+  // Gemini Omni 1.1 Flash：**工具名未知，故意留空走 prompt_only**。
+  // 【为什么是空串而不是某个名字】2026-10-28 实证：填 generate_video_gemini_omni_1_1_flash（按命名惯例
+  //   从模型 id 推导）时，`/chat` 提交成功（返回 thread_id），到产物阶段才以
+  //   `unknown tool_hint "generate_video_gemini_omni_1_1_flash"` 失败 —— 工具名错**不在提交期暴露**，
+  //   只在产物期 hard-fail，且已消耗一次任务。既然没有上游权威工具清单可依，任何写死都是猜。
+  // 【代价与出口】留空 ⇒ 不下发 prefer_tool_categories，只靠 prompt 的 `using the Gemini Omni 1.1 Flash model`
+  //   约束；上游按自己的工具注册表选，不会再触发 unknown tool_hint。
+  //   一旦从上游拿到真实工具名（Lovart 后台/官方文档，或实测一次成功任务的 failures[].tool_hint），
+  //   把本行空串换成该工具名即可，其余不动。
+  // ⚠ 顺序敏感：'gemini-omni-1.1-flash' 是将来可能的 'gemini-omni-1.1-flash-ext' 的前缀子串，
+  //   上游若上线 ext 变体，其规则必须排在本条之前，否则会被本条误吞。
+  [
+    [
+      'gemini-omni-1.1-flash',
+      'gemini-omni-1-1-flash',
+      'gemini omni 1.1 flash',
+      'geminiomni11flash',
+    ],
+    '',
+  ],
 ];
 
 /**
@@ -156,6 +176,7 @@ export const LOVART_PROMPT_MODEL_NAMES: Record<string, string> = {
   'nano-bn-2-lite': 'Nano Banana 2 Lite',
   'seedance-2.0-mini': 'Seedance 2.0 mini',
   'minimax-h3': 'MiniMax H3',
+  'gemini-omni-1.1-flash': 'Gemini Omni 1.1 Flash',
   // ⚠ 以下 4 条 GPT Image 2.5 质量模型已从本表移除：其可读名（去后缀）+ 质量档位改由
   //   LOVART_QUALITY_MODELS 统一派生（模型 id 为单一数据源），避免重复真相源。
 };
@@ -184,6 +205,7 @@ export const LOVART_MODEL_SPECS: Record<string, LovartModelSpec> = {
   'seedance-2.0-mini': { category: 'VIDEO', readableName: 'Seedance 2.0 Mini' },
   'minimax-h3': { category: 'VIDEO', readableName: 'MiniMax H3' },
   'kling-v3-omni': { category: 'VIDEO', readableName: 'Kling V3 Omni' },
+  'gemini-omni-1.1-flash': { category: 'VIDEO', readableName: 'Gemini Omni 1.1 Flash' },
 };
 
 export const LOVART_ERR_TYPES = {

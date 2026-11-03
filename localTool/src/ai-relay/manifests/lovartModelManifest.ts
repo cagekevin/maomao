@@ -120,4 +120,11 @@ export const LOVART_MODEL_MANIFEST: import('../types.js').CatalogModel[] = [
     provider: 'lovart',
     description: 'Lovart Kling V3 Omni 文生视频',
   },
+  {
+    id: 'gemini-omni-1.1-flash',
+    name: 'Gemini Omni 1.1 Flash',
+    category: 'video',
+    provider: 'lovart',
+    description: 'Lovart Gemini Omni 1.1 Flash 文生视频',
+  },
 ];

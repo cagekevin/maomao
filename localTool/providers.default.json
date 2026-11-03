@@ -86,6 +86,12 @@
           "label": "Kling V3 Omni",
           "streaming": false,
           "promptOnly": false
+        },
+        {
+          "id": "gemini-omni-1.1-flash",
+          "label": "Gemini Omni 1.1 Flash",
+          "streaming": false,
+          "promptOnly": false
         }
       ],
       "volcengine_project_name": "default",
