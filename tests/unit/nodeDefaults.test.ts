@@ -12,6 +12,8 @@ import {
 } from '../../src/components/canvas/contract/nodeDefaults.ts';
 import { NODE_TYPES } from '../../src/components/base/core/contracts.ts';
 import { withNodeSize } from '../../src/components/base/core/nodeSizePatch.ts';
+import { computeSizeSync } from '../../src/components/base/core/interaction/uiHooks.ts';
+import { NODE_AREA_FIXED_BASE_SIZE } from '../../src/components/base/core/config.ts';
 
 describe('withNodeSize — 尺寸「三写不变量」唯一实现（TD-04-28）', () => {
   it('同时产出 width/height 字段 + style.width/height（NodeShell 读 width 优先，缺一则塌陷）', () => {
@@ -226,6 +228,19 @@ describe('applyNodeTypeDefaults — 节点结构默认补齐', () => {
     expect(NODE_TYPE_DEFAULTS).toHaveProperty('imageGenerateNode');
     expect(NODE_TYPE_DEFAULTS).toHaveProperty('group');
     expect(NODE_TYPE_DEFAULTS).toHaveProperty('videoProcessNode');
+  });
+
+  it('videoGenerateNode 的 507×285 由 computeSizeSync 派生（不是手抄魔数，改 baseSize 会红）', () => {
+    // 【2026-11-06 体检 #7】VideoGenerate 是 area-fixed + 默认 16:9，稳态尺寸 = computeSizeSync 的结果。
+    // 表里若直接手写 507×285，`NODE_AREA_FIXED_BASE_SIZE` 一改就静默漂移（表与真实渲染不一致
+    // ⇒ 框选几何再次对不上）。这条用同一个函数现算，把两处绑死。
+    const steady = computeSizeSync(16 / 9, {
+      mode: 'area-fixed',
+      baseSize: NODE_AREA_FIXED_BASE_SIZE,
+    });
+    const d = NODE_TYPE_DEFAULTS['videoGenerateNode'];
+    expect(d?.width).toBe(steady.width);
+    expect(d?.height).toBe(steady.height);
   });
 });
 

@@ -3,6 +3,11 @@ import { useReactFlow } from '@xyflow/react';
 import { ScanFace, Loader2, AlertCircle, Image as ImageIcon, Wand2, Shuffle } from 'lucide-react';
 import NodeShell from '@/components/canvas/parts/NodeShell';
 import { ASSET_NODE_SIZE } from '@/components/canvas/contract/nodeDefaults';
+// 【2026-11-06 体检 #1】输出结果改走 `commitNewNodes`：它负责「补结构默认（几何）+ 原子写 + 进 undo 栈」。
+// 此前本节点裸 `setNodes((ns) => [...ns, ...list])` —— 只写 style 不写 width/height ⇒ 框选守卫
+// `geometryOf` 拿不到几何只能放行 ⇒ 打码输出节点每次框选必被误选；且绕过 history.record（undo 丢失）。
+import { commitNewNodes } from '@/components/canvas/structure/deriveNodes';
+import { useCanvasEdges } from '@/components/canvas/structure/CanvasEdgesContext';
 import HoverToolbar from '@/components/canvas/shell/HoverToolbar';
 import { useConnectedInputs } from '@/hooks/useConnectedInputs';
 import { useNodeData } from '@/hooks/useNodeData';
@@ -72,7 +77,9 @@ interface FaceMosaicNodeProps {
  */
 const NO_TOOLBAR_BUTTONS: never[] = [];
 function FaceMosaicNode({ id, data, selected }: FaceMosaicNodeProps) {
-  const { setNodes, getNodes: _getNodes, getNode } = useReactFlow();
+  const { setNodes, setEdges, getNodes, getEdges, getNode } = useReactFlow();
+  // history 注入通道（节点内无 history 访问途径，见 CanvasEdgesContext 头注）；无 Provider 时为 null
+  const history = useCanvasEdges();
   // data 写回唯一入口（收口）：模式参数 + 图源都走它（§5.4.9 节点样板收口 hook）
   const { patchData } = useNodeData(id);
   // 标题改名 → 写回 data.label（下游 @名 匹配 / 素材条显示跟随），单一实现收口到 useNodeRename
@@ -132,16 +139,20 @@ function FaceMosaicNode({ id, data, selected }: FaceMosaicNodeProps) {
       const me = getNode(id);
       const baseX = (me?.position?.x ?? 100) + (me?.measured?.width ?? 320) + 60;
       const baseY = me?.position?.y ?? 100;
-      const list = items.map((it, i) => ({
+      const nodes = items.map((it, i) => ({
         id: `face-mosaic-${id}-${i}-${generateId('fm')}`,
         type: 'assetNode',
         position: { x: baseX, y: baseY + i * 260 },
         data: { assetUrl: it.url, label: it.label },
         style: { ...ASSET_NODE_SIZE.image }, // 尺寸单源（TD-16-48）：图片档 = 360×260
       }));
-      setNodes((ns) => [...ns, ...list]);
+      // commitNewNodes 会补齐 width/height（框选守卫要读的就是这两个字段）+ 记 undo 快照。
+      commitNewNodes(
+        { nodes },
+        { getNodes, getEdges, setNodes, setEdges, history: history ?? undefined },
+      );
     },
-    [id, getNode, setNodes],
+    [id, getNode, getNodes, getEdges, setNodes, setEdges, history],
   );
 
   // AI 打码（复刻官方 b）

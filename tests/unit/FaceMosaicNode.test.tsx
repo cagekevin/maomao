@@ -22,7 +22,14 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { mocks } from './_nodeMocks.mjs';
 
 // 捕获 setNodes 传入的 updater 并执行，得到更新后的 nodes（供断言 data 变更与 spawn 输出）
-type MockNode = { id: string; type?: string; data: Record<string, unknown> };
+type MockNode = {
+  id: string;
+  type?: string;
+  data: Record<string, unknown>;
+  width?: number;
+  height?: number;
+  style?: Record<string, unknown>;
+};
 const h = vi.hoisted(() => {
   const state: { nodes: MockNode[] } = { nodes: [] };
   // 三个 mock 都用**变长签名**定型：包装层是 `(...a: unknown[]) => mock(...a)`，
@@ -30,6 +37,7 @@ const h = vi.hoisted(() => {
   const setNodesMock = vi.fn<(...args: unknown[]) => void>((updater) => {
     state.nodes = typeof updater === 'function' ? updater(state.nodes) : updater;
   });
+  const setEdgesMock = vi.fn<(...args: unknown[]) => void>(() => {});
   const applyMosaicMock = vi.fn<
     (...args: unknown[]) => Promise<{ dataUrl: string; faceCount: number }>
   >(async () => ({
@@ -40,13 +48,17 @@ const h = vi.hoisted(() => {
   const uploadMock = vi.fn<(...args: unknown[]) => Promise<{ ok: true; url: string }>>(
     async () => ({ ok: true, url: 'http://local/mosaic.png' }),
   );
-  return { state, setNodesMock, applyMosaicMock, uploadMock };
+  return { state, setNodesMock, setEdgesMock, applyMosaicMock, uploadMock };
 });
 
 vi.mock('@xyflow/react', () => ({
   useReactFlow: () => ({
     setNodes: (...a: unknown[]) => h.setNodesMock(...a),
+    // 【2026-11-06 体检 #1】输出改走 commitNewNodes（补几何 + 原子写 + 记 undo），故必须提供
+    // setEdges/getEdges：commitNewNodes 无 history 时不读 getEdges，但有 history 时两者都读。
+    setEdges: (...a: unknown[]) => h.setEdgesMock(...a),
     getNodes: () => h.state.nodes,
+    getEdges: () => [],
     // P7：FaceMosaicNode 输出用 getNode(id) 读自身位置（替 getNodes().find），mock 需同步提供
     getNode: (id: any) => h.state.nodes.find((n) => n.id === id),
     addNodes: () => {},
@@ -209,6 +221,11 @@ describe('FaceMosaicNode — AI打码', () => {
       const spawned = at(spawnedNodes(), 0);
       expect(spawned.data['assetUrl']).toBe('http://local/mosaic.png');
       expect(spawned.data['label']).toBe('马赛克 1');
+      // 【2026-11-06 体检 #1】输出节点必须自带宽高字段：框选守卫 `geometryOf` 只读
+      // `measured ?? width ?? initialWidth`（**不读 style**），此前只写 style ⇒ 守卫返回 null 放行 ⇒ 每次框选被误选。
+      expect(Number(spawned.width)).toBe(360);
+      expect(Number(spawned.height)).toBe(260);
+      expect(spawned.style?.['width']).toBe(360);
       // 结果信息（「共 <span>2</span> 张人脸」被拆分，跨元素匹配）
       expect(screen.getByText('1 张')).toBeTruthy();
       expect(screen.getByText(/张人脸/)).toBeTruthy();
