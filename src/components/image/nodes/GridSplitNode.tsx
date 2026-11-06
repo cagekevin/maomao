@@ -36,6 +36,7 @@ import {
   canvasToImageDataUrl,
 } from '@/components/base/core/utils';
 import FullscreenShell from '@/components/base/panels/FullscreenShell';
+import { readNodeMeasuredSize } from '@/components/base/core/nodeSizePatch';
 
 /* ════════════════════════════════════════════════════════════════
  * 图片切分节点（复刻官方 Lo.jsx / gridSplitNode）
@@ -658,7 +659,8 @@ function GridSplitNode({ id, data, selected }: GridSplitNodeProps) {
     (list: Array<{ url: string; label: string }>) => {
       if (!list || list.length === 0) return;
       const me = getNode(id);
-      const baseX = (me?.position.x ?? 100) + (me?.measured?.width ?? 400) + 50;
+      // 【2026-11-06 · C1】源右缘宽度走布局族唯一读取源（measured → width → style → 兜底）
+      const baseX = (me?.position.x ?? 100) + readNodeMeasuredSize(me, 400, 400).w + 50;
       const baseY = me?.position.y ?? 100;
       const colsCount = Math.max(1, Math.ceil(Math.sqrt(list.length)));
       const spawned = buildSpawnNodes(

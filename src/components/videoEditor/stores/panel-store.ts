@@ -6,6 +6,11 @@ import { PANEL_CONFIG } from '@/components/videoEditor/constants/editor-constant
 // agent 侧栏未搬入（EditorShell.tsx「agent 侧栏未搬入，useAgentStore 依赖已移除」），
 // panels.agent 与 PANEL_CONFIG.panels.agent 零读取；setPanels/resetPanels 零调用。
 // migrate 保留旧持久化里的 agent 键不报错（多余键在 partialize 白名单外自动丢弃）。
+//
+// 【152-V3 · 有意不收编】本 store 的 persist 键 `panel-sizes` **不进 STORAGE_KEYS/备份**
+// —— 纯本地面板布局比例，换机重拖即复原，备份收益 ≈ 0。这是**决定**不是遗漏：
+// 裁定与「登记假收录」风险说明见 contracts.ts STORAGE_KEYS 的「有意不登记」段
+// （若未来承载非布局数据，走完整收口，唯一可抄样本 = keybindings-store）。
 
 export interface PanelSizes {
   tools: number;

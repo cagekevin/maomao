@@ -19,6 +19,7 @@ import { logger } from '@/components/base/core/log/logger';
 import { httpRequest } from '@/components/base/api/httpClient';
 import { DOWNLOAD_TIMEOUT } from '@/components/base/core/config';
 import { generateId } from '@/components/base/core/idGen';
+import { readNodeMeasuredSize } from '@/components/base/core/nodeSizePatch';
 import { canvasToBlob, deepClone, fileNameFromUrl } from '@/components/base/core/utils';
 import { withTimeout, TimeoutError, setCrossOriginForReadable } from './asyncGuard.ts';
 
@@ -287,6 +288,10 @@ interface ParseClipNode {
   type?: string;
   position?: { x: number; y: number };
   measured?: { width?: number; height?: number };
+  // 快照节点的声明尺寸（可能缺、数值化后可能带字符串），供布局族读取源兜底链使用
+  width?: number | string;
+  height?: number | string;
+  style?: { width?: number | string; height?: number | string };
   data?: Record<string, unknown>;
   [key: string]: unknown;
 }
@@ -309,11 +314,14 @@ export function buildNodesFromClipboard(
   const n: ClipboardEdge[] = Array.isArray(t['edges'])
     ? t['edges'].filter((x): x is ClipboardEdge => !!x && typeof x === 'object')
     : [];
-  // 计算原节点组包围盒中心，使整组以粘贴点为中心落下（对齐官方 xi:9673-9686）
+  // 计算原节点组包围盒中心，使整组以粘贴点为中心落下（对齐官方 xi:9673-9686）。
+  // 【2026-11-06 · C1 收口】尺寸读取走布局/拖拽族唯一实现 readNodeMeasuredSize
+  // （measured → width → style → 兜底 300）：剪贴板快照若缺 measured（未渲染过就被复制），
+  // 落到声明尺寸，比无条件 300 更贴近原框。
   const o = Math.min(...e.map((x) => x.position?.x ?? 0));
   const s = Math.min(...e.map((x) => x.position?.y ?? 0));
-  const c = Math.max(...e.map((x) => (x.position?.x ?? 0) + (x.measured?.width || 300)));
-  const l = Math.max(...e.map((x) => (x.position?.y ?? 0) + (x.measured?.height || 300)));
+  const c = Math.max(...e.map((x) => (x.position?.x ?? 0) + readNodeMeasuredSize(x, 300, 300).w));
+  const l = Math.max(...e.map((x) => (x.position?.y ?? 0) + readNodeMeasuredSize(x, 300, 300).h));
   const u = (o + c) / 2;
   const d = (s + l) / 2;
   const f = new Map();

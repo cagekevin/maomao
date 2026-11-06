@@ -101,6 +101,13 @@ const h = vi.hoisted(() => {
     stop,
     clear,
     stateAction: '',
+    // 【A1 接线】输入状态机输入侧出口桩：面板镜像 effect 会调用 setDraft/setAttachments，
+    // handleSend 会调用 consume；默认空实现，个别用例可断言其调用。
+    inputActions: {
+      setDraft: vi.fn(),
+      setAttachments: vi.fn(),
+      consume: vi.fn(() => ({ text: '', attachments: [] })),
+    },
     newChat,
     switchChat,
     deleteChat,

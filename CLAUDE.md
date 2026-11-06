@@ -140,9 +140,9 @@ node scripts/task-inspect.mjs --canvas-health   # 画布结构体检
 
 - **入口**：`src/main.tsx` → `src/App.tsx`。
 
-- **节点体系**：按域落 `src/components/<域>/nodes/*.tsx`（域模块化搬迁后，旧的集中式节点目录已不存在），每个节点一个文件，**当前 15 个 `*Node.tsx`**：canvas 域 3（GroupNode/GhostTargetNode/Director3DNode）+ `_template/TemplateNode`；image 域 7（ImageBoxNode/GridSplitNode/GridMergeNode/LoopNode/PanoramaNode/FaceMosaicNode/AssetNode）；video 域 2（VideoExtractNode/VideoProcessNode）；scriptbox 域 1（ScriptBoxNode）。另有 2 个非 `*Node` 命名的生成节点 `image/nodes/ImageGenerate.tsx`、`video/nodes/VideoGenerate.tsx`。**新增节点权威流程 →** **`spec/NEW-NODE-GUIDE.md`**（NodeShell 外壳 + 注册同步 + NODE\_OUTPUTS 管线契约，顶层规则见 `spec/CONTEXT.md` §一·5）。
+- **节点体系**：按域落 `src/components/<域>/nodes/*.tsx`（域模块化搬迁后，旧的集中式节点目录已不存在），每个节点一个文件，**当前 13 个 `*Node.tsx`**（另有 `_template/TemplateNode`）：canvas 域 3（GroupNode/GhostTargetNode/Director3DNode）；image 域 7（ImageBoxNode/GridSplitNode/GridMergeNode/LoopNode/PanoramaNode/FaceMosaicNode/AssetNode）；video 域 2（VideoExtractNode/VideoProcessNode）；scriptbox 域 1（ScriptBoxNode）。另有 2 个非 `*Node` 命名的生成节点 `image/nodes/ImageGenerate.tsx`、`video/nodes/VideoGenerate.tsx`。**新增节点权威流程 →** **`spec/NEW-NODE-GUIDE.md`**（NodeShell 外壳 + 注册同步 + NODE\_OUTPUTS 管线契约，顶层规则见 `spec/CONTEXT.md` §一·5）。
 
-- **通用能力地基**：`src/components/base/`（`NodeShell` 统一外框、`CanvasToolbar`、`useArrangeCanvas`、`useCanvasAgentTools` 脚本盒引擎、Toast、ImageEditor、OverlayEditor、设置面板、AI 助手面板 AgentPanel 等）。
+- **通用能力地基**：`src/components/base/`（横切唯一入口 `core/`：contracts / contentStore / eventBus / logger 等 + `storage/` 持久化底层 + `store/` 业务独立 store + `api/` `ui/` `panels/` `media/` `utils/`；目录地图见 `src/components/base/README.md`。业务域件已按域迁出——NodeShell 等画布件在 `components/canvas/`、AgentPanel 在 `components/agent/`、编辑器在各业务域）。
 
 - **设计语言**：参照 `docs/BASE-CAPABILITIES.md`；新建节点权威流程见 `spec/NEW-NODE-GUIDE.md`，节点视觉/交互规范见 `docs/ARCHITECTURE.md`。
 
@@ -214,8 +214,8 @@ npx vitest run --bail=1 tests/unit
 ```
 0. npm run dev           ← 预览改动（非校验）
 1. npm run test:smoke    ← 冒烟质量门（每次改动都跑，默认自检）
-2. npm run test:unit     ← vitest 全量单元测试（tests/unit/ 下 176 文件/约 2209 用例；
-                           剧本盒引擎/AI 工具/纯函数等改动必跑，今天补的主力验证）
+2. npm run test:unit     ← vitest 全量单元测试（tests/unit/ 下文件数与用例数以目录现测为准，
+                           会漂移，不在此写死；剧本盒引擎/AI 工具/纯函数等改动必跑，今天补的主力验证）
 3. npm run build         ← 构建校验 + 回灌 dist/（确认编译通过）
 4. npm run test:regression ← 节点注册表 + 脚本盒引擎回归（改了节点/引擎跑）
 5. npm run test:tools    ← 画布 Agent 工具验证（改了 agent 工具跑）
@@ -225,7 +225,7 @@ npx vitest run --bail=1 tests/unit
 > 命令速查（详见 `spec/TEST-GUIDE.md`，权威）：**`npm test`（=** **`npm run test:all`）= 冒烟 + vitest 全量单测 + 回归 + Agent 工具** 四件套一次跑完，提交前首选；单项：`npm run test:smoke`（冒烟）/`test:unit`（vitest 单测）/`test:regression`（SSR 回归）/`test:tools`（Agent 工具）；`npm run check:health` 全量编排（含构建 + 测试 + TDZ + dist 基线）。
 
 > ⚠️ **跑 vitest 单次**：`vitest.config.ts` 已默认 `watch:false`，裸调 `npx vitest xxx` 也会单次跑完即退（不会挂住）。但**优先用脚本**（内部已配好）：`npm test` / `npm run test:unit`（全量）或 `npx vitest run tests/unit/xxx.test.js`（单文件）。需 watch 时显式 `npx vitest --watch`。若已误入 watch，`Ctrl+C` 或 `pkill -f vitest` 退出。
-> 提交前 `pre-commit` 钩子（`.husky/pre-commit`）自动跑 `lint-staged`（仅暂存文件 eslint --fix + prettier）+ `type-check` + `node scripts/test-affected.cjs`（只测与暂存改动相关的单测，\~2-3s）+ 3 个秒级 SSR 门禁（`smoke`/`regression`/`tools`，防改名后 SSR 挂）。**`pre-push`（2026-09-10 恢复）跑全量 `npm run lint`**（全量 ESLint，约 4s；当初「跑得慢 + 报错多」的理由已不成立——当前 **0 error / 0 warning**（2026-10-20 起））；`main` 分支的 push/PR 由 `.github/workflows/ci.yml` 云端跑 type-check + 全量单测（frontend + localtool 两个 job）。全量 lint 只落在 push 这一道（不进 pre-commit，避免每次提交都等），紧急可用 `git push --no-verify` 绕过。另保留**单条存储键契约编译期拦截**：`npm run check:keys` 静态校验裸 `STORAGE_KEYS` key（挂 `npm run check:health`）+ `contentStore.checkRegistered` 在 dev 环境对未登记字面量 key 直接 throw。
+> 提交前 `pre-commit` 钩子（`.husky/pre-commit`）自动跑 `lint-staged`（仅暂存文件 eslint --fix + prettier）+ `type-check` + `node scripts/test-affected.cjs`（只测与暂存改动相关的单测，\~2-3s）+ 3 个秒级 SSR 门禁（`smoke`/`regression`/`tools`，防改名后 SSR 挂）。**`pre-push`（2026-09-10 恢复）跑全量 `npm run lint`**（全量 ESLint，约 4s；当初「跑得慢 + 报错多」的理由已不成立——当前 **0 error / 0 warning**（2026-10-20 起））；`main` 分支的 push/PR 由 `.github/workflows/ci.yml` 云端跑 type-check + 全量单测（frontend + localtool 两个 job）。全量 lint 只落在 push 这一道（不进 pre-commit，避免每次提交都等），紧急可用 `git push --no-verify` 绕过。另保留**单条存储键契约编译期拦截**：`npm run check:keys` 静态校验裸 `STORAGE_KEYS` key（挂 `npm run check:health`）+ `contentStore.checkRegistered` 对未登记字面量 key **不分环境一律 throw**（2026-09-18 起）。
 > **写完代码跑哪个**：平时 `npm run type-check` + **按影响面的最小射程单测**（**❌ 不是 `test:unit` 全量**，见 §3.0.1）；
 > 改画布/地基或合 main 前**申请后**再跑 `npm test` 全量兜底（regression/tools 已含在内）。
 
@@ -364,7 +364,7 @@ npx vitest run --bail=1 tests/unit
 2. **禁止新文件循环 import 大模块**（TDZ）：跨模块引用走既有 barrel / 已导出符号。
 3. **React 单实例不可破**：整工程唯一 React 实例，✗ 不可新增独立 react/react-dom 实例。
 4. **字符串契约零损伤**（见 §五.5）：`127.0.0.1:18080`（、`127.0.0.1:9004` 已随 2026-09-05 `lovart-old` 退役删除，禁止恢复）、`t.data[0].url`、`{code,data}` 信封——改任何引用必须全量 grep 同步。**注**：旧 `proxyMode=local-tool`/`/api/proxy`/`x-proxy-url` 已随 2026-09-03 生成入口收口退役，禁止恢复（前端直连 `/api/generate`，本地入口由 `config.ts` 的 `apiBase` 决定）。
-5. **存储键禁止裸字符串（P0 红线）**：所有存储读写（`content*/s*/storage*/kv*`）的 key 必须引用 `contracts.ts` 的 `STORAGE_KEYS` 登记项，**禁止裸字符串字面量 key**。新增键先登记、改键名全量 grep、删键先确认无引用。编译期拦截：`npm run check:keys`（静态）；运行时拦截：`contentStore.checkRegistered` 在 dev 环境对未登记字面量 key 直接 throw（`scripts/check-storage-keys.mjs` + `src/components/base/core/contentStore.ts` 为权威实现，改此机制须同步本红线）。
+5. **存储键禁止裸字符串（P0 红线）**：所有存储读写（`content*/s*/storage*/kv*`）的 key 必须引用 `contracts.ts` 的 `STORAGE_KEYS` 登记项，**禁止裸字符串字面量 key**。新增键先登记、改键名全量 grep、删键先确认无引用。编译期拦截：`npm run check:keys`（静态）；运行时拦截：`contentStore.checkRegistered` 对未登记字面量 key **不分环境一律 throw**（2026-09-18 起，原 dev-only 分叉已移除；`scripts/check-storage-keys.mjs` + `src/components/base/core/contentStore.ts` 为权威实现，改此机制须同步本红线）。
 6. **事件名禁止裸字符串 + 登记表零滞后（P0 红线，与存储键对称）**：所有事件总线调用（`publish`/`subscribe`/`subscribeOnce`）的事件名必须是 `contracts.ts` 的 `EVENTS` 登记项，**禁止裸字符串字面量事件名**（编译期 `npm run check:events` 拦截）。`EVENTS` 的 `from`/`to` 是发布/订阅事实源，**必须与代码实测的** **`publish`/`subscribe`** **位置自洽**：① 表 `to: []` 但代码实测有 `subscribe` → 视为"登记表滞后"（实际已被订阅），**禁止据此判定死事件/可删发布逻辑**；② 行号漂移须同步对齐。双向校验 `npm run check:events` 已挂 `prebuild`+`pretest`（`scripts/check-events.mjs` 为权威实现）。
 7. **降复杂度优先**：能减少复杂度又不引入 bug 的改动都做（短名改语义长名、抽公共、删冗余），被运行时契约钉死的除外。改完必须 `npm run build` 验证。
 8. **架构重排（移位置/改名字）统一走** **`scripts/mv-sync-refs.mjs`**（最高优先，改动前必读）【名字即三件事：`mv`=移动/改名 · `sync`=自动同步全库 import · `refs`=查引用/依赖/死代码；要搬文件、改名字、或查数据流/谁引用谁，第一反应用它】：一旦发现架构不合理需要给文件**移位置或改名字**，一律用 `node scripts/mv-sync-refs.mjs move <src> <dst> --suffix ts` / `rename <file> <newName> --suffix ts` / `move-dir`，**禁止手写** **`mv`/手改 import**。工具是事务式（git mv + 全库同步 import + 可 `undo` 回退，`--dry` 预览），且 2026-09-04 已修复被移文件自身出向 import 不重写的 bug。要点：
@@ -521,7 +521,7 @@ npx vitest run --bail=1 tests/unit
 
 | 场景                                                         | 做法                                                                                                                                                                                  |
 | ---------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 要改/查 API 端点                                                | **先看** **`contracts.ts apiRegistry`（前端↔后端唯一契约真源，60 条）+ 跑** **`npm run check:api`** **双向校验**；改端点须「加函数+登记」双动作，信封形态标 `ok/code-data/success-data/items` 或豁免 `stream/sse/raw/probe/stub` |
+| 要改/查 API 端点                                                | **先看** **`contracts.ts apiRegistry`（前端↔后端唯一契约真源，条数以现测为准）+ 跑** **`npm run check:api`** **双向校验**；改端点须「加函数+登记」双动作，信封形态标 `ok/code-data/success-data/items` 或豁免 `stream/sse/raw/probe/stub` |
 | 要改代理/转发逻辑                                                  | 现由 `localTool/src/routes/passthrough.ts`（`handlePassthrough`）+ `routes/generate.ts`（统一生成入口 `/api/generate`）+ `relay-poll.ts`（后端常驻轮询落盘）；旧 `/api/proxy` 已随 2026-09-03 收口退役            |
 | 要查官方权益转发                                                   | `localTool/src/routes/official.ts`（中转+短缓存，不伪造权限）                                                                                                                                    |
 | 要改画布前端                                                     | 改 `src/` → `npm run test:smoke` → `npm run build`；严禁直接手改 dist                                                                                                                       |

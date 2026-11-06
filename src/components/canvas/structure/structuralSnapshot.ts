@@ -10,7 +10,11 @@
  *
  * 结构化撤销只回答一个问题：**「这次变化里，结构（谁存在 / 连了谁 / 归谁管）变了没有」**。
  * 结构 = { 节点 id / type / parentId ＋ 边 id / source / target / sourceHandle / targetHandle }。
- * 位置、尺寸、普通内容**不属结构** → 不进快照、撤销时**保留当前值**。
+ * 位置、尺寸、普通内容**不属结构** → 不参与结构判等，且撤销时**保留当前值**。
+ *   - 唯一例外（152-C3）：**删除前位置**随快照存一份（仅作撤销删除时重建节点的归位底稿，
+ *     不参与判等、不回退现存节点的当前位置——现存节点整体保留当前对象，位置无从回退）。
+ *   - 重建体的**尺寸**走 `applyNodeTypeDefaults`（本模块内闭环；历史上 docstring 声称
+ *     「上层补默认」但上层从未补，2026-11-06 修正）。
  *
  * 【与执行层的关系（重要）】
  * 调用方（App.addNode / deleteNode / 编组…）**本就在结构操作时才 record**，拖动位置与
@@ -26,13 +30,19 @@
  * ════════════════════════════════════════════════════════════════
  */
 import type { Edge, Node } from '@xyflow/react';
+import { applyNodeTypeDefaults } from '../contract/nodeDefaults.ts';
 
-/** 结构快照里的节点（只留结构字段；其余字段在撤销时保留「当前值」）。 */
+/** 结构快照里的节点（结构字段 + 删除前位置底稿；其余字段在撤销时保留「当前值」）。 */
 export interface StructuralNode {
   id: string;
   type: string;
   /** 分组归属（编组子节点以相对父节点坐标存储，故归属属结构）。 */
   parentId?: string;
+  /**
+   * 删除前位置（152-C3）：仅作「撤销删除 → 重建」时的归位底稿。
+   * **不参与结构判等**（isSameStructure 忽略它），也不用于回退现存节点的位置。
+   */
+  position?: { x: number; y: number };
 }
 
 /** 结构快照里的边（边无普通内容，结构即全部）。 */
@@ -54,7 +64,8 @@ export interface StructuralSnapshot {
  * 从全量节点/边**提取**结构快照（纯函数）。
  *
  * 只取结构字段 —— 这是「快照膨胀」的根治点：无论节点 data 多大（内联 base64 / 长文本），
- * 结构快照的体积都只与「节点数」相关。
+ * 结构快照的体积都只与「节点数」相关。另存一份 position（152-C3）：仅作撤销删除时的
+ * 重建归位底稿，不参与判等（isSameStructure），也不随 data 体积膨胀。
  */
 export function extractStructuralSnapshot(
   nodes: readonly Node[],
@@ -65,6 +76,8 @@ export function extractStructuralSnapshot(
       const out: StructuralNode = { id: String(n.id), type: String(n.type ?? '') };
       // parentId 缺省视为「无归属」——不写 undefined，保持快照可比对（JSON 友好）
       if (n.parentId != null) out.parentId = String(n.parentId);
+      // 删除前位置底稿（152-C3，仅重建用；判等忽略）
+      out.position = { x: n.position.x, y: n.position.y };
       return out;
     }),
     edges: edges.map((e) => {
@@ -117,20 +130,18 @@ export function isSameStructure(a: StructuralSnapshot, b: StructuralSnapshot): b
  *
  * **核心语义（勿改）**：对「结构快照里仍存在」的节点，**保留当前对象的当前位置/尺寸/内容**
  * —— 这是「撤销不回退位置/尺寸/普通内容」的落点。仅对：
- *   - 当前画布缺该节点（撤销一次「删除」）→ 用给的结构新建（结构字段有，位置缺省，由调用方/渲染层兜底）；
+ *   - 当前画布缺该节点（撤销一次「删除」）→ 重建：position 用快照里的**删除前位置**（152-C3），
+ *     结构默认（宽高等）由 `applyNodeTypeDefaults` 在本模块内补齐；
  *   - 当前画布多该节点（撤销一次「新建」）→ 移除。
  *
  * @param currentNodes 当前画布节点（真源）
  * @param currentEdges 当前画布边
  * @param snapshot     目标结构快照
- * @param materialize  可选：把 `StructuralNode` 变回完整 `Node` 的工厂（缺失节点重建时用；
- *                     缺省则产最小 Node 交给上层 applyNodeTypeDefaults 补结构默认）
  */
 export function applyStructuralSnapshot(
   currentNodes: readonly Node[],
   currentEdges: readonly Edge[],
   snapshot: StructuralSnapshot,
-  materialize?: (n: StructuralNode) => Node,
 ): { nodes: Node[]; edges: Edge[] } {
   const currentNodeById = new Map(currentNodes.map((n) => [String(n.id), n]));
   const nodes: Node[] = snapshot.nodes.map((s) => {
@@ -147,16 +158,16 @@ export function applyStructuralSnapshot(
     // 已不存在（撤销一次删除）→ 重建。
     // 【勿漏 parentId】归属是结构的一部分：漏了会让「撤销删除编组子节点」后它变回顶层节点
     // （位置语义随之从「相对父节点」漂成「绝对坐标」）—— 实测由 structuralSnapshot.test.ts 捕获。
-    // 三个必填字段（id/position/data）给齐 + 可选项条件展开（eop 下不能显式写 undefined），
-    // 形状即满足 `Node` ⇒ 不再需要双重断言。
-    const rebuilt: Node = {
+    // 【152-C3】position 用删除前位置（快照底稿，旧实现落 {0,0} 已废）；宽高等结构默认由
+    // applyNodeTypeDefaults 统一补齐（此前 docstring 声称「上层补默认」但上层从未补）。
+    const rebuilt = applyNodeTypeDefaults({
       id: s.id,
-      position: { x: 0, y: 0 },
+      position: s.position ? { x: s.position.x, y: s.position.y } : { x: 0, y: 0 },
       data: {},
       ...(s.type !== undefined ? { type: s.type } : {}),
       ...(s.parentId != null ? { parentId: s.parentId } : {}),
-    };
-    return materialize ? materialize(s) : rebuilt;
+    } as Node);
+    return rebuilt;
   });
 
   const currentEdgeById = new Map(currentEdges.map((e) => [String(e.id), e]));

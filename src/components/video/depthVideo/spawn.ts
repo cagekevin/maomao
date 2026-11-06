@@ -24,6 +24,7 @@ import {
   ASSET_NODE_SIZE,
 } from '@/components/canvas';
 import type { Node } from '@xyflow/react';
+import { readNodeMeasuredSize } from '@/components/base/core/nodeSizePatch';
 import { buildDepthChildSpec } from './engine';
 
 /** spawn 所需句柄：除提交句柄外，还需 getNode 读取源节点位置/尺寸用于右缘排布 */
@@ -70,7 +71,9 @@ export function spawnDepthVideoNode(
   return spawnAndCommit(spawned, handles);
 }
 
-/** 源节点位置/宽度归一（缺省回退，与 spawnVideoNode 的 `?? 100` / `?? 540` 对齐） */
+/** 源节点位置/宽度归一（缺省回退，与 spawnVideoNode 的 `?? 100` / `?? 540` 对齐）。
+ *  【2026-11-06 · C1 收口】宽度走布局/拖拽族唯一读取源 readNodeMeasuredSize
+ *  （measured → width → style → 兜底 540）：源未渲染过时按声明尺寸排布，不再一律 540。 */
 function getMe(
   node: { position?: { x: number; y: number }; measured?: { width?: number } } | null,
 ): {
@@ -81,6 +84,6 @@ function getMe(
   return {
     x: node?.position?.x ?? 100,
     y: node?.position?.y ?? 100,
-    width: node?.measured?.width ?? 540,
+    width: readNodeMeasuredSize(node, 540, 540).w,
   };
 }

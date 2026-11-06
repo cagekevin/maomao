@@ -4,6 +4,10 @@ import { NodeResizer, useStore } from '@xyflow/react';
 import NodeTitle from '@/components/canvas/parts/NodeTitle';
 import CustomHandle from '@/components/canvas/parts/CustomHandle';
 import { useSizeSync } from '@/components/base/core/interaction/uiHooks';
+import {
+  readNodeDeclaredWidth,
+  readNodeDeclaredHeight,
+} from '@/components/base/core/nodeSizePatch';
 import { NODE_AREA_FIXED_BASE_SIZE } from '@/components/base/core/config';
 import ErrorBoundary from '@/components/base/ui/feedback/ErrorBoundary';
 import { logger } from '@/components/base/core/log/logger';
@@ -67,17 +71,18 @@ interface NodeShellProps {
 // （不推荐 useShallow：它每次仍分配新对象，大画布下每帧几百次对象分配有 GC 压力。）
 // 等价性：旧实现在 !lookup / !n / !id 三种情况下返回 {width:undefined,height:undefined}，
 // 新实现 s?.nodeLookup?.get(id) 在这三种情况下同样得到 undefined → 行为完全等价。
+//
+// 【2026-11-06 · C1 收口】读取走样式承载族唯一访问器 readNodeDeclaredWidth/Height
+// （width → style 字段优先，必须与 React Flow getNodeInlineStyleDimensions 同序）；
+// selector 返回原始值的 P0 约束由访问器签名（原始值返回）保证。
+// 【2026-11-06 · 二写收口】根 div 内联 CSS 宽高 = **从字段派生**（子元素按 100% 排布——
+// w-full/flex-1 以根 div 为包含块——故该派生必须完整写上，不可省）；
+// withNodeSize 已不写 style 尺寸，访问器里的 style 分支仅为存量旧节点兜底。
 function useNodeWidth(id: string) {
-  return useStore((s) => {
-    const n = s?.nodeLookup?.get(id);
-    return n?.width ?? n?.style?.width;
-  });
+  return useStore((s) => readNodeDeclaredWidth(s?.nodeLookup?.get(id)));
 }
 function useNodeHeight(id: string) {
-  return useStore((s) => {
-    const n = s?.nodeLookup?.get(id);
-    return n?.height ?? n?.style?.height;
-  });
+  return useStore((s) => readNodeDeclaredHeight(s?.nodeLookup?.get(id)));
 }
 
 /**

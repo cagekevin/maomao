@@ -2,6 +2,10 @@ import { useCallback } from 'react';
 import type { SyntheticEvent } from 'react';
 import { useReactFlow } from '@xyflow/react';
 import { useNodeResize } from '@/components/base/core/interaction/uiHooks';
+import {
+  readNodeDeclaredWidth,
+  readNodeDeclaredHeight,
+} from '@/components/base/core/nodeSizePatch';
 
 /** 媒体真实宽高 → 按比例调整节点形状（宽保持，高 = 宽 / 比例） */
 export type FitByRatio = (naturalW: number, naturalH: number) => void;
@@ -37,11 +41,12 @@ export function useFitNodeRatio(id: string): FitNodeRatioApi {
       const ratio = naturalW / naturalH;
       if (!isFinite(ratio) || ratio <= 0) return;
       const curNode = getNode(id);
-      // style.width/height 在 ReactFlow 里可能是字符串（'260px'），统一 Number 化保证后续算术合法
-      const curW = Number(curNode?.width ?? curNode?.style?.width ?? 260);
+      // style.width/height 在 ReactFlow 里可能是字符串（'260px'），统一 Number 化保证后续算术合法。
+      // 【2026-11-06 · C1 收口】现值读取走样式承载族唯一访问器（width → style 字段优先）。
+      const curW = Number(readNodeDeclaredWidth(curNode) ?? 260);
       const h = Math.round(curW / ratio);
       const clamped = Math.min(900, Math.max(80, h));
-      const curH = Number(curNode?.height ?? curNode?.style?.height ?? 0);
+      const curH = Number(readNodeDeclaredHeight(curNode) ?? 0);
       if (Math.abs(clamped - curH) < 4) return;
       onMainBoxResize(Math.round(curW), clamped);
     },

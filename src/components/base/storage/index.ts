@@ -17,3 +17,6 @@ export * from './storageAdapter.ts';
 export * from './storageQuota.ts';
 // 历史裸键迁移原语（2026-09-16 M7 收口）：裸访问点全仓收敛在本层，业务只经本 barrel 调其迁移语义 API。
 export * from './legacyRawKey.ts';
+// zustand persist × contentStore 适配（2026-11-06 · 152-V3）：persist 裸键收编进 contentStore 的
+// 唯一入口（全仓只此一份，可抄口径见文件头）。依赖 contentStore + legacyRawKey，同层互引合规。
+export * from './contentPersistStorage.ts';

@@ -76,7 +76,9 @@ describe('useFitNodeRatio', () => {
     const node = lastSetNodesUpdate();
     expect(node.width).toBe(400);
     expect(node.height).toBe(200);
-    expect(node.style).toMatchObject({ width: 400, height: 200 });
+    // 二写收口（2026-11-06）：写回只落 width/height 字段，style 尺寸不写（存量被剥离）
+    expect(node.style?.['width']).toBeUndefined();
+    expect(node.style?.['height']).toBeUndefined();
   });
 
   it('极端宽高比（1000x50 → ratio20 → h=20 <80 → clamp 到 80）', () => {
@@ -99,15 +101,11 @@ describe('useFitNodeRatio', () => {
   it('fitFromImage / fitFromVideo 透传到 fitByRatio（读取节点尺寸）', () => {
     const { result } = renderHook(() => useFitNodeRatio('n1'));
     getNode.mockClear();
-    result.current.fitFromImage(
-      mediaEvent('img', { naturalWidth: 800, naturalHeight: 400 }),
-    );
+    result.current.fitFromImage(mediaEvent('img', { naturalWidth: 800, naturalHeight: 400 }));
     // handler 透传 media 尺寸 → fitByRatio 读取当前节点尺寸
     expect(getNode).toHaveBeenCalled();
     getNode.mockClear();
-    result.current.fitFromVideo(
-      mediaEvent('video', { videoWidth: 1600, videoHeight: 400 }),
-    );
+    result.current.fitFromVideo(mediaEvent('video', { videoWidth: 1600, videoHeight: 400 }));
     expect(getNode).toHaveBeenCalled();
   });
 });

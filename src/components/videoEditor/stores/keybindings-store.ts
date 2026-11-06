@@ -1,7 +1,9 @@
 'use client';
 
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { persist, createJSONStorage } from 'zustand/middleware';
+import { KEY_CUTIA_KEYBINDINGS } from '@/components/base/core/contracts';
+import { contentPersistStorage } from '@/components/base/storage/index.ts';
 import type { TActionWithOptionalArgs } from '@/components/videoEditor/engine/lib/actions';
 import { getDefaultShortcuts } from '@/components/videoEditor/engine/lib/actions';
 import { isTypableDOMElement } from '@/components/videoEditor/utils/browser';
@@ -139,8 +141,12 @@ export const useKeybindingsStore = create<KeybindingsState>()(
       },
     }),
     {
-      name: 'cutia-keybindings',
+      // 【152-V3】键名走 contracts 命名常量（全仓唯一定义）；persist 存储收编进 contentStore
+      // （键已登记 STORAGE_KEYS → 自动进备份清单，换机可还原）。旧裸键由适配层一次性迁移。
+      // 全仓唯一适配 = base/storage/contentPersistStorage.ts（禁止再造第二份）。
+      name: KEY_CUTIA_KEYBINDINGS,
       version: CURRENT_VERSION,
+      storage: createJSONStorage(contentPersistStorage),
       partialize: (state) => ({
         keybindings: state.keybindings,
         isCustomized: state.isCustomized,

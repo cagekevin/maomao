@@ -4,8 +4,11 @@
  * 【职责】各节点类型「结构默认」单源：addNode 新建、快照加载还原都复用，避免
  * 「右键/菜单新建」与「历史快照还原」两套路径字段不一致（如 group 缺 style/className）。
  *
- * 仅放与视觉/结构相关、缺失会出问题的字段：width/height/style/initialWidth/initialHeight/className/data.label。
+ * 仅放与视觉/结构相关、缺失会出问题的字段：width/height/initialWidth/initialHeight/className/data.label。
  * 内容对齐原 App.jsx 的 NODE_TYPE_DEFAULTS。
+ * 【2026-11-06 · 二写收口】本表**不再登记 `style` 尺寸**（原表项的 `style:{width,height}` 子项已删）：
+ * 新建节点只补 `width`/`height` 字段（单一真源）；存量 style-only 节点的归一读取在 `fillGeometry`
+ * （从旧 style 读值补字段），与「新建写 style」是两回事——后者已随三写不变量一并废除。
  *
  * 【2026-11-05 职责升级：几何是「框选命中」的必要条件，不只是视觉】
  * 本表不再只是「补视觉默认」，而是「**每个可框选类型在创建那一刻就有几何**」——
@@ -31,17 +34,29 @@ function positiveNum(v: unknown): number | undefined {
 }
 
 /**
- * 把「尺寸 + 既有 style」按三写不变量合并进 `next`（**只补缺失维，不覆盖已有维**）。
+ * 把「尺寸补齐」合并进 `next`（**只补缺失维，不覆盖已有维**）。
  *
  * 【为什么不直接调 `withNodeSize`】那个原语的语义是「用给定 w/h **覆盖**」，
  * 而这里要的是「**只填空缺**」——存量节点 `style.width=600` 且无 `width` 字段时必须沿用 600
  * （NodeShell 读 `width ?? style.width`，字段优先；填表默认会让旧节点当场缩水）。
- * 两者语义不同，故不强行委托；但「字段 + style 双写」的形态仍与本文件外的唯一实现保持一致。
+ * 两者语义不同，故不强行委托。
+ *
+ * 【style 与字段「两份共存」的来龙去脉（2026-11-06 · 二写收口）】
+ *  - 为什么历史上共存：React Flow 对节点内联尺寸的解析是 `width ?? initialWidth ?? style.width`
+ *    （getNodeInlineStyleDimensions 的 style 兜底链），存量旧节点（含参考蓝本时代）**只有 style
+ *    写法** ⇒ 读侧必须认 style；三写不变量时代写入侧又「字段 + style」双写 ⇒ 两份尺寸长期共存。
+ *  - 现在新节点用哪一份：**只写 `width` / `height` 字段**——style 尺寸是遗留兼容，读侧仅兜底
+ *    （见 nodeSizePatch.ts 两个 readNodeDeclared*）。
+ *  - 存量节点的 style 尺寸什么时候清掉：**就在本函数补完字段后剥离**（2026-11-06 第二阶段）——
+ *    字段补齐口径已含「style 值优先迁入字段」（见下），剥掉后持久化数据里不再存在第二份尺寸，
+ *    结构上杜绝新代码照着 style 尺寸抄。剥离安全性论证：
+ *    ① 取值口径 = 字段 → style → 表默认，剥前字段必已持同值（或表默认，与 RF 字段优先渲染一致）；
+ *    ② React Flow wrapper / NodeShell / 两族读原语全部字段优先（152/C1 源码取证）；
+ *    ③ style 的视觉属性（background 等）原样保留，本函数只动 width/height 两个键。
  */
 function fillGeometry(
   next: Record<string, unknown>,
   size: { width?: number | undefined; height?: number | undefined },
-  baseStyle: Record<string, unknown> = {},
 ): void {
   const style = (next['style'] as Record<string, unknown>) || {};
   // 逐维回退：已存在 style 的维度优先（NodeShell / React Flow 都是 `width ?? style.width`，
@@ -52,12 +67,16 @@ function fillGeometry(
   if (h !== undefined && (next['height'] === undefined || next['height'] === null)) {
     next['height'] = h;
   }
-  next['style'] = {
-    ...baseStyle,
-    ...style,
-    ...(w !== undefined ? { width: w } : {}),
-    ...(h !== undefined ? { height: h } : {}),
-  };
+  // 【二写收口 · 第二阶段：存量剥离】字段补齐后剥掉 style 的尺寸键——持久化数据从此只剩
+  // width/height 一份尺寸（结构上不可能再被照抄）。剥离零视觉差的依据见上方 docblock ①②③；
+  // style 只剩视觉属性时原样保留，只剩尺寸键时整个 style 键消失。
+  if (style['width'] !== undefined || style['height'] !== undefined) {
+    const restStyle = { ...style };
+    delete restStyle['width'];
+    delete restStyle['height'];
+    if (Object.keys(restStyle).length > 0) next['style'] = restStyle;
+    else delete next['style'];
+  }
 }
 
 /**
@@ -88,27 +107,26 @@ export const INPUT_PANEL_NODE_TYPES = [
  * **与不填时的实际渲染尺寸一致 ⇒ 零布局变化**；一旦真实渲染测得更大尺寸，`useSizeSync` 会覆盖它。
  */
 export const NODE_TYPE_DEFAULTS: Partial<Record<NodeTypeKey, NodeStructuralDefaults>> = {
-  imageGenerateNode: { width: 420, height: 420, style: { width: 420, height: 420 } },
-  textGenerateNode: { width: 420, height: 320, style: { width: 420, height: 320 } },
+  imageGenerateNode: { width: 420, height: 420 },
+  textGenerateNode: { width: 420, height: 320 },
   // 【area-fixed 类节点取「稳态渲染值」而非首帧兜底值】`VideoGenerate` 是 `sizeMode="area-fixed"` +
   // `aspectRatio`（默认 16:9），`useSizeSync` 会把它覆盖成 `computeSizeSync` 的结果
   // = `round(sqrt(16/9)*380) × round(380/sqrt(16/9))` ≈ 507×285（`NODE_AREA_FIXED_BASE_SIZE=380`）。
   // 填这个值 ⇒ 首帧即为稳态尺寸（不填反而先渲染 380×420 再跳），且框选几何与真实渲染一致。
-  videoGenerateNode: { width: 507, height: 285, style: { width: 507, height: 285 } },
-  imageBoxNode: { width: 420, height: 420, style: { width: 420, height: 420 } },
-  gridSplitNode: { width: 280, height: 420, style: { width: 280, height: 420 } },
-  gridMergeNode: { width: 420, height: 420, style: { width: 420, height: 420 } },
-  panoramaNode: { width: 420, height: 360, style: { width: 420, height: 360 } },
-  loopNode: { width: 420, height: 280, style: { width: 420, height: 280 } },
-  videoExtractNode: { width: 420, height: 420, style: { width: 420, height: 420 } },
-  faceMosaicNode: { width: 420, height: 420, style: { width: 420, height: 420 } },
-  scriptBoxNode: { width: 900, height: 600, style: { width: 900, height: 600 } },
-  videoProcessNode: { width: 520, height: 620, style: { width: 520, height: 620 } },
-  director3dNode: { width: 420, height: 300, style: { width: 420, height: 300 } },
+  videoGenerateNode: { width: 507, height: 285 },
+  imageBoxNode: { width: 420, height: 420 },
+  gridSplitNode: { width: 280, height: 420 },
+  gridMergeNode: { width: 420, height: 420 },
+  panoramaNode: { width: 420, height: 360 },
+  loopNode: { width: 420, height: 280 },
+  videoExtractNode: { width: 420, height: 420 },
+  faceMosaicNode: { width: 420, height: 420 },
+  scriptBoxNode: { width: 900, height: 600 },
+  videoProcessNode: { width: 520, height: 620 },
+  director3dNode: { width: 420, height: 300 },
   group: {
     width: 300,
     height: 200,
-    style: { width: 300, height: 200 },
     initialWidth: 300,
     initialHeight: 200,
     className: 'yimao-group-node',
@@ -190,7 +208,8 @@ export interface NodeStructuralDefaults {
   initialWidth?: number;
   initialHeight?: number;
   className?: string;
-  style?: Record<string, unknown>;
+  // 【2026-11-06 · 二写收口】`style` 已从本接口移除：补齐函数不再写/补 style 尺寸
+  // （字段 width/height 单一真源）。存量节点的 style 由其自身携带，与本契约无关。
 }
 
 /**
@@ -228,7 +247,8 @@ export function applyNodeTypeDefaults<T extends Record<string, unknown>>(
   // `getNodeInlineStyleDimensions` 都按 `width ?? style.width`（**字段优先**）—— 若这里填表默认，
   // 那个原本靠 style 撑到 600 的旧节点会当场缩到 420（布局回归）。故 `fillGeometry` 的取值口径是
   // 已存在字段 → 已存在 style → 表默认（与 `resolveAssetNodeSize` 一致）。
-  fillGeometry(next, { width: d.width, height: d.height }, d.style);
+  // 【二写收口】不再传 baseStyle：本表已不登记 style 尺寸，fillGeometry 也不往 style 写键。
+  fillGeometry(next, { width: d.width, height: d.height });
   // initial*/className 只在缺失时补（存量快照若已有正确值则不覆盖）
   for (const k of ['initialWidth', 'initialHeight', 'className']) {
     if (next[k] === undefined || next[k] === null) {

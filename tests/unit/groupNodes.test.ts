@@ -296,10 +296,9 @@ describe('R3 duplicateSelectedWithEdges 克隆子图（保留组关系 + 连线�
     expect(typeof clone.height).toBe('number');
     expect(Number(clone.width)).toBeGreaterThan(0);
     expect(Number(clone.height)).toBeGreaterThan(0);
-    // 几何同时写进 style（NodeShell 读 width 优先，缺 style 会在首帧抖）
-    const style = clone.style as Record<string, unknown> | undefined;
-    expect(style?.['width']).toBe(clone.width);
-    expect(style?.['height']).toBe(clone.height);
+    // 二写收口（2026-11-06）：克隆体几何只落 width/height 字段（字段单一真源）；style 尺寸不再写——
+    // NodeShell 根 div 内联 CSS 已从字段派生，不存在旧注释所说的「缺 style 首帧抖」前提。
+    expect(clone.style).toBeUndefined();
   });
 });
 
@@ -357,8 +356,9 @@ describe('编组尺寸刷新保真（TASK: 编组后刷新大小变了）', () =
     );
     expect(group.width).toBe(780);
     expect(group.height).toBe(530);
-    expect(must(group.style, 'style').width).toBe(780);
-    expect(must(group.style, 'style').height).toBe(530);
+    // 二写收口（2026-11-06）：withNodeSize 不再写 style 尺寸且剥离存量——宽高只在字段一份真源
+    expect(must(group.style, 'style').width).toBeUndefined();
+    expect(must(group.style, 'style').height).toBeUndefined();
   });
 
   it('落盘 -> 加载重建后 group 面积不变（防止刷新塌成 0×0）', () => {

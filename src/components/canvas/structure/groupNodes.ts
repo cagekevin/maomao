@@ -1,5 +1,5 @@
 import { generateId, generateUUID } from '@/components/base/core/idGen';
-import { withNodeSize } from '@/components/base/core/nodeSizePatch';
+import { readNodeMeasuredSize, withNodeSize } from '@/components/base/core/nodeSizePatch';
 import type { Node, Edge } from '@xyflow/react';
 // 复制 = 新实例 ⇒ 必须重开图片身份（docs/plan/151 §7-1 / R4）。横切原语只负责"重开 id + 给映射"，
 // 芯片字符串格式由本域注入（`rewriteChipsInPrompt`）—— 依赖方向保持 业务 → 横切（base/utils 不得反向依赖）。
@@ -20,30 +20,17 @@ import { applyNodeTypeDefaults } from '@/components/canvas/contract/nodeDefaults
 const DUPLICATE_OFFSET_Y = 750;
 
 /**
- * 节点实际尺寸 · 本文件唯一读取源（2026-11-06 · C1 收口）。
+ * 节点实际尺寸读取 · 2026-11-06 · C1 全库收口。
  *
- * 【序：measured 优先 → width 次之 → style 兜底】同文件原有两个函数：
- *  - `nodeSize`（style 优先，建组外接矩形用）与 `dragGroupSize`（measured 优先，拖拽落组用）
- *    是**漂移**不是刻意选择——两者都是「节点现在多大」的几何语义，style 优先会把
- *    「用户缩放后的旧 style 残值」当真实尺寸（缩放后尺寸漂移，dragGroupSize 注释早已论证），
- *    建组外接矩形同病。统一取 dragGroupSize 的序。
- *  - 兜底值差异保留为**参数**：建组矩形用 420/420（对齐官方，避免 0 尺寸把矩形算塌）；
- *    拖拽落组用 0（调用方自行决定 0 的含义：组尺寸用它做面积比，被拖节点用 100/60 兜底）。
- *
- * 【全库尚有其他序（useArrangeCanvas/NodeShell/clipboard 等），属不同语义语境——
- *  是否收口见 docs/plan/152 第四批 C1 裁定，本收口只合并本文件内的同语境漂移。】
+ * 本文件原有两个函数 `nodeSize`（style 优先）与 `dragGroupSize`（measured 优先）是**漂移**
+ * 不是刻意选择——两者都是「节点现在多大」的几何语义，style 优先会把「用户缩放后的旧 style
+ * 残值」当真实尺寸（缩放后尺寸漂移，dragGroupSize 注释早已论证），建组外接矩形同病。
+ * 已按用户裁定（152/C1：布局/拖拽族 measured 优先）合并，并连同全库同族读取点
+ * （useArrangeCanvas / clipboard / useCanvasAgentTools / App 框选守卫 / 各 spawn 落点）
+ * 一并收敛到横切层唯一实现 `readNodeMeasuredSize`（base/core/nodeSizePatch.ts）；
+ * 兜底差异保留为参数：建组矩形 420/420（对齐官方，避免 0 尺寸把矩形算塌），
+ * 拖拽落组用 0（调用方自行决定 0 的含义：组尺寸用它做面积比，被拖节点用 100/60 兜底）。
  */
-function nodeSize(n: Node, fallbackW = 420, fallbackH = 420): { w: number; h: number } {
-  return {
-    w: Number(n.measured?.width) || Number(n.width) || Number(n.style?.width) || fallbackW,
-    h: Number(n.measured?.height) || Number(n.height) || Number(n.style?.height) || fallbackH,
-  };
-}
-
-/** 拖拽落组语境的尺寸读取（0 兜底，调用方自行处理）；本体系 `nodeSize(n, 0, 0)` 的别名。 */
-function dragGroupSize(n: Node): { w: number; h: number } {
-  return nodeSize(n, 0, 0);
-}
 
 /**
  * 编组：建一个 group 节点包住目标节点，并把目标节点设为子节点（parentId + 相对坐标）。
@@ -73,7 +60,7 @@ export function createGroupFromNodes(nodes: Node[], selectedIds: string[]): Crea
     maxX = -Infinity,
     maxY = -Infinity;
   for (const n of targets) {
-    const { w, h } = nodeSize(n);
+    const { w, h } = readNodeMeasuredSize(n, 420, 420);
     minX = Math.min(minX, n.position.x);
     minY = Math.min(minY, n.position.y);
     maxX = Math.max(maxX, n.position.x + w);
@@ -241,7 +228,7 @@ export function deleteNodesWithCascade(
   return { nodes: nextNodes, edges: nextEdges, deleted: [...toDelete] };
 }
 
-// 【2026-11-06 · C1】原 dragGroupSize 独立实现已并入文件头 nodeSize（measured 优先唯一读取源）。
+// 【2026-11-06 · C1】原 dragGroupSize 独立实现已并入全库唯一读取源 readNodeMeasuredSize（measured 优先）。
 
 /**
  * 拖拽节点落组判定（R3 治理：拖入 group 设 parentId、拖出解除 parentId）。
@@ -279,17 +266,9 @@ export function resolveDragGrouping(draggedNode: Node, nodes: Node[]): Node[] | 
   // 判定节点是否「大部分在 group 内」：重叠面积 ≥ 子节点面积一半（50%）即算组内
   const insideGroup = (nodeAbs: { x: number; y: number }, g: Node): boolean => {
     const gAbs = absPosOf(g.id);
-    const { w: gW, h: gH } = dragGroupSize(g);
-    const nW =
-      Number(draggedNode.measured?.width) ||
-      Number(draggedNode.width) ||
-      Number(draggedNode.style?.width) ||
-      100;
-    const nH =
-      Number(draggedNode.measured?.height) ||
-      Number(draggedNode.height) ||
-      Number(draggedNode.style?.height) ||
-      60;
+    const { w: gW, h: gH } = readNodeMeasuredSize(g, 0, 0);
+    // 被拖节点兜底 100/60（0 面积会让重叠比恒为 0 ⇒ 永远判不进组）
+    const { w: nW, h: nH } = readNodeMeasuredSize(draggedNode, 100, 60);
     const overlapW = Math.max(
       0,
       Math.min(nodeAbs.x + nW, gAbs.x + gW) - Math.max(nodeAbs.x, gAbs.x),
@@ -312,8 +291,8 @@ export function resolveDragGrouping(draggedNode: Node, nodes: Node[]): Node[] | 
   const groups = cur
     .filter((n) => n.type === 'group' && n.id !== draggedNode.id)
     .sort((a, b) => {
-      const sa = dragGroupSize(a);
-      const sb = dragGroupSize(b);
+      const sa = readNodeMeasuredSize(a, 0, 0);
+      const sb = readNodeMeasuredSize(b, 0, 0);
       return sa.w * sa.h - sb.w * sb.h;
     });
   const newParent = groups.find((g) => insideGroup(draggedAbs, g));

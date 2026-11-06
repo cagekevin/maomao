@@ -660,7 +660,7 @@ task/nodeRuntimeStore.ts（纯内存瞬态 map，不落盘）
 素材落画布：  src/hooks/useAssetDropPaste.ts · src/hooks/useAssetDragToCanvas.ts · src/hooks/useResourceMoveToFolder.ts
 改名/重命名： src/hooks/useNodeRename.ts
 欠深审：      src/hooks/useNodeField.ts · src/hooks/useNodeExpanded.ts
-有债待还：    src/hooks/useArrangeCanvas.ts（TD-04-28 已收口：三写走 withNodeSize）· src/hooks/useFitNodeRatio.ts（非债）· canvas/shell/useContextMenu.ts（非债）
+有债待还：    src/hooks/useArrangeCanvas.ts（TD-04-28 已收口；2026-11-06 二写收口：宽高字段单一真源，withNodeSize 不再写 style 尺寸）· src/hooks/useFitNodeRatio.ts（非债）· canvas/shell/useContextMenu.ts（非债）
 ```
 
 **关键边**：`useNodeData` ← 23 处；`useConnectedInputs` ← 33 处；`useStoreSelector` ← 全 store 原子订阅基座；`useCanvasSync` ← App 单点。
@@ -735,7 +735,7 @@ captureFrame.ts（跨源读取策略 re-export）· imageCompress.ts · genError
 config.ts · idGen.ts · utils.ts · nodeSizePatch.ts · videoEditorKeys.ts（键构造唯一真源，见 §十）
 log/logger.ts（唯一日志出口）· log/degrade.ts（reportDegrade 全对象形态）· log/backendLogStream.ts
 event/eventBus.ts（唯一通道，见 §十一）· event/confirmStore.ts · event/toastStore.ts
-interaction/modalLayer.ts · interaction/uiHooks.ts（TD-04-28 已收口：三写走 withNodeSize）· interaction/editorSession.ts
+interaction/modalLayer.ts · interaction/uiHooks.ts（TD-04-28 已收口；2026-11-06 二写收口：宽高字段单一真源，withNodeSize 不再写 style 尺寸）· interaction/editorSession.ts
 contentStore.ts / contracts.ts → 属 §三 / §十一 深审，此处不重复
 （本层已按域归位：搬走的件一律查 §十六）
 ```

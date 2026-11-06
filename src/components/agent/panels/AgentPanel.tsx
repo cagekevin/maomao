@@ -712,6 +712,7 @@ function AgentPanel({
     stop,
     clear,
     stateAction,
+    inputActions,
     conversations,
     activeConversationId,
     newChat,
@@ -869,6 +870,19 @@ function AgentPanel({
   useEffect(() => {
     saveAttachments(attachments);
   }, [attachments, saveAttachments]);
+
+  // ── 【A1 接线 · 152 第四批】输入区 → 输入状态机镜像（按钮语义单一推导源）──
+  // input/attachments 的每次变化（键入、恢复、清空、切对话）都喂给 machine，send/steer/retry/
+  // stop 由 machine.action() 推导（经 onChange → stateAction 回流）。面板此前的 canSend 手写
+  // `input.trim() || attachments.length` 是与状态机并行的第二套 hasContent（见下方 canSend）。
+  // deps 带 activeConversationId：切对话时 machine.load(id) 会重置机器侧草稿（useAgentChat),
+  // 靠本 effect 用面板当前值重镜像对齐；inputActions 引用稳定（useMemo），不会反复触发。
+  useEffect(() => {
+    inputActions.setDraft(input);
+  }, [input, activeConversationId, inputActions]);
+  useEffect(() => {
+    inputActions.setAttachments(attachments);
+  }, [attachments, activeConversationId, inputActions]);
 
   // ── 高消耗积分确认闸（creditSwitch）── 2026-08-27 简化定稿
   // 全局开关（默认开）：任何模式下，真正烧积分那下（image/video 生成）都先经用户确认。
@@ -1203,6 +1217,10 @@ function AgentPanel({
             y: y || 0,
           }))
         : undefined;
+    // 【A1 接线 · 152 第四批】提交语义由状态机收口：consume() 清空机器侧草稿/附件并回 idle。
+    // 本次载荷沿用面板镜像值（下方 text/allImages）——表格改写 / pendingMediaNodes 合并 /
+    // overrideText 属面板装饰，机器不建模载荷，只管「有内容 → 该按什么」的推导。
+    inputActions.consume();
     releaseAttachmentUrls(attachments);
     setAttachments([]);
     setPendingMediaNodes([]);
@@ -1422,8 +1440,12 @@ function AgentPanel({
 
   // 未配 AI 供应商 → 禁用发送（禁止静默失败，见 L3b）。canSend 网关 provider 存在。
   const noProvider = !agentProvider;
+  // 【A1 接线 · 152 第四批】可发送性由状态机推导：action ∈ send/steer/retry 都蕴含
+  // 「输入区有内容」（machine.hasContent = draft.trim() || attachments.length）；
+  // stopping/idle 时不可发。原手写 `(input.trim() || attachments.length > 0) &&
+  // stateAction !== 'stopping'` 是与状态机并行的第二套 hasContent，已收口删除。
   const canSend =
-    (input.trim() || attachments.length > 0) && stateAction !== 'stopping' && !noProvider;
+    (stateAction === 'send' || stateAction === 'steer' || stateAction === 'retry') && !noProvider;
 
   return (
     <>
@@ -1961,7 +1983,10 @@ function AgentPanel({
                   : '描述你想做的事，回车发送，Shift+Enter 换行'
               }
               rows={1}
-              disabled={sending || noProvider}
+              // 【A1 接线 · 152 第四批】运行中不再禁言：steer（#7）需要「运行中输入补充指令」，
+              // 状态机在 运行中+有内容 时推出 steer，经 send() 的 steerQueue 排队（不打断当前任务）。
+              // 仅无供应商时禁用（L3b 引导）。
+              disabled={noProvider}
               className="agent-textarea"
             />
             {/* 未配供应商引导：禁止静默失败，指引用户去设置（L3b） */}

@@ -38,6 +38,7 @@ import { useNodePrefs, PREFS_DEFAULTS } from '@/components/canvas/contract/nodeP
 import { resolveProviderModel } from '@/components/base/utils/providerModels';
 import { resolvePromptChips, mergeReferenceImageUrls } from '@/components/canvas/shell/promptChips';
 import { logger } from '@/components/base/core/log/logger';
+import { readNodeMeasuredSize } from '@/components/base/core/nodeSizePatch';
 import { reportDegrade } from '@/components/base/core/log/degrade';
 
 /**
@@ -249,7 +250,8 @@ function TextGenerate({ id, data, selected }: TextGenerateProps) {
         }
         if (Array.isArray(items) && items.length > 0) {
           const me = getNode(id);
-          const baseX = (me?.position.x ?? 100) + (me?.measured?.width ?? 420) + 60;
+          // 【2026-11-06 · C1】源右缘宽度走布局族唯一读取源（measured → width → style → 兜底）
+          const baseX = (me?.position.x ?? 100) + readNodeMeasuredSize(me, 420, 420).w + 60;
           const baseY = me?.position.y ?? 100;
           const spawned = buildSpawnNodes(
             { id, position: { x: baseX, y: baseY } },

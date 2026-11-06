@@ -15,14 +15,19 @@ import { withNodeSize } from '../../src/components/base/core/nodeSizePatch.ts';
 import { computeSizeSync } from '../../src/components/base/core/interaction/uiHooks.ts';
 import { NODE_AREA_FIXED_BASE_SIZE } from '../../src/components/base/core/config.ts';
 
-describe('withNodeSize — 尺寸「三写不变量」唯一实现（TD-04-28）', () => {
-  it('同时产出 width/height 字段 + style.width/height（NodeShell 读 width 优先，缺一则塌陷）', () => {
-    const patch = withNodeSize({ id: 'g', type: 'group', style: { background: '#fff' } }, 300, 200);
+describe('withNodeSize — 尺寸「二写收口」唯一实现（TD-04-28 · 2026-11-06 废除 style 尺寸）', () => {
+  it('产出 width/height 字段补丁；不再写 style 尺寸且剥离存量尺寸键（字段单一真源），视觉属性保留', () => {
+    const patch = withNodeSize(
+      { id: 'g', type: 'group', style: { background: '#fff', width: 100, height: 50 } },
+      300,
+      200,
+    );
     expect(patch.width).toBe(300);
     expect(patch.height).toBe(200);
-    expect(patch.style['width']).toBe(300);
-    expect(patch.style['height']).toBe(200);
-    // 既有 style 其余键保留
+    // style 不再承载尺寸（新写路径），且旧 style 尺寸被主动剥离——避免缩放后残留陈旧 style 宽高
+    expect(patch.style['width']).toBeUndefined();
+    expect(patch.style['height']).toBeUndefined();
+    // 既有 style 其余（视觉）键保留
     expect(patch.style['background']).toBe('#fff');
   });
 
@@ -48,7 +53,7 @@ describe('withNodeSize — 尺寸「三写不变量」唯一实现（TD-04-28）
 });
 
 describe('applyNodeTypeDefaults — 节点结构默认补齐', () => {
-  it('imageGenerateNode 缺宽高/style → 补 420×420', () => {
+  it('imageGenerateNode 缺宽高/style → 补 420×420 字段，且不再写 style 尺寸（二写收口）', () => {
     const r = applyNodeTypeDefaults({
       id: 'x',
       type: 'imageGenerateNode',
@@ -57,7 +62,9 @@ describe('applyNodeTypeDefaults — 节点结构默认补齐', () => {
     });
     expect(r.width).toBe(420);
     expect(r.height).toBe(420);
-    expect(r.style).toEqual({ width: 420, height: 420 });
+    // 二写收口（2026-11-06）：新建节点只补字段，style 尺寸不写（读侧兜底仅供存量）。
+    // 契约类型已如实不含 style（NodeStructuralDefaults 无此字段）⇒ 用 in 断言形状。
+    expect('style' in r).toBe(false);
   });
 
   it('gridSplitNode 补宽高双维（2026-11-05 框选误选治本：只有 width 时框选面积算不出高）', () => {
@@ -69,7 +76,8 @@ describe('applyNodeTypeDefaults — 节点结构默认补齐', () => {
     });
     expect(r.width).toBe(280);
     expect(r.height).toBe(420);
-    expect(r.style).toEqual({ width: 280, height: 420 });
+    // 二写收口：同上，style 尺寸不再写（in 断言形状，契约类型不含 style）
+    expect('style' in r).toBe(false);
   });
 
   // 【框选误选治本 2026-11-05】只有 `measured/width/height/initialWidth` 全无的节点，框选守卫
@@ -84,7 +92,8 @@ describe('applyNodeTypeDefaults — 节点结构默认补齐', () => {
     });
     expect(r.width).toBe(420);
     expect(r.height).toBe(320);
-    expect(r.style).toEqual({ width: 420, height: 320 });
+    // 二写收口（2026-11-06）：新建节点只补字段，style 尺寸不写（in 断言形状）
+    expect('style' in r).toBe(false);
   });
 
   it('所有可框选类型在新建后都自带宽高（缺一类型 = 该类型每次框选必被误选）', () => {
@@ -133,15 +142,15 @@ describe('applyNodeTypeDefaults — 节点结构默认补齐', () => {
       style: { width: 500 },
       data: { assetType: 'video' },
     });
-    // 取值优先级 = node.width → node.style.width → assetType 档位：已有 style 宽(500) 原样沿用，
-    // 只有缺的那一维才回落到档位（否则「三写不变量」里字段与 style 会指向两个不同宽度）。
+    // 取值优先级 = node.width → node.style.width → assetType 档位：已有 style 宽(500) 迁入字段，
+    // 只有缺的那一维才回落到档位（否则字段与 style 会指向两个不同宽度）。
     expect(r.width).toBe(500);
     expect(r.height).toBe(380);
-    expect(r.style['width']).toBe(500); // 已有 style 宽不被覆盖
-    expect(r.style['height']).toBe(380); // 缺的一维才补
+    // 二写收口第二阶段（2026-11-06）：字段迁入后 style 尺寸键被剥离（本例 style 只剩尺寸 ⇒ 键消失）
+    expect('style' in r).toBe(false);
   });
 
-  it('存量节点只有 style 宽高、没有 width 字段 → 补的 width 沿用 style 值（不得缩回表默认）', () => {
+  it('存量节点只有 style 宽高、没有 width 字段 → style 值迁入字段后剥离（尺寸不丢、单一真源）', () => {
     // NodeShell / React Flow 的 `getNodeInlineStyleDimensions` 都是 `width ?? style.width`（**字段优先**）：
     // 若这里按表默认填 width=420，那个原本靠 style 撑到 600 的旧节点会当场缩水（布局回归）。
     const r = applyNodeTypeDefaults({
@@ -151,9 +160,24 @@ describe('applyNodeTypeDefaults — 节点结构默认补齐', () => {
       style: { width: 600, height: 500 },
       data: {},
     });
+    // 尺寸不丢：style 值原样迁入字段
     expect(r.width).toBe(600);
     expect(r.height).toBe(500);
-    expect(r.style).toEqual({ width: 600, height: 500 });
+    // 二写收口第二阶段：迁入后剥离——持久化数据不再存在第二份尺寸（结构上不可能被照抄）
+    expect('style' in r).toBe(false);
+  });
+
+  it('存量节点的 style 混有视觉属性 → 尺寸键剥离、视觉属性保留', () => {
+    const r = applyNodeTypeDefaults({
+      id: 'x',
+      type: 'textGenerateNode',
+      position: { x: 0, y: 0 },
+      style: { width: 600, height: 500, background: '#fff' },
+      data: {},
+    });
+    expect(r.width).toBe(600);
+    expect(r.height).toBe(500);
+    expect(r.style).toEqual({ background: '#fff' });
   });
 
   it('已有字段不覆盖', () => {

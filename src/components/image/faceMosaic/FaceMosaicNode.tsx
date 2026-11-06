@@ -25,6 +25,7 @@ import ImageZoomDialog from '@/components/base/ui/display/ImageZoomDialog';
 import { generateId } from '@/components/base/core/idGen';
 import previewUrls from '@/components/base/utils/media/previewUrl';
 import { dataUrlToBlob } from '@/components/base/core/utils';
+import { readNodeMeasuredSize } from '@/components/base/core/nodeSizePatch';
 
 /**
  * 人脸打码节点（完整复刻官方 Cl.jsx / faceMosaicNode）。
@@ -137,7 +138,8 @@ function FaceMosaicNode({ id, data, selected }: FaceMosaicNodeProps) {
   const outputResults = useCallback(
     (items: Array<{ url: string; label: string }>) => {
       const me = getNode(id);
-      const baseX = (me?.position?.x ?? 100) + (me?.measured?.width ?? 320) + 60;
+      // 【2026-11-06 · C1】源右缘宽度走布局族唯一读取源（measured → width → style → 兜底）
+      const baseX = (me?.position?.x ?? 100) + readNodeMeasuredSize(me, 320, 320).w + 60;
       const baseY = me?.position?.y ?? 100;
       const nodes = items.map((it, i) => ({
         id: `face-mosaic-${id}-${i}-${generateId('fm')}`,

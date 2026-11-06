@@ -1,5 +1,7 @@
 # AI 助手表格 —— 图片引用（@素材）方案 · 审计报告
 
+> **状态：`已失效`（152 第六批 · 2026-11-06 标记）**——审计对象方案从未实施（能力零落地，见主方案头部标记），本审计随之失效，仅作历史存档。
+>
 > **审计对象**：`AI-ASSISTANT-TABLE-IMAGE-REF.md`（提案·未开工，2026-09-08 起草）
 > **审计时间**：2026-09-08
 > **审计方式**：逐条核对文档引用的代码真源（promptChips / AgentPanel / assistantTable / agentAttachments / imageUrl / assetStore / useConnectedInputs / useCanvasAgentTools）。

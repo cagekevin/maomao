@@ -2,7 +2,7 @@ import { useCallback } from 'react';
 import dagre from 'dagre';
 import type { Edge, Node } from '@xyflow/react';
 import { INPUT_PANEL_NODE_TYPES } from '../components/canvas';
-import { withNodeSize } from '../components/base/core/nodeSizePatch';
+import { readNodeMeasuredSize, withNodeSize } from '../components/base/core/nodeSizePatch';
 import { packComponents } from '../components/canvas/structure/arrangePack';
 
 /** 一次排版的结果：新布局的 nodes + 原样透传的 edges */
@@ -93,26 +93,11 @@ export function useArrangeCanvas(): { arrange: (opts?: Partial<ArrangeOptions>) 
       // 有输入面板的节点类型集合：整理时只对这些类型写 expanded:false（Tab 与 Ctrl+L 同范围）
       const collapseTypes = new Set<string>(INPUT_PANEL_NODE_TYPES);
 
-      // 取节点真实尺寸（抉择：三选一优先序）
-      // measured=已渲染实测最准 → 其次显式 width/height → 再 style → 最后兜底 320×80。
-      // 尺寸准不准直接决定 dagre 排布疏密，所以宁可多取几层也不让它退到瞎猜的 0。
-      const nodeDim = (n: Node, fallbackW = 320, fallbackH = 80) => {
-        const styleW = Number(n.style?.width);
-        const styleH = Number(n.style?.height);
-        return {
-          width:
-            n.measured?.width ||
-            Number(n.width) ||
-            (Number.isFinite(styleW) && styleW > 0 ? styleW : 0) ||
-            fallbackW,
-          height:
-            n.measured?.height ||
-            Number(n.height) ||
-            (Number.isFinite(styleH) && styleH > 0 ? styleH : 0) ||
-            fallbackH,
-        };
-      };
-      const childSize = (n: Node) => nodeDim(n, 420, 420);
+      // 取节点真实尺寸（2026-11-06 · C1 收口）：布局属「节点现在实际多大」的几何语义 ⇒
+      // 走布局/拖拽族唯一读取源 readNodeMeasuredSize（measured → width → style → 兜底）。
+      // measured=已渲染实测最准，尺寸准不准直接决定 dagre 排布疏密，宁可多取几层也不退到 0。
+      // 本地 nodeDim/childSize 两份手写已删（原 measured 优先序与族序一致，仅收口不换序）。
+      const childSize = (n: Node) => readNodeMeasuredSize(n, 420, 420);
 
       // 【优化①：编组当整体】计算 group 的真实尺寸 = 其子节点当前（相对父框）外接矩形 + 留白。
       // 这样 dagre 把 group 视为一个不可拆分的块来排，组间间距才真实，且整理后组大小不变。
@@ -124,13 +109,13 @@ export function useArrangeCanvas(): { arrange: (opts?: Partial<ArrangeOptions>) 
           maxX = -Infinity,
           maxY = -Infinity;
         for (const k of kids) {
-          const { width, height } = childSize(k);
+          const { w, h } = childSize(k);
           minX = Math.min(minX, k.position.x);
           minY = Math.min(minY, k.position.y);
-          maxX = Math.max(maxX, k.position.x + width);
-          maxY = Math.max(maxY, k.position.y + height);
+          maxX = Math.max(maxX, k.position.x + w);
+          maxY = Math.max(maxY, k.position.y + h);
         }
-        return { width: maxX - minX + GROUP_PAD * 2, height: maxY - minY + GROUP_PAD * 2 };
+        return { w: maxX - minX + GROUP_PAD * 2, h: maxY - minY + GROUP_PAD * 2 };
       };
 
       const graph = new dagre.graphlib.Graph({ compound: true });
@@ -143,8 +128,9 @@ export function useArrangeCanvas(): { arrange: (opts?: Partial<ArrangeOptions>) 
       // （绝对位置 = 父框 + 相对坐标）自动整体平移。
       nodes.forEach((n) => {
         if (n.parentId) return; // 跳过子节点
-        const { width, height } = n.type === 'group' ? groupSize(n.id) : nodeDim(n);
-        graph.setNode(n.id, { width, height });
+        // group 用子节点外接矩形（groupSize）；普通节点走族唯一读取源（布局兜底 320×80）
+        const { w, h } = n.type === 'group' ? groupSize(n.id) : readNodeMeasuredSize(n, 320, 80);
+        graph.setNode(n.id, { width: w, height: h });
       });
       edges.forEach((e) => {
         // 只保留两端都是顶层节点的边（组内边两端都是子节点，对整体布局无意义，跳过）

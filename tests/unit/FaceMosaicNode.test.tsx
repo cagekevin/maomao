@@ -225,7 +225,8 @@ describe('FaceMosaicNode — AI打码', () => {
       // `measured ?? width ?? initialWidth`（**不读 style**），此前只写 style ⇒ 守卫返回 null 放行 ⇒ 每次框选被误选。
       expect(Number(spawned.width)).toBe(360);
       expect(Number(spawned.height)).toBe(260);
-      expect(spawned.style?.['width']).toBe(360);
+      // 二写收口（2026-11-06）：尺寸只落 width/height 字段，style 不再写尺寸（字段单一真源）
+      expect(spawned.style?.['width']).toBeUndefined();
       // 结果信息（「共 <span>2</span> 张人脸」被拆分，跨元素匹配）
       expect(screen.getByText('1 张')).toBeTruthy();
       expect(screen.getByText(/张人脸/)).toBeTruthy();

@@ -146,7 +146,7 @@ useNodeResize(id).onMainBoxResize(w, h) 写回 node.height + updateNodeInternals
 | 5 | `components/base/core/contracts.ts` `NODE_HANDLE_CONTRACT` 加一行（节点端口非默认 null 口时必须） | App 补边 / lazyNode 占位骨架共用端口真源 | `npm run check:node-handles` 红（漏 handle → 连线静默不渲染） |
 | 6 | `docs/BASE-CAPABILITIES.md` 登记新 base 能力 / 数据契约写交接文档 | 沉淀 | 后续 AI 不知道有这能力 |
 
-> **三张表各管一件事**（2026-09-12 收口后）：`NodePalette` = UI 目录（怎么显示/用哪个组件）；`nodeDataSchema.NODE_DATA_DEFAULTS` = **新建 data 初值**；`nodeDefaults.NODE_TYPE_DEFAULTS` = **结构默认**（width/height/style/initial\*，新建与快照还原**都**补）。**快照还原绝不注入 data 默认值**（会覆盖用户数据）——详见 `nodeDataSchema.ts` 头注释。
+> **三张表各管一件事**（2026-09-12 收口后）：`NodePalette` = UI 目录（怎么显示/用哪个组件）；`nodeDataSchema.NODE_DATA_DEFAULTS` = **新建 data 初值**；`nodeDefaults.NODE_TYPE_DEFAULTS` = **结构默认**（width/height/initial\* 等，新建与快照还原**都**补；**2026-11-06 二写收口后不再含 style 尺寸**——宽高字段单一真源，读侧 style 兜底仅供存量）。**快照还原绝不注入 data 默认值**（会覆盖用户数据）——详见 `nodeDataSchema.ts` 头注释。
 > **`component` 字段 = 画布渲染组件**（区别于 `icon`=工具栏小图标）。`App.tsx` 不再手写 `nodeTypes` 平行表，直接 `...buildNodeTypeComponents()` 派生（`spec/CONTEXT.md` §一·5.B）。
 > **例外**：`director3dNode`（WebGL 无法 SSR，palette 不持 component）与 `ghostTarget`（连线占位）由 `App.tsx` 派生后显式补充，新增此类节点才改 `App.tsx`。
 > **端口登记（第 5 处，2026-09-11 新增）**：节点若在 `NodeShell` 声明 `targetHandleId`/`sourceHandleId`（非 React Flow 默认 null 口），必须在 `contracts.NODE_HANDLE_CONTRACT` 登记同一 type 的端口——**两者一致性由 `npm run check:node-handles` 强制**（脚本对账「节点文件声明 ⊆ 契约表」）。曾因三处手工表（App/lazyNode/节点文件）漂移出现「节点新声明了口但补边表漏登记」，故收口为单一真源 + 静态闸。

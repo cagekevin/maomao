@@ -34,6 +34,7 @@ import { buildSpawnNodes, spawnAndCommit } from '@/components/canvas/structure/d
 import { useCanvasEdges } from '@/components/canvas/structure/CanvasEdgesContext';
 import { useRenderAssetResolver } from '@/components/base/utils/media/assetUrl';
 import { logger } from '@/components/base/core/log/logger';
+import { readNodeMeasuredSize } from '@/components/base/core/nodeSizePatch';
 import {
   toastInfo,
   toastSuccess,
@@ -437,7 +438,8 @@ function PanoramaNode({ id, data, selected }: PanoramaNodeProps) {
               {
                 id,
                 position: {
-                  x: (me?.position.x ?? 100) + (me?.measured?.width ?? 640) + 60,
+                  // 【2026-11-06 · C1】源右缘宽度走布局族唯一读取源（measured → width → style → 兜底）
+                  x: (me?.position.x ?? 100) + readNodeMeasuredSize(me, 640, 640).w + 60,
                   y: me?.position.y ?? 100,
                 },
               },
@@ -446,7 +448,7 @@ function PanoramaNode({ id, data, selected }: PanoramaNodeProps) {
                   id: boxId,
                   type: 'imageBoxNode',
                   position: {
-                    x: (me?.position.x ?? 100) + (me?.measured?.width ?? 640) + 60,
+                    x: (me?.position.x ?? 100) + readNodeMeasuredSize(me, 640, 640).w + 60,
                     y: me?.position.y ?? 100,
                   },
                   style: { ...IMAGE_BOX_NODE_SIZE }, // 尺寸单源（TD-16-48）；与导演台同档

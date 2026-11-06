@@ -26,6 +26,7 @@ import { loadImageOrNull, releaseQuietly } from '@/components/base/utils/net/asy
 import { IMG_MIN_DIM, IMG_MAX_DIM } from '@/components/image/lib/imageLimits';
 // 主图写回唯一入口（含「旧身份必须失效」不变式）—— 合成结果写回不得直写 assetUrl。
 import { replaceNodeImage } from '@/components/base/utils/media/nodeImage';
+import { readNodeMeasuredSize } from '@/components/base/core/nodeSizePatch';
 
 /* ════════════════════════════════════════════════════════════════
  * 图片拼图节点（复刻官方 Yo.jsx / gridMergeNode）
@@ -473,7 +474,8 @@ function GridMergeNode({ id, data, selected }: GridMergeNodeProps) {
   const spawnMergedImage = useCallback(
     (url: string) => {
       const me = getNode(id);
-      const baseX = (me?.position.x ?? 100) + (me?.measured?.width ?? 400) + 50;
+      // 【2026-11-06 · C1】源右缘宽度走布局族唯一读取源（measured → width → style → 兜底）
+      const baseX = (me?.position.x ?? 100) + readNodeMeasuredSize(me, 400, 400).w + 50;
       const baseY = me?.position.y ?? 100;
       const nid = `merged-${id}-${generateId('m')}`;
       const spawned = buildSpawnNodes(

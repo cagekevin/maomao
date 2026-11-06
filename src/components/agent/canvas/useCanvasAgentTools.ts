@@ -10,6 +10,7 @@ import {
 } from '@/components/canvas';
 
 import { runNodeGeneration } from '../../base/store/taskStore.ts';
+import { readNodeMeasuredSize } from '@/components/base/core/nodeSizePatch';
 import '@/components/canvas/structure/groupNodes';
 import { createAgentCanvasHost, type AgentCanvasHostCtx } from './agentCanvasHost.ts';
 // 【TD-11-83】AI 可建节点类型白名单的**唯一真源**（运行时守卫 / 两处 schema enum / 提示词全派生自它）
@@ -354,10 +355,13 @@ function normalizeResolution(res: unknown) {
   return '1K'; // 720p / 1080p / 默认
 }
 
-/** 取节点宽度（ReactFlow 测量后）：优先 width，其次 measured.width，兜底 280（对齐参考项目 nodeRect 兜底 w=280） */
+/**
+ * 取节点宽度（2026-11-06 · C1 收口）：Agent 建节点锚点属布局语义 ⇒ 走布局/拖拽族唯一读取源
+ * readNodeMeasuredSize（measured → width → style），兜底 280（对齐参考项目 nodeRect 兜底 w=280）。
+ * 原实现「优先 width 其次 measured」与族序相反，已按裁定翻转。
+ */
 function nodeWidth(n: Node) {
-  const w = Number(n?.width) || Number(n?.measured?.width) || 0;
-  return w > 0 ? w : 280;
+  return readNodeMeasuredSize(n, 280, 280).w;
 }
 
 /**
@@ -1663,10 +1667,11 @@ const focusNodeTool = {
     const node = ctx.getNodes().find((n) => n.id === id);
     if (!node) return { ok: false, error: `节点不存在：${id}` };
     const pos = node.position || { x: 0, y: 0 };
-    const w = (node.measured?.width ?? 0) / 2;
-    const h = (node.measured?.height ?? 0) / 2;
+    // 节点中心 = 位置 + 尺寸一半；走布局族唯一读取源（原只读 measured，未渲染节点会拿到 0
+    // 偏到左上角；补上声明尺寸兜底链，聚焦未渲染节点也能居中）
+    const { w, h } = readNodeMeasuredSize(node, 0, 0);
     const zoom = num(args['zoom'], 1.0);
-    ctx.setCenter?.(pos.x + w, pos.y + h, { zoom: zoom <= 0 ? 1.0 : zoom, duration: 300 });
+    ctx.setCenter?.(pos.x + w / 2, pos.y + h / 2, { zoom: zoom <= 0 ? 1.0 : zoom, duration: 300 });
     return { ok: true, data: { id, centered: { x: pos.x, y: pos.y }, zoom } };
   },
 };

@@ -34,6 +34,7 @@ import { showToast } from '@/components/base/core/event/toastStore';
 // 与 videoEditor/ui/…/media.tsx 的同名实现重复，且多一个「非有限 → '0:00'」的发明值。
 import { formatDuration } from '@/components/base/core/utils';
 import { logger } from '@/components/base/core/log/logger';
+import { readNodeMeasuredSize } from '@/components/base/core/nodeSizePatch';
 import { classifyError, getRetryableObserved } from '@/components/base/utils/genErrors';
 import {
   withTimeout,
@@ -957,7 +958,8 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
   const spawnVideoNode = useCallback(
     (url: string, name: string) => {
       const me = getNode(id);
-      const baseX = (me?.position.x ?? 100) + (me?.measured?.width ?? 540) + 60;
+      // 【2026-11-06 · C1】源右缘宽度走布局族唯一读取源（measured → width → style → 兜底）
+      const baseX = (me?.position.x ?? 100) + readNodeMeasuredSize(me, 540, 540).w + 60;
       const baseY = me?.position.y ?? 100;
       const nid = `video-${id}-${generateId('v')}`;
       const spawned = buildSpawnNodes(
@@ -988,7 +990,7 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
   const spawnAudioNode = useCallback(
     (url: string, name: string) => {
       const me = getNode(id);
-      const baseX = (me?.position.x ?? 100) + (me?.measured?.width ?? 540) + 60;
+      const baseX = (me?.position.x ?? 100) + readNodeMeasuredSize(me, 540, 540).w + 60;
       const baseY = me?.position.y ?? 100;
       const nid = `audio-${id}-${generateId('a')}`;
       const spawned = buildSpawnNodes(
@@ -1020,7 +1022,7 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
   const spawnGifNode = useCallback(
     (url: string, name: string) => {
       const me = getNode(id);
-      const baseX = (me?.position.x ?? 100) + (me?.measured?.width ?? 540) + 60;
+      const baseX = (me?.position.x ?? 100) + readNodeMeasuredSize(me, 540, 540).w + 60;
       const baseY = me?.position.y ?? 100;
       const nid = `gif-${id}-${generateId('g')}`;
       const spawned = buildSpawnNodes(

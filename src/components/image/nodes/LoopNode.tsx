@@ -12,6 +12,7 @@ import { generateId } from '@/components/base/core/idGen';
 import { imageKeyOf } from '@/components/base/utils/media/imageIdentity';
 import { buildSpawnNodes, spawnAndCommit } from '@/components/canvas/structure/deriveNodes';
 import { useCanvasEdges } from '@/components/canvas/structure/CanvasEdgesContext';
+import { readNodeMeasuredSize } from '@/components/base/core/nodeSizePatch';
 
 /** 循环节点 data 契约 */
 interface LoopNodeData {
@@ -236,7 +237,8 @@ function LoopNode({ id, data, selected }: LoopNodeProps) {
       .filter((x) => x.url);
     // 循环节点自身连线传到下游生图节点（让下游 useConnectedInputs 能读到上游文本/图片依赖）
     const me = (getNodes() || []).find((n) => n.id === id);
-    const baseX = (me?.position?.x ?? 300) + (me?.measured?.width ?? 300) + SPAWN_OFFSET_X;
+    // 【2026-11-06 · C1】源右缘宽度走布局族唯一读取源（measured → width → style → 兜底）
+    const baseX = (me?.position?.x ?? 300) + readNodeMeasuredSize(me, 300, 300).w + SPAWN_OFFSET_X;
     const baseY = me?.position?.y ?? 200;
 
     busyRef.current = true;

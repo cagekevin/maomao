@@ -1,12 +1,14 @@
 import { useState, useRef, useCallback, useMemo } from 'react';
 import type { Edge, Node } from '@xyflow/react';
+// 【2026-11-06 · 152 第六批】原经域门面 '..' 转入 —— HistoryStack/structuralSnapshot 一族
+// 零域外消费者，已从门面摘除，域内改直连实现件（同目录）。
+import { HistoryStack } from './historyStack.ts';
 import {
-  HistoryStack,
   applyStructuralSnapshot,
   extractStructuralSnapshot,
   isSameStructure,
   type StructuralSnapshot,
-} from '..';
+} from './structuralSnapshot.ts';
 
 /** 一次画布快照：节点 + 连线 */
 export interface CanvasSnapshot {

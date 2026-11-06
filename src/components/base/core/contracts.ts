@@ -299,6 +299,14 @@ export const KEY_DIRECTOR3D_CUSTOM_POSES = 'director3d-custom-poses';
 export const KEY_EDITOR_CAPTION_LANGUAGE = 'editor-caption-language';
 export const KEY_EDITOR_CAPTION_TEMPLATE_ID = 'editor-caption-template-id';
 export const KEY_VIDEO_EDITOR_SAVED_SOUNDS = 'video-editor-saved-sounds';
+/**
+ * 剪辑器快捷键（zustand persist 收编 · 152-V3 · 2026-11-06）。
+ * 原 persist **裸键**（无 `yimao:` 前缀、不经 contentStore、进不了备份清单）→ 经
+ * `contentPersistStorage` 适配走本表 local 通道，物理键随之变为 `yimao:cutia-keybindings`
+ * （存量数据由适配层一次性迁移读旧裸键，**写成功才删**）。persist `name` 直接 import 本常量
+ * （键名全仓唯一定义，TD-13-4 口径）。可抄口径见 contentPersistStorage.ts 文件头。
+ */
+export const KEY_CUTIA_KEYBINDINGS = 'cutia-keybindings';
 
 /**
  * 固定存储键的命名常量（第二批 · TD-13-7 收口 · 2026-09-16）。
@@ -610,8 +618,8 @@ export const STORAGE_KEYS: Record<string, StorageKeyMeta> = {
   // ── 云同步台账（cloudSync.ts）─────────────────────────────────
   // 本机同步基线：{ rev, syncedAt, localHash }——记住「上次同步到云端哪一版 + 当时本地数据指纹」，
   // 供上传/下载前判断「云端是不是比我新」「本地改没改过」（防覆盖保护的唯一依据）。
-  // ⚠️ 绝不能进云端：每台机器基线不同，同步它会互相污染判断 → 已由 cloudSync.ts 的
-  //    SYNC_EXCLUDE 显式排除（domain 标 sync 只为归类，不依赖 SYNC_DOMAIN_SWITCHES）。
+  // ⚠️ 绝不能进云端：每台机器基线不同，同步它会互相污染判断 → 现行判据 = 本键**不写 `sync: true`**，
+  //    由 `getSyncKeys()` 缺省排除（TD-13-9 派生判据：显式 sync 才进云，清单机制 SYNC_EXCLUDE/SYNC_ALLOW 已删）。
   // 进备份是自洽的：备份恢复时台账随数据一并还原，不会误报冲突。
   [KEY_YIMAO_CLOUD_SYNC_LEDGER]: {
     domain: 'sync',
@@ -722,6 +730,23 @@ export const STORAGE_KEYS: Record<string, StorageKeyMeta> = {
     backend: 'local',
     note: '用户收藏音效清单 { sounds[], lastModified }（原仅存 IndexedDB `video-editor-saved-sounds`，不进备份；TD-02-34/40）。键名沿用旧 IndexedDB 库名，便于迁移对照',
   },
+  [KEY_CUTIA_KEYBINDINGS]: {
+    domain: 'videoEditor',
+    store: 'videoEditor/stores/keybindings-store.ts',
+    backend: 'local',
+    label: '剪辑器快捷键',
+    note: '剪辑器自定义快捷键 { keybindings, isCustomized }（zustand persist 经 contentPersistStorage 走本表 local 通道；152-V3 收编，原为 persist 裸键 `cutia-keybindings`，适配层一次性迁移读旧键、写成功才删）。登记即自动进备份（getLocalKeys），不进云同步（缺 sync，默认拒绝）',
+  },
+
+  // ── 【有意不登记 · 152-V3（2026-11-06）】`panel-sizes`（videoEditor/stores/panel-store.ts）──
+  // 剪辑器面板布局比例（tools/preview/properties/mainContent/timeline 的 px，zustand persist 裸键）。
+  // **决定：不进 STORAGE_KEYS、不进备份、不配 contentPersistStorage 适配。** 理由：
+  //   纯本地 UI 布局，换机后拖两下即复原，备份收益 ≈ 0；登记只会让备份包无谓变大，
+  //   并给备份导入白添一条「布局恢复」失败项。
+  // 【给下一个 AI】这是**决定**不是遗漏，不要「顺手」把它登记进来 —— 且登记而不配适配是更糟的
+  //   假收录：getLocalKeys 会收它，contentGet('panel-sizes') 读的却是 `yimao:panel-sizes`，
+  //   persist 写的仍是裸键 → 备份导出恒空、导入造孤儿键。若未来它承载非布局数据，再走完整收口
+  //   （登记 + contentPersistStorage + 一次性迁移），唯一可抄样本 = cutia-keybindings（上方条目）。
 
   // ── 备份 / 云同步范围（backupStore.ts / cloudSync.ts）──────────────
   // 两条范围**均已从本表派生**，禁止再在任何消费者里手写清单（防漂移漏备 / 误把工程数据送上云）：

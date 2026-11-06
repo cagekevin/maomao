@@ -146,8 +146,11 @@ describe('STORAGE_KEYS 内容验证', () => {
     //   2026-09-24 字幕模型偏好改运行时模型 URL 机制（docs/plan/147 + transcription/modelEnv.ts）→
     //     44→43（删 editor-caption-model-id：该裸写键随 hf 转写出站口一并退役，模型标识改由
     //     runtimeModelUrl 统一承载，见 src/components/base/core/runtimeModelUrl.ts）。
+    //   2026-11-06 152-V3 zustand persist 收编 → 43→44（加 cutia-keybindings：原 persist 裸键，
+    //     经 contentPersistStorage 收编进 contentStore local 通道，登记即进备份清单；
+    //     panel-sizes 同批**有意不登记**，裁定见 contracts 内「有意不登记」段）。
     // 它是有意保留的"变更需被看见"金丝雀，非行为契约——不要改成派生计数（派生即失效）。
-    expect(Object.keys(STORAGE_KEYS).length).toBe(43);
+    expect(Object.keys(STORAGE_KEYS).length).toBe(44);
   });
 
   it('云同步台账键已登记（防覆盖保护的本地基线，不进云端）', () => {

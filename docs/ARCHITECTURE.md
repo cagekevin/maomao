@@ -99,19 +99,19 @@ src/
     ├── agent/               ③ 域：AI 助手（⊃ runtime · conversation · assistantTable · canvas）
     ├── scriptbox/           ③ 域：剧本盒子（三步 UI + 设置 + 引擎）
     ├── director3d/          ③ 域：3D 导演台（已登记例外，未纳入收口）
-    └── videoEditor/         ③ 域：剪辑器（独立应用，258 文件，**有域门面 `index.ts`**）
+    └── videoEditor/         ③ 域：剪辑器（独立应用；入口 `EditorShell.tsx`，**暂无单一 index 门面**，见 §四「域门面」行）
 ```
 
 | 层 | 判据 | 例子 |
 | --- | --- | --- |
 | **装配层** | 进程入口 / 根装配 | `main.tsx` · `App.tsx` |
 | **横切层** | **无业务语义**的通用原语 | `base/core/{logger,contracts,eventBus,contentStore,toastStore,idGen}` · `base/utils` · `base/ui` · `base/api` · `base/storage` · `hooks/` 编排层 |
-| **域** | 面向**同一业务关注点**的一坨（**含业务语义**，**哪怕被多域消费**） | `agent` · `videoEditor` · `scriptbox` · `director3d` · `base/{canvas,store,prompt,creative,editors,media,depthVideo}` |
+| **域** | 面向**同一业务关注点**的一坨（**含业务语义**，**哪怕被多域消费**） | `agent` · `videoEditor` · `scriptbox` · `director3d` · `canvas` · `image` · `video` · `text` · `resource` · `task` · `settings` · `creative` · `prompt` · `generate`（**2026-11-06 现测**：原挂 `base/` 下的域物已迁出为 `components/<域>/`，base 现仅存横切件与 `base/{store,media}` 两个域容器，清单见 `src/components/base/README.md`） |
 
 ### 2.2 `base/` 不是域，是容器
 
 这解释了为什么「域物住 `base/`」**不必然是错** —— 错的只是域物住进了 `base/{core,utils,api,storage,ui,panels}` 这几个**横切**子目录；
-而 `base/canvas`、`base/store`、`base/editors` 本身就是**域容器**，住在里面不算住错。
+而 `base/store`、`base/media` 本身就是**域容器**，住在里面不算住错（原 `base/canvas`、`base/editors`、`base/prompt`、`base/depthVideo` 已迁出为独立域，2026-11-06 现测）。
 
 > **判据推导与实测证据**（P1–P5：有无业务语义 / 关注点定边界 / 用户可感知性）见 `docs/DOMAIN-MODULES.md §2`；
 > **现状域清单与 17 条数据流链路**见 `spec/DATAFLOW.md`。
@@ -156,7 +156,7 @@ base/** ──✕ 禁──▶ 任何非 base 目录（业务域）
 
    * 布局后按**连通分量**分组（BFS），各分量包围盒经 `packComponents` 按视窗比例（读 ReactFlow store 宽高）择优换行：整体边界框贴近视窗比例，`fitView` 后节点最大化；跨分量间距 `GAP_X=180`、换列 `GAP_Y=120`；
 
-   * 写回新位置 + `fitView`；仅 `INPUT_PANEL_NODE_TYPES`（现行值 = **`textGenerateNode` / `imageGenerateNode` / `videoGenerateNode`**，见 `base/canvas/nodeDefaults.ts:31`）写 `data.expanded=false`，其余节点 data 原样透传（Tab 与 Ctrl+L 共用同一范围）；
+   * 写回新位置 + `fitView`；仅 `INPUT_PANEL_NODE_TYPES`（现行值 = **`textGenerateNode` / `imageGenerateNode` / `videoGenerateNode`**，见 `src/components/canvas/contract/nodeDefaults.ts`）写 `data.expanded=false`，其余节点 data 原样透传（Tab 与 Ctrl+L 共用同一范围）；
 
    * **编组无折叠态**（D4）：不渲染折叠胶囊、无折叠按钮，`GroupNode` 不再写 `data.collapsed`；
 
@@ -200,7 +200,7 @@ const { isHidden } = useAssetDegrade()
 
 > ⚠️ **落点已变（2026-09-19 修正）**：现行位置 = **`src/components/agent/canvas/useCanvasAgentTools.ts`**，**不在 `base/`**。
 > 原因：它是 **AI 助手域的私有能力**（`agent/canvas` 子域，与 `agentCanvasHost.ts` / `canvasPlanExecutor.ts` 同目录），**不是横切层**。
-> 横切的是**工具注册表** `base/canvas/toolRegistry.ts`（画布机制）；工具**实现**归 agent 域 —— 这是 §2.2 判据的直接应用。
+> 横切的是**工具注册表** `src/components/canvas/toolRegistry.ts`（画布机制）；工具**实现**归 agent 域 —— 这是 §2.2 判据的直接应用。
 
 ### 为什么用 `useReactFlow()` 自取能力（原则 1 关注点分离）
 
@@ -353,8 +353,8 @@ const [autoSplit, setAutoSplit] = useNodeField('autoSplit', data.autoSplit || fa
 | 范式 B 引擎注入 | `src/hooks/useScriptBoxEngine.ts` | `useReactFlow()` 拿 setNodes/addNodes/坐标 → 建引擎 → 挂 `node.data.onXxx`，并返回统一 `updateData` |
 | 范式 B 引擎实现 | `src/components/scriptbox/scriptBoxEngine.ts` | `createScriptBoxEngine({getData,updateData,addNodes})` 返回回调 |
 | 纯函数层（无副作用） | `src/components/scriptbox/scriptBoxPrompts.ts` | 提示词模板 / 拼装函数，UI 与引擎都从这里取 |
-| **节点外壳 / 端口 / 尺寸** | `src/components/canvas/parts/NodeShell.tsx` + `base/ui/CustomHandle.tsx` + `base/core/interaction/uiHooks.ts` | 所有节点的公共骨架（`useSizeSync` / `useNodeResize` / `useContentHeightSync`） |
-| 通用控件 | `src/components/base/ui/{GenerateButton,ModelSelect,ExpandablePanel,GeneratingOverlay}.tsx` · `base/panels/{HoverToolbar,FullscreenModal}.tsx` · `base/prompt/PromptInput.tsx` | 生成按钮 / 模型下拉 / 展开面板 / 生成中遮罩 / hover 栏 / 全屏 / 提示词输入 |
+| **节点外壳 / 端口 / 尺寸** | `src/components/canvas/parts/NodeShell.tsx` + `canvas/parts/CustomHandle.tsx` + `base/core/interaction/uiHooks.ts` | 所有节点的公共骨架（`useSizeSync` / `useNodeResize` / `useContentHeightSync`） |
+| 通用控件 | `src/components/canvas/parts/{GenerateButton,ExpandablePanel,GeneratingOverlay}.tsx` · `base/ui/form/ModelSelect.tsx` · `canvas/shell/HoverToolbar.tsx` · `base/panels/FullscreenModal.tsx` · `canvas/shell/PromptInput.tsx` | 生成按钮 / 模型下拉 / 展开面板 / 生成中遮罩 / hover 栏 / 全屏 / 提示词输入 |
 | 连线特效 | `src/components/canvas/edges/CustomEdge.tsx` + `edges/ConnectionLine.tsx`（+ `edges/Comet.tsx`） | 自定义连线 + 拖拽临时线 |
 | **节点目录注册** | `src/components/canvas/shell/NodePalette.ts` | 新增节点加一行，右键菜单自动接入 |
 | 节点数据契约 / 默认值 | `src/components/canvas/contract/{nodeDataSchema,nodeDefaults,nodePrefs}.ts` | 字段 schema / 类型默认尺寸 / 用户偏好 |
@@ -426,7 +426,7 @@ const [autoSplit, setAutoSplit] = useNodeField('autoSplit', data.autoSplit || fa
 ### 9.2 import 路径要核对层级
 
 * 坑例（历史）：`CustomHandle` 曾在 `src/components/`（根），写成 `./base/CustomHandle.jsx` → 500 / 模块加载失败。
-  **现行路径已重组**：外壳件都在 `src/components/base/ui/`（`NodeShell.tsx` / `CustomHandle.tsx` / `NodeTitle.tsx` / `JianyingIcon.tsx`），面板件在 `base/panels/`，提示词件在 `base/prompt/`。
+  **现行路径已再重组（2026-11-06 现测）**：外壳件在 `src/components/canvas/parts/`（`NodeShell.tsx` / `CustomHandle.tsx` / `NodeTitle.tsx` / `GenerateButton.tsx` 等），面板件在 `base/panels/`，提示词件在 `canvas/shell/PromptInput.tsx`（原 `base/prompt/`、`base/ui/` 大部分已随域迁出）。
 
 * 铁律：**复用既有组件的 import 路径，先 `Read` 过原文件再写**，别凭记忆。
   **最快的对法 = 打开同目录的同类节点，抄它的 import 段**（如 `nodes/ImageGenerate.tsx:1-54` 是一份完整的现行 import 清单）。

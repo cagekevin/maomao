@@ -4,7 +4,7 @@ import { useReactFlow, useUpdateNodeInternals } from '@xyflow/react';
 import { NODE_AREA_FIXED_BASE_SIZE } from '../config.ts';
 import { releaseQuietly } from '@/components/base/utils/net/asyncGuard';
 import { patchNodeById, patchNodeDataById } from '@/hooks/useNodeData';
-import { withNodeSize } from '../nodeSizePatch.ts';
+import { withNodeSize, readNodeDeclaredWidth, readNodeDeclaredHeight } from '../nodeSizePatch.ts';
 
 /**
  * 判断事件目标是否在可编辑元素内（INPUT / TEXTAREA / contenteditable）。
@@ -133,14 +133,16 @@ export function useSizeSync(
     // 尺寸计算收敛到纯函数 computeSizeSync（width-fixed / area-fixed），可单测
     // Number() 归一：ReactFlow 的 style.width 可能是字符串（'260'），统一数值化保证后续算术合法
     // （与 useFitNodeRatio 同口径；字符串在 React inline style 下本就是无效宽度值）。
+    // 【2026-11-06 · C1 收口】现值读取走样式承载族唯一访问器（width → style 字段优先）——
+    // 原本处 style 优先与 NodeShell/React Flow 渲染序相反，是族内漂移，按裁定对齐族序。
     const { width: w, height: h } = computeSizeSync(ratio, {
       mode,
-      currentWidth: Number(n.style?.width ?? n.width ?? defaultWidth),
+      currentWidth: Number(readNodeDeclaredWidth(n) ?? defaultWidth),
       defaultWidth,
       defaultHeight,
       baseSize,
     });
-    const changed = (n.style?.height ?? n.height) !== h || (n.style?.width ?? n.width) !== w;
+    const changed = readNodeDeclaredHeight(n) !== h || readNodeDeclaredWidth(n) !== w;
     if (changed) {
       // TD-04-28：三写不变量走唯一实现 withNodeSize（此前本处又手抄了一份 {width,height,style}，
       // 与同文件 :245 onMainBoxResize 的收口注释自相矛盾；等价替换，不改行为）。
@@ -349,10 +351,11 @@ export function useContentHeightSync(
           // syncWidth=true：宽度同步为「内容元素实际宽度」，让 ReactFlow 盒子(.react-flow__node)
           // 贴合视觉框（否则剧本盒等固定宽节点宽度从不同步，conic 连接跑马灯锚定的盒子宽度 ≠ 视觉宽）。
           // 内容元素在节点内通常 w-full，其 offsetWidth 即视觉宽度。
-          // Number() 归一：style.width 可能是字符串，且 onMainBoxResize 要求 number
+          // Number() 归一：style.width 可能是字符串，且 onMainBoxResize 要求 number。
+          // 【2026-11-06 · C1 收口】现值读取走样式承载族唯一访问器（width → style 字段优先）。
           const curW = syncWidth
             ? Math.round(el.offsetWidth || n?.width || fallbackWidth)
-            : Number(n?.width ?? n?.style?.width ?? fallbackWidth);
+            : Number(readNodeDeclaredWidth(n) ?? fallbackWidth);
           onMainBoxResize(Math.round(curW), Math.max(minHeight, Math.round(h)));
           // 下一帧（写回已生效、尺寸稳定）重新开始观察
           reobserveRaf = requestAnimationFrame(() => {

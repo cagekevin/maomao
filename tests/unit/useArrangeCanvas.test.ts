@@ -114,11 +114,11 @@ describe('useArrangeCanvas', () => {
     expect(c.parentId).toBe('g');
     // 子节点相对父框坐标原样保留（组内摆放不动）
     expect(c.position).toEqual({ x: 10, y: 10 });
-    // 父框写回测量尺寸到 style + width/height（NodeShell 读 width 优先 → 必须同写，防错位）
-    expect(must(g.style, 'style').width).toBeGreaterThan(0);
-    expect(must(g.style, 'style').height).toBeGreaterThan(0);
-    expect(g.width).toBe(must(g.style, 'style').width);
-    expect(g.height).toBe(must(g.style, 'style').height);
+    // 父框写回测量尺寸到 width/height 字段（二写收口 2026-11-06：style 不再写尺寸，字段单一真源）
+    expect(g.width).toBeGreaterThan(0);
+    expect(g.height).toBeGreaterThan(0);
+    expect(must(g.style, 'style').width).toBeUndefined();
+    expect(must(g.style, 'style').height).toBeUndefined();
   });
 
   it('有编组时组当整体：子节点相对坐标原样保留，不重排组内摆放', () => {
@@ -174,11 +174,9 @@ describe('useArrangeCanvas', () => {
     expect(c1.position).toEqual({ x: 10, y: 40 });
     expect(c2.position).toEqual({ x: 233, y: 175 });
     // 父框写回真实外接矩形尺寸（含 40 留白）：宽 = (233+120)-10 + 80 = 423
-    expect(must(g.style, 'style').width).toBeCloseTo(120 + 233 - 10 + GROUP_PAD * 2, 0);
-    expect(must(g.style, 'style').height).toBeGreaterThan(0);
-    // width/height 与 style 同步（否则 NodeShell 根 div 与 ReactFlow wrapper 尺寸错位）
-    expect(g.width).toBe(must(g.style, 'style').width);
-    expect(g.height).toBe(must(g.style, 'style').height);
+    // （二写收口 2026-11-06：尺寸只落 width/height 字段，style 不再承载尺寸）
+    expect(g.width).toBeCloseTo(120 + 233 - 10 + GROUP_PAD * 2, 0);
+    expect(g.height).toBeGreaterThan(0);
   });
 
   it('不跳变：整理后第一个顶层节点位置与原位置一致（整体最小平移）', () => {

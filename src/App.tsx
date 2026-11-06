@@ -84,6 +84,7 @@ import { logger } from './components/base/core/log/logger.ts';
 import { useProjectBackupIO } from './components/canvas/topology/useCanvasEventSubscriptions.ts';
 import { menuForState, type MenuActionCtx } from './components/canvas/shell/canvasContextMenu.tsx';
 import { useNodePosition } from './components/base/core/interaction/uiHooks.ts';
+import { readNodeMeasuredSize } from './components/base/core/nodeSizePatch.ts';
 import CustomEdge from './components/canvas/edges/CustomEdge.tsx';
 import ConnectionLine from './components/canvas/edges/ConnectionLine.tsx';
 import ContextMenu from './components/canvas/shell/ContextMenu.tsx';
@@ -119,6 +120,11 @@ const EditorShell = React.lazy(() =>
 import { buildNodeTypeComponents } from './components/canvas/shell/NodePalette.ts';
 import { defaultNodeData } from './components/canvas/contract/nodeDataSchema.ts';
 import { EXPANDED_DEFAULT } from './components/canvas/contract/expandedDefault.ts';
+import {
+  GHOST_EDGE_PREFIX,
+  GHOST_TARGET_ID,
+  GHOST_TARGET_TYPE,
+} from './components/canvas/contract/ghostPlaceholder.ts';
 import ToastContainer from './components/base/ui/feedback/ToastContainer.tsx';
 import ConfirmContainer from './components/base/ui/feedback/ConfirmContainer.tsx';
 import RenameDialog from './components/base/ui/feedback/RenameDialog.tsx';
@@ -440,9 +446,13 @@ function Canvas() {
       const geometryOf = (id: string) => {
         const it = nodeLookup.get(id);
         if (!it) return null;
-        // 尺寸来源与 React Flow 的 getNodesInside 同序：measured → width/height → initial*
-        const w = it.measured?.width ?? it.width ?? it.initialWidth ?? 0;
-        const h = it.measured?.height ?? it.height ?? it.initialHeight ?? 0;
+        // 尺寸来源（2026-11-06 · C1 收口）：框选守卫属布局语义 ⇒ 走布局族唯一读取源
+        // readNodeMeasuredSize（measured → width → style），再接 initial* 尾巴——保持与
+        // React Flow getNodesInside（measured → width → initial*）同序镜像，防「守卫算出的
+        // 几何比库内小 ⇒ 框选边缘漏选」回归（未渲染节点的 initial* 是 152 框选治本的一部分）。
+        const size = readNodeMeasuredSize(it, 0, 0);
+        const w = size.w || Number(it.initialWidth) || 0;
+        const h = size.h || Number(it.initialHeight) || 0;
         if (!w || !h) return null; // 尺寸未知 → 不做判断（宁多选不漏选）
         return {
           id,
@@ -617,6 +627,25 @@ function Canvas() {
   );
   // 历史栈（基座 useCanvasHistory）：record 需显式传最新快照，避免异步 setState 取到旧值
   const history = useCanvasHistory(getCanvasSnapshot, applyCanvasSnapshot);
+
+  // 【152-C4 · record 唯一入口】「写画布 + 记撤销」的唯一原语（App 层）。
+  // 调用方传本次**应用**的 next：变了的维度必须传算好的 next（禁传 ref），没变的维度省略，
+  // 由本函数补 ref 当前值（该维度此操作不变，ref 即真源）。record 收到的 nodes/edges 与
+  // set 进状态的**同一份引用** ⇒「应用了 A、记录了 B」的漂移从结构上不可能
+  // （此前 13 处手写三连，record 侧 ref/next 混用，duplicateSelected 甚至 record 了未应用的边）。
+  // 【适用边界】只服务「先算 next、后写状态」的调用方（useCanvasHistory 顺序红线）；
+  // React Flow 内部已应用变更的路径（onDelete / onNodeDragStop / arrange 的 onArrange）不经过
+  // 这里，直接 history.record（纯记录形态，全文件仅此 3 处）。
+  const commitCanvas = React.useCallback(
+    (next: { nodes?: Node[]; edges?: Edge[] }) => {
+      const nextNodes = next.nodes ?? nodesRef.current;
+      const nextEdges = next.edges ?? edgesRef.current;
+      if (next.nodes) setNodes(next.nodes);
+      if (next.edges) setEdges(next.edges);
+      history.record({ nodes: nextNodes, edges: nextEdges });
+    },
+    [setNodes, setEdges, history],
+  );
 
   // 保存画布并广播到其他窗口（**一次性落盘**：仅切项目/新建项目这类「必须立刻写旧项目」的路径用）。
   // 常规的「内容变更 / 视窗变更」落盘统一走 projectStore.scheduleCanvasSave（唯一调度入口）。
@@ -885,13 +914,16 @@ function Canvas() {
       // 就地同步 ref，让同一批次的后续 addNode 立刻看到最新列表，删除丢失更新。
       nodesRef.current = nextNodes;
       if (connection) edgesRef.current = nextEdges;
-      setNodes(nextNodes);
-      if (connection) setEdges(nextEdges);
-      history.record({ nodes: nextNodes, edges: nextEdges });
+      // 【152-C4】写+记 收口到 commitCanvas（record 与应用的同一份 next）
+      if (connection) {
+        commitCanvas({ nodes: nextNodes, edges: nextEdges });
+      } else {
+        commitCanvas({ nodes: nextNodes });
+      }
       // 不记建节点日志：结构操作可从画布快照/历史栈还原，记了是噪音（见 logger.js 注释）
       return id;
     },
-    [setNodes, setEdges, history],
+    [commitCanvas],
   );
 
   // 删除节点及其相连边 + 级联删除其子孙（R3：删 group 不留孤儿子节点）
@@ -902,12 +934,10 @@ function Canvas() {
         edgesRef.current,
         id,
       );
-      setNodes(nextNodes);
-      setEdges(nextEdges);
-      history.record({ nodes: nextNodes, edges: nextEdges });
+      commitCanvas({ nodes: nextNodes, edges: nextEdges });
       // 不记删节点日志（同建节点）
     },
-    [setNodes, setEdges, history],
+    [commitCanvas],
   );
 
   // 右键菜单「重命名」弹窗的目标节点（open 时驱动 RenameDialog；null = 关闭）。
@@ -933,10 +963,9 @@ function Canvas() {
       if (!next || String(cur.data?.['label'] ?? cur.data?.['name'] ?? '') === next) return;
       // P0-B 红线：setNodes 不可变更新（见 NodeShell.tsx 头注释 / docs/106），禁止原地 mutation
       const nextNodes = computePatchNodeById(nodesRef.current, id, { data: { label: next } });
-      setNodes(nextNodes);
-      history.record({ nodes: nextNodes, edges: edgesRef.current });
+      commitCanvas({ nodes: nextNodes });
     },
-    [setNodes, history],
+    [commitCanvas],
   );
 
   // 全选
@@ -959,14 +988,15 @@ function Canvas() {
     const next = computePatchNodesById(nextNodes, (n) => idSet.has(String(n.id)), {
       selected: false,
     });
-    setNodes(next);
-    setEdges(
-      computePatchEdgesById(nextEdges, (e) => idSet.has(e.source) && idSet.has(e.target), {
-        selected: false,
-      }),
+    // 【152-C4】原实现 set 的是「取消选中后的边」、record 的却是**未应用**的 nextEdges
+    // （record 与应用漂移的唯一实例）；收口后 record = 应用的同一份。
+    const appliedEdges = computePatchEdgesById(
+      nextEdges,
+      (e) => idSet.has(e.source) && idSet.has(e.target),
+      { selected: false },
     );
-    history.record({ nodes: next, edges: nextEdges });
-  }, [setNodes, setEdges, history]);
+    commitCanvas({ nodes: next, edges: appliedEdges });
+  }, [commitCanvas]);
 
   // 编组选中节点（Ctrl+G；与右键菜单/Agent 共用 createGroupFromNodes）
   const groupSelected = useCallback(() => {
@@ -977,13 +1007,12 @@ function Canvas() {
     }
     const res = createGroupFromNodes(nodesRef.current, selectedIds);
     if (res.ok) {
-      setNodes(res.nodes);
-      history.record({ nodes: res.nodes, edges: edgesRef.current });
+      commitCanvas({ nodes: res.nodes });
       showToast('已编组', { type: 'success' });
     } else {
       showToast(res.error || '编组失败', { type: 'warning' });
     }
-  }, [setNodes, history]);
+  }, [commitCanvas]);
 
   // 取消所选 group（Ctrl+Shift+G；与右键菜单/Agent 共用 ungroupNodes）
   const ungroupSelected = useCallback(() => {
@@ -991,10 +1020,9 @@ function Canvas() {
     if (!selected) return;
     const res = ungroupNodes(nodesRef.current, selected.id);
     if (res.ok) {
-      setNodes(res.nodes);
-      history.record({ nodes: res.nodes, edges: edgesRef.current });
+      commitCanvas({ nodes: res.nodes });
     }
-  }, [setNodes, history]);
+  }, [commitCanvas]);
 
   // 复制选中节点组到系统剪贴板。
   // 格式 {type:'mutiwindow-nodes', nodes, edges, originalIds}，data 去掉函数与运行时字段，
@@ -1071,15 +1099,12 @@ function Canvas() {
       const nextEdges = computePatchEdgesById(beforeEdges, () => true, { selected: false }).concat(
         m,
       );
-      setNodes(nextNodes);
-      setEdges(nextEdges);
-      history.record({ nodes: nextNodes, edges: nextEdges });
+      commitCanvas({ nodes: nextNodes, edges: nextEdges });
       showToast(`已粘贴 ${count} 个节点`);
       return true;
     },
-    [setNodes, setEdges, history],
+    [commitCanvas],
   );
-
   // 整理画布
   // 先存排列前快照 → dagre 布局写回 → 弹「是否保留整理结果」确认。
   // 整理画布
@@ -1114,6 +1139,8 @@ function Canvas() {
     });
     // 弹确认：存排列前快照，还原时写回
     setArrangeSnapshot(before);
+    // 【152-C4 · 纯记录形态①】写回在 arrange 的 onArrange 里发生（算好的布局与
+    // result.nodes/edges 同源），这里只补 record —— 不走 commitCanvas（它只服务「本处算 next + 本处写」）。
     history.record({ nodes: result.nodes, edges: result.edges });
   }, [arrange, setNodes, setEdges, fitView, history, store]);
 
@@ -1176,8 +1203,7 @@ function Canvas() {
       showToast('画布中没有需要转换的内联资源', { type: 'info' });
       return;
     }
-    setNodes(next);
-    history.record({ nodes: next, edges: edgesRef.current });
+    commitCanvas({ nodes: next });
     if (failedTotal > 0) {
       // 【2026-09-17 消费者只转发】原实现只说"N 个转换失败（保留原图）"—— 用户与开发者都**不知道原因**。
       // 现把生产者判词**原样带出**（同类原因合并一次，避免刷屏）。
@@ -1188,7 +1214,7 @@ function Canvas() {
     } else {
       showToast(`已将 ${convertedTotal} 个内联资源转为本地 URL`, { type: 'success' });
     }
-  }, [localTool.isConnected, setNodes, history]);
+  }, [localTool.isConnected, commitCanvas]);
 
   /* ====================================================================
    * 素材拖入 / 粘贴
@@ -1265,6 +1291,13 @@ function Canvas() {
 
   // 单选菜单（复制 / 复制图片 / 取消编组 / 删除）→ buildNodeMenuItems（收口上同）
 
+  // 【152-C5】ghost 清理唯一实现：此前 buildFromConnection / handlePaneClick 两段逐字重复，
+  // 收口为单函数；id/前缀走 ghostPlaceholder.ts 单源常量（写入与过滤共用，拼写漂移不可能）。
+  const clearGhost = useCallback(() => {
+    setNodes((ns) => ns.filter((n) => n.id !== GHOST_TARGET_ID));
+    setEdges((es) => es.filter((e) => !e.id.startsWith(GHOST_EDGE_PREFIX)));
+  }, [setNodes, setEdges]);
+
   // 从「连接」状态建下游节点：在 dropPosition 建节点 + 自动连线，并清掉 ghost（复刻官方 di + a()）
   const buildFromConnection = useCallback(
     (type: string, conn: PendingConnection | null) => {
@@ -1275,21 +1308,19 @@ function Canvas() {
         defaultNodeData(type),
         conn,
       );
-      setNodes((ns) => ns.filter((n) => n.id !== 'ghost-target'));
-      setEdges((es) => es.filter((e) => !e.id.startsWith('ghost-edge-')));
+      clearGhost();
       menu.close();
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps -- menu.close 是稳定 useCallback；menu 对象每渲染重建，列 menu 依赖会每渲染重建（性能退化）
-    [addNode, setNodes, setEdges],
+    [addNode, clearGhost],
   );
 
   // 点击空白：关闭菜单并清理连接拖拽残留（反悔时不留 ghost 线，修复「拉出节点后取消，线仍在」bug）。
   // 普通右键菜单下无 ghost，filter 为空操作，安全复用。
   const handlePaneClick = useCallback(() => {
     menu.close();
-    setNodes((ns) => ns.filter((n) => n.id !== 'ghost-target'));
-    setEdges((es) => es.filter((e) => !e.id.startsWith('ghost-edge-')));
-  }, [menu, setNodes, setEdges]);
+    clearGhost();
+  }, [menu, clearGhost]);
 
   // 统一建节点入口（单一数据源）：
   //   - 从端口拖出到空白（state.connection 存在）→ 复用同一份 canvas 菜单项，但建节点时自动连线 + 清 ghost；
@@ -1331,16 +1362,14 @@ function Canvas() {
     applyUngroup: (groupId) => {
       const res = ungroupNodes(nodesRef.current, groupId);
       if (res.ok) {
-        setNodes(res.nodes);
-        history.record({ nodes: res.nodes, edges: edgesRef.current });
+        commitCanvas({ nodes: res.nodes });
       }
     },
     applyGroup: () => {
       const selectedIds = nodesRef.current.filter((n) => n.selected).map((n) => n.id);
       const res = createGroupFromNodes(nodesRef.current, selectedIds);
       if (res.ok) {
-        setNodes(res.nodes);
-        history.record({ nodes: res.nodes, edges: edgesRef.current });
+        commitCanvas({ nodes: res.nodes });
       }
     },
     applyDeleteSelected: () => {
@@ -1351,9 +1380,7 @@ function Canvas() {
         edgesRef.current,
         sel,
       );
-      setNodes(nextNodes);
-      setEdges(nextEdges);
-      history.record({ nodes: nextNodes, edges: nextEdges });
+      commitCanvas({ nodes: nextNodes, edges: nextEdges });
     },
   };
 
@@ -1429,11 +1456,10 @@ function Canvas() {
       const dup = edgesRef.current.some((e) => e.id === baseId);
       const id = dup ? `${baseId}_${generateId('dup')}` : baseId;
       const nextEdges = [...edgesRef.current, { ...params, id, type: 'default', animated: false }];
-      setEdges(nextEdges);
-      history.record({ nodes: nodesRef.current, edges: nextEdges });
+      commitCanvas({ edges: nextEdges });
       // 不记连线日志（同建节点）
     },
-    [setEdges, history],
+    [commitCanvas],
   );
 
   // 从端口拖出到空白：建 ghost-target + ghost-edge + 弹「连接」菜单
@@ -1452,13 +1478,13 @@ function Canvas() {
       const fromNodeId = t.fromNode.id;
       const fromHandleId = t.fromHandle.id;
       const pos = screenToFlowPosition({ x: clientX, y: clientY });
-      // 建 ghost-target（不可见占位节点）
+      // 建 ghost-target（不可见占位节点）—— id/type 走 ghostPlaceholder.ts 单源常量（152-C5）
       setNodes((ns) =>
         ns
-          .filter((n) => n.id !== 'ghost-target')
+          .filter((n) => n.id !== GHOST_TARGET_ID)
           .concat({
-            id: 'ghost-target',
-            type: 'ghostTarget',
+            id: GHOST_TARGET_ID,
+            type: GHOST_TARGET_TYPE,
             position: pos,
             style: { opacity: 0, pointerEvents: 'none', width: 1, height: 1 },
             data: { label: '' },
@@ -1469,15 +1495,15 @@ function Canvas() {
       // 建 ghost-edge（fromNode → ghost-target）。
       // ⚠️ id 必须唯一（用时间戳）：固定 'ghost-edge' 在连续快速触发 onConnectEnd 时
       // 可能因 setState 批处理出现两条同 id 边 → React key 重复警告（EdgeRenderer）。
-      // 清理点统一按前缀 'ghost-edge-' 过滤（见下方 onConnectEnd/handlePaneClick/菜单确认）。
+      // 清理点统一按前缀 GHOST_EDGE_PREFIX 过滤（ghostPlaceholder.ts 单源；见 clearGhost/菜单确认）。
       setEdges((es) =>
         es
-          .filter((e) => !e.id.startsWith('ghost-edge-'))
+          .filter((e) => !e.id.startsWith(GHOST_EDGE_PREFIX))
           .concat({
-            id: 'ghost-edge-' + Date.now(),
+            id: `${GHOST_EDGE_PREFIX}${Date.now()}`,
             source: fromNodeId,
             sourceHandle: fromHandleId || null,
-            target: 'ghost-target',
+            target: GHOST_TARGET_ID,
             type: 'default',
           }),
       );
@@ -1503,10 +1529,9 @@ function Canvas() {
     (id: string) => {
       if (!id) return;
       const nextEdges = edgesRef.current.filter((ed) => ed.id !== id);
-      setEdges(nextEdges);
-      history.record({ nodes: nodesRef.current, edges: nextEdges });
+      commitCanvas({ edges: nextEdges });
     },
-    [setEdges, history],
+    [commitCanvas],
   );
 
   // 【TD-04-8 已清（2026-09-11）】原此处监听 window 'yimao:remove-edge'（注释称「CustomEdge ✕ 按钮
@@ -1533,6 +1558,8 @@ function Canvas() {
       const delEdgeIds = new Set((de || []).map((e) => e.id));
       const nextNodes = nodesRef.current.filter((n) => !delNodeIds.has(n.id));
       const nextEdges = edgesRef.current.filter((e) => !delEdgeIds.has(e.id));
+      // 【152-C4 · 纯记录形态②】删除已由 React Flow deleteElements 内部应用（onNodesChange 通道），
+      // 这里只从 ref 算删除后快照补 record —— 不得再 set（会二次应用）。
       history.record({ nodes: nextNodes, edges: nextEdges });
       // 不记删线/删节点日志
     },
@@ -1583,6 +1610,7 @@ function Canvas() {
       // R3：位置拖拽进撤销栈（最高频操作）。无论是否跨组，拖拽结束后 React Flow 已把
       // 新 position 写进 nodesRef.current，这里统一 record，使「移动节点/改组归属」都可 Ctrl+Z。
       // 只 record 节点位置相关快照，避免进入 suppress 竞态（TASK-013#2 由 useCanvasHistory 处理）。
+      // 【152-C4 · 纯记录形态③】新 position 已由 React Flow 拖拽链路写进 ref，这里只补 record。
       history.record({ nodes: nodesRef.current, edges: edgesRef.current });
     },
     [setNodes, history],

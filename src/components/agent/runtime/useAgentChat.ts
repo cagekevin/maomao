@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useCanvasAgentTools, setCurrentReferenceImages } from '../canvas/useCanvasAgentTools.ts';
 import { loadAgentChatModel, loadAgentHistoryTurns } from './agentModelStore.ts';
 import { logger } from '@/components/base/core/log/logger';
@@ -279,6 +279,12 @@ export interface UseAgentChatReturn {
   stop: () => void;
   clear: () => void;
   stateAction: string;
+  /** 输入状态机输入侧出口（A1 接线）：setDraft/setAttachments 镜像输入区变化，consume 在提交时清空 */
+  inputActions: {
+    setDraft: (v: string) => void;
+    setAttachments: (items: unknown[]) => void;
+    consume: () => { text: string; attachments: unknown[] };
+  };
   conversations: Conversation[];
   activeConversationId: string;
   newChat: () => void;
@@ -1148,6 +1154,24 @@ export function useAgentChat({
     [callTool],
   );
 
+  // 【A1 接线 · 152 第四批】输入状态机的「输入侧」出口：AgentPanel 把输入区每次变化镜像进来
+  // （setDraft/setAttachments），发送提交用 consume 清空。此前 start/setStatus/load 已接而
+  // 输入侧全库零调用 ⇒ machine.hasContent() 恒 false ⇒ action() 永远推不出 send/steer/retry，
+  // 运行中带内容本该是 steer 却恒为 stop（#7 的 steer 语义整体失活）。接上后按钮语义统一由
+  // machine.action() 推导（经 onChange → stateAction 回流），UI 不再并行自算第二套 hasContent。
+  // useMemo 保持引用稳定：消费方（AgentPanel）的镜像 effect 不因 hook 重渲反复重挂。
+  const inputActions = useMemo(
+    () => ({
+      /** 输入框草稿变化 → 喂给状态机（hasContent / action 推导的数据源） */
+      setDraft: (v: string) => stateMachineRef.current.setDraft(v),
+      /** 附件区变化 → 喂给状态机（同上） */
+      setAttachments: (items: unknown[]) => stateMachineRef.current.setAttachments(items),
+      /** 发送提交：清空机器侧草稿/附件并回 idle，返回被消费的载荷（面板可选用） */
+      consume: () => stateMachineRef.current.consume(),
+    }),
+    [],
+  );
+
   return {
     messages,
     sending,
@@ -1158,6 +1182,7 @@ export function useAgentChat({
     stop,
     clear,
     stateAction,
+    inputActions,
     conversations,
     activeConversationId,
     newChat,

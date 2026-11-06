@@ -9,8 +9,9 @@ import { Handle, Position } from '@xyflow/react';
  * 本组件渲染一个透明的 target Handle（type=target、无 id → 默认 target handle）。
  * 为什么必须有 Handle：React Flow 在创建 edge 时若目标节点没有任何 target handle，
  * 会因找不到 target handle id 而报 error 008「Couldn't create edge for target handle
- * id: null」（见 App.jsx onConnectEnd 建 ghost-edge 的 target=ghost-target）。
- * 加一个透明 Handle 让 React Flow 能解析幽灵边，且节点本体仍不可见（style 1x1 透明）。
+ * id: null」（见 App 的 onConnectEnd 建 ghost-edge，id/type 单源常量在
+ * contract/ghostPlaceholder.ts）。加一个透明 Handle 让 React Flow 能解析幽灵边，
+ * 且节点本体仍不可见（style 1x1 透明）。
  */
 function GhostTargetNode() {
   return (
