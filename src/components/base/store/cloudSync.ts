@@ -33,7 +33,6 @@ import {
   // 同步范围/显示名一律**派生**自登记表（TD-13-9：本文件不再持有键名清单）
   getSyncKeys,
   getKeyLabel,
-  STORAGE_KEYS,
   KEY_YIMAO_CLOUD_SYNC_LEDGER,
   KEY_YIMAO_ACCOUNTS,
 } from '../core/contracts.ts';
@@ -534,10 +533,10 @@ export interface CloudPayload {
 async function collectLocalData(): Promise<{ ls: Record<string, unknown>; skipped: string[] }> {
   const ls: Record<string, unknown> = {};
   const skipped: string[] = [];
-  // 1) localStorage 全量用户数据/配置：复用 backupStore 权威清单，按领域开关过滤
-  // LS_KEYS 已是「同步白名单 ∩ getLocalKeys()」（仅设置类）；domainSwitchEnabled 对 KV 域（accounts）另有其用。
+  // 1) localStorage 全量用户数据/配置：复用 backupStore 权威清单。
+  // 【假护栏已删】曾在此逐键判 `domainSwitchEnabled(k)`，但 LS_KEYS（getSyncKeys()）只含
+  // settings/agent/preset 域键，而开关表只登记 account ⇒ 该判恒真（真判定在下方 :558 account 分支）。
   for (const k of LS_KEYS) {
-    if (!domainSwitchEnabled(k)) continue; // 领域开关关闭 → 该键不进云端
     const v = readLS(k);
     if (v !== undefined) ls[k] = v;
   }
@@ -597,9 +596,10 @@ async function restoreLocal(cloud: CloudSnapshot): Promise<{ written: number; fa
   const failed: string[] = [];
   if (!ls || typeof ls !== 'object') return { written: 0, failed };
   let written = 0;
-  // 1) localStorage 全量覆盖（只写我们备份清单里、且领域开关开启的键，避免误写未知/关闭领域键）
+  // 1) localStorage 全量覆盖（只写我们备份清单里的键；范围已由 LS_KEYS=getSyncKeys() 白名单收口）。
+  // 【假护栏已删】曾在此判 `domainSwitchEnabled(k)`，但 LS_KEYS 无 account 域键 ⇒ 恒真，删除。
   for (const k of LS_KEYS) {
-    if (ls[k] !== undefined && domainSwitchEnabled(k)) {
+    if (ls[k] !== undefined) {
       try {
         // 未真落盘（含 landed:'memory'）= 失败：不许静默计成功（同抛错口径），否则报"同步成功"而数据没写回
         if (writeLS(k, ls[k])) written++;
@@ -1000,15 +1000,10 @@ function syncLabel(key: string) {
  *  - account：true，账号环境走 KV，需专门上传/下载（见 collectLocal/restoreLocal）。
  *  - 工程数据域（project / videoEditor / director3d / resource）已由登记表 `sync` 字段整体排除
  *    （缺省即不同步），不经本开关（本开关现仅对 KV 域 accounts 生效）。
- * 未在本表登记的领域默认放行（维持既有行为）。
+ * 【2026-11-06 假护栏收口】曾配 `domainSwitchEnabled(k)` 供 LS_KEYS 循环逐键过滤，但 LS_KEYS
+ * 只含 settings/agent/preset 域键（无 account）⇒ 该判恒真，两处调用已删；本表只剩
+ * collectLocal/restoreLocal 的 account 分支在用，未登记领域不再有"默认放行"语义入口。
  */
 const SYNC_DOMAIN_SWITCHES: Record<string, boolean> = {
   account: true,
 };
-
-/** 某存储键所属领域是否开启云同步（按 STORAGE_KEYS.entry.domain 判定；未登记/未切换领域默认开启） */
-function domainSwitchEnabled(k: string) {
-  const domain = STORAGE_KEYS[k]?.domain;
-  if (domain && domain in SYNC_DOMAIN_SWITCHES) return !!SYNC_DOMAIN_SWITCHES[domain];
-  return true;
-}

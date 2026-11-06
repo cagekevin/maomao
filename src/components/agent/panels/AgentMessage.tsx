@@ -286,7 +286,7 @@ interface AgentMessageProps {
   onConfirmPlan?: () => void;
   onCancelPlan?: (content?: string) => void;
   onRetryStep?: (nodeId: string) => void;
-  onSendToCanvas?: (content: string) => void;
+  onSendToCanvas?: (content: string) => { ok: boolean; error?: string } | undefined;
   /** 重新生成：重发本条回复之前最近一条用户指令 */
   onRegenerate?: () => void;
   /** 隐藏正文：当本消息已被结构化预览卡（如表格预览）替代，正文 JSON 与预览重复时设 true */
@@ -472,12 +472,18 @@ function AgentMessage({
           <div className="agent-foot">
             <span className="agent-meta">以上内容由 AI 生成</span>
             <div className="agent-actions">
-              {/* 发到画布：整段回复 → 新建文本节点（内容落生成区 data.text） */}
+              {/* 发到画布：整段回复 → 新建文本节点（内容落生成区 data.text）。
+                【失败必须可见（§5.1）】sendContentToCanvas 现按事实返回 {ok,error?}（原签名 void
+                掩盖了失败）；本组件是转发者，只 toast 生产者给的 error，不自行加工文案。 */}
               {onSendToCanvas && (
                 <button
                   type="button"
                   className="agent-icon-btn is-xs"
-                  onClick={() => onSendToCanvas(asText(message.content))}
+                  onClick={() => {
+                    const r = onSendToCanvas(asText(message.content));
+                    if (r && r.ok === false)
+                      showToast(`发送失败：${r.error ?? '未知原因'}`, { type: 'error' });
+                  }}
                   title="发到画布生成文本节点"
                 >
                   <svg

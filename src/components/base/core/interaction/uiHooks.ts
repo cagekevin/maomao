@@ -142,11 +142,9 @@ export function useSizeSync(
     });
     const changed = (n.style?.height ?? n.height) !== h || (n.style?.width ?? n.width) !== w;
     if (changed) {
-      patchNodeById(setNodes, id, {
-        width: w,
-        height: h,
-        style: { ...(n.style || {}), width: w, height: h },
-      });
+      // TD-04-28：三写不变量走唯一实现 withNodeSize（此前本处又手抄了一份 {width,height,style}，
+      // 与同文件 :245 onMainBoxResize 的收口注释自相矛盾；等价替换，不改行为）。
+      patchNodeById(setNodes, id, withNodeSize(n, w, h));
       updateNodeInternals(id);
     }
   }, [

@@ -392,12 +392,16 @@ export async function loadCanvasState(projectId: string): Promise<CanvasSnapshot
     );
     return result;
   } catch (e) {
+    // 【读失败必须可见（§5.1 形态③）】读取抛错 ≠ 确实没有快照：KV 不可用/解析异常一律**原样上抛**，
+    // 由拥有 UI 的调用方（App 加载 effect 的 .catch → toast「画布加载失败，已回退到默认画布」）呈现。
+    // 曾在此 catch 后 return null ⇒ App 侧的失败 toast 成死代码，用户把"读失败"当成"首次使用空画布"。
+    // （真空=键不存在，contentKvReadWithVersion 返回 {value:null}，走上面 `if (!v) return null`，不进本分支。）
     logger.warn(
       'projectStore',
-      '读取画布快照失败（KV 不可用？）',
+      '读取画布快照失败（原样上抛，由调用方呈现）',
       (e as { message?: string })?.message,
     );
-    return null;
+    throw e;
   }
 }
 

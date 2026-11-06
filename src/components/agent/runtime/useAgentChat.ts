@@ -296,7 +296,7 @@ export interface UseAgentChatReturn {
   deleteChat: (id: string) => void;
   renameChat: (id: string, title: string) => void;
   updateMessageByContent: (content: string, patch?: Record<string, unknown>) => void;
-  sendContentToCanvas: (msg: unknown) => void;
+  sendContentToCanvas: (msg: unknown) => { ok: boolean; error?: string } | undefined;
   confirmPendingMemorySuggest: () => Promise<{ ok?: boolean; error?: string }>;
   getActivePendingMemorySuggest: () => unknown;
   cancelPendingConfirm: (assistantContent?: unknown) => void;
@@ -1144,11 +1144,16 @@ export function useAgentChat({
   // 【发到画布】把一段文本内容建成 textGenerateNode（内容落生成区 data.text，抽屉收起）。
   // 复用 AI 操作画布的现成工具链路（create_node → agentCanvasHost），而非裸写 setNodes。
   // 供 AgentPanel「回复右下角箭头」按钮调用；空文本直接忽略。
+  // 【契约携带结果（§5.1 成功必须为真 · 对齐 TableWorkspacePanel 同款 2026-09-17 TD-16-27）】
+  // 原类型声明 `(msg) => void` 但实现一直在返回 callTool 的 `{ok,error?}` ⇒ 声明撒谎、
+  // 消费者（AgentMessage）无从知道成败。现类型如实收窄为 `{ok, error?} | undefined`；
+  // callTool 对已知工具恒返同步对象，`undefined` 仅防越界。失败呈现由调用方按结果事实决定。
   const sendContentToCanvas = useCallback(
-    (content: unknown) => {
+    (content: unknown): { ok: boolean; error?: string } | undefined => {
       const text = String(content ?? '').trim();
       if (!text) return { ok: false, error: '内容为空' };
-      return callTool('create_node', { type: 'textGenerateNode', text });
+      return callTool('create_node', { type: 'textGenerateNode', text }) as
+        { ok: boolean; error?: string } | undefined;
     },
     [callTool],
   );

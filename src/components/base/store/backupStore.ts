@@ -169,14 +169,12 @@ export async function exportAll() {
   const ids = new Set(projectList.map((p) => String(p.id)));
   ids.add(getCurrentProjectId());
   for (const id of ids) {
-    try {
-      const state = await loadCanvasState(id);
-      if (state && (state.nodes || state.edges))
-        canvas[id] = { nodes: state.nodes || [], edges: state.edges || [] };
-    } catch {
-      // 【P0 埋点】单个项目快照读失败（排查「导出缺某个项目画布」：标记具体项目）
-      logger.warn('backupStore', '导出时读取项目画布失败', { projectId: id });
-    }
+    // 【读失败必须可见（§5.1 形态③）】单个项目快照读失败**原样上抛**，不做"跳过该项目继续导出"——
+    // 拿不到某项目画布 = 包会静默缺数据，用户以为备份完整，比"整包导出失败"更危险
+    // （与下方 kvKeys 失败一律上抛同一口径）。loadCanvasState 已改为读失败 throw（不再伪装 null）。
+    const state = await loadCanvasState(id);
+    if (state && (state.nodes || state.edges))
+      canvas[id] = { nodes: state.nodes || [], edges: state.edges || [] };
   }
   // 账号环境：走 KV 后端（backend:'kv'，不在 LS_KEYS），单独收集；非空才入包（防写空覆盖）
   let accounts;
