@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
 import { useReactFlow } from '@xyflow/react';
 import { patchNodeDataById } from './useNodeData.ts';
+import { EXPANDED_DEFAULT } from '@/components/canvas/contract/expandedDefault.ts';
 
 /**
  * 节点抽屉展开态：本地 state + 写回 data.expanded + 外部（Tab 快捷键 / Agent）同步，单一实现。
@@ -32,7 +33,11 @@ export function useNodeExpanded(
   toggleExpanded: () => void;
 } {
   const { setNodes } = useReactFlow();
-  const [expanded, setExpanded] = useState(dataExpanded === undefined ? true : dataExpanded);
+  // 【2026-11-06 · C8】缺省值收口到 expandedDefault（输入面板族未设置 = 展开），
+  // 不再手写 `=== undefined ? true`。
+  const [expanded, setExpanded] = useState(
+    dataExpanded === undefined ? EXPANDED_DEFAULT.inputPanel : dataExpanded,
+  );
 
   // 本地 state 变化 → 写回 node.data（effect 内 setNodes 合法，不在渲染期）
   useEffect(() => {

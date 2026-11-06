@@ -121,14 +121,19 @@ function emit(): void {
 }
 
 /**
- * 语义化快捷出口 —— **业务代码弹提示，一律用这四个**（2026-09-20 判据收敛）。
+ * 语义化快捷出口 —— **业务代码弹提示，一律用这四个**（2026-09-20 判据收敛；
+ * 2026-11-06 B7 裁定：规则改为「**新代码用四档**」写入头注，不加 eslint 闸——
+ * 存量裸 `showToast` 大多已带 `type:`（等价四档形态），无 `type` 的少量散点
+ * （落默认 info）属历史形态，不强制翻新；闸会迫使一次跨全库的机械改名，
+ * 收益低于扰动（「建闸前置评审」第 5 问，2026-09-17 同判）。
  *
  * 【★ 我该用哪个：`toastXxx` 还是 `showToast`？】（不必猜，照下面对号）
  *  · **业务代码**（节点 / 面板 / 编辑器的交互提示）→ **用这四个**。语义化，无需记 type 字符串，
  *    分级默认时长自动生效（见 `DEFAULT_DURATION`：error 4s > warning 3.5s > success/info 2.5s）。
  *  · **`showToast` 只留给两个"必须拿到底层选项"的消费者**（别在业务代码里直调它）：
  *      ① `base/core/log/degrade.ts` —— 降级提示，需要 `coalesceMs`（同文案合并窗口，防刷屏）；
- *      ② `videoEditor/lib/toast.ts` —— cutia `sonner` 适配壳，需要转手 `duration`。
+ *      ② `videoEditor/lib/videoEditorToast.ts` —— cutia `sonner` 适配壳，需要转手 `duration`
+ *        （原注释写的 `videoEditor/lib/toast.ts` 不存在，2026-11-06 顺手修正）。
  *  · **不需要传 `duration`**：分级默认值已表达"越严重停越久"。若你想让某条 error 停更久 ——
  *    那是分级该管的事，改 `DEFAULT_DURATION`，**不要在调用点手写数字**（本仓 SSOT 判据）。
  *    同理**不需要传 `coalesceMs`** —— 它只服务降级刷屏场景，业务提示是单次动作。

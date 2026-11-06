@@ -118,6 +118,7 @@ const EditorShell = React.lazy(() =>
 );
 import { buildNodeTypeComponents } from './components/canvas/shell/NodePalette.ts';
 import { defaultNodeData } from './components/canvas/contract/nodeDataSchema.ts';
+import { EXPANDED_DEFAULT } from './components/canvas/contract/expandedDefault.ts';
 import ToastContainer from './components/base/ui/feedback/ToastContainer.tsx';
 import ConfirmContainer from './components/base/ui/feedback/ConfirmContainer.tsx';
 import RenameDialog from './components/base/ui/feedback/RenameDialog.tsx';
@@ -1369,7 +1370,10 @@ function Canvas() {
     const matching = nodesRef.current.filter((n) => targetTypes.has(n.type as string));
     if (matching.length === 0) return;
     // 只要有一个展开 → 全部折叠；否则全部展开（一键整理全局）
-    const anyExpanded = matching.some((n) => (n.data?.['expanded'] ?? true) === true);
+    // 【2026-11-06 · C8】缺省「未设置=展开」收口到 expandedDefault，不再手写 ?? true。
+    const anyExpanded = matching.some(
+      (n) => (n.data?.['expanded'] ?? EXPANDED_DEFAULT.inputPanel) === true,
+    );
     const target = !anyExpanded;
     setNodes((ns) =>
       computePatchNodesById(ns, (n) => targetTypes.has(n.type as string), {

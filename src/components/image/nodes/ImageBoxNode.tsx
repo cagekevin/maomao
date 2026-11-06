@@ -26,6 +26,7 @@ import { isEditableTarget } from '@/components/base/core/interaction/uiHooks';
 import { copyImageToClipboard } from '@/components/base/utils/net/clipboard';
 import { loadImageWithTimeout, attemptQuietly } from '@/components/base/utils/net/asyncGuard';
 import { logger } from '@/components/base/core/log/logger';
+import { EXPANDED_DEFAULT } from '@/components/canvas/contract/expandedDefault';
 import { useCopyNode } from '@/components/image/hooks/useCopyNode';
 import { makeImageId, imageKeyOf } from '@/components/base/utils/media/imageIdentity';
 import { canvasToImageDataUrl } from '@/components/base/core/utils';
@@ -108,7 +109,8 @@ function ImageBoxNode({ id, data, selected }: ImageBoxNodeProps) {
   // useMemo 稳定化：`data.x || []` 每渲染生成新空数组引用，直接作 useCallback 依赖会导致每渲染重建
   const images = useMemo(() => data.images || [], [data.images]);
   const activeIndex = clamp(data.activeIndex ?? 0, 0, Math.max(0, images.length - 1));
-  const expanded = data.expanded ?? false;
+  // 【2026-11-06 · C8】缺省「未设置=折叠」收口到 expandedDefault（图盒族），不再手写 ?? false。
+  const expanded = data.expanded ?? EXPANDED_DEFAULT.imageBox;
   const selectedIds = useMemo(() => data.selectedIds || [], [data.selectedIds]);
   const current = images[activeIndex];
 
