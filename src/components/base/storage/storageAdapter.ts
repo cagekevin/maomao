@@ -117,9 +117,10 @@ function logPersistFailure(key: string, error: unknown): void {
   logger.warn('存储', '持久化失败', { key, error: message });
 }
 
-/** 存储键统一前缀（对外导出：storageQuota 统计实际键剥前缀用，避免第二处硬编码 'yimao:'）。
- * 数据流：sGet/sSet/sRemove 读写 localStorage/chrome.storage 时自动拼此前缀；
- * storageQuota.enumerateLocalEntries 枚举到的是带此前缀的 rawKey，剥掉后才映射回 STORAGE_KEYS 逻辑键名。 */
+/** 存储键统一前缀（对外导出的单一真源，禁止在别处硬编码 'yimao:'）。
+ * 数据流：sGet/sSet/sRemove 读写 localStorage/chrome.storage 时自动拼此前缀。
+ * 【2026-11-06】原消费方 storageQuota.enumerateLocalEntries（枚举实际键统计占用）已随 B3
+ * 死代码清理删除；现 export 仅作为前缀唯一真源保留。 */
 export const KEY_PREFIX: string = 'yimao:';
 const cache = new Map<string, unknown>();
 let loaded = false;

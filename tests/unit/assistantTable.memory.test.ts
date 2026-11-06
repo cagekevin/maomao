@@ -13,8 +13,6 @@ import {
 import {
   getCurrentAssistantTable,
   setCurrentAssistantTable,
-  getCurrentGlobalContract,
-  setCurrentGlobalContract,
   markMessageTableResolved,
   getCurrentAssistantTabs,
   materializeAssistantTabs,
@@ -88,16 +86,8 @@ describe('assistantTable 会话记忆字段', () => {
     expect(at(c.tabs, 0).id).toBe(at(a.tabs, 0).id);
   });
 
-  it('globalStyle 复用 global_contract.unified_style_prompt：写全局风格可读回', () => {
-    const id = ensureActiveConversation();
-    applyConversation(id);
-    setCurrentGlobalContract({
-      visual_positioning: '',
-      unified_style_prompt: '写实电影感',
-      unified_negative_prompt: '',
-    });
-    expect(getCurrentGlobalContract()?.unified_style_prompt).toBe('写实电影感');
-  });
+  // 【2026-11-06 A3】「globalStyle 复用 global_contract.unified_style_prompt：写全局风格可读回」
+  // 用例已随 setCurrentGlobalContract 写端删除一并移除（生产零调用）。
 
   it('markMessageTableResolved 只给目标消息打 tableResolved、不误伤其它消息，可覆写', () => {
     const id = ensureActiveConversation();
@@ -106,7 +96,10 @@ describe('assistantTable 会话记忆字段', () => {
     appendMsg({ role: 'assistant', content: '{"rows":[{"景别":"A"}]}', createdAt: 1 });
     appendMsg({ role: 'assistant', content: '{"rows":[{"景别":"B"}]}', createdAt: 2 });
     appendMsg({ role: 'user', content: '追加问题', createdAt: 3 });
-    const msgs = must(getActiveConv(), 'getActiveConv').messages as Array<{ id?: unknown; tableResolved?: string }>;
+    const msgs = must(getActiveConv(), 'getActiveConv').messages as Array<{
+      id?: unknown;
+      tableResolved?: string;
+    }>;
     const first = at(msgs, 0);
 
     // 确认第一条 → 只有它带 confirmed，其余（含同为表格的第二条）不带

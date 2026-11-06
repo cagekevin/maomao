@@ -8,7 +8,7 @@ import { describe, it, expect } from 'vitest';
 
 // 用顶层 await 动态 import，避免 NodePalette 顶部同步加载大量组件在收集期报错
 const mod = await import('../../src/components/canvas/shell/NodePalette.ts');
-const { buildNodeTypeComponents, paletteNodes, builtinNodeTypes } = mod;
+const { buildNodeTypeComponents, paletteNodes } = mod;
 
 // React.memo/forwardRef 在 React 19 返回带 $$typeof 标记的对象而非裸函数，
 // P1 节点 memo 化后 nodeTypes 值仍是合法 React 组件类型，故用「函数 或 React 元素类型」判断。
@@ -56,8 +56,8 @@ describe('NodePalette.buildNodeTypeComponents（nodeTypes 单源化）', () => {
     }
   });
 
-  it('builtinNodeTypes 是已复刻节点集合（不为空）', () => {
-    expect(builtinNodeTypes.length).toBeGreaterThan(0);
+  it('palette 目录含 builtin 标记的「已复刻节点」不为空（C6：builtinNodeTypes 导出已删，现场 filter 验证）', () => {
+    expect(paletteNodes.filter((n) => n.builtin).length).toBeGreaterThan(0);
   });
 
   it('派生结果 + App.jsx 补充 = baseline 16 类（防遗漏/防多余）', () => {

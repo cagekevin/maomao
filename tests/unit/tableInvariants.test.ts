@@ -13,7 +13,7 @@ import {
   addTab,
   copyTab,
   deleteColumn,
-  addColumn,
+  insertColumnAfter,
 } from '../../src/components/agent/assistantTable/assistantTable.ts';
 import type {
   AssistantTableTabs,
@@ -255,9 +255,9 @@ describe('validateWorkspace 运行态校验（W/P 类）', () => {
 });
 
 describe('validateTabs 接入真实变更链路（通用断言落地）', () => {
-  it('addColumn 后行补空串，L1 长度对齐保持（缺格会被校验抓）', () => {
+  it('insertColumnAfter 后行补空串，L1 长度对齐保持（缺格会被校验抓）', () => {
     const t = at(validTabs().tabs, 0);
-    const next = addColumn({ columns: t.columns, rows: t.rows }, '新列');
+    const next = insertColumnAfter({ columns: t.columns, rows: t.rows }, undefined, '新列');
     expect(
       validateTabs({ tabs: [{ ...t, columns: next.columns, rows: next.rows }], activeTabId: 'A' }),
     ).toEqual([]);

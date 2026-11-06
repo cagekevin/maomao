@@ -272,8 +272,9 @@ export const getNodesByCategory = (cat: string): PaletteNodeDef[] =>
 // 数据默认值属数据契约，不属 UI 目录。原在此处「expanded 注入 + palette.data 合并」的实现与
 // 「无条件注入 expanded:false 导致 13 种节点白背字段」的修复史，一并随迁（见该文件注释）。
 
-// 已复刻节点的类型集合
-export const builtinNodeTypes = paletteNodes.filter((n) => n.builtin).map((n) => n.type);
+// 【2026-11-06 · C6 删除 builtinNodeTypes】原导出 `paletteNodes.filter((n) => n.builtin).map((n) => n.type)`
+// 生产零消费者，唯一"消费"是 nodeTypes.test.ts 的存在性断言（自证）；已在 dead-code-baseline 登记。
+// 「已复刻节点集合」这一信息仍由 palette 目录的 builtin 标记单源承载，需要时现场 filter 即可，不设缓存导出。
 
 /**
  * 由 palette 目录单源派生 { type → 画布渲染组件 }，供 App.jsx 注册 React Flow nodeTypes。

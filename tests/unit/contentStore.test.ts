@@ -78,11 +78,7 @@ import {
   contentSetAsync,
   contentDeleteAsync,
   contentSubscribe,
-  contentSubscribeAll,
-  contentGetSnapshot,
-  contentGetKeySnapshot,
   contentClearCache,
-  contentStats,
   contentReadThrough,
   contentKvGetVersion,
   contentKvSetCas,
@@ -406,77 +402,11 @@ describe('contentSubscribe', () => {
   });
 });
 
-describe('contentSubscribeAll', () => {
-  it('全局订阅者收到任何键的变更', () => {
-    const cb = vi.fn();
-    contentSubscribeAll(cb);
-    contentSet('projects', [{ id: 'p1' }]);
-    expect(cb).toHaveBeenCalledWith('projects', [{ id: 'p1' }]);
-  });
-
-  it('全局订阅者支持取消', () => {
-    const cb = vi.fn();
-    const unsub = contentSubscribeAll(cb);
-    unsub();
-    contentSet('projects', [{ id: 'p1' }]);
-    expect(cb).not.toHaveBeenCalled();
-  });
-});
-
-/* ════════════════════════════════════════════════════════════════
- * 快照
- * ════════════════════════════════════════════════════════════════ */
-
-describe('contentGetSnapshot', () => {
-  it('快照包含已设置的键值', () => {
-    contentSet('projects', [{ id: 'p1' }]);
-    contentSet('app_settings', { performanceMode: true });
-    const snapshot = contentGetSnapshot();
-    expect(snapshot['projects']).toEqual([{ id: 'p1' }]);
-    expect(snapshot['app_settings']).toEqual({ performanceMode: true });
-  });
-
-  it('快照不包含动态键（pattern: true）', () => {
-    contentSet('projects', [{ id: 'p1' }]);
-    const snapshot = contentGetSnapshot();
-    // 不包含 KV 动态键
-    expect(snapshot['canvas-state-v1-{projectId}']).toBeUndefined();
-  });
-
-  it('快照已被冻结（不可变）', () => {
-    contentSet('projects', [{ id: 'p1' }]);
-    const snapshot = contentGetSnapshot();
-    expect(Object.isFrozen(snapshot)).toBe(true);
-  });
-
-  it('快照不含未设置的键', () => {
-    const snapshot = contentGetSnapshot();
-    expect(Object.keys(snapshot).length).toBeGreaterThanOrEqual(0);
-  });
-});
-
-describe('contentGetKeySnapshot', () => {
-  it('返回指定键的冻结值', () => {
-    const val = [{ id: 'p1' }];
-    contentSet('projects', val);
-    const snapshot = contentGetKeySnapshot('projects');
-    expect(snapshot).toEqual(val);
-    expect(Object.isFrozen(snapshot)).toBe(true);
-  });
-});
-
 /* ════════════════════════════════════════════════════════════════
  * 维护工具
  * ════════════════════════════════════════════════════════════════ */
 
-describe('contentClearCache / contentStats', () => {
-  it('contentStats 返回正确统计', () => {
-    contentSet('projects', [{ id: 'p1' }]);
-    const stats = contentStats();
-    expect(stats.cachedKeys).toBeGreaterThanOrEqual(1);
-    expect(stats.listeners).toBeGreaterThanOrEqual(0);
-  });
-
+describe('contentClearCache', () => {
   it('contentClearCache 清除缓存', () => {
     contentSet('projects', [{ id: 'p1' }]);
     // 确认缓存中有值

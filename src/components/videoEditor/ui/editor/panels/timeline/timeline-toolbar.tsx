@@ -18,7 +18,6 @@ import {
   Trash2,
   Bookmark,
   Magnet,
-  Link,
   ZoomOut,
   ZoomIn,
   Rows3,
@@ -174,8 +173,7 @@ function ToolbarRightSection({
   onZoom: (options: { direction: 'in' | 'out' }) => void;
   onTrackHeight: (options: { direction: 'in' | 'out' }) => void;
 }) {
-  const { snappingEnabled, rippleEditingEnabled, toggleSnapping, toggleRippleEditing } =
-    useTimelineStore();
+  const { snappingEnabled, toggleSnapping } = useTimelineStore();
 
   return (
     <div className="flex items-center gap-1">
@@ -186,13 +184,9 @@ function ToolbarRightSection({
           tooltip={'自动吸附'}
           onClick={() => toggleSnapping()}
         />
-
-        <ToolbarButton
-          icon={<Link className="scale-110" />}
-          isActive={rippleEditingEnabled}
-          tooltip={'波纹编辑'}
-          onClick={() => toggleRippleEditing()}
-        />
+        {/* 【2026-11-06 · V1】「波纹编辑」按钮已删（Link 图标同步移除）：开关可点亮但
+            删除/位移命令无任何波纹重排行为（上游 relayout 逻辑未随 docs/plan/123 搬入），
+            保留只会骗用户。行为补齐后再连按钮一起恢复。 */}
       </TooltipProvider>
 
       <div className="bg-border mx-1 h-6 w-px" />

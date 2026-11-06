@@ -281,13 +281,13 @@ vi.mock('../../src/components/agent/conversation/conversationStore.ts', async (i
   };
 });
 
+import { useAgentChat } from '../../src/components/agent/runtime/useAgentChat.ts';
 import {
-  useAgentChat,
   buildRequestMessages,
   parseSSEChunk,
   parseGenerationsFromReply,
   CANVAS_AGENT_RULES,
-} from '../../src/components/agent/runtime/useAgentChat.ts';
+} from '../../src/components/agent/runtime/agentCore.ts';
 import type { agentChatMessage } from '../../src/components/agent/runtime/agentCore.ts';
 import type { SSEAccumulator } from '../../src/components/agent/runtime/agentCore.ts';
 // 块② 文本的生产者（agentCore 收预拼字符串 ⇒ 测试须先经它拼，见 agentCore 头注释）

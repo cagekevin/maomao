@@ -1326,8 +1326,10 @@ export const apiRegistry: Record<string, ApiRegistryEntry> = {
     method: 'POST',
     path: '/api/tasks/batch-save',
     envelope: 'code-data',
-    status: 'ACTIVE',
-    note: '批量 upsert 任务',
+    // 2026-11-06（B6）：前端生产零消费者（唯一消费是 tasksApi.test.ts），后端路由保留。
+    // ACTIVE 会触发 check:api R5「登记 ACTIVE 但前端函数成死导出」⇒ 降 RESERVED 如实标注。
+    status: 'RESERVED',
+    note: '批量 upsert 任务（前端预留，暂无生产调用；后端路由在）',
   },
   tasksDelete: {
     fn: 'localToolApi.deleteTask',

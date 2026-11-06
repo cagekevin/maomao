@@ -21,6 +21,8 @@
  */
 import { httpRequest, httpPost } from './httpClient.ts';
 import { API_BASE, LOCAL_CRUD_TIMEOUT } from '../core/config.ts';
+// kv 端点路径唯一真源（B5 收口：此前本文件 :470/:488 手写同字面量，与登记表漂移成两份真相）
+import { API_ENDPOINTS } from '../core/contracts.ts';
 
 /**
  * 本模块全部端点的超时（ADR-0035 · 2026-09-20）。
@@ -467,7 +469,7 @@ export async function kvDelete(key: string): Promise<OkResult> {
 // GET /api/kv/version?key=… → 版本号（读不到按 0；轻量端点，别用 kvGet 拉整包做心跳）
 export async function kvGetVersion(key: string): Promise<number> {
   const res = await httpRequest<{ data?: { version?: number } }>(
-    `${API_BASE}/api/kv/version?key=${encodeURIComponent(key)}`,
+    `${API_BASE}${API_ENDPOINTS.kvVersion}?key=${encodeURIComponent(key)}`,
     { timeoutMs: T, label: 'kvGetVersion' },
   );
   const v = res?.data?.version;
@@ -485,10 +487,13 @@ export async function kvGetVersion(key: string): Promise<number> {
 // 故形状不符一律抛（httpRequest 已保证非 2xx 抛 HttpError）；调用方（exportAll）据此
 // 让本次备份失败可见，而不是产出一个"看起来成功"的残缺包。
 export async function kvKeys(): Promise<string[]> {
-  const res = await httpRequest<{ data?: { keys?: unknown } }>(`${API_BASE}/api/kv/keys`, {
-    timeoutMs: T,
-    label: 'kvKeys',
-  });
+  const res = await httpRequest<{ data?: { keys?: unknown } }>(
+    `${API_BASE}${API_ENDPOINTS.kvKeys}`,
+    {
+      timeoutMs: T,
+      label: 'kvKeys',
+    },
+  );
   const keys = res?.data?.keys;
   if (!Array.isArray(keys)) throw new Error('kvKeys：响应缺少 data.keys 数组（契约不符）');
   return keys as string[];

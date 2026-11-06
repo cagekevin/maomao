@@ -254,12 +254,6 @@ export function addRow(sb: AssistantTable): AssistantTable {
   return { ...sb, rows: [...sb.rows, { id: newRowId(), cells: emptyCells(sb.columns) }] };
 }
 
-/** 删除一行；不存在返回原表（幂等） */
-export function deleteRow(sb: AssistantTable, rowId: string): AssistantTable {
-  if (!sb.rows.some((r) => r.id === rowId)) return sb;
-  return { ...sb, rows: sb.rows.filter((r) => r.id !== rowId) };
-}
-
 /** 上移/下移一行（越界无操作，返回新数组，行 id 稳定不重生成） */
 export function moveRow(sb: AssistantTable, rowId: string, dir: 'up' | 'down'): AssistantTable {
   const idx = sb.rows.findIndex((r) => r.id === rowId);
@@ -270,18 +264,6 @@ export function moveRow(sb: AssistantTable, rowId: string, dir: 'up' | 'down'): 
   const moved = rows.splice(idx, 1)[0];
   if (moved === undefined) return sb; // idx 已校验在界内，splice 必返回 1 项（不可达兜底）
   rows.splice(target, 0, moved);
-  return { ...sb, rows };
-}
-
-/** 复制一行（新 id，插到该行之后；不存在返回原表） */
-export function duplicateRow(sb: AssistantTable, rowId: string): AssistantTable {
-  const idx = sb.rows.findIndex((r) => r.id === rowId);
-  if (idx < 0) return sb;
-  const src = sb.rows[idx];
-  if (src === undefined) return sb;
-  const copy: TableRow = { id: newRowId(), cells: [...src.cells] };
-  const rows = sb.rows.slice();
-  rows.splice(idx + 1, 0, copy);
   return { ...sb, rows };
 }
 
@@ -362,17 +344,11 @@ export function setColumnWidth(sb: AssistantTable, colId: string, width: number)
 }
 
 /**
- * 追加一列到末尾（label 缺省用占位名「新列N」）。已有行补该列空键，保证列键对齐、渲染不缺键。
- * 复用 insertColumnAfter（colId 缺省 = 追加到末尾），单一实现不漂移。
- */
-export function addColumn(sb: AssistantTable, label?: string): AssistantTable {
-  return insertColumnAfter(sb, undefined, label);
-}
-
-/**
  * 在指定列**后**插入一列（label 缺省用占位名「新列N」）；colId 不存在或缺省 → 追加到末尾（幂等回退）。
- * 与 addColumn 的区别：可插任意位置（不止末尾），供表头「+」在任意列后加列（2026-09-06 用户裁定：
- * 添加列不再固定只能加末尾）。已有行补该列空键，保证列键对齐、渲染不缺键。不可变（原表不动）。
+ * 供表头「+」在任意列后加列（2026-09-06 用户裁定：添加列不再固定只能加末尾）。已有行补该列空键，
+ * 保证列键对齐、渲染不缺键。不可变（原表不动）。
+ * 【2026-11-06 A4】原 addColumn（追加末尾的糖衣，体=insertColumnAfter(sb,undefined,label)）已删：
+ * 生产零消费者，唯一语义已被本函数 colId 缺省分支覆盖，双入口违反单一规则原则。
  */
 export function insertColumnAfter(
   sb: AssistantTable,
@@ -1029,13 +1005,6 @@ export function rangeToCells(sb: AssistantTable, range: CellRange): string[][] {
   return out;
 }
 
-/** 选区 → TSV（制表符分隔，可直接粘进 Excel/Sheets；spec §5 要求新增） */
-export function rangeToTsv(sb: AssistantTable, range: CellRange): string {
-  return rangeToCells(sb, range)
-    .map((line) => line.join('\t'))
-    .join('\n');
-}
-
 /**
  * 把二维 cells 从锚点格起按矩形铺开写入（spec 3.6）。
  * ⚠️ 越界**只裁剪、绝不静默扩列/加行**：超出列数/行数的内容丢弃（复制时已 toast 提示），
@@ -1268,7 +1237,7 @@ export function countMatchesInTabs(tabs: AssistantTableTabs, find: string): numb
 /**
  * 解析系统剪贴板文本 → 判定是否"网格粘贴"。
  * @returns { cells } 非空返回二维 cells（含制表符或换行 → 网格）；单值/空 → null（调用方按单格覆盖处理）。
- *   - 按 \n 分行、\t 分格（与 rangeToTsv 对称）；\r 剥掉；
+ *   - 按 \n 分行、\t 分格（与 rangeToCells 输出对称）；\r 剥掉；
  *   - 行不要求等长（粘贴时越界自动裁剪，绝不扩列/加行，对齐 pasteCells 语义）；
  *   - 全空文本返回 null。
  */

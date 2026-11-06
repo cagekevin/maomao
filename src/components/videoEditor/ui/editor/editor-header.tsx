@@ -4,7 +4,6 @@ import { useState } from 'react';
 import { RenameProjectDialog } from './dialogs/rename-project-dialog';
 import { DeleteProjectDialog } from './dialogs/delete-project-dialog';
 import { ExportButton } from './export-button';
-import { DEFAULT_LOGO_URL } from '@/components/videoEditor/constants/site-constants';
 import { videoEditorToast } from '@/components/videoEditor/lib/videoEditorToast';
 import { useEditor } from '@/components/videoEditor/hooks-cutia/use-editor';
 import { ShortcutsDialog } from './dialogs/shortcuts-dialog';
@@ -146,13 +145,9 @@ function ProjectDropdown({ onExit }: { onExit?: (() => void) | undefined }) {
           onClick={() => setMenuOpen((v) => !v)}
           className="hover:bg-accent/50 flex cursor-pointer items-center gap-1.5 rounded-sm px-1 py-0.5 transition-colors"
         >
-          <img
-            src={DEFAULT_LOGO_URL}
-            alt="项目缩略图"
-            width={32}
-            height={32}
-            className="dark:invert size-5"
-          />
+          {/* 【2026-11-06 · V2】原 logo <img src="/logos/cutia/svg/logo.svg"> 已删：
+              该路径在 public/ 下不存在（上游 cutia 品牌资产未随搬迁带入）⇒ 每次渲染一个破图；
+              本仓无对应品牌 logo 资产，触发器只留「作品名 + 下拉箭头」。 */}
           <span className="max-w-[14rem] truncate text-[0.9rem]">
             {activeProject?.metadata.name || '未命名作品'}
           </span>

@@ -400,13 +400,7 @@ function Canvas() {
 
   // 视窗中心 → flow 坐标（Q/W/E 快速添加节点用）；适配用 fitView
   // P20 视窗状态持久化：getViewport 读取当前视窗、setViewport 恢复（刷新/切项目回到上次视角）。
-  const {
-    screenToFlowPosition,
-    fitView,
-    getViewport: _getViewport,
-    setViewport,
-    getEdges: _getEdges,
-  } = useReactFlow();
+  const { screenToFlowPosition, fitView, setViewport } = useReactFlow();
   // 视窗尺寸只读通道（引用稳定）：arrangeCanvas 读 width/height 传给按视窗择优换行。
   // 用 useStoreApi 而非 useStore，避免 App 因视窗尺寸变化重渲染（P0-C 性能红线，同 ZoomPercent）。
   const store = useStoreApi();

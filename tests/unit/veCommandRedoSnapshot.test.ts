@@ -17,10 +17,9 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { sceneOf, textElementOf, textTrackOf } from '../helpers/fixtures';
 import { EditorCore } from '../../src/components/videoEditor/engine/core';
-import {
-  BatchCommand,
-  DeleteElementsCommand,
-} from '../../src/components/videoEditor/engine/commands';
+import { DeleteElementsCommand } from '../../src/components/videoEditor/engine/commands';
+// 【2026-11-06 · V8】BatchCommand 不再经 barrel 导出，真实消费方统一走叶子路径。
+import { BatchCommand } from '../../src/components/videoEditor/engine/commands/batch-command';
 import type { TProject } from '../../src/components/videoEditor/types/project';
 import type { TimelineTrack, TScene } from '../../src/components/videoEditor/types/timeline';
 

@@ -6,7 +6,7 @@ import {
   buildRequestMessages,
   CANVAS_AGENT_RULES,
   TABLE_AGENT_RULES,
-} from '../../src/components/agent/runtime/useAgentChat.ts';
+} from '../../src/components/agent/runtime/agentCore.ts';
 // buildRequestMessages 的 messages 参数为 ChatMessage[]（role 是字面量联合、content 是 string | 内容块数组联合），
 // 测试构造的消息需按该类型标注，避免字面量被宽化成 string。
 import type { agentChatMessage, SSEAccumulator } from '@/components/agent/runtime/agentCore.ts';

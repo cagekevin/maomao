@@ -8,6 +8,7 @@ import type {
 import { storageService } from '@/components/videoEditor/engine/services/storage/service';
 import { generateUUID } from '@/components/base/core/idGen.ts';
 import { videoCache } from '@/components/videoEditor/engine/services/video-cache/service';
+import { timelineThumbnailCache } from '@/components/videoEditor/engine/services/timeline-thumbnail/service'; // 【2026-11-06 · V7】删除素材时同步清时间轴缩略图缓存（此前零调用）
 import { collectElementsByMediaId } from '@/components/videoEditor/engine/timeline/element-utils';
 import { probeMediaDimensions } from '@/components/videoEditor/engine/lib/media/processing';
 import { videoEditorToast } from '@/components/videoEditor/lib/videoEditorToast';
@@ -96,6 +97,7 @@ export class MediaManager {
     const asset = this.assets.find((asset) => asset.id === id);
 
     videoCache.clearVideo({ mediaId: id });
+    timelineThumbnailCache.clearMedia({ mediaId: id });
 
     if (asset) releaseAssetObjectUrls(asset);
 
@@ -198,6 +200,7 @@ export class MediaManager {
 
   clearAllAssets(): void {
     videoCache.clearAll();
+    timelineThumbnailCache.clearAll(); // 【2026-11-06 · V7】与 videoCache 同步清空（此前缩略图缓存漏挂）
     // 作废在途加载（它完成时不得再把旧工程的素材写回，TD-22-43①）。
     this.loadToken += 1;
     this.loadError = null;

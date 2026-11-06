@@ -5,6 +5,9 @@ import { getEditor } from '@/components/videoEditor/engine/core/editorInstance';
 import type { MediaAsset } from '@/components/videoEditor/types/mediaAssets';
 import { storageService } from '@/components/videoEditor/engine/services/storage/service';
 import { videoCache } from '@/components/videoEditor/engine/services/video-cache/service';
+// 【2026-11-06 · V7】时间轴缩略图缓存的清理在这里同步做（此前 clearMedia 零调用：
+// videoCache.clearVideo 有清理链路而缩略图缓存漏挂 ⇒ 删素材后旧 ImageBitmap 只能等 500 上限淘汰）。
+import { timelineThumbnailCache } from '@/components/videoEditor/engine/services/timeline-thumbnail/service';
 import { collectElementsByMediaId } from '@/components/videoEditor/engine/timeline/element-utils';
 import type { TimelineTrack } from '@/components/videoEditor/types/timeline';
 
@@ -35,6 +38,7 @@ export class RemoveMediaAssetCommand extends Command {
     }
 
     videoCache.clearVideo({ mediaId: this.assetId });
+    timelineThumbnailCache.clearMedia({ mediaId: this.assetId });
 
     editor.media.setAssets({
       assets: assets.filter((media) => media.id !== this.assetId),

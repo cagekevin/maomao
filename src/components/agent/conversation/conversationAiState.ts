@@ -41,34 +41,10 @@ export type GlobalContract = GlobalContractShape;
 export function getCurrentGlobalContract(): GlobalContract | null {
   return getActiveConv()?.memory?.global_contract || null;
 }
-
-/** 写当前对话的统一风格契约（阶段1 产出，逐字锁定每步） */
-export function setCurrentGlobalContract(c: GlobalContract | null): void {
-  const conv = requireActiveConv('setCurrentGlobalContract');
-  if (!conv) return;
-  commit({
-    ...getState(),
-    conversations: getState().conversations.map((x) =>
-      x.id === conv.id
-        ? {
-            ...x,
-            memory: normalizeMemory({
-              ...x.memory,
-              global_contract: c || null,
-              // 【对齐大雄 agentCaptureActiveConversation】统一风格契约写入时同步 lastSharedStyle：
-              // 大雄从最后 assistant 消息的 shared_style 提炼 memory.lastSharedStyle，续轮 fresh-task 时注入。
-              // 我们统一风格走 global_contract，故在此映射，保证 memory.lastSharedStyle 有承载。
-              lastSharedStyle:
-                c && (c.unified_style_prompt || c.visual_positioning)
-                  ? String(c.unified_style_prompt || c.visual_positioning || '').trim()
-                  : x.memory.lastSharedStyle,
-            }),
-            updatedAt: Date.now(),
-          }
-        : x,
-    ),
-  });
-}
+// 【2026-11-06 A3】setCurrentGlobalContract 写端已删除：生产零调用（唯一"消费"是
+// conversationStore 聚合层 re-export；useAgentChat 的 5 写操作收窄时已移除该成员）。
+// 读端 getCurrentGlobalContract / normalize 的 S4 判据仍活，保留。
+// 需要恢复写端时从 git 历史本文件找回（含 lastSharedStyle 映射逻辑）。
 
 /* ── AI 助手表格工作区（per-conversation，挂会话记忆。一对话多标签页，spec/AI-ASSISTANT-TABLE-TABS.md）
    真源 = memory.assistantTables（{tabs,activeTabId}）。

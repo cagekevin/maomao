@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   classifyLocalIntent,
   buildIntentHint,
-} from '../../src/components/agent/runtime/useAgentChat.ts';
+} from '../../src/components/agent/runtime/agentCore.ts';
 
 /**
  * 意图本地判定（docs/76 · L1 层）

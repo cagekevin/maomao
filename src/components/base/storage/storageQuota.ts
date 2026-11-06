@@ -2,38 +2,23 @@
  * 存储监控 · 数据源（纯函数层）。
  *
  * 【职责】为「设置 → 更多设置 → 存储监控」提供存储占用/配额的计算逻辑，纯函数可单测。
- *   分两块：
- *     A. 浏览器存储配额（IndexedDB/Cache）+ chrome.storage/localStorage 已存占用估算
- *     B. 存储画像（按 STORAGE_KEYS 各 domain 统计实际存储键占用）—— 只读，不做清理
+ *   现存一块：浏览器存储配额（IndexedDB/Cache）估算 + 配额受压判定。
  *
  * 【为什么放这】本项目无 `src/services/` 目录，纯逻辑统一在 `src/components/base/`
  *   （对齐 contentStore.js / kvStore.js / storageAdapter.js）。磁盘扫描（Tauri 版文档里的
  *   getProjectDataDir / readDir）在 Chrome 扩展沙箱做不了，故本模块不含磁盘扫描。
  *
- * ── 数据流全景（下个 AI 改这前必读）──
- *  StorageMonitor（UI）挂载 → runScan() 三路并行：
- *   ├─ estimateBrowserStorage()  → navigator.storage.estimate()
- *   │     浏览器分配的 IndexedDB/Cache 配额（maomao 主体不写 IndexedDB；剪辑器**素材元数据**仍写在
- *   │     IndexedDB，见 videoEditor/engine/services/storage/service.ts → usage 未必为 0。原句「不写 IndexedDB」
- *   │     是假陈述，2026-09-16 TD-02-32 修正）
- *   ├─ estimateChromeStorage()   → enumerateLocalEntries() 逐键估字节
- *   │     扩展 chrome.storage.local / Web localStorage 的「已存内容」总量
- *   └─ analyzeStorageByKeys()    → enumerateLocalEntries() → 剥 yimao: 前缀
- *        → mapKeyToDomain()（查 STORAGE_KEYS 精确/pattern 映射到 domain）→ 按 domain 聚合
- *
- * 三个函数都经 enumerateLocalEntries() 枚举「实际落盘的原始键（rawKey 带 yimao: 前缀）」，
- * 保证统计的是真实数据；domain 映射以 contracts.ts 的 STORAGE_KEYS 为唯一事实源。
+ * ── 数据流（下个 AI 改这前必读）──
+ *  StorageMonitor（UI）挂载 → runScan()：
+ *   └─ estimateBrowserStorage()  → navigator.storage.estimate()
+ *         浏览器分配的 IndexedDB/Cache 配额（maomao 主体不写 IndexedDB；剪辑器**素材元数据**仍写在
+ *         IndexedDB，见 videoEditor/engine/services/storage/service.ts → usage 未必为 0。原句「不写 IndexedDB」
+ *         是假陈述，2026-09-16 TD-02-32 修正）
  *
  * 【口径（与 UI 约定）】
  *   - estimateBrowserStorage()：navigator.storage.estimate() → IndexedDB + Cache Storage 用量。
- *   - estimateChromeStorage()：扩展读 chrome.storage.local.get(null) 按内容估算已存占用；
- *     Web 环境回退 localStorage。注意：chrome.storage.local 的配额拿不到，只能估内容字节。
- *   - analyzeStorageByKeys()：枚举实际存储键（localStorage / chrome.storage.local），剥 yimao: 前缀，
- *     经 STORAGE_KEYS 映射到 domain，按 domain 汇总占用（只读，无副作用）。
  *
  * 【红线】本模块只读存储，不写、不删。任何清理动作必须走 contentStore 唯一入口，禁止散写。
- *   domain 映射以 contracts.ts 的 STORAGE_KEYS 为唯一事实源，不硬编码键名/前缀。
- *   前缀用 storageAdapter.KEY_PREFIX（单一来源，已导出），勿在本文件硬编码 'yimao:'。
  *
  * 【⚠️ 清理建议（若下个 AI 做「清理」，先读这条）】
  *   当前二期只做只读画像，不含清理。若后续加清理，务必：
@@ -43,52 +28,23 @@
  *      KV 键（canvas-state-v1-*、yimao_accounts 等）存在 localTool 后端，前端删不走 localStorage，
  *      需走 kvStore.storageDelete，且删后要处理跨端同步。
  *   3. 删除前确认无引用（grep 该键的读方）；删后重扫刷新 UI。
- *   4. 「无用大对象」判定需谨慎：本模块 byteLength 只估内容字节，无法区分「在用的关键数据」和
- *      「可删的无用数据」。真正确认可删，要靠业务语义（如过期缓存、已导出的历史快照），别凭大小猜。
+ *   4. 「无用大对象」判定需谨慎：真正确认可删，要靠业务语义（如过期缓存、已导出的历史快照），
+ *      别凭大小猜。（原第 4 条后半句提本模块 byteLength 只估内容字节无法区分——该助手与
+ *      analyzeStorageByKeys 已随 2026-11-06 死代码清理移除，见下。）
+ *
+ * 【2026-11-06 死代码清理（B3）】删除 estimateChromeStorage / analyzeStorageByKeys /
+ *   enumerateLocalEntries / mapKeyToDomain / DOMAIN_LABELS / DomainAggregate / byteLength
+ *   —— StorageMonitor 的「chrome.storage/localStorage 占用卡」与「按 domain 画像卡」已被健康报表
+ *   取代（见 StorageMonitor.tsx 文件头注释），上述符号生产零消费者（仅测试自引用）。
+ *   保留 STORAGE_PRESSURE_RATIO / estimateBrowserStorage / estimateStoragePressure（活链路）。
+ *   enumerateLocalEntries 的记忆点已同步进 storageAdapter.ts 文件头。
  */
-import { isChromeExtension, KEY_PREFIX } from './storageAdapter.ts';
-import { STORAGE_KEYS } from '../core/contracts.ts';
-import { compilePatternRegex } from '../core/utils.ts';
-import { tryParseOr } from '../core/log/degrade.ts';
-import { logger } from '../core/log/logger.ts';
-
-/**
- * chrome 扩展全局的类型声明（与 storageAdapter.ts 同步的模块级最小声明）。
- * 本项目无 chrome typings；此处只声明本模块用到的 storage.local.get 形态。
- */
-declare const chrome: {
-  storage: {
-    local: {
-      get(
-        keys: string[] | string | Record<string, unknown> | null,
-        callback: (items: Record<string, unknown>) => void,
-      ): void;
-    };
-  };
-};
-
 /** 配额受压预警阈值：用量比例 ≥ 此值时视为「即将用尽」（对齐文档 STORAGE_PRESSURE_RATIO） */
 export const STORAGE_PRESSURE_RATIO = 0.85;
 
 // 更新(2026-09-12 / TD-02-8)：analyzeAgentConversationPressure 已删除——会话键迁 KV 后该函数
 // 恒返回 null（「已弃用却保留 API」= 死抽象：调用方早已移除、留着只会被误用为"预警仍在生效"）。
 // 真正兜底会话体积的是 volumePolicy 的 L3 预算降级（applyConversationBudget），与本地存储配额无关。
-
-/** domain → 中文标签（仅供 UI 展示，domain 值以 STORAGE_KEYS 登记为准） */
-export const DOMAIN_LABELS: Record<string, string> = {
-  project: '项目 / 画布',
-  settings: '应用设置',
-  agent: 'AI 助手',
-  preset: '提示词预设',
-  asset: '素材库',
-  prompthub: '提示词社区',
-  pref: '节点偏好',
-  panel: '面板布局',
-  account: '账号环境',
-  clipboard: '剪贴板',
-  director3d: '3D 导演台',
-  unknown: '未归类',
-};
 
 /**
  * 估算浏览器存储配额（navigator.storage.estimate）。
@@ -112,142 +68,4 @@ export async function estimateBrowserStorage(): Promise<{
  */
 export function estimateStoragePressure(ratio: number): { underPressure: boolean } {
   return { underPressure: typeof ratio === 'number' && ratio >= STORAGE_PRESSURE_RATIO };
-}
-
-/**
- * 估算已存占用（chrome.storage.local 扩展 / localStorage Web）。
- * 逐键序列化估算字节，返回总字节与键数。
- * @returns {Promise<{bytes:number, keys:number} | null>} 环境不支持返回 null
- */
-export async function estimateChromeStorage(): Promise<{ bytes: number; keys: number } | null> {
-  const entries = await enumerateLocalEntries();
-  if (!entries) return null;
-  let bytes = 0;
-  for (const e of entries) bytes += byteLength(e.rawKey) + byteLength(e.value);
-  return { bytes, keys: entries.length };
-}
-
-/**
- * 枚举浏览器实际存储键（chrome.storage.local 扩展 / localStorage Web）。
- * rawKey 带 yimao: 前缀（实际落盘键名），value 为原始值（未解析）。
- * @returns {Promise<Array<{rawKey:string, value:unknown}> | null>} 环境不支持返回 null
- */
-export async function enumerateLocalEntries(): Promise<Array<{
-  rawKey: string;
-  value: unknown;
-}> | null> {
-  try {
-    if (isChromeExtension()) {
-      const all = await new Promise<Record<string, unknown>>((resolve) => {
-        chrome.storage.local.get(null, resolve);
-      });
-      if (!all || typeof all !== 'object') return [];
-      return Object.entries(all).map(([k, v]) => ({ rawKey: k, value: v }));
-    }
-    // Web 环境回退 localStorage
-    const out: Array<{ rawKey: string; value: unknown }> = [];
-    for (let i = 0; i < localStorage.length; i++) {
-      const k = localStorage.key(i);
-      if (k == null) continue;
-      out.push({ rawKey: k, value: localStorage.getItem(k) });
-    }
-    return out;
-  } catch {
-    // catch-ok: BROWSER_API
-    // 存储读取受限（隐私模式/权限）属环境预期；降级为「不可用」，
-    // UI 展示降级文案而非崩（读者已对：用户侧可见，非静默）。
-    // 【TD-18-14 判非债（2026-09-18）· 判据见 ADR-0031】判据与"扩展 API 边界调用失败"不同（这是**读取受限 → 降级为不可用**，
-    // 且降级已由 UI 呈现），收口它 = 把两种判据合并 ⇒ 按 ADR-0031「判据重复禁合并」保留分层。
-    return null;
-  }
-}
-
-/**
- * 把剥前缀后的逻辑键名映射到 STORAGE_KEYS 的 domain。
- * 精确匹配优先；其次 pattern 动态键（如 canvas-state-v1-{projectId}）；匹配不到归 'unknown'。
- * @param {string} key 剥掉 yimao: 前缀后的逻辑键名
- * @returns {string} domain
- */
-export function mapKeyToDomain(key: string): string {
-  const entry = STORAGE_KEYS[key];
-  if (entry) return entry.domain;
-  for (const [k, v] of Object.entries(STORAGE_KEYS)) {
-    if (!v.pattern) continue;
-    // 自有登记表的 pattern 编译失败 = 写入侧 bug（此前 `re.ok && re.value.test(key)` 零留痕）→ 走压平即留痕原语。
-    if (
-      tryParseOr(() => compilePatternRegex(k).test(key), false, {
-        layer: 'storageQuota',
-        key: k,
-      })
-    )
-      return v.domain;
-  }
-  return 'unknown';
-}
-
-// pattern 模板 → 正则统一走 utils.compilePatternRegex（2026-08-30 收口，原本地副本已删）
-
-/** 单个 domain 的聚合占用量（analyzeStorageByKeys 内部中间结构，非导出） */
-interface DomainAggregate {
-  domain: string;
-  bytes: number;
-  keys: number;
-  detail: Array<{ key: string; bytes: number }>;
-}
-
-/**
- * 存储画像：按 domain 统计实际存储键占用（只读）。
- * 枚举实际键 → 剥 yimao: 前缀 → mapKeyToDomain → 按 domain 聚合 bytes/keys/detail。
- * @returns {Promise<{
- *   domains: Array<{domain:string, label:string, bytes:number, keys:number, detail:Array<{key:string, bytes:number}>}>,
- *   totalBytes:number, totalKeys:number
- * } | null>} 环境不支持返回 null
- */
-export async function analyzeStorageByKeys(): Promise<{
-  domains: Array<DomainAggregate & { label: string }>;
-  totalBytes: number;
-  totalKeys: number;
-} | null> {
-  // ① 枚举实际落盘键（localStorage / chrome.storage.local），rawKey 带 yimao: 前缀
-  const entries = await enumerateLocalEntries();
-  if (!entries) return null;
-  // ② 按 domain 聚合：bytes = 键名长度 + 值序列化长度（键名也占空间，故都计入）
-  const byDomain = new Map<string, DomainAggregate>();
-  let totalBytes = 0;
-  for (const e of entries) {
-    // 剥 yimao: 前缀 → 逻辑键名（非业务键不带前缀，原样保留）
-    const logical = e.rawKey.startsWith(KEY_PREFIX) ? e.rawKey.slice(KEY_PREFIX.length) : e.rawKey;
-    // ③ 逻辑键名 → domain（精确 STORAGE_KEYS 匹配，其次 pattern 动态键，兜底 unknown）
-    const domain = mapKeyToDomain(logical);
-    const bytes = byteLength(e.rawKey) + byteLength(e.value);
-    totalBytes += bytes;
-    // ④ 累加到对应 domain（首个出现时初始化）
-    let g = byDomain.get(domain);
-    if (!g) {
-      g = { domain, bytes: 0, keys: 0, detail: [] };
-      byDomain.set(domain, g);
-    }
-    g.bytes += bytes;
-    g.keys += 1;
-    g.detail.push({ key: logical, bytes });
-  }
-  // ⑤ 打中文标签 + 按占用降序（UI 占比条好看）
-  const domains = Array.from(byDomain.values())
-    .map((g) => ({ ...g, label: DOMAIN_LABELS[g.domain] || g.domain }))
-    .sort((a, b) => b.bytes - a.bytes);
-  return { domains, totalBytes, totalKeys: entries.length };
-}
-
-/** 估算任意值序列化后的字节数（undefined→0；对象按 JSON 字符串估算）。
- *  【失败可见 · 2026-09-17 拆兜底】估算失败（值不可序列化）→ 留痕，不再静默按 0 计：
- *  静默 0 会让存储画像**低估**占用（`totalBytes`/`detail`），用户据此误判"还有空间"。 */
-function byteLength(value: unknown): number {
-  if (value === undefined || value === null) return 0;
-  if (typeof value === 'string') return value.length;
-  try {
-    return JSON.stringify(value).length;
-  } catch (e) {
-    logger.warn('存储画像', '该键值无法序列化估算，按 0 计（画像将低估占用）', e);
-    return 0;
-  }
 }

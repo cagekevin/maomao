@@ -2,6 +2,11 @@
  * storageQuota 纯函数单测（node 环境）。
  * 遵循 TEST-GUIDE §六「值不值得写」：只锁「用户可感知的真实契约」，
  * 不写「真实流程不会发生」的假边界（缺字段/非法类型/未实现占位）。
+ *
+ * 【2026-11-06 B3】estimateChromeStorage / mapKeyToDomain / analyzeStorageByKeys 已随生产代码
+ * 删除（StorageMonitor 两张卡被健康报表取代，符号生产零消费者），对应 describe 一并移除。
+ * 保留：estimateBrowserStorage / estimateStoragePressure（活链路）+ formatBytes/formatBytesParts
+ * （本文件顺带锁的 utils 契约，与 storageQuota 无关）。
  */
 import { must } from '../helpers/must';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
@@ -10,12 +15,9 @@ import {
   STORAGE_PRESSURE_RATIO,
   estimateBrowserStorage,
   estimateStoragePressure,
-  estimateChromeStorage,
-  mapKeyToDomain,
-  analyzeStorageByKeys,
 } from '@/components/base/storage/storageQuota.ts';
 
-/** 可控的 chrome 全局（模拟 普通网页 / 真实扩展 两种环境） */
+/** 可控的 chrome 全局（历史用例已删，保留桩位防其他用例误触真实 chrome） */
 let chromeGlobal: any = null;
 beforeEach(() => {
   chromeGlobal = null;
@@ -31,27 +33,6 @@ afterEach(() => {
   vi.unstubAllGlobals();
   if ('chrome' in globalThis) delete (globalThis as { chrome?: unknown }).chrome;
 });
-
-/** 构造「真实扩展」的 chrome：storage.local.get 是函数 */
-function makeExtensionChrome(store: Record<string, any> = {}) {
-  return {
-    runtime: { id: 'test-ext-id', lastError: null },
-    storage: {
-      local: {
-        get: (keys: any, cb: any) => {
-          const out: Record<string, any> = {};
-          if (keys === null) {
-            for (const [k, v] of Object.entries(store)) out[k] = v;
-          } else {
-            const arr = Array.isArray(keys) ? keys : [keys];
-            for (const k of arr) if (k in store) out[k] = store[k];
-          }
-          cb?.(out);
-        },
-      },
-    },
-  };
-}
 
 describe('storageQuota.estimateBrowserStorage', () => {
   it('navigator.storage.estimate 可用：返回 usage/quota/ratio', async () => {
@@ -86,109 +67,10 @@ describe('storageQuota.estimateStoragePressure', () => {
   });
 });
 
-describe('storageQuota.estimateChromeStorage', () => {
-  it('扩展环境：遍历 chrome.storage.local 估算字节与键数', async () => {
-    chromeGlobal = makeExtensionChrome({ 'yimao:a': 'hello', 'yimao:b': { x: 123 } });
-    const r = await estimateChromeStorage();
-    expect(r).not.toBeNull();
-    expect(must(r, 'r').keys).toBe(2);
-    // 'yimao:a' 键 7 + 'hello' 5；'yimao:b' 键 7 + JSON.stringify({x:123}) '{"x":123}' 9
-    expect(must(r, 'r').bytes).toBe(7 + 5 + 7 + 9);
-  });
-
-  it('普通网页（无 chrome）：回退 localStorage 估算', async () => {
-    localStorage.setItem('yimao:x', 'abc');
-    const r = await estimateChromeStorage();
-    expect(r).not.toBeNull();
-    expect(must(r, 'r').keys).toBe(1);
-    expect(must(r, 'r').bytes).toBe('yimao:x'.length + 'abc'.length);
-  });
-
-  it('chrome.storage.local.get 抛错：返回 null（降级不崩）', async () => {
-    chromeGlobal = {
-      runtime: { id: 'x' },
-      storage: {
-        local: {
-          get: () => {
-            throw new Error('denied');
-          },
-        },
-      },
-    };
-    expect(await estimateChromeStorage()).toBeNull();
-  });
-});
-
-describe('storageQuota.mapKeyToDomain（键→domain 映射）', () => {
-  it('精确登记键：projects → project', () => {
-    expect(mapKeyToDomain('projects')).toBe('project');
-  });
-  it('精确登记键：app_settings → settings', () => {
-    expect(mapKeyToDomain('app_settings')).toBe('settings');
-  });
-  it('pattern 动态键：agent_conversations_canvas-x → agent', () => {
-    expect(mapKeyToDomain('agent_conversations_canvas-assistant-proj-1')).toBe('agent');
-  });
-  it('pattern 动态键：canvas-state-v1-proj-x → project', () => {
-    expect(mapKeyToDomain('canvas-state-v1-proj-abc')).toBe('project');
-  });
-  it('未登记键：no_such_key → unknown', () => {
-    expect(mapKeyToDomain('no_such_key')).toBe('unknown');
-  });
-});
-
-describe('storageQuota.analyzeStorageByKeys（按键画像）', () => {
-  it('Web 环境：按 domain 汇总占用与键数（含精确 + 动态键）', async () => {
-    localStorage.clear();
-    localStorage.setItem('yimao:projects', '[{"id":"p1"}]'); // project
-    localStorage.setItem('yimao:app_settings', '{"debugOn":false}'); // settings
-    localStorage.setItem('yimao:agent_conversations_ca', '[{"m":1}]'); // agent（动态 pattern）
-    const r = await analyzeStorageByKeys();
-    expect(r).not.toBeNull();
-    expect(must(r, 'r').totalKeys).toBe(3);
-    // 3 个 domain，按 bytes 降序（agent 键最长 → 最大，其次 settings、project）
-    expect(must(r, 'r').domains.map((d) => d.domain)).toEqual(['agent', 'settings', 'project']);
-    expect(
-      must(
-        must(r, 'r').domains.find((d) => d.domain === 'project'),
-        'must',
-      ).keys,
-    ).toBe(1);
-    expect(
-      must(
-        must(r, 'r').domains.find((d) => d.domain === 'settings'),
-        'must',
-      ).label,
-    ).toBe('应用设置');
-  });
-
-  it('非业务键（无 yimao: 前缀）也计入，归 unknown 或各自 domain', async () => {
-    localStorage.clear();
-    localStorage.setItem('yimao:projects', '[1]'); // project
-    localStorage.setItem('other_key', 'xyz'); // 无前缀 → unknown
-    const r = await analyzeStorageByKeys();
-    expect(r).not.toBeNull();
-    expect(must(r, 'r').totalKeys).toBe(2);
-    expect(must(r, 'r').domains.find((d) => d.domain === 'unknown')).toBeTruthy();
-  });
-
-  it('chrome.storage.get 抛错：返回 null（降级不崩）', async () => {
-    chromeGlobal = {
-      runtime: { id: 'x' },
-      storage: {
-        local: {
-          get: () => {
-            throw new Error('denied');
-          },
-        },
-      },
-    };
-    expect(await analyzeStorageByKeys()).toBeNull();
-  });
-});
-
 // 更新(2026-09-12 / TD-02-8)：`analyzeAgentConversationPressure`（恒 null 的已弃用 API）已删除，
 // 对应「已弃用」describe 一并移除——保留"恒 null 仍是正确行为"的用例，等于给死抽象续命。
+// 更新(2026-11-06 / B3)：estimateChromeStorage / mapKeyToDomain / analyzeStorageByKeys 已删除，
+// 理由同 TD-02-8——生产调用方早已移除（StorageMonitor 换健康报表），留着只会被误认为画像仍在生效。
 
 describe('utils.formatBytes（存储专用）', () => {
   it('B 级：1536 → 1.5 KB', () => {

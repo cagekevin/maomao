@@ -273,7 +273,7 @@ export {
 // conversationAiState：AI 编排状态（F 类）
 export {
   getCurrentGlobalContract,
-  setCurrentGlobalContract,
+  // setCurrentGlobalContract 已删（2026-11-06 A3：生产零调用的写端化石，见 conversationAiState.ts 注释）
   getCurrentAssistantTable,
   setCurrentAssistantTable,
   getCurrentAssistantTabs,

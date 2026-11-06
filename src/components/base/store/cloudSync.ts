@@ -283,17 +283,19 @@ export type AutoConflictHandler = (
   decision: UploadDecision,
 ) => Promise<ConflictResolution>;
 
+/**
+ * 非负整数化：非法/缺省/≤0 → 0。
+ * 【2026-11-06 B8 收口】原 toRev / toTs 两函数体逐字同构（同一语义两份实现），
+ * 合并为单一实现；调用点按语义各自命名（rev=修订号、ts=时间戳），语义注释留在调用侧。
+ */
+function toNonNegInt(v: unknown): number {
+  const n = Number(v);
+  return Number.isFinite(n) && n > 0 ? Math.floor(n) : 0;
+}
 /** 修订号：非法/缺省 → 0（表示「云端无版本信息」） */
-function toRev(v: unknown): number {
-  const n = Number(v);
-  return Number.isFinite(n) && n > 0 ? Math.floor(n) : 0;
-}
-
+const toRev = toNonNegInt;
 /** 时间戳：非法/缺省 → 0（表示「未知时间」） */
-function toTs(v: unknown): number {
-  const n = Number(v);
-  return Number.isFinite(n) && n > 0 ? Math.floor(n) : 0;
-}
+const toTs = toNonNegInt;
 
 /**
  * 云端回包 → 归一化快照（唯一解析入口）。
@@ -575,14 +577,17 @@ async function collectLocalData(): Promise<{ ls: Record<string, unknown>; skippe
  * @note data 内双写 __meta：兜底 GAS 只保存 data 内容的形态（见 CLOUD_META_KEY 注释）。
  *       解析端 normalizeCloudPayload 会把它剔除，restoreLocal 只写 LS_KEYS 白名单也天然跳过它。
  */
+/** 云端包格式版本（buildCloudPayload 双写：外层 + __meta 内；B8 收口单源，改版本只改这里） */
+const CLOUD_PAYLOAD_VERSION = 5;
+
 function buildCloudPayload(ls: Record<string, unknown>, rev: number): CloudPayload {
   const updatedAt = Date.now();
   return {
     type: 'cloud_config',
-    version: 5,
+    version: CLOUD_PAYLOAD_VERSION,
     rev,
     updatedAt,
-    data: { ...ls, [CLOUD_META_KEY]: { rev, updatedAt, version: 5 } },
+    data: { ...ls, [CLOUD_META_KEY]: { rev, updatedAt, version: CLOUD_PAYLOAD_VERSION } },
   };
 }
 

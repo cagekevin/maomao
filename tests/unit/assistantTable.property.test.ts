@@ -10,11 +10,10 @@ import { must } from '../helpers/must';
 import { describe, it, expect } from 'vitest';
 import { at } from '../helpers/at';
 import {
-  addColumn,
   insertColumnAfter,
   deleteColumn,
   addRow,
-  deleteRow,
+  insertRowAfter,
   parsePasted,
   buildPreviewResult,
   updateTab,
@@ -46,7 +45,7 @@ describe('assistantTable 性质：cells 长度恒等（阶段5）', () => {
       const firstCol = t && t.columns[0] ? t.columns[0].id : undefined;
       const firstRow = t && t.rows[0] ? t.rows[0].id : undefined;
       if (r < 0.3) {
-        tabs = updateTab(tabs, tabs.activeTabId, (sb) => addColumn(sb));
+        tabs = updateTab(tabs, tabs.activeTabId, (sb) => insertColumnAfter(sb));
       } else if (r < 0.5) {
         tabs = updateTab(tabs, tabs.activeTabId, (sb) => insertColumnAfter(sb, firstCol, 'C'));
       } else if (r < 0.68 && firstCol !== undefined) {
@@ -54,7 +53,7 @@ describe('assistantTable 性质：cells 长度恒等（阶段5）', () => {
       } else if (r < 0.78) {
         tabs = updateTab(tabs, tabs.activeTabId, (sb) => addRow(sb));
       } else if (r < 0.88 && firstRow !== undefined) {
-        tabs = updateTab(tabs, tabs.activeTabId, (sb) => deleteRow(sb, firstRow));
+        tabs = updateTab(tabs, tabs.activeTabId, (sb) => insertRowAfter(sb, firstRow));
       } else {
         // AI 建表（replace）后仍恒等
         const sb = { columns: must(t, 't').columns, rows: must(t, 't').rows };

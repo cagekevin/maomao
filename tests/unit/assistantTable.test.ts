@@ -5,12 +5,9 @@ import {
   normalizeAssistantTable,
   parsePasted,
   addRow,
-  deleteRow,
   moveRow,
-  duplicateRow,
   setCell,
   renameColumn,
-  addColumn,
   insertColumnAfter,
   deleteColumn,
   rowToObj,
@@ -38,7 +35,6 @@ import {
   copyRowsToTab,
   insertRowAfter,
   rangeToCells,
-  rangeToTsv,
   pasteCells,
   replaceTextInTabs,
   countMatchesInTabs,
@@ -124,7 +120,7 @@ describe('AI 助手表格模型（assistantTable 纯函数）', () => {
     expect(r.resultCols.map((c) => c.label)).toEqual(['景别', '画面', '不存在']);
   });
 
-  it('addRow / deleteRow / moveRow / duplicateRow：不可变 + 行 id 稳定', () => {
+  it('addRow / moveRow：不可变 + 行 id 稳定', () => {
     const sb = requirePasted('景别\t画面\nA\ta\nB\tb\nC\tc');
     const orig = sb;
     const ids = orig.rows.map((r) => r.id);
@@ -133,14 +129,9 @@ describe('AI 助手表格模型（assistantTable 纯函数）', () => {
     expect(withAdded).not.toBe(orig);
     expect(withAdded.rows).toHaveLength(4);
     expect(orig.rows).toHaveLength(3);
-    // deleteRow / moveRow / duplicateRow 原表引用不动
-    expect(deleteRow(orig, at(ids, 1)).rows.map((r) => r.id)).toEqual([at(ids, 0), at(ids, 2)]);
+    // moveRow 原表引用不动
     expect(rowOf(moveRow(orig, at(ids, 2), 'up').rows, 1).id).toBe(at(ids, 2));
     expect(moveRow(orig, at(ids, 0), 'up')).toBe(orig); // 首行上移越界 → 原引用
-    const dup = duplicateRow(orig, at(ids, 1));
-    expect(dup.rows).toHaveLength(4);
-    expect(rowOf(dup.rows, 2).id).not.toBe(at(ids, 1));
-    expect(rowOf(dup.rows, 2).cells).toEqual(rowOf(orig.rows, 1).cells);
   });
 
   it('renameColumn：改列名不影响行数据；空/相同/未知列幂等', () => {
@@ -334,20 +325,6 @@ describe('AI 助手表格模型（assistantTable 纯函数）', () => {
     expect(cellOf(r.resultRows, 0, 1)).toBe('新画面');
   });
 
-  it('addColumn：追加列并给每行补空串；原表不动', () => {
-    const sb = requirePasted('列A\t列B\nx\ty');
-    const colCount = sb.columns.length;
-    const next = addColumn(sb);
-    expect(next).not.toBe(sb);
-    expect(next.columns).toHaveLength(colCount + 1);
-    expect(colOf(next.columns, colCount).label).toMatch(/^新列/); // 缺省占位名
-    expect(cellOf(next.rows, 0, colCount)).toBe(''); // 补空串
-    expect(sb.columns).toHaveLength(colCount); // 原表不动
-    // 显式命名
-    const named = addColumn(sb, '备注');
-    expect(colOf(named.columns, colCount).label).toBe('备注');
-  });
-
   it('deleteColumn：删除列并清理所有行该列下标；未知列幂等', () => {
     const sb = requirePasted('列A\t列B\t列C\nx\ty\tz');
     const colB = colOf(sb.columns, 1).id;
@@ -373,7 +350,7 @@ describe('AI 助手表格模型（assistantTable 纯函数）', () => {
     ]);
     expect(cellOf(next.rows, 0, 1)).toBe(''); // 补空串
     expect(cellOf(next.rows, 0, 2)).toBe('y'); // 原数据保序
-    // 缺省 colId → 追加末尾（与 addColumn 同语义）
+    // 缺省 colId → 追加末尾
     const appended = insertColumnAfter(sb);
     expect(appended.columns.map((c) => c.label)).toEqual([
       '列A',
@@ -384,10 +361,6 @@ describe('AI 助手表格模型（assistantTable 纯函数）', () => {
     // 未知 colId → 幂等追加末尾，不抛
     const unknown = insertColumnAfter(sb, 'no-such-col', '备注');
     expect(unknown.columns.at(-1)?.label).toBe('备注');
-    // addColumn 与 insertColumnAfter(缺省) 行为一致（单一实现）
-    expect(addColumn(sb).columns.map((c) => c.label)).toEqual(
-      insertColumnAfter(sb).columns.map((c) => c.label),
-    );
   });
 
   it('extractRowIndex：读 _rowIndex（1 起）→ 0-based；无/非法返回 null', () => {
@@ -652,17 +625,6 @@ describe('AI 助手表格模型（assistantTable 纯函数）', () => {
     it('rangeToCells：锚点失效返回 []（不抛、不静默给错值）', () => {
       const t = sb();
       expect(rangeToCells(t, { r0: 'nope', c0: 'x', r1: 'y', c1: 'z' })).toEqual([]);
-    });
-
-    it('rangeToTsv：制表符分隔，可直接粘进 Excel', () => {
-      const t = sb();
-      const tsv = rangeToTsv(t, {
-        r0: rowOf(t.rows, 0).id,
-        c0: colOf(t.columns, 0).id,
-        r1: rowOf(t.rows, 1).id,
-        c1: colOf(t.columns, 2).id,
-      });
-      expect(tsv).toBe('中景\t原1\t甲\n特写\t原2\t乙');
     });
 
     it('pasteCells：从锚点格按矩形铺开覆盖', () => {

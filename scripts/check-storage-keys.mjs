@@ -55,8 +55,6 @@ const STORAGE_FNS = new Set([
   'contentSetAsync',
   'contentDeleteAsync',
   'contentSubscribe',
-  'contentGetKeySnapshot',
-  'contentGetSnapshot',
   'sGet',
   'sSet',
   'sRemove',

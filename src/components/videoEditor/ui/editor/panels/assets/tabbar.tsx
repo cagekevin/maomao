@@ -25,19 +25,9 @@ import {
 export function TabBar() {
   const { activeTab, setActiveTab } = useAssetsPanelStore();
 
-  // i18next-toolkit: forces extraction of tab labels (dead code, extract-only)
-  if (false as boolean) {
-    ('素材');
-    ('音效');
-    ('文字');
-    ('贴纸');
-    ('效果');
-    ('转场');
-    ('字幕');
-    ('滤镜');
-    ('调整');
-    ('设置');
-  }
+  // 【2026-11-06 · V5】原「i18next-toolkit 提取用死块」（if (false as boolean) 包 10 行标签字面量）
+  // 已删：本仓不用 i18next（依赖不存在），该块是上游 cutia 搬迁带入的化石。
+
   const [showTopFade, setShowTopFade] = useState(false);
   const [showBottomFade, setShowBottomFade] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);

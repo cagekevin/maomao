@@ -54,8 +54,6 @@
  * | **写** | `contentSet(key, v)` | `contentSetAsync(key, v)` + `await` | ⚠️ KV 键**禁止**同步写（**会抛错**，结构层禁止） |
  * | **删** | `contentDelete(key)` | `contentDeleteAsync(key)` + `await` | 同上 |
  * | **订阅变更** | `contentSubscribe(key, cb)` | 同左 | 写/删后自动通知，与后端无关 |
- * | **订阅全部** | `contentSubscribeAll(cb)` | 同左 | |
- * | **事务快照**（撤销/恢复） | `contentGetSnapshot()` / `contentGetKeySnapshot(key)` | 同左 | 返回冻结副本 |
  * | **高频写合并** | `createDebouncedPersist(write, delay)` | 同左 | 高频变更合并落盘 |
  * | ⚠️ 双通道**原语**（普通 store **勿直接调**） | — | `contentSetKvWithFallback` / `contentGetKvWithFallback` | per-key 的 `fallback` 选项对上面的 `contentSetAsync`/`contentGetAsync` **已同样生效** ⇒ 普通 store 直接用 Async 即可。只有需要**迁移许可信号**（`vacated`/`degraded`/`rejected` 判别）的极少数调用方才直调 |
  * | **KV 严格族**（用户主数据，fail-closed） | — | `contentKvGetVersion` / `contentKvReadWithVersion` / `contentKvSetCas` | 画布快照等**绝不写副本**的场景 |
@@ -115,13 +113,8 @@ export type StorageBackend = 'local' | 'kv' | 'native';
  */
 export type StorageKeyEntry = StorageKeyMeta;
 
-/** 缓存快照（contentGetSnapshot 的产物）：键名 → 值 */
-export type ContentSnapshot = Record<string, unknown>;
-
 /** 按 key 订阅的回调 */
 export type ContentKeyListener = (value: unknown) => void;
-/** 全局订阅的回调 */
-export type ContentGlobalListener = (key: string, value: unknown) => void;
 
 /** 落盘节流原语的返回值 */
 export interface DebouncedPersist {
@@ -133,13 +126,6 @@ export interface DebouncedPersist {
   cancel: () => void;
 }
 
-/** 缓存统计信息 */
-export interface ContentStats {
-  cachedKeys: number;
-  listeners: number;
-  globalListeners: number;
-}
-
 // ─────────────────────────────────────────────────────────────────
 // 内部状态
 // ─────────────────────────────────────────────────────────────────
@@ -149,9 +135,6 @@ const cache = new Map<string, unknown>();
 
 /** 按 key 的订阅者：{ [key]: Set<callback> } */
 const keyListeners = new Map<string, Set<ContentKeyListener>>();
-
-/** 全局订阅者：Set<(key, value) => void> */
-const globalListeners = new Set<ContentGlobalListener>();
 
 /** 已 warning 的未登记键集合（防重复 warning） */
 const warnedKeys = new Set<string>();
@@ -329,7 +312,6 @@ function isKvPatternKey(key: string): boolean {
 /** 通知所有订阅者 */
 function notify(key: string, value: unknown): void {
   keyListeners.get(key)?.forEach((cb) => cb(value));
-  globalListeners.forEach((cb) => cb(key, value));
 }
 
 /**
@@ -956,58 +938,6 @@ export function contentSubscribe(key: string, callback: ContentKeyListener): () 
   };
 }
 
-/**
- * 订阅所有键的变更。
- * @param {(key: string, value: any) => void} callback
- * @returns {() => void} 取消订阅函数
- */
-export function contentSubscribeAll(callback: ContentGlobalListener): () => void {
-  globalListeners.add(callback);
-  return () => {
-    globalListeners.delete(callback);
-  };
-}
-
-// ─────────────────────────────────────────────────────────────────
-// 快照
-// ─────────────────────────────────────────────────────────────────
-
-/**
- * 获取所有已登记键的不可变快照（冻结对象）。
- * 排除动态键（pattern: true）和未在缓存中的键。
- * 用于撤销/恢复/历史追踪。
- */
-export function contentGetSnapshot(): ContentSnapshot {
-  const snapshot: ContentSnapshot = {};
-  for (const [key, entry] of Object.entries(KEYS)) {
-    if (entry.pattern) continue; // 动态键跳过
-    if (cache.has(key)) {
-      const v = cache.get(key);
-      if (v !== undefined) snapshot[key] = v;
-    } else {
-      const backend = resolveBackend(key);
-      if (backend !== 'kv') {
-        // 同步加载 local 键
-        const v = loadFromLocal(key);
-        if (v !== undefined) snapshot[key] = v;
-      }
-    }
-  }
-  return Object.freeze(snapshot);
-}
-
-/** 获取指定键的不可变快照值。 */
-export function contentGetKeySnapshot(key: string): unknown {
-  checkRegistered(key);
-  const backend = resolveBackend(key);
-  if (cache.has(key)) return Object.freeze(cache.get(key));
-  if (backend !== 'kv') {
-    const v = loadFromLocal(key);
-    return Object.freeze(v);
-  }
-  return undefined;
-}
-
 // ─────────────────────────────────────────────────────────────────
 // 维护
 // ─────────────────────────────────────────────────────────────────
@@ -1067,16 +997,4 @@ export function createDebouncedPersist(write: () => void, delay = 300): Debounce
 export function contentClearCache(): void {
   cache.clear();
   warnedKeys.clear();
-}
-
-/**
- * 获取缓存统计信息。
- * @returns {{ cachedKeys: number, listeners: number, globalListeners: number }}
- */
-export function contentStats(): ContentStats {
-  return {
-    cachedKeys: cache.size,
-    listeners: keyListeners.size,
-    globalListeners: globalListeners.size,
-  };
 }

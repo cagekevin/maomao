@@ -27,15 +27,16 @@
  *   host.appendNode(newNode)             // 追加单节点（函数式 setNodes）
  *   host.appendMany({ nodes, edges })    // 批量追加：一次 setNodes/setEdges 防重渲染风暴
  *   host.updateNodeData(id, patch)       // 不可变局部更新 node.data
- *   host.updateNodePosition(id, pos)     // 只改 position
- *   host.lockNodes(ids, locked)          // 锁定/解锁（data.locked + draggable/selectable）
  *   host.deleteNodes(ids)                // 级联删子孙 + 相连边，返回被删节点 id 数组
  *   host.appendEdges(edges)              // 追加边（函数式 setEdges）
- *   host.replaceNodes(nodes)             // 整体替换节点数组（undo_ai/group_nodes 用）
  *   host.restoreNodesAndEdges({nodes,edges}) // 一次性整体恢复 nodes+edges（undo_ai 快照恢复）
  *
+ * 【2026-11-06 A2】updateNodePosition / lockNodes / replaceNodes / replaceEdges 已删除
+ * （生产零消费者；lock_nodes/move_node/group_nodes AI 工具 2026-09-05 已整个删除，
+ * undo_ai 实走 restoreNodesAndEdges）。需要时从 git 历史找回。
+ *
  * 【读写纪律】写一律用函数式（读最新状态），deleteNodes 例外：先 getNodes 快照 → 整体替换，
- * 避免「先读后写」读到过期 nodes。replaceNodes/restoreNodesAndEdges 用于「整体替换」场景
+ * 避免「先读后写」读到过期 nodes。restoreNodesAndEdges 用于「整体替换」场景
  * （undo_ai 恢复快照、group_nodes 整体替换），非局部操作。host 内部保持一致，调用方无需关心。
  */
 import type { Node, Edge } from '@xyflow/react';
@@ -72,11 +73,7 @@ export interface AgentCanvasHost {
   appendEdges: (edges: Edge[]) => void;
   removeEdges: (ids: string | string[]) => void;
   updateNodeData: (id: string, patch: Partial<Node['data']>) => void;
-  updateNodePosition: (id: string, position: { x: number; y: number }) => void;
-  lockNodes: (ids: string[], locked: boolean) => void;
   deleteNodes: (ids: string | string[]) => string[];
-  replaceNodes: (nodes: Node[]) => void;
-  replaceEdges: (edges: Edge[]) => void;
   restoreNodesAndEdges: (payload: { nodes?: Node[]; edges?: Edge[] }) => void;
 }
 
@@ -112,20 +109,6 @@ export function createAgentCanvasHost(ctx: AgentCanvasHostCtx = DEFAULT_CTX): Ag
       }),
     );
 
-  // 只改 position（保留 data/其它字段）
-  const updateNodePosition = (id: string, position: { x: number; y: number }): void =>
-    ctx.setNodes((ns) => ns.map((n) => (n.id === id ? { ...n, position } : n)));
-
-  // 锁定/解锁：data.locked + draggable/selectable 一起写，让 NodeShell 真正消费锁定效果
-  const lockNodes = (ids: string[], locked: boolean): void =>
-    ctx.setNodes((ns) =>
-      ns.map((n) =>
-        ids.includes(n.id)
-          ? { ...n, data: { ...n.data, locked }, draggable: !locked, selectable: !locked }
-          : n,
-      ),
-    );
-
   // 删除节点（族谱级联删子孙 + 相连边）；先快照后整体替换
   const deleteNodes = (ids: string | string[]): string[] => {
     const idArr = Array.isArray(ids) ? ids : [ids];
@@ -143,11 +126,10 @@ export function createAgentCanvasHost(ctx: AgentCanvasHostCtx = DEFAULT_CTX): Ag
     ctx.setEdges((es) => es.filter((e) => !idSet.has(e.id)));
   };
 
-  // ── 整体替换（undo_ai 恢复快照 / group_nodes 整体替换节点数组）──
-  // 这两个场景是「整数组替换」而非「局部操作」，host 之前只覆盖局部原语，导致 undo_ai / group_nodes
-  // 只能裸 ctx.setNodes。收口后统一走此原语（见实施计划 M1 C1-1 验收：工具层零裸 useReactFlow）。
-  const replaceNodes = (nodes: Node[]): void => ctx.setNodes(nodes);
-  const replaceEdges = (edges: Edge[]): void => ctx.setEdges(edges);
+  // ── 整体替换（undo_ai 恢复快照）──
+  // 【2026-11-06 A2】updateNodePosition / lockNodes / replaceNodes / replaceEdges 四成员已删：
+  // 生产零消费者（lock_nodes/move_node/group_nodes 等 AI 工具 2026-09-05 已整个删除，
+  // undo_ai 实走 restoreNodesAndEdges）。需要时从 git 历史本文件找回。
   // undo_ai 恢复 AI 快照：一次性整体替换 nodes + edges（快照来自 pushActiveAiUndo 记录的原值）
   const restoreNodesAndEdges = ({ nodes, edges }: { nodes?: Node[]; edges?: Edge[] }): void => {
     if (nodes) ctx.setNodes(nodes);
@@ -163,11 +145,7 @@ export function createAgentCanvasHost(ctx: AgentCanvasHostCtx = DEFAULT_CTX): Ag
     appendEdges,
     removeEdges,
     updateNodeData,
-    updateNodePosition,
-    lockNodes,
     deleteNodes,
-    replaceNodes,
-    replaceEdges,
     restoreNodesAndEdges,
   };
 }

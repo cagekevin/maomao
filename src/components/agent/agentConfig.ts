@@ -32,8 +32,9 @@
  *   （不再暴露给 LLM，也不再保留注册）：
  *     fit_view / zoom_in / zoom_out / lock_node / move_node / group_nodes
  *   对应引导词/意图分流已从 CANVAS_RULES 同步移除。画布侧共享底层能力
- *   （createGroupFromNodes 右键编组、host.lockNodes/updateNodePosition、zoom 视口操作）不受影响，
- *   仅 AI 不再有对应工具。
+ *   （createGroupFromNodes 右键编组、zoom 视口操作）不受影响，仅 AI 不再有对应工具。
+ *   （更新 2026-11-06：host.lockNodes/updateNodePosition 已随 A2 死代码清理从 agentCanvasHost
+ *   删除——当时的"共享底层能力不受影响"实际无任何调用方，属休眠契约。）
  *
  * 【更新 2026-09-08 · 四通道重构】CANVAS_RULES 重写为「一、身份定位 / 二、意图路由
  *   （通道 A 纯文本 / B 操作已有 / C 新建须确认 / D 含糊澄清）/ 三、工具操作规范」。

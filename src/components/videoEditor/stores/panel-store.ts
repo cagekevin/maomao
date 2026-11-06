@@ -2,13 +2,17 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { PANEL_CONFIG } from '@/components/videoEditor/constants/editor-constants';
 
+// 【2026-11-06 · V4】删除 PanelSizes.agent / setPanels / resetPanels：
+// agent 侧栏未搬入（EditorShell.tsx「agent 侧栏未搬入，useAgentStore 依赖已移除」），
+// panels.agent 与 PANEL_CONFIG.panels.agent 零读取；setPanels/resetPanels 零调用。
+// migrate 保留旧持久化里的 agent 键不报错（多余键在 partialize 白名单外自动丢弃）。
+
 export interface PanelSizes {
   tools: number;
   preview: number;
   properties: number;
   mainContent: number;
   timeline: number;
-  agent: number;
 }
 
 export type PanelId = keyof PanelSizes;
@@ -16,8 +20,6 @@ export type PanelId = keyof PanelSizes;
 interface PanelState {
   panels: PanelSizes;
   setPanel: (panel: PanelId, size: number) => void;
-  setPanels: (sizes: Partial<PanelSizes>) => void;
-  resetPanels: () => void;
 }
 
 export const usePanelStore = create<PanelState>()(
@@ -31,14 +33,6 @@ export const usePanelStore = create<PanelState>()(
             [panel]: size,
           },
         })),
-      setPanels: (sizes) =>
-        set((state) => ({
-          panels: {
-            ...state.panels,
-            ...sizes,
-          },
-        })),
-      resetPanels: () => set({ ...PANEL_CONFIG }),
     }),
     {
       name: 'panel-sizes',

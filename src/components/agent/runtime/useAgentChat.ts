@@ -23,14 +23,11 @@ import { AGENT_KEY_PREFIX } from './agentKeys.ts';
 import {
   MAX_TOOL_ROUNDS,
   ENABLE_TOOLS_ON_NON_STREAM,
-  CANVAS_AGENT_RULES,
-  TABLE_AGENT_RULES,
   loadHistory,
   parseSSEChunk,
   parseGenerationsFromReply,
   buildRequestMessages,
   parseAgentError,
-  classifyLocalIntent,
   buildIntentHint,
   CHAT_UPSTREAM_MAY_STILL_RUN_HINT,
 } from './agentCore.ts';
@@ -235,33 +232,26 @@ interface SendUserMessage {
  */
 
 // ── 职责模块化拆分 ──
-// 以下常量/系统提示词/纯函数已下沉到 agentCore.ts，本文件保留 re-export 以维持既有测试契约
-// （agentLogic.test.ts / localIntent.test.ts / useAgentChat.hook.test.ts 仍从本文件（re-export）取用）。
-//   · MAX_TOOL_ROUNDS / ENABLE_TOOLS_ON_NON_STREAM / CANVAS_AGENT_RULES / TABLE_AGENT_RULES
-//   · loadHistory / parseSSEChunk / parseGenerationsFromReply / buildRequestMessages
-//   · parseAgentError / classifyLocalIntent / buildIntentHint
+// 常量/系统提示词/纯函数已全部下沉到 agentCore.ts。
+// 【2026-11-06 · A5 re-export 删除】本文件曾保留 11 条 re-export「维持既有测试契约」
+// （MAX_TOOL_ROUNDS / ENABLE_TOOLS_ON_NON_STREAM / CANVAS_AGENT_RULES / TABLE_AGENT_RULES /
+//   loadHistory / parseSSEChunk / parseGenerationsFromReply / buildRequestMessages /
+//   parseAgentError / classifyLocalIntent / buildIntentHint）。
+// 【为何删】refs 取证：生产侧这批符号全部从 agentCore.ts 直连（agentRuntime/useCanvasAgentTools 等），
+//   本 re-export 的唯一消费者是 3 个测试文件（agentLogic/localIntent/useAgentChat.hook）——自证循环。
+//   测试已同步改为直连 agentCore.ts。沿用 2026-09-16 先例（删 3 条过期 re-export）：
+//   删 re-export 必须顺 refs 查到底，agentCore 侧符号**维持导出**（agentRuntime 依赖注入 + 测试直连仍需要），
+//   不存在"死代码上移一层"问题。
 //
 // 【更新(2026-09-16) · 死代码闸取证：删除 3 条本文件的 re-export】
-//   SKILL_EXECUTION_RULES / historyKey / INTENT_HINT 已从下面的 re-export 列表移除。
+//   SKILL_EXECUTION_RULES / historyKey / INTENT_HINT 已从 re-export 列表移除。
 //   【为何删】原注释声称"测试仍从本文件取用"，实测**过期**：全仓（src + tests）零 import，
 //     tests 里仅 useAgentChat.hook.test.ts:905 的**测试标题字符串**出现 SKILL_EXECUTION_RULES 字样
 //     （`it('…并追加 SKILL_EXECUTION_RULES', …)`，不是 import）。knip 报「死代码」+ mv-sync-refs refs
 //     取证一致 → 按 CLAUDE §5.4.9「不留 re-export 兼容层」删除。
 //   【连带】agentCore.ts 侧同步去掉这 3 个的 export（降为文件内私有，同文件内仍被使用）——
 //     只删链尾会让死代码上移一层（打地鼠）：删 re-export 前必须顺着 refs 把链条查到底。
-export {
-  MAX_TOOL_ROUNDS,
-  ENABLE_TOOLS_ON_NON_STREAM,
-  CANVAS_AGENT_RULES,
-  TABLE_AGENT_RULES,
-  loadHistory,
-  parseSSEChunk,
-  parseGenerationsFromReply,
-  buildRequestMessages,
-  parseAgentError,
-  classifyLocalIntent,
-  buildIntentHint,
-};
+//   （A5 本轮不同：这 11 个符号在 agentCore 外仍有生产/测试消费，故 agentCore 导出保留。）
 
 /**
  * 主 hook。
