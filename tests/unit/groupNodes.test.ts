@@ -280,6 +280,27 @@ describe('R3 duplicateSelectedWithEdges 克隆子图（保留组关系 + 连线�
     expect(base.data.loading).toBe(true); // 原节点不受克隆体 patch 影响
     expect(clone.data['loading']).toBe(false);
   });
+  it('★源节点无几何（视口外/旧快照）→ 克隆体仍自带宽高（2026-11-05 框选误选治本）', () => {
+    // 场景：源节点从未渲染过（无 measured）且落盘时也没有 width/height/style（旧快照的
+    // textGenerateNode 就是这样）。`...rest` 带不出几何 ⇒ 克隆体落盘后无几何 ⇒ 框选守卫
+    // `geometryOf` 返回 null ⇒ 每次框选被误选。克隆必须经结构默认表补齐。
+    const bare = {
+      id: 'bare',
+      type: 'textGenerateNode',
+      data: { label: '文本' },
+      position: { x: 0, y: 0 },
+    };
+    const { clones } = duplicateSelectedWithEdges([bare], [], ['bare']);
+    const clone = at(clones, 0);
+    expect(typeof clone.width).toBe('number');
+    expect(typeof clone.height).toBe('number');
+    expect(Number(clone.width)).toBeGreaterThan(0);
+    expect(Number(clone.height)).toBeGreaterThan(0);
+    // 几何同时写进 style（NodeShell 读 width 优先，缺 style 会在首帧抖）
+    const style = clone.style as Record<string, unknown> | undefined;
+    expect(style?.['width']).toBe(clone.width);
+    expect(style?.['height']).toBe(clone.height);
+  });
 });
 
 describe('编组尺寸刷新保真（TASK: 编组后刷新大小变了）', () => {

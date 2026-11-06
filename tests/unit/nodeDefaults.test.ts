@@ -10,6 +10,7 @@ import {
   applyNodeTypeDefaults,
   NODE_TYPE_DEFAULTS,
 } from '../../src/components/canvas/contract/nodeDefaults.ts';
+import { NODE_TYPES } from '../../src/components/base/core/contracts.ts';
 import { withNodeSize } from '../../src/components/base/core/nodeSizePatch.ts';
 
 describe('withNodeSize — 尺寸「三写不变量」唯一实现（TD-04-28）', () => {
@@ -57,7 +58,7 @@ describe('applyNodeTypeDefaults — 节点结构默认补齐', () => {
     expect(r.style).toEqual({ width: 420, height: 420 });
   });
 
-  it('gridSplitNode 只缺 width（无 height 默认）→ 只补 width=280', () => {
+  it('gridSplitNode 补宽高双维（2026-11-05 框选误选治本：只有 width 时框选面积算不出高）', () => {
     const r = applyNodeTypeDefaults({
       id: 'x',
       type: 'gridSplitNode',
@@ -65,8 +66,92 @@ describe('applyNodeTypeDefaults — 节点结构默认补齐', () => {
       data: {},
     });
     expect(r.width).toBe(280);
-    expect(r.height).toBeUndefined();
-    expect(r.style).toEqual({ width: 280 });
+    expect(r.height).toBe(420);
+    expect(r.style).toEqual({ width: 280, height: 420 });
+  });
+
+  // 【框选误选治本 2026-11-05】只有 `measured/width/height/initialWidth` 全无的节点，框选守卫
+  // `geometryOf` 只能返回 null ⇒ 放行 ⇒ 被库的 `forceInitialRender` 无条件选中。
+  // 真实快照取证：807 个落盘节点中 66 个「几何全无」，100% 是 textGenerateNode。以下逐类型锁死。
+  it('textGenerateNode 天生带 420×320（此前唯一「几何全无」类型，每次框选必被误选）', () => {
+    const r = applyNodeTypeDefaults({
+      id: 't',
+      type: 'textGenerateNode',
+      position: { x: 0, y: 0 },
+      data: {},
+    });
+    expect(r.width).toBe(420);
+    expect(r.height).toBe(320);
+    expect(r.style).toEqual({ width: 420, height: 320 });
+  });
+
+  it('所有可框选类型在新建后都自带宽高（缺一类型 = 该类型每次框选必被误选）', () => {
+    // 【清单从 `NODE_TYPES` 派生，不手写】手写清单只锁"当时想到的类型"：以后新增节点类型
+    // 若忘了在 `NODE_TYPE_DEFAULTS` 登记几何，本条会直接红（这才是这条测试的价值）。
+    // 排除项只有两类：`ghostTarget` 是连线占位（从不参与框选）、`assetNode` 走分档函数（TD-16-48）。
+    const types = Object.keys(NODE_TYPES).filter((t) => t !== 'ghostTarget' && t !== 'assetNode');
+    for (const type of types) {
+      const r = applyNodeTypeDefaults({
+        id: `n-${type}`,
+        type,
+        position: { x: 0, y: 0 },
+        data: {},
+      });
+      expect(typeof r.width, `${type} 缺 width`).toBe('number');
+      expect(typeof r.height, `${type} 缺 height`).toBe('number');
+      expect(Number(r.width)).toBeGreaterThan(0);
+      expect(Number(r.height)).toBeGreaterThan(0);
+    }
+  });
+
+  it('assetNode 不进表（TD-16-48），但按 data.assetType 分档补几何（否则每次框选必被误选）', () => {
+    const base = { id: 'a', type: 'assetNode', position: { x: 0, y: 0 }, data: {} };
+    const image = applyNodeTypeDefaults({ ...base, data: { assetType: 'image' } });
+    expect(image.width).toBe(360);
+    expect(image.height).toBe(260);
+    const video = applyNodeTypeDefaults({ ...base, data: { assetType: 'video' } });
+    expect(video.width).toBe(420);
+    expect(video.height).toBe(380);
+    const audio = applyNodeTypeDefaults({ ...base, data: { assetType: 'audio' } });
+    expect(audio.width).toBe(320);
+    expect(audio.height).toBe(200);
+    // 未知/缺省 assetType → 走 image 档（与 AssetNode 的默认呈现一致）
+    const unknown = applyNodeTypeDefaults({ ...base, data: { assetType: 'weird' } });
+    expect(unknown.width).toBe(360);
+    expect(unknown.height).toBe(260);
+    // 不进表：表里没有 assetNode 键，避免单档位与 style 多档位打架
+    expect(NODE_TYPE_DEFAULTS).not.toHaveProperty('assetNode');
+  });
+
+  it('assetNode 半残几何逐维补齐（style 只有 width 时不与 height 打架）', () => {
+    const r = applyNodeTypeDefaults({
+      id: 'a',
+      type: 'assetNode',
+      position: { x: 0, y: 0 },
+      style: { width: 500 },
+      data: { assetType: 'video' },
+    });
+    // 取值优先级 = node.width → node.style.width → assetType 档位：已有 style 宽(500) 原样沿用，
+    // 只有缺的那一维才回落到档位（否则「三写不变量」里字段与 style 会指向两个不同宽度）。
+    expect(r.width).toBe(500);
+    expect(r.height).toBe(380);
+    expect(r.style['width']).toBe(500); // 已有 style 宽不被覆盖
+    expect(r.style['height']).toBe(380); // 缺的一维才补
+  });
+
+  it('存量节点只有 style 宽高、没有 width 字段 → 补的 width 沿用 style 值（不得缩回表默认）', () => {
+    // NodeShell / React Flow 的 `getNodeInlineStyleDimensions` 都是 `width ?? style.width`（**字段优先**）：
+    // 若这里按表默认填 width=420，那个原本靠 style 撑到 600 的旧节点会当场缩水（布局回归）。
+    const r = applyNodeTypeDefaults({
+      id: 'x',
+      type: 'textGenerateNode',
+      position: { x: 0, y: 0 },
+      style: { width: 600, height: 500 },
+      data: {},
+    });
+    expect(r.width).toBe(600);
+    expect(r.height).toBe(500);
+    expect(r.style).toEqual({ width: 600, height: 500 });
   });
 
   it('已有字段不覆盖', () => {

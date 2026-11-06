@@ -427,8 +427,10 @@ function buildCreateNode(
     : computeCreatePosition(currentNodes, ctx.screenToFlowPosition, vw, vh);
   const id = generateId(type);
   const newNode = { id, type, position: { ...position }, data };
-  // 生图节点默认尺寸（420×420，避免端口跑偏）：**走结构默认单源表**，不再手抄字面量（TD-16-48）
-  if (type === 'imageGenerateNode') Object.assign(newNode, applyNodeTypeDefaults(newNode));
+  // 【所有类型都补结构默认（2026-11-05 框选误选治本）】原只给 imageGenerateNode 补 420×420，
+  // 其余类型（textGenerateNode / assetNode / videoGenerateNode / group）零几何 ⇒ 落盘后
+  // 框选守卫 `geometryOf` 返回 null ⇒ 每次框选被误选。改走结构默认单源表（不再手抄字面量，TD-16-48）。
+  Object.assign(newNode, applyNodeTypeDefaults(newNode));
 
   let edges: Edge[] = [];
   if (args['connectFrom']) {

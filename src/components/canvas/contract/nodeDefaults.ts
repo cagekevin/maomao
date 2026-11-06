@@ -7,6 +7,16 @@
  * 仅放与视觉/结构相关、缺失会出问题的字段：width/height/style/initialWidth/initialHeight/className/data.label。
  * 内容对齐原 App.jsx 的 NODE_TYPE_DEFAULTS。
  *
+ * 【2026-11-05 职责升级：几何是「框选命中」的必要条件，不只是视觉】
+ * 画布开 `onlyRenderVisibleElements` ⇒ 视口外节点不渲染、无 `measured`；React Flow `getNodesInside`
+ * 对缺 `handleBounds` 的节点**无条件判进框选**，`App.tsx` 的守卫只能靠 `measured ?? width ?? initialWidth`
+ * 二次校验 —— **字段缺失就只能放行 ⇒ 该节点每次框选都被误选**。故本表从「补视觉默认」升级为
+ * 「**每个可框选类型在创建那一刻就有几何**」：新建（`App.addNode`）/ 派生（`commitNewNodes`）/
+ * 克隆（`duplicateSelectedWithEdges`）/ 粘贴（`App.pasteNodeGroup`）/ AI 建节点（`buildCreateNode`）
+ * 全部走 `applyNodeTypeDefaults`。`assetNode` 因 TD-16-48 不进表，走 `resolveAssetNodeSize` 分档。
+ * 取值 = 该节点 `<NodeShell>` 的渲染期兜底值 ⇒ **零布局变化**；存量「只有 style 没有 width 字段」
+ * 的节点沿用 style 值，不缩回表默认（见函数体内注释）。
+ *
  * 【与 nodeDataSchema 的分工（2026-09-12 起，别混用 —— 这是真分缝）】
  *  - 本表 = **结构默认**：新建与**快照还原**都补（缺了尺寸塌陷/父子关系丢）。
  *  - `nodeDataSchema.NODE_DATA_DEFAULTS` = **data 初值**：**只在新建那一刻注入**。
@@ -37,10 +47,38 @@ export const INPUT_PANEL_NODE_TYPES = [
 ] as const satisfies readonly NodeTypeKey[];
 // 注：原含 templateNode，已于 2026-09-11 摘除（TD-04-5）——它是参考蓝本非活节点，不在画布上。
 
-/** 各节点类型结构默认值（对齐官方 + 历史修复；键受 `NodeTypeKey` 约束 · TD-04-66） */
+/**
+ * 各节点类型结构默认值（对齐官方 + 历史修复；键受 `NodeTypeKey` 约束 · TD-04-66）
+ *
+ * 【为什么每个可框选类型都必须有 width/height（2026-11-05 · 框选误选治本）】
+ * 画布开了 `onlyRenderVisibleElements`：视口外节点**不渲染 ⇒ 不测量**，`measured` 永远是 undefined。
+ * 而 React Flow `getNodesInside()` 把「无 handleBounds」的节点**无条件判进框选**（`forceInitialRender`），
+ * 上一轮加的守卫（`selectionGuard`）只能靠 `measured ?? width ?? initialWidth` 做二次几何校验 ——
+ * **节点上没有这几个字段时守卫只能放行** ⇒ 该节点每次框选都被误选。
+ * 真实快照取证：807 个落盘节点里 66 个「几何全无」，100% 是 `textGenerateNode`（无 aspectRatio
+ * ⇒ `useSizeSync` 直接 return、从不写回尺寸）；其余类型"碰巧"有几何，靠的是渲染副作用
+ * （`useSizeSync` 写回 / `NodeResizer` 拖拽写回），**不是**创建时就写。
+ *
+ * 故本表的职责升级为：**每个可框选类型在创建那一刻就有几何**（新建/派生/快照还原/粘贴全走本表）。
+ * 取值 = 该节点 `<NodeShell>` 的渲染期兜底（`width ?? 420` / `height ?? defaultHeight`），
+ * **与不填时的实际渲染尺寸一致 ⇒ 零布局变化**；一旦真实渲染测得更大尺寸，`useSizeSync` 会覆盖它。
+ */
 export const NODE_TYPE_DEFAULTS: Partial<Record<NodeTypeKey, NodeTypeDefault>> = {
   imageGenerateNode: { width: 420, height: 420, style: { width: 420, height: 420 } },
-  gridSplitNode: { width: 280, style: { width: 280 } },
+  textGenerateNode: { width: 420, height: 320, style: { width: 420, height: 320 } },
+  // 【area-fixed 类节点取「稳态渲染值」而非首帧兜底值】`VideoGenerate` 是 `sizeMode="area-fixed"` +
+  // `aspectRatio`（默认 16:9），`useSizeSync` 会把它覆盖成 `computeSizeSync` 的结果
+  // = `round(sqrt(16/9)*380) × round(380/sqrt(16/9))` ≈ 507×285（`NODE_AREA_FIXED_BASE_SIZE=380`）。
+  // 填这个值 ⇒ 首帧即为稳态尺寸（不填反而先渲染 380×420 再跳），且框选几何与真实渲染一致。
+  videoGenerateNode: { width: 507, height: 285, style: { width: 507, height: 285 } },
+  imageBoxNode: { width: 420, height: 420, style: { width: 420, height: 420 } },
+  gridSplitNode: { width: 280, height: 420, style: { width: 280, height: 420 } },
+  gridMergeNode: { width: 420, height: 420, style: { width: 420, height: 420 } },
+  panoramaNode: { width: 420, height: 360, style: { width: 420, height: 360 } },
+  loopNode: { width: 420, height: 280, style: { width: 420, height: 280 } },
+  videoExtractNode: { width: 420, height: 420, style: { width: 420, height: 420 } },
+  faceMosaicNode: { width: 420, height: 420, style: { width: 420, height: 420 } },
+  scriptBoxNode: { width: 900, height: 600, style: { width: 900, height: 600 } },
   videoProcessNode: { width: 520, height: 620, style: { width: 520, height: 620 } },
   director3dNode: { width: 420, height: 300, style: { width: 420, height: 300 } },
   group: {
@@ -86,6 +124,40 @@ export const IMAGE_BOX_NODE_SIZE = { width: 420, height: 420 } as const;
  * 依「依赖只能指向更稳定的方向」，原语下沉；域消费横切是正确单向。详见新文件头注。 */
 
 /**
+ * `assetNode` 的几何兜底（**不进 `NODE_TYPE_DEFAULTS`**，见上面 TD-16-48 的说明）。
+ *
+ * 【为什么需要它（2026-11-05 框选误选治本）】`assetNode` 是用户画布的绝对主体（真实快照 96 节点里 69 个），
+ * 但它此前只在「造节点点」带 `style`（`ASSET_NODE_SIZE` 分档），**`NodePalette` 新建 / 粘贴 / 克隆**
+ * 都不保证带尺寸 ⇒ 落盘后无几何 ⇒ 框选守卫 `geometryOf` 返回 null ⇒ 每次框选被误选。
+ *
+ * 【取值优先级（避免与既有 style 打架）】`node.width/height` → `node.style.width/height` →
+ * `data.assetType` 对应 `ASSET_NODE_SIZE` 档位 → 缺省 `image` 档。
+ * 前两者已存在时**原样沿用**（造节点点写的那一档优先，本函数不覆盖）。
+ */
+export function resolveAssetNodeSize(node: Record<string, unknown>): {
+  width: number;
+  height: number;
+} {
+  const style = (node['style'] as Record<string, unknown>) || {};
+  const data = (node['data'] as Record<string, unknown>) || {};
+  const tier = ASSET_NODE_SIZE[String(data['assetType'] || '') as keyof typeof ASSET_NODE_SIZE];
+  const fallback = tier ?? ASSET_NODE_SIZE.image;
+  // 逐维取值（不是整对取）：真实快照里存在「style 只有 width 没有 height」的半残形态，
+  // 整对回退会把已有 width 换成档位值 ⇒ 与 style 打架（正是三写不变量要防的事）。
+  const pick = (a: unknown, b: unknown, fb: number): number => {
+    const x = Number(a);
+    if (Number.isFinite(x) && x > 0) return x;
+    const y = Number(b);
+    if (Number.isFinite(y) && y > 0) return y;
+    return fb;
+  };
+  return {
+    width: pick(node['width'], style['width'], fallback.width),
+    height: pick(node['height'], style['height'], fallback.height),
+  };
+}
+
+/**
  * `applyNodeTypeDefaults` 会**按需补**的结构字段（**全可选**：仅在原缺时填，已有值不覆盖）。
  * 声明为可选 = 如实反映"补或不补取决于原对象与类型表"，不做假承诺（一诚实）。
  */
@@ -117,13 +189,37 @@ export function applyNodeTypeDefaults<T extends Record<string, unknown>>(
   node: T,
 ): T & NodeStructuralDefaults {
   const type = String(node['type'] || '');
+  // assetNode：**不进表**（TD-16-48），但同样要在创建/还原时带上几何（2026-11-05 框选治本）。
+  // 走 `resolveAssetNodeSize` 逐维取值 ⇒ 造节点点已写的 style 档位优先、只补缺失维，不会与既有 style 打架。
+  if (type === 'assetNode') {
+    const size = resolveAssetNodeSize(node as Record<string, unknown>);
+    const next: Record<string, unknown> = { ...node };
+    if (next['width'] === undefined || next['width'] === null) next['width'] = size.width;
+    if (next['height'] === undefined || next['height'] === null) next['height'] = size.height;
+    const style = (next['style'] as Record<string, unknown>) || {};
+    next['style'] = {
+      ...style,
+      width: (style['width'] as number | undefined) ?? size.width,
+      height: (style['height'] as number | undefined) ?? size.height,
+    };
+    return next as T;
+  }
   const d = NODE_TYPE_DEFAULTS[type as NodeTypeKey];
   if (!d) return node;
   const next: Record<string, unknown> = { ...node };
   const data = (node['data'] as Record<string, unknown>) || {};
   // 折叠态已整体下线，expandedWidth/expandedHeight 为死字段，不再特判兜底（见 GroupNode.tsx 头注释）。
-  const fallbackW = d.width;
-  const fallbackH = d.height;
+  // 【存量「只有 style 没有 width 字段」的节点必须沿用 style 的值】NodeShell 与 React Flow 的
+  // `getNodeInlineStyleDimensions` 都按 `width ?? style.width`（**字段优先**）—— 若这里填表默认，
+  // 那个原本靠 style 撑到 600 的旧节点会当场缩到 420（布局回归）。故取值口径与
+  // `resolveAssetNodeSize` 一致：已存在字段 → 已存在 style → 表默认。
+  const styleNum = (v: unknown): number | undefined => {
+    const x = Number(v);
+    return Number.isFinite(x) && x > 0 ? x : undefined;
+  };
+  const existingStyle = (next['style'] as Record<string, unknown>) || {};
+  const fallbackW = styleNum(existingStyle['width']) ?? d.width;
+  const fallbackH = styleNum(existingStyle['height']) ?? d.height;
   // 尺寸/style/initial 只在缺失时补（存量快照若已有正确值则不覆盖）
   for (const k of ['width', 'height', 'initialWidth', 'initialHeight', 'className']) {
     if (next[k] === undefined || next[k] === null) {

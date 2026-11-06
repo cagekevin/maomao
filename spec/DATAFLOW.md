@@ -388,6 +388,7 @@ canvas/topology/useCanvasEventSubscriptions（3 全局订阅收拢）
 ```
 
 **三张表别混**：`NodePalette` = 纯 UI 目录 · `nodeDataSchema.NODE_DATA_DEFAULTS` = 新建 data 初值 · `nodeDefaults.NODE_TYPE_DEFAULTS` = 结构默认（新建与快照还原都补）。落盘保留白名单见 `canvasSnapshotSchema`。`interface XxxData` 与 `NODE_OUTPUTS` **不派生自** data 表，由 `check:node-data --strict` 机器对账。
+**节点几何（width/height/style）必须在「创建那一刻」进 node 对象，不得依赖渲染副作用**（2026-11-05 框选误选治本）：`onlyRenderVisibleElements` 下视口外节点不渲染 ⇒ 无 `measured`；React Flow `getNodesInside` 对缺 `handleBounds` 的节点**无条件判进框选**（`forceInitialRender`）；`App.tsx` 的守卫只能靠 `measured ?? width ?? initialWidth` 做二次校验，**字段缺失就只能放行**。故四个创建入口全部走 `nodeDefaults.applyNodeTypeDefaults`：`App.addNode`（新建，含拖入/粘贴文件）· `deriveNodes.commitNewNodes`（派生）· `groupNodes.duplicateSelectedWithEdges`（Ctrl+D 克隆）· `App.pasteNodeGroup`（粘贴）· `useCanvasAgentTools.buildCreateNode`（AI 建节点）。`assetNode` 不进表（TD-16-48），按 `data.assetType` 走 `resolveAssetNodeSize` 分档。取证：真实快照 868 节点中 88 个「几何全无」（textGenerateNode 72 + imageBoxNode 16），修复后归零。
 **唯一入口**：`node.data` 写回 = `useNodeData.patchNodeDataById` · 节点 id = `idGen.generateId` · 端口真源 = `contracts.NODE_HANDLE_CONTRACT`（一致性由 `scripts/check-node-handles.mjs` 对账）。
 **上画布**：素材 / 文本 / 图片 / 节点组统一收口 `src/hooks/useAssetDropPaste.ts`（+ `useGlobalPaste`），全部经注入的 `App.addNode` 建节点，无旁路。
 **写语义**：`yimao_node_prefs` = 以存储最新为基准合并 patch（`mergeNodePrefs`），defaults 不落盘；KV 删除 = 键与版本同删。

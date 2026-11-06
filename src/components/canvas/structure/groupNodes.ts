@@ -5,6 +5,7 @@ import type { Node, Edge } from '@xyflow/react';
 // 芯片字符串格式由本域注入（`rewriteChipsInPrompt`）—— 依赖方向保持 业务 → 横切（base/utils 不得反向依赖）。
 import { reopenImageIdentities } from '@/components/base/utils/media/imageIdentity';
 import { rewriteChipIds } from '@/components/canvas/shell/promptChipFormat';
+import { applyNodeTypeDefaults } from '@/components/canvas/contract/nodeDefaults';
 
 /**
  * 通用编组能力（治根：Agent group_nodes 与右键「编组」共用同一套逻辑）。
@@ -394,7 +395,10 @@ export function duplicateSelectedWithEdges(
       const { parentId: _parentId, ...rest } = n;
       const mappedParentId =
         n.parentId && idMap.has(String(n.parentId)) ? idMap.get(String(n.parentId)) : undefined;
-      return {
+      // 【克隆体必须自带几何（2026-11-05 框选误选治本）】源节点若从未渲染过（视口外 / 旧快照），
+      // 它身上没有 measured/width/height，`...rest` 就带不出几何 ⇒ 克隆体落盘后无几何 ⇒ 框选守卫
+      // `geometryOf` 返回 null ⇒ 每次框选被误选。这里走结构默认表补齐（已存在字段不覆盖）。
+      const cloned = applyNodeTypeDefaults({
         ...rest,
         id: newId,
         data: clonedData,
@@ -404,7 +408,8 @@ export function duplicateSelectedWithEdges(
           y: (n.position?.y ?? 0) + (n.parentId ? 0 : DUPLICATE_OFFSET_Y),
         },
         selected: true,
-      };
+      } as Node);
+      return cloned;
     });
   // 原边全部保留；对「至少一端被克隆」的边，额外生成一条克隆边（映射到克隆体）。
   // 组内边（两端都被克隆）→ 克隆边两端都映射到新 id；边界（一端克隆一端外部）→ 只映射克隆端。

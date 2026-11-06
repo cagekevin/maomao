@@ -1046,13 +1046,18 @@ function Canvas() {
       // 深拷断引用但 **id 原样带过去** ⇒ 粘贴体与源节点共享 `data.images[].id` 与 `data.prompt` 的
       // `@{id}` 芯片（幽灵引用：源节点换图后，粘贴体的芯片指向一张不再属于它的图）。
       // 这里在**编排层**重开（纯逻辑在 imageIdentity，芯片格式由画布域注入 —— 保持依赖方向）。
-      const rebuiltNodes = rebuilt.nodes.map((node) => ({
-        ...node,
-        data: reopenImageIdentities(
-          (node.data ?? {}) as Record<string, unknown>,
-          rewriteChipIds,
-        ) as typeof node.data,
-      }));
+      // 【粘贴体也必须自带几何（2026-11-05 框选误选治本）】剪贴板数据来自源节点的序列化结果；
+      // 若源节点从未渲染（视口外/旧快照），它就没有 width/height ⇒ 粘贴体同样无几何 ⇒ 框选守卫
+      // `geometryOf` 返回 null ⇒ 每次框选被误选。这里统一走结构默认表补齐（已存在字段不覆盖）。
+      const rebuiltNodes = rebuilt.nodes.map((node) =>
+        applyNodeTypeDefaults({
+          ...node,
+          data: reopenImageIdentities(
+            (node.data ?? {}) as Record<string, unknown>,
+            rewriteChipIds,
+          ) as typeof node.data,
+        }),
+      );
       const {
         nodes: p,
         edges: m,
