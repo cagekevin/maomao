@@ -8,8 +8,8 @@ import { Minus, Plus } from 'lucide-react';
 import { PanelBaseView } from '@/components/videoEditor/ui/editor/panels/panel-base-view';
 import { PropertyGroup, PropertyItem, PropertyItemLabel, PropertyItemValue } from './property-item';
 import { clamp } from '@/components/base/core/utils.ts';
-import { useEditor } from '@/components/videoEditor/hooks-cutia/use-editor';
 import { useDraftCommit } from './use-draft-commit';
+import { useElementUpdater } from './use-element-updater';
 import type { AudioElement } from '@/components/videoEditor/types/timeline';
 import {
   MAX_PLAYBACK_RATE,
@@ -27,24 +27,12 @@ export function AudioProperties({
   _element: AudioElement;
   trackId: string;
 }) {
-  const editor = useEditor('timeline');
-
   const volumePercent = Math.round(element.volume * 100);
 
   const currentSpeed = element.playbackRate ?? 1;
 
-  const updateElement = ({
-    updates,
-    pushHistory = true,
-  }: {
-    updates: Partial<Record<string, unknown>>;
-    pushHistory?: boolean;
-  }) => {
-    editor.timeline.updateElements({
-      updates: [{ trackId, elementId: element.id, updates }],
-      pushHistory,
-    });
-  };
+  // 【2026-11-06】updateElement 10 行手抄体收口到 useElementUpdater（与 sticker 面板共用）。
+  const updateElement = useElementUpdater({ trackId, elementId: element.id });
 
   const applySpeedChange = ({
     newRate,

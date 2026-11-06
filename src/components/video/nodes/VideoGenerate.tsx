@@ -24,8 +24,7 @@ import { VIDEO_RESOLUTIONS } from '@/components/video/lib/resolutionPresets';
 
 import { downloadUrl, resolveDownloadFilename } from '@/components/base/utils/net/clipboard';
 import { CreativeLibraryButton } from '@/components/creative';
-import { toDictEntry } from '@/components/creative';
-import type { CreativePreset, CreativePresetsDict } from '@/components/creative';
+import type { CreativePresetsDict } from '@/components/creative';
 
 import JianyingIcon from '@/components/base/ui/JianyingIcon';
 import ResourceStrip from '@/components/canvas/shell/ResourceStrip';
@@ -47,6 +46,7 @@ import { resolveProviderModel } from '@/components/base/utils/providerModels';
 import { buildEffectivePrompt, clampSeconds, fileNameFromUrl } from '@/components/base/core/utils';
 import { useNodeData } from '@/hooks/useNodeData';
 import { useAssetInsertion } from '@/hooks/useAssetInsertion';
+import { useCreativeApply } from '@/hooks/useCreativeApply';
 import { useDisconnectSource } from '@/hooks/useDisconnectSource';
 import { useNodeRename } from '@/hooks/useNodeRename';
 import { useNodeExpanded } from '@/hooks/useNodeExpanded';
@@ -167,17 +167,8 @@ function VideoGenerate({ id, data, selected }: VideoGenerateProps) {
   const promptInputRef = useRef<HTMLDivElement | null>(null); // 提示词编辑器 ref（供面板右下角手柄拖拽改尺寸）
   // 富文本素材插入（TD-04-52：原 4 节点各抄一份 ⇒ 收口到 useAssetInsertion，引用天然稳定）
   const { insertAssetRef, insertMention } = useAssetInsertion();
-  // 创作库预设应用：落胶囊（有 preview 显示缩略图）+ 写 data.creativePresets 字典（键 = item.id）。
-  const handleCreativeApply = (item: CreativePreset) => {
-    const hasPreview = !!item.preview;
-    insertMention({
-      id: item.id,
-      label: item.name,
-      kind: hasPreview ? 'image' : 'text',
-      ...(hasPreview ? { url: item.preview } : {}),
-    });
-    addCreativePreset(item.id, toDictEntry(item));
-  };
+  // 创作库预设应用（落胶囊 + 写字典）⇒ 唯一实现 useCreativeApply（TD-04-52 后半段，2026-11-06）。
+  const handleCreativeApply = useCreativeApply({ insertMention, addCreativePreset });
   // 双击视频查看大图（原生 <dialog> + 原生 <video> 播放器）
   const [zoomUrl, setZoomUrl] = useState('');
   const zoomRef = useRef<HTMLDialogElement | null>(null);

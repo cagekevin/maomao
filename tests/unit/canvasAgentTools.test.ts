@@ -82,11 +82,10 @@ import * as convStore from '../../src/components/agent/conversation/conversation
 import type { CreditGate } from '../../src/components/agent/conversation/conversationSkillState.ts';
 import '../../src/components/agent/conversation/conversationSnapshot.ts';
 import * as taskStore from '../../src/components/base/store/taskStore.ts';
-import {
-  executePlan,
-  buildFusionPrompt,
-  buildProductReferencePrompt,
-} from '../../src/components/agent/canvas/canvasPlanExecutor.ts';
+import { executePlan } from '../../src/components/agent/canvas/canvasPlanExecutor.ts';
+// 【2026-11-06 · A8】buildFusionPrompt / buildProductReferencePrompt 已降私有（生产仅
+// canvasPlanExecutor 内部两处调用）。原直测两函数的用例改走行为断言：
+// 经 executePlan 的 fusion / product_reference 分支验证 prompt 改写（与 canvasPlanExecutor.deps.test.ts 的回归先例同款）。
 
 // vi.mock 工厂已把 executePlan 替换为 vi.fn，但静态类型仍是 src 的原始函数签名（无 .mock）。
 // 测试侧用 .mock.calls 断言，故用 vi.mocked 恢复 mock 类型。
@@ -1110,22 +1109,9 @@ describe('画布 Agent 工具层 §2.5', () => {
     ]);
   });
 
-  it('buildFusionPrompt：挂全部前序成功图 + 改写为融合提示词（对齐大雄）', () => {
-    const prev = [{ prompt: '一只黑猫' }, { prompt: '一只橘猫' }];
-    const prompt = buildFusionPrompt(prev, '让它们打架');
-    expect(prompt).toContain('图1（黑猫）');
-    expect(prompt).toContain('图2（橘猫）');
-    expect(prompt).toContain('融合');
-    expect(prompt).toContain('保持各主体外形与关键特征');
-  });
-
-  it('buildProductReferencePrompt：只挂产品定稿 + 产品一致性约束（对齐大雄）', () => {
-    const product = { prompt: '零食包装定稿' };
-    const prompt = buildProductReferencePrompt(product, '详情页画面', '');
-    expect(prompt).toContain('产品定稿');
-    expect(prompt).toContain('唯一产品一致性参考');
-    expect(prompt).toContain('详情页画面');
-  });
+  // 【2026-11-06 · A8】buildFusionPrompt / buildProductReferencePrompt 已降私有（生产仅
+  // canvasPlanExecutor 内部两处调用）。原两例直测移入 canvasPlanExecutor.deps.test.ts
+  //（行为断言经 executePlan 的 fusion / product_reference 分支，与其既有回归先例同文件）。
 
   it('execute_plan 无 generations 且无暂存 → 报错（不死循环/不崩溃）', async () => {
     convState.awaiting = false;

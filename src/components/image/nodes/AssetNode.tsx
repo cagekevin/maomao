@@ -41,9 +41,9 @@ import type { CameraStudioResult } from '../editors';
 import { useCanvasEdges } from '@/components/canvas/structure/CanvasEdgesContext';
 import { DepthVideoModal, spawnDepthVideoNode } from '@/components/video';
 
-import { commitNewNodes } from '@/components/canvas/structure/deriveNodes';
-import { injectNodePrefs } from '@/components/canvas/contract/nodePrefs';
-import { generateId } from '@/components/base/core/idGen';
+// 【2026-11-06】原 commitNewNodes/injectNodePrefs/generateId 三 import 已随手抄体收口删除，
+// 改走同目录 spawnCameraStudioNode（唯一实现）。
+import { spawnCameraStudioNode } from './spawnCameraStudioNode';
 import { EXT_BY_TYPE } from '@/components/base/api/filesApi';
 
 /**
@@ -183,55 +183,18 @@ function AssetNode({ id, data, selected }: AssetNodeProps) {
   const rename = useNodeRename(id);
 
   // 摄影棚生成回调：创建新 ImageGenerate，用户手动触发生成
+  // 【2026-11-06】40 行手抄体收口到 spawnCameraStudioNode（与 ImageGenerate 同一份）。
   const handleCameraStudioGenerate = useCallback(
     (result: CameraStudioResult) => {
-      const sourceNode = getNodes().find((n) => n.id === id);
-      if (!sourceNode) return;
-
-      const { mode, prompt } = result;
-      const modeLabel =
-        mode === 'camera' ? '摄影机视角' : mode === 'lighting' ? '摄影棚打光' : '视角与打光';
-
-      const newNodeId = generateId();
-      // 新节点位置：右下偏移，避免重叠
-      const newPos = {
-        x: sourceNode.position.x + 340,
-        y: sourceNode.position.y + 300,
-      };
-
-      // 【同步默认参数】摄像机新建节点绕过 App.addNode，需手动注入上次记忆的参数
-      // （模型/比例/尺寸），否则新 imageGenerateNode 会落到纯常量默认（Auto/1K/空模型），
-      // 与手动新建的生图节点默认不一致（记忆只影响新建，不污染存量）。
-      const nodeData: Record<string, unknown> = {
-        type: 'imageGenerateNode',
-        label: modeLabel,
-        prompt: prompt,
-        role: 'generator',
-        status: 'idle',
-        promptState: 'completed',
-      };
-      injectNodePrefs('imageGenerateNode', nodeData);
-
-      const newNode = {
-        id: newNodeId,
-        type: 'imageGenerateNode',
-        position: newPos,
-        data: nodeData,
-      };
-
-      const newEdge = {
-        id: `e-${id}-${newNodeId}`,
-        source: id,
-        target: newNodeId,
-      };
-
-      // TD-04-2：自建子节点统一走 commitNewNodes（补结构默认 width/height/style + 原子写 + 进 undo 栈）。
-      // 原裸 addNodes/addEdges 不补结构默认（手写 420 与 nodeDefaults 漂移）、不进 history（Ctrl+Z 撤不掉）。
-      commitNewNodes(
-        { nodes: [newNode], edges: [newEdge] },
-        { getNodes, getEdges, setNodes, setEdges, history: history ?? undefined },
-      );
-      setIsCameraStudioOpen(false);
+      const ok = spawnCameraStudioNode(result, {
+        sourceId: id,
+        getNodes,
+        getEdges,
+        setNodes,
+        setEdges,
+        history: history ?? undefined,
+      });
+      if (ok) setIsCameraStudioOpen(false);
     },
     [id, getNodes, getEdges, setNodes, setEdges, history],
   );

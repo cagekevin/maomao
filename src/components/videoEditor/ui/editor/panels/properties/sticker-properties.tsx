@@ -7,8 +7,9 @@ import { PanelBaseView } from '@/components/videoEditor/ui/editor/panels/panel-b
 import { PropertyGroup, PropertyItem, PropertyItemLabel, PropertyItemValue } from './property-item';
 import { ColorPicker } from '@/components/videoEditor/ui/ui/color-picker';
 import { clamp } from '@/components/base/core/utils.ts';
-import { useEditor } from '@/components/videoEditor/hooks-cutia/use-editor';
 import { useDraftCommit } from './use-draft-commit';
+import { useElementUpdater } from './use-element-updater';
+import { useTransformFields } from './use-transform-fields';
 import type { StickerElement } from '@/components/videoEditor/types/timeline';
 
 export function StickerProperties({
@@ -18,22 +19,10 @@ export function StickerProperties({
   _element: StickerElement;
   trackId: string;
 }) {
-  const editor = useEditor('timeline');
-
   const scalePercent = Math.round(element.transform.scale * 100);
 
-  const updateElement = ({
-    updates,
-    pushHistory = true,
-  }: {
-    updates: Partial<Record<string, unknown>>;
-    pushHistory?: boolean;
-  }) => {
-    editor.timeline.updateElements({
-      updates: [{ trackId, elementId: element.id, updates }],
-      pushHistory,
-    });
-  };
+  // 【2026-11-06】updateElement 10 行手抄体收口到 useElementUpdater（与 audio 面板共用）。
+  const updateElement = useElementUpdater({ trackId, elementId: element.id });
 
   const updateTransform = ({
     updates,
@@ -52,54 +41,14 @@ export function StickerProperties({
   // 与 text / video 面板同一形态，统一走 `useDraftCommit`。
   // 原先这里的局部 `commitNumberField({draft, initial, apply})`：它只抽了"解析 + 清 initial"，
   // 两段提交仍写在**每个** `apply` 回调里（= 换了个写法的同一种手抄）⇒ 被 hook 取代后**删除**。
-  const posXField = useDraftCommit<number>({
-    value: element.transform.position.x,
-    format: (v) => Math.round(v).toString(),
-    parse: (raw) => {
-      const parsed = Number.parseFloat(raw);
-      return Number.isNaN(parsed) ? null : parsed;
-    },
-    commit: (x, pushHistory) =>
-      updateTransform({
-        updates: { position: { ...element.transform.position, x } },
-        pushHistory,
-      }),
-  });
-
-  const posYField = useDraftCommit<number>({
-    value: element.transform.position.y,
-    format: (v) => Math.round(v).toString(),
-    parse: (raw) => {
-      const parsed = Number.parseFloat(raw);
-      return Number.isNaN(parsed) ? null : parsed;
-    },
-    commit: (y, pushHistory) =>
-      updateTransform({
-        updates: { position: { ...element.transform.position, y } },
-        pushHistory,
-      }),
-  });
-
-  /** 缩放：percent 域（10~500），落库 /100。 */
-  const scaleField = useDraftCommit<number>({
-    value: scalePercent,
-    format: (v) => v.toString(),
-    parse: (raw) => {
-      const parsed = parseInt(raw, 10);
-      return Number.isNaN(parsed) ? null : clamp(parsed, 10, 500);
-    },
-    commit: (percent, pushHistory) =>
-      updateTransform({ updates: { scale: percent / 100 }, pushHistory }),
-  });
-
-  const rotationField = useDraftCommit<number>({
-    value: element.transform.rotate,
-    format: (v) => Math.round(v).toString(),
-    parse: (raw) => {
-      const parsed = Number.parseFloat(raw);
-      return Number.isNaN(parsed) ? null : parsed;
-    },
-    commit: (rotate, pushHistory) => updateTransform({ updates: { rotate }, pushHistory }),
+  //
+  // 【2026-11-06 · 第三批字段工厂】变换四字段收口到 use-transform-fields.ts（三面板单源）；
+  // 本面板保留 opacity / color 两字段（sticker 独有形态）。
+  const { posXField, posYField, scaleField, rotationField } = useTransformFields({
+    element,
+    scalePercent,
+    updateTransform: ({ updates, pushHistory = true }) =>
+      updateTransform({ updates: updates as Partial<typeof element.transform>, pushHistory }),
   });
 
   /** 不透明度：percent 域（0~100），落库 /100（直接写 element 字段）。 */

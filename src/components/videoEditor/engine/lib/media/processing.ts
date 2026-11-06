@@ -4,8 +4,7 @@ import type { MediaAsset } from '@/components/videoEditor/types/mediaAssets';
 import { getMediaTypeFromFile } from '@/components/videoEditor/engine/lib/media/media-utils';
 import { detectFileType } from '@/components/base/utils/media/assetType';
 import { canvasToBlob, canvasToImageDataUrl } from '@/components/base/core/utils';
-import { getVideoInfo } from './mediabunny';
-import { Input, ALL_FORMATS, BlobSource, VideoSampleSink } from 'mediabunny';
+import { getVideoInfo, openVideoSink } from './mediabunny';
 
 export interface ProcessedMediaAsset extends Omit<MediaAsset, 'id'> {}
 
@@ -74,22 +73,8 @@ export async function generateThumbnail({
   videoFile: File;
   timeInSeconds: number;
 }): Promise<string> {
-  const input = new Input({
-    source: new BlobSource(videoFile),
-    formats: ALL_FORMATS,
-  });
-
-  const videoTrack = await input.getPrimaryVideoTrack();
-  if (!videoTrack) {
-    throw new Error('No video track found in the file');
-  }
-
-  const canDecode = await videoTrack.canDecode();
-  if (!canDecode) {
-    throw new Error('Video codec not supported for decoding');
-  }
-
-  const sink = new VideoSampleSink(videoTrack);
+  // 【2026-11-06 · V6】解码前奏走 openVideoSink 唯一实现（无轨/不可解码 → throw，语义与原 10 行一致）。
+  const { sink, videoTrack } = await openVideoSink({ videoFile });
 
   const frame = await sink.getSample(timeInSeconds);
 
@@ -119,18 +104,10 @@ export async function extractVideoFrame({
   timeInSeconds: number;
   fileName: string;
 }): Promise<{ file: File; width: number; height: number }> {
-  const input = new Input({
-    source: new BlobSource(videoFile),
-    formats: ALL_FORMATS,
-  });
-  const videoTrack = await input.getPrimaryVideoTrack();
+  // 【2026-11-06 · V6】解码前奏走 openVideoSink 唯一实现；displayWidth/Height 原读同一 track，语义不变。
+  const { sink, videoTrack } = await openVideoSink({ videoFile });
 
-  if (!videoTrack) throw new Error('No video track found in the file');
-  if (!(await videoTrack.canDecode())) {
-    throw new Error('Video codec not supported for decoding');
-  }
-
-  const frame = await new VideoSampleSink(videoTrack).getSample(timeInSeconds);
+  const frame = await sink.getSample(timeInSeconds);
   if (!frame) throw new Error('Could not get frame at specified time');
 
   try {

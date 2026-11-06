@@ -93,6 +93,11 @@ describe('TASK-012 依赖批改写调用层补全', () => {
     const mainNode = at(ctx.nodes(), 1);
     // 被改写为 product_reference：prompt 含产品一致性约束特征
     expect(mainNode.data['prompt']).toContain('严格参考图1');
+    // 【2026-11-06 · A8】buildProductReferencePrompt 降私有后，原 canvasAgentTools.test.ts
+    // 直测用例迁入此处：只挂产品定稿 + 页面提示词透传 + 品牌识别约束。
+    expect(mainNode.data['prompt']).toContain('产品定稿');
+    expect(mainNode.data['prompt']).toContain('唯一产品一致性参考');
+    expect(mainNode.data['prompt']).toContain('详情页');
     // use_attachments 生效：data.images 为空
     expect(mainNode.data['images']).toBeUndefined();
   });
@@ -126,7 +131,12 @@ describe('TASK-012 依赖批改写调用层补全', () => {
     // 自动追加一个融合依赖步 → 共 3 个节点（2 独立 + 1 融合）
     expect(ctx.nodes()).toHaveLength(3);
     const fusionNode = at(ctx.nodes(), 2);
-    expect(fusionNode.data['prompt']).toContain('融合');
+    // 【2026-11-06 · A8】buildFusionPrompt 降私有后，原 canvasAgentTools.test.ts 直测用例
+    // 迁入此处（行为断言同源）：挂前序成功图标签 + 融合改写 + 一致性约束尾注。
+    expect(fusionNode.data['prompt']).toContain('图1（黑猫）');
+    expect(fusionNode.data['prompt']).toContain('图2（白狗）');
+    expect(fusionNode.data['prompt']).toContain('严格参考');
+    expect(fusionNode.data['prompt']).toContain('保持各主体外形与关键特征');
     // 融合步连线到两个独立节点
     expect(ctx.edges().filter((e) => e.target === fusionNode.id)).toHaveLength(2);
   });

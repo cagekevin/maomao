@@ -12,8 +12,7 @@ import ResizeFullscreenHandle from '@/components/canvas/parts/ResizeFullscreenHa
 import FullscreenEditor from '@/components/canvas/shell/FullscreenEditor';
 import GeneratingOverlay from '@/components/canvas/parts/GeneratingOverlay';
 import { CreativeLibraryButton } from '@/components/creative';
-import { toDictEntry } from '@/components/creative';
-import type { CreativePreset, CreativePresetsDict } from '@/components/creative';
+import type { CreativePresetsDict } from '@/components/creative';
 
 import { useNodeResize } from '@/components/base/core/interaction/uiHooks';
 import { useConnectedInputs } from '@/hooks/useConnectedInputs';
@@ -22,6 +21,7 @@ import { buildEffectivePrompt } from '@/components/base/core/utils';
 import { PROMPT_PANEL_PAD_X } from '@/components/canvas/shell/promptLayout';
 import { useNodeData } from '@/hooks/useNodeData';
 import { useAssetInsertion } from '@/hooks/useAssetInsertion';
+import { useCreativeApply } from '@/hooks/useCreativeApply';
 import { useNodeRename } from '@/hooks/useNodeRename';
 import { useDisconnectSource } from '@/hooks/useDisconnectSource';
 import { useNodeExpanded } from '@/hooks/useNodeExpanded';
@@ -159,17 +159,8 @@ function TextGenerate({ id, data, selected }: TextGenerateProps) {
   const wrapperRef = useRef<HTMLDivElement | null>(null); // NodeShell 根 div ref（主框手柄拖拽改整体尺寸）
   // 富文本素材插入（TD-04-52：原 4 节点各抄一份 ⇒ 收口到 useAssetInsertion，引用天然稳定）
   const { insertAssetRef, insertMention } = useAssetInsertion();
-  // 创作库预设应用：落胶囊（有 preview 显示缩略图）+ 写 data.creativePresets 字典（键 = item.id）。
-  const handleCreativeApply = (item: CreativePreset) => {
-    const hasPreview = !!item.preview;
-    insertMention({
-      id: item.id,
-      label: item.name,
-      kind: hasPreview ? 'image' : 'text',
-      ...(hasPreview ? { url: item.preview } : {}),
-    });
-    addCreativePreset(item.id, toDictEntry(item));
-  };
+  // 创作库预设应用（落胶囊 + 写字典）⇒ 唯一实现 useCreativeApply（TD-04-52 后半段，2026-11-06）。
+  const handleCreativeApply = useCreativeApply({ insertMention, addCreativePreset });
   // 全屏编辑状态（复刻 Co.jsx:33,35 的 m/y → 主框/输入框全屏）
   const [fullscreenText, setFullscreenText] = useState(false);
   const [fullscreenPrompt, setFullscreenPrompt] = useState(false);

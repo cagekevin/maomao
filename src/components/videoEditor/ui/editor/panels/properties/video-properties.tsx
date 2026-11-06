@@ -10,6 +10,7 @@ import { PropertyGroup, PropertyItem, PropertyItemLabel, PropertyItemValue } fro
 import { clamp } from '@/components/base/core/utils.ts';
 import { useEditor } from '@/components/videoEditor/hooks-cutia/use-editor';
 import { useDraftCommit } from './use-draft-commit';
+import { useTransformFields } from './use-transform-fields';
 import type { ImageElement, VideoElement } from '@/components/videoEditor/types/timeline';
 import {
   MAX_PLAYBACK_RATE,
@@ -86,57 +87,14 @@ export function VideoProperties({
   // 原先这里有个局部 `commitNumberField({draft, initial, apply})`（把"解析 + 清 initial"
   // 抽成小函数、两段提交仍写在每个 `apply` 回调里）—— 现已被 hook 取代并**删除**。
   //
-  // 注：`commit` 闭包在**事件里**才求值，故此处引用上面刚定义的 `updateTransform` 是安全的。
-  /** 位置 X：`value` 存**未取整**原始值（与手抄一致），仅显示取整。 */
-  const posXField = useDraftCommit<number>({
-    value: element.transform.position.x,
-    format: (v) => Math.round(v).toString(),
-    parse: (raw) => {
-      const parsed = Number.parseFloat(raw);
-      return Number.isNaN(parsed) ? null : parsed;
-    },
-    commit: (x, pushHistory) =>
-      updateTransform({
-        updates: { position: { ...element.transform.position, x } },
-        pushHistory,
-      }),
-  });
-
-  const posYField = useDraftCommit<number>({
-    value: element.transform.position.y,
-    format: (v) => Math.round(v).toString(),
-    parse: (raw) => {
-      const parsed = Number.parseFloat(raw);
-      return Number.isNaN(parsed) ? null : parsed;
-    },
-    commit: (y, pushHistory) =>
-      updateTransform({
-        updates: { position: { ...element.transform.position, y } },
-        pushHistory,
-      }),
-  });
-
-  /** 缩放：percent 域（10~500），落库 /100。 */
-  const scaleField = useDraftCommit<number>({
-    value: scalePercent,
-    format: (v) => v.toString(),
-    parse: (raw) => {
-      const parsed = parseInt(raw, 10);
-      return Number.isNaN(parsed) ? null : clamp(parsed, 10, 500);
-    },
-    commit: (percent, pushHistory) =>
-      updateTransform({ updates: { scale: percent / 100 }, pushHistory }),
-  });
-
-  /** 旋转：`value` 存未取整原始值。 */
-  const rotationField = useDraftCommit<number>({
-    value: element.transform.rotate,
-    format: (v) => Math.round(v).toString(),
-    parse: (raw) => {
-      const parsed = Number.parseFloat(raw);
-      return Number.isNaN(parsed) ? null : parsed;
-    },
-    commit: (rotate, pushHistory) => updateTransform({ updates: { rotate }, pushHistory }),
+  // 【2026-11-06 · 第三批字段工厂】变换四字段（位置/缩放/旋转）收口到 use-transform-fields.ts：
+  // 三面板逐字手抄的 posXField/posYField/scaleField/rotationField 模板单源化；
+  // 本面板保留单元素 `updateTransform`（与 text 多选批量版的真差异）+ opacity/speed 两字段。
+  const { posXField, posYField, scaleField, rotationField } = useTransformFields({
+    element,
+    scalePercent,
+    updateTransform: ({ updates, pushHistory = true }) =>
+      updateTransform({ updates: updates as Partial<typeof element.transform>, pushHistory }),
   });
 
   /** 不透明度：percent 域（0~100），落库 /100（本面板直接写 element 字段，不经 transform）。 */

@@ -16,8 +16,11 @@ interface AgentAttachment {
   [k: string]: unknown;
 }
 
-/** 画布选中的资源节点，先进入「待确认」列表，用户确认后才并入正式附件。 */
-interface PendingMediaNode {
+/**
+ * 【2026-11-06 · A7】媒体引用公共字段表（唯一真相）——此前 AgentAttachment 与 PendingMediaNode
+ * 手写同步 7 个同名字段，属同一语义两份真相；字段增删只改这里。
+ */
+interface MediaRef {
   type: string;
   url: string;
   label: string;
@@ -27,6 +30,59 @@ interface PendingMediaNode {
   y: number;
   [k: string]: unknown;
 }
+
+/** 对话面板里「已引用媒体附件」的形状（与画布资源节点一一对应）。 */
+interface AgentAttachment extends MediaRef {
+  localUrl: string | null;
+}
+/**
+ * 画布选中的资源节点，先进入「待确认」列表，用户确认后才并入正式附件。
+ *（不用 Omit<AgentAttachment,'localUrl'>：index signature 会把 Omit 塌缩成纯索引类型。）
+ */
+type PendingMediaNode = MediaRef;
+
+/** 【A7】选中节点 → 待确认条目（字段缺省归一化的唯一实现，原三处手抄之一）。 */
+const pendingFromSelected = (n: {
+  type?: 'image' | 'video' | 'audio' | '' | undefined;
+  url: string;
+  label?: string | undefined;
+  nodeId?: string | undefined;
+  nodeType?: string | undefined;
+  x?: number | undefined;
+  y?: number | undefined;
+}): PendingMediaNode => ({
+  type: n.type || 'image',
+  url: n.url,
+  label: n.label || '',
+  nodeId: n.nodeId || '',
+  nodeType: n.nodeType || '',
+  x: n.x || 0,
+  y: n.y || 0,
+});
+
+/** 【A7】待确认条目 → 正式附件（localUrl 与 url 同源：选中节点没有独立本地副本）。 */
+const attachmentFromPending = (n: PendingMediaNode): AgentAttachment => ({
+  type: n.type || 'image',
+  url: n.url,
+  localUrl: n.url,
+  label: n.label || '',
+  nodeId: n.nodeId || '',
+  nodeType: n.nodeType || '',
+  x: n.x || 0,
+  y: n.y || 0,
+});
+
+/** 【A7】文件上传 → 附件（空锚定字段默认值的唯一实现）。 */
+const attachmentFromFile = (url: string, localUrl: string | null): AgentAttachment => ({
+  type: 'image',
+  url,
+  localUrl,
+  label: '',
+  nodeId: '',
+  nodeType: '',
+  x: 0,
+  y: 0,
+});
 // AI 助手专属样式表（agent-* 前缀，只服务本面板与 AgentMessage；AgentMessage 复用同一套类，无需重复 import）
 import './agent-panel.css';
 import {
@@ -895,19 +951,7 @@ function AgentPanel({
   const [pendingMediaNodes, setPendingMediaNodes] = useState<PendingMediaNode[]>([]);
   useEffect(() => {
     if (!Array.isArray(selectedAssetNodes)) return;
-    setPendingMediaNodes(
-      selectedAssetNodes
-        .map((n) => ({
-          type: n.type || 'image',
-          url: n.url,
-          label: n.label || '',
-          nodeId: n.nodeId || '',
-          nodeType: n.nodeType || '',
-          x: n.x || 0,
-          y: n.y || 0,
-        }))
-        .filter((n) => n.url),
-    );
+    setPendingMediaNodes(selectedAssetNodes.map(pendingFromSelected).filter((n) => n.url));
   }, [selectedAssetNodes]);
   // 确认待引用媒体 → 并入正式附件（定编号）；按 url 去重（已存在跳过）
   const confirmPendingMedia = useCallback(() => {
@@ -919,16 +963,7 @@ function AgentPanel({
         let changed = false;
         for (const n of pending) {
           if (!n?.url || exist.has(n.url)) continue;
-          next.push({
-            type: n.type || 'image',
-            url: n.url,
-            localUrl: n.url,
-            label: n.label || '',
-            nodeId: n.nodeId || '',
-            nodeType: n.nodeType || '',
-            x: n.x || 0,
-            y: n.y || 0,
-          });
+          next.push(attachmentFromPending(n));
           exist.add(n.url);
           changed = true;
         }
@@ -1287,19 +1322,7 @@ function AgentPanel({
         const localUrl = previewUrls.create(f);
         try {
           const dataUrl = await fileToDataUrl(f);
-          setAttachments((prev) => [
-            ...prev,
-            {
-              type: 'image',
-              url: dataUrl,
-              localUrl,
-              label: '',
-              nodeId: '',
-              nodeType: '',
-              x: 0,
-              y: 0,
-            },
-          ]);
+          setAttachments((prev) => [...prev, attachmentFromFile(dataUrl, localUrl)]);
         } catch (err) {
           previewUrls.release(localUrl);
           showToast(`图片读取失败：${(err as { message?: string })?.message || String(err)}`, {

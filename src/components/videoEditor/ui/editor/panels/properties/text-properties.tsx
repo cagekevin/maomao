@@ -44,6 +44,7 @@ import {
 } from '@/components/videoEditor/constants/text-style-presets';
 import { cn } from '@/components/videoEditor/utils/ui';
 import { useDraftCommit } from './use-draft-commit';
+import { useTransformFields } from './use-transform-fields';
 
 interface TextElementRef {
   element: TextElement;
@@ -106,7 +107,11 @@ function TextPropertiesContent({
 
   // 【TD-22-20 · 组①】数字字段（Input + Slider 两条路径，共用同一个 initial）——
   // 统一走 `useDraftCommit`，不再逐处手抄 refs/handler。
-  // 注：`commit` 闭包在**事件里**才求值，故此处引用后面才定义的 `updateTransform` 是安全的。
+  //
+  // 【2026-11-06 · 第三批字段工厂】变换四字段（位置/缩放/旋转）收口到 use-transform-fields.ts：
+  // 三面板逐字手抄的 posXField/posYField/scaleField/rotationField 模板单源化；
+  // 本面板保留**多选批量** `updateTransform`（elementRefs.map 展开，与 video/sticker
+  // 单元素版的真差异留在面板）+ opacity 与背景/描边/阴影等 text 独有字段。
   /** 不透明度：显示/提交都在 **percent 域**（0~100），落库时 /100。 */
   const opacityField = useDraftCommit<number>({
     value: Math.round(element.opacity * 100),
@@ -122,57 +127,11 @@ function TextPropertiesContent({
       }),
   });
 
-  /** 位置 X：`value` 存**未取整**的原始值（与手抄一致 —— initial 与回退值都是它），仅显示取整。 */
-  const posXField = useDraftCommit<number>({
-    value: element.transform.position.x,
-    format: (v) => Math.round(v).toString(),
-    parse: (raw) => {
-      const parsed = Number.parseFloat(raw);
-      return Number.isNaN(parsed) ? null : parsed;
-    },
-    commit: (x, pushHistory) =>
-      updateTransform({
-        updates: { position: { ...element.transform.position, x } },
-        pushHistory,
-      }),
-  });
-
-  /** 位置 Y：同位置 X。 */
-  const posYField = useDraftCommit<number>({
-    value: element.transform.position.y,
-    format: (v) => Math.round(v).toString(),
-    parse: (raw) => {
-      const parsed = Number.parseFloat(raw);
-      return Number.isNaN(parsed) ? null : parsed;
-    },
-    commit: (y, pushHistory) =>
-      updateTransform({
-        updates: { position: { ...element.transform.position, y } },
-        pushHistory,
-      }),
-  });
-
-  /** 缩放：percent 域（10~500），落库 /100。 */
-  const scaleField = useDraftCommit<number>({
-    value: scalePercent,
-    format: (v) => v.toString(),
-    parse: (raw) => {
-      const parsed = parseInt(raw, 10);
-      return Number.isNaN(parsed) ? null : clamp(parsed, 10, 500);
-    },
-    commit: (percent, pushHistory) =>
-      updateTransform({ updates: { scale: percent / 100 }, pushHistory }),
-  });
-
-  /** 旋转：`value` 存**未取整**的原始值（同位置 X）。 */
-  const rotationField = useDraftCommit<number>({
-    value: element.transform.rotate,
-    format: (v) => Math.round(v).toString(),
-    parse: (raw) => {
-      const parsed = Number.parseFloat(raw);
-      return Number.isNaN(parsed) ? null : parsed;
-    },
-    commit: (rotate, pushHistory) => updateTransform({ updates: { rotate }, pushHistory }),
+  const { posXField, posYField, scaleField, rotationField } = useTransformFields({
+    element,
+    scalePercent,
+    updateTransform: ({ updates, pushHistory = true }) =>
+      updateTransform({ updates: updates as Partial<Transform>, pushHistory }),
   });
 
   // 【TD-22-20 · 组②】文本 / 颜色 / 背景 —— 与组① 同一个 hook，只是入口不同：

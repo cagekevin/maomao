@@ -227,8 +227,13 @@ function extractSubjectLabel(text = '', index = 0) {
   const first = (t.split(/[，。；;\n]/)[0] || t).replace(/^(?:与|和|的|及)\s*/, '');
   return first.slice(0, 12) || `素材${index + 1}`;
 }
-/** 融合批：挂全部前序成功图 + 改写为融合提示词 */
-export function buildFusionPrompt(prevGens: GenerationStep[], userText = '') {
+/**
+ * 融合批：挂全部前序成功图 + 改写为融合提示词
+ * 【2026-11-06 · A8】降私有：导出面大于消费面——生产仅本文件两处调用，
+ * 唯一域外消费者是 canvasAgentTools.test.ts（改直连不可行——它 import 的是本模块运行时对象，
+ * 经 vi.mock partial 保留真实实现），故改为模块内私有 + 测试经 mock 工厂透出的 actual 断言。
+ */
+function buildFusionPrompt(prevGens: GenerationStep[], userText = '') {
   const labels = prevGens
     .map((g: GenerationStep, i: number) => {
       const short = extractSubjectLabel(g.prompt || g.professionalPrompt || '', i);
@@ -246,8 +251,8 @@ export function buildFusionPrompt(prevGens: GenerationStep[], userText = '') {
   }
   return prompt;
 }
-/** 产品参考批：只挂产品定稿 + 改写为产品一致性提示词 */
-export function buildProductReferencePrompt(
+/** 产品参考批：只挂产品定稿 + 改写为产品一致性提示词【2026-11-06 · A8】降私有（同 buildFusionPrompt）。 */
+function buildProductReferencePrompt(
   productGen: GenerationStep,
   pagePrompt: string = '',
   userText: string = '',

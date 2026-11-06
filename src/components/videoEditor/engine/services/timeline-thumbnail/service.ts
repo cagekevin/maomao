@@ -1,5 +1,7 @@
 import { videoEditorLogger } from '@/components/videoEditor/lib/videoEditorLogger';
-import { Input, ALL_FORMATS, BlobSource, VideoSampleSink } from 'mediabunny';
+import type { VideoSampleSink } from 'mediabunny';
+// 【2026-11-06 · V6】解码前奏收口到 mediabunny.ts 的 openVideoSink 唯一实现（原 10 行手抄）。
+import { openVideoSink } from '../../lib/media/mediabunny';
 
 interface SinkData {
   sink: VideoSampleSink;
@@ -361,18 +363,8 @@ class TimelineThumbnailCache {
     file: File;
   }): Promise<SinkData | null> {
     try {
-      const input = new Input({
-        source: new BlobSource(file),
-        formats: ALL_FORMATS,
-      });
-
-      const videoTrack = await input.getPrimaryVideoTrack();
-      if (!videoTrack) return null;
-
-      const canDecode = await videoTrack.canDecode();
-      if (!canDecode) return null;
-
-      const sink = new VideoSampleSink(videoTrack);
+      // 【2026-11-06 · V6】前奏走 openVideoSink；本服务失败语义 = 返回 null（缩略图不阻断主流程）。
+      const { sink } = await openVideoSink({ videoFile: file });
       const data: SinkData = { sink };
       this.sinks.set(mediaId, data);
       return data;

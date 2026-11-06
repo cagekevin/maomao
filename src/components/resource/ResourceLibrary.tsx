@@ -1,28 +1,13 @@
 import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react';
-import {
-  Upload,
-  FileText,
-  Music,
-  Play,
-  Image as ImageIcon,
-  FolderOpen,
-  FolderPlus,
-  ChevronLeft,
-} from 'lucide-react';
-import type { LucideIcon } from 'lucide-react';
+import { Upload, FileText, Music, Play, FolderOpen, FolderPlus, ChevronLeft } from 'lucide-react';
 import { PanelSubBar, PanelPills, PanelMoreMenu } from '../base/panels/PanelBar.tsx';
 import { useLocalToolStatus } from '@/hooks/useLocalToolStatus';
-import { rescanResources, deleteResource } from '../base/api/localToolApi.ts';
+import { rescanResources } from '../base/api/localToolApi.ts';
 // 分页读取的唯一实现（读一页；"是否还有更多"的判据是响应里的 totalPages，本文件不抄上限数字）。
 import { fetchResourcePage } from '../base/api/pagedList.ts';
 import { showToast } from '../base/core/event/toastStore.ts';
-import { useResourceCardDragProps, useTextAsset } from '@/hooks/useAssetDragToCanvas';
-import {
-  uploadFileToLocal,
-  openLocalFolder,
-  openFileDir,
-  relativePathFromUrl,
-} from '../base/api/filesApi.ts';
+import { useResourceCardDragProps } from '@/hooks/useAssetDragToCanvas';
+import { uploadFileToLocal } from '../base/api/filesApi.ts';
 import {
   onResourceSent,
   emitResourceSent,
@@ -40,6 +25,9 @@ import {
 import { ResourceCardActions } from './ResourceCardActions.tsx';
 // 底部翻页栏：**唯一实现**（2026-09-21 与生成面板收口，替代本文件的无限滚动）。
 import PagedFooter from './PagedFooter.tsx';
+// 【2026-11-06】TYPE_BADGE / TextAssetCell / 三条卡片动作收口（原与 GeneratedView 逐字重复）。
+import { TYPE_BADGE, TextAssetCell } from './resourceVisuals.tsx';
+import { useResourceItemActions } from './useResourceItemActions.ts';
 // 目录条目 → 自身目录路径的唯一实现（与「点目录进入」「拖入归类」共用）。
 import { folderPathOf } from '@/hooks/useResourceMoveToFolder';
 import { useCurrentProjectId } from '../base/store/projectStore.ts';
@@ -72,43 +60,7 @@ function toPillItems(folders: ReturnType<typeof libraryFoldersOf>) {
   return folders.map((f) => ({ folder: f.folder ?? LIBRARY_ROOT, label: f.label }));
 }
 
-interface TypeBadge {
-  icon: LucideIcon;
-  cls: string;
-}
-
-const TYPE_BADGE: Record<string, TypeBadge> & { image: TypeBadge } = {
-  image: { icon: ImageIcon, cls: 'text-blue-400 bg-blue-500/10' },
-  video: { icon: Play, cls: 'text-purple-400 bg-purple-500/10' },
-  audio: { icon: Music, cls: 'text-green-400 bg-green-500/10' },
-  text: { icon: FileText, cls: 'text-yellow-400 bg-yellow-500/10' },
-};
-
 const PAGE_SIZE = 20; // 每页 20 个（翻页控件 = 底部 `PagedFooter`，与生成面板同一实现）
-
-// 文字读取与三态统一收敛到 useAssetDragToCanvas.js 的 useTextAsset（唯一实现）；isAudio / isVideoResource 统一到 assetType.js
-// 文字素材单元格：默认展示文件内容（前几行）
-const TextAssetCell = React.memo(function TextAssetCell({
-  url,
-  name,
-}: {
-  url: string;
-  name?: string | undefined;
-}) {
-  const state = useTextAsset(url);
-  // 失败必须可见：不退回 name —— 否则"读失败"与"文件名"在界面上无从区分（TD-18-17 · 一诚实）
-  const text = state.phase === 'ok' ? state.text : state.phase === 'failed' ? state.error : '';
-  const display = useMemo(() => String(text || name || '').slice(0, 120), [text, name]);
-  return (
-    <div className="w-full h-full bg-surface-strong flex items-center justify-center px-1.5">
-      {display && (
-        <p className="text-2xs text-muted leading-tight m-0 line-clamp-3 break-all text-center">
-          {display}
-        </p>
-      )}
-    </div>
-  );
-});
 
 /**
  * 素材库 tab —— 与本地磁盘文件一一对应（从 localTool /api/resources 读取 migrated 目录，rescan 收录），
@@ -358,34 +310,13 @@ function ResourceLibrary() {
     if (e.dataTransfer?.files?.length) handleFiles(e.dataTransfer.files);
   };
 
-  const handleDelete = async (item: ResourceItem) => {
-    setItems((list) => list.filter((x) => x.id !== item.id));
-    setTotal((t) => Math.max(0, t - 1));
-    try {
-      await deleteResource(item.id);
-    } catch {
-      showToast('删除失败', { type: 'error' });
-    }
-  };
-
-  const handleOpenLocal = () => {
-    if (!connected) {
-      showToast('请先连接本地引擎', { type: 'warning' });
-      return;
-    }
-    openLocalFolder(currentFolder)
-      .then((r) => showToast(`已在文件管理器中打开: ${r?.data?.path}`, { type: 'success' }))
-      .catch(() => showToast('打开本地目录失败', { type: 'error' }));
-  };
-
-  const handleOpenFileDir = (item: ResourceItem) => {
-    const rel = relativePathFromUrl(item.url ?? '');
-    if (!rel) {
-      showToast('打开所在目录失败', { type: 'error' });
-      return;
-    }
-    openFileDir(rel).catch(() => showToast('打开所在目录失败', { type: 'error' }));
-  };
+  // 【2026-11-06】删除 / 打开本地目录 / 打开所在目录收口到 useResourceItemActions（与生成面板共用）。
+  const { handleDelete, handleOpenLocal, handleOpenFileDir } = useResourceItemActions({
+    connected,
+    localFolder: currentFolder,
+    setItems,
+    setTotal,
+  });
 
   // 【TD-04-56】`handleRename` / `createFolder` 已收口到 `useInlineNameEditing`（见上方调用点）。
   // 原先此处与 GeneratedView 逐字重复约 35 行，两处唯一差异只有路径表达式与日志标签。

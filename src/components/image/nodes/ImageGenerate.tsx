@@ -18,13 +18,13 @@ import { useImageHoverActions } from '@/components/image/useImageHoverActions';
 import { replaceNodeImage } from '@/components/base/utils/media/nodeImage';
 import { useNodeData } from '@/hooks/useNodeData';
 import { useAssetInsertion } from '@/hooks/useAssetInsertion';
+import { useCreativeApply } from '@/hooks/useCreativeApply';
 import { useDisconnectSource } from '@/hooks/useDisconnectSource';
 import { useNodeRename } from '@/hooks/useNodeRename';
 import { useNodeExpanded } from '@/hooks/useNodeExpanded';
 import { useNodeField } from '@/hooks/useNodeField';
 import { CreativeLibraryButton } from '@/components/creative';
-import { toDictEntry } from '@/components/creative';
-import type { CreativePreset, CreativePresetsDict } from '@/components/creative';
+import type { CreativePresetsDict } from '@/components/creative';
 
 import { downloadUrl, resolveDownloadFilename } from '@/components/base/utils/net/clipboard';
 import JianyingIcon from '@/components/base/ui/JianyingIcon';
@@ -39,12 +39,9 @@ import '@/components/base/api/index';
 import { logger } from '@/components/base/core/log/logger';
 import { generateImage } from '@/components/generate/lib/generate';
 import { fetchTaskPage } from '@/components/base/api/pagedList';
-import {
-  useNodePrefs,
-  injectNodePrefs,
-  PREFS_DEFAULTS,
-} from '@/components/canvas/contract/nodePrefs';
+import { useNodePrefs, PREFS_DEFAULTS } from '@/components/canvas/contract/nodePrefs';
 import { commitNewNodes } from '@/components/canvas/structure/deriveNodes';
+import { spawnCameraStudioNode } from './spawnCameraStudioNode';
 import { useCanvasEdges } from '@/components/canvas/structure/CanvasEdgesContext';
 import { useRenderAssetResolver } from '@/components/base/utils/media/assetUrl';
 import { resolveProviderModel } from '@/components/base/utils/providerModels';
@@ -63,7 +60,6 @@ import { PROMPT_PANEL_PAD_X } from '@/components/canvas/shell/promptLayout';
 import { CameraStudioPanel, CameraSettingsSelector, applyCameraSettingsToPrompt } from '../editors';
 import type { CameraGenerationSettings, CameraStudioResult } from '../editors';
 
-import { generateId } from '@/components/base/core/idGen';
 import {
   formatPixelSize,
   parsePixelSize,
@@ -516,21 +512,9 @@ function ImageGenerate({ id, data, selected }: ImageGenerateProps) {
   // ResourceStrip 的蓝色 @按钮点击也走这里，复用同一插入能力（保持组件职责内聚）。
   // TD-04-52：原 4 节点各抄一份同构实现 ⇒ 收口到 useAssetInsertion，insertMention 引用天然稳定。
   const { insertAssetRef, insertMention } = useAssetInsertion();
-  // 创作库预设应用：落胶囊（有 preview 显示缩略图）+ 写 data.creativePresets 字典（键 = item.id）。
-  // ⚠️ 字典写入走 `addCreativePreset`（useNodeData 的函数式单点合并），**不读闭包里的 data**：
-  //   本函数可能被连续调用（连点多张卡），且 insertMention 会经 onChange 触发重渲；
-  //   若用 `...(data.creativePresets ?? {})` 这种闭包快照合并，连点第二张时会把
-  //   第一张刚写入的键覆盖掉 → 生成时字典里查不到 → 红日志「预设未命中置空」。
-  const handleCreativeApply = (item: CreativePreset) => {
-    const hasPreview = !!item.preview;
-    insertMention({
-      id: item.id,
-      label: item.name,
-      kind: hasPreview ? 'image' : 'text',
-      ...(hasPreview ? { url: item.preview } : {}),
-    });
-    addCreativePreset(item.id, toDictEntry(item));
-  };
+  // 创作库预设应用（落胶囊 + 写字典）⇒ 唯一实现 useCreativeApply（TD-04-52 后半段，2026-11-06）：
+  // 三节点手抄体已删；竞态防护与 I4 白名单裁剪的完整说明见该 hook 文件头。
+  const handleCreativeApply = useCreativeApply({ insertMention, addCreativePreset });
   const hasImage = !!assetUrl;
   const [isCameraStudioOpen, setIsCameraStudioOpen] = useState(false);
 
@@ -552,55 +536,18 @@ function ImageGenerate({ id, data, selected }: ImageGenerateProps) {
   }, [assetUrl, data.label]);
 
   // 摄影棚生成：创建新生图节点，预填摄影棚提示词，连线提供垫图
+  // 【2026-11-06】40 行手抄体收口到 spawnCameraStudioNode（与 AssetNode 同一份）。
   const handleCameraStudioGenerate = useCallback(
     (result: CameraStudioResult) => {
-      const sourceNode = getNodes().find((n) => n.id === id);
-      if (!sourceNode) return;
-
-      const { mode, prompt } = result;
-      const modeLabel =
-        mode === 'camera' ? '摄影机视角' : mode === 'lighting' ? '摄影棚打光' : '视角与打光';
-
-      const newNodeId = generateId();
-      // 新节点位置：右下偏移，避免重叠
-      const newPos = {
-        x: sourceNode.position.x + 340,
-        y: sourceNode.position.y + 300,
-      };
-
-      // 【同步默认参数】摄像机新建节点绕过 App.addNode，需手动注入上次记忆的参数
-      // （模型/比例/尺寸），否则组件只能落到纯常量默认（Auto/1K/空模型），
-      // 与手动新建的生图节点默认不一致（记忆只影响新建，不污染存量）。
-      const nodeData: Record<string, unknown> = {
-        type: 'imageGenerateNode',
-        label: modeLabel,
-        prompt: prompt,
-        role: 'generator',
-        status: 'idle',
-        promptState: 'completed',
-      };
-      injectNodePrefs('imageGenerateNode', nodeData);
-
-      const newNode = {
-        id: newNodeId,
-        type: 'imageGenerateNode',
-        position: newPos,
-        data: nodeData,
-      };
-
-      const newEdge = {
-        id: `e-${id}-${newNodeId}`,
-        source: id,
-        target: newNodeId,
-      };
-
-      // TD-04-2：自建子节点统一走 commitNewNodes（补结构默认 + 原子写 + 进 undo 栈），
-      // 替代原裸 addNodes/addEdges（不补结构默认、Ctrl+Z 撤不掉）。
-      commitNewNodes(
-        { nodes: [newNode], edges: [newEdge] },
-        { getNodes, getEdges, setNodes, setEdges, history: history ?? undefined },
-      );
-      setIsCameraStudioOpen(false);
+      const ok = spawnCameraStudioNode(result, {
+        sourceId: id,
+        getNodes,
+        getEdges,
+        setNodes,
+        setEdges,
+        history: history ?? undefined,
+      });
+      if (ok) setIsCameraStudioOpen(false);
     },
     [id, getNodes, getEdges, setNodes, setEdges, history],
   );

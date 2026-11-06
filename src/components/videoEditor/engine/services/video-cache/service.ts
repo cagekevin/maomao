@@ -1,5 +1,7 @@
 import { videoEditorLogger } from '@/components/videoEditor/lib/videoEditorLogger';
-import { Input, ALL_FORMATS, BlobSource, CanvasSink, type WrappedCanvas } from 'mediabunny';
+import { CanvasSink, type WrappedCanvas } from 'mediabunny';
+// 【2026-11-06 · V6】解码前奏收口到 mediabunny.ts 的 openVideoSink 唯一实现（原 12 行手抄）。
+import { openVideoSink } from '../../lib/media/mediabunny';
 
 interface VideoSinkData {
   sink: CanvasSink;
@@ -217,20 +219,8 @@ export class VideoCache {
   }
   private async initializeSink({ mediaId, file }: { mediaId: string; file: File }): Promise<void> {
     try {
-      const input = new Input({
-        source: new BlobSource(file),
-        formats: ALL_FORMATS,
-      });
-
-      const videoTrack = await input.getPrimaryVideoTrack();
-      if (!videoTrack) {
-        throw new Error('No video track found');
-      }
-
-      const canDecode = await videoTrack.canDecode();
-      if (!canDecode) {
-        throw new Error('Video codec not supported for decoding');
-      }
+      // 【2026-11-06 · V6】前奏走 openVideoSink；本服务失败语义 = throw（ensureSink 的 catch 落 toast + 留痕）。
+      const { videoTrack } = await openVideoSink({ videoFile: file });
 
       const sink = new CanvasSink(videoTrack, {
         poolSize: 3,
