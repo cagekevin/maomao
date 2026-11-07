@@ -1,7 +1,11 @@
 import { useCallback } from 'react';
 import { tryParse } from '../components/base/utils/net/asyncGuard.ts';
 import type { DragEvent as ReactDragEvent } from 'react';
-import { moveFile, canMoveAsset, resolveMovePaths } from '../components/base/api/index.ts';
+import { moveFile } from '../components/base/api/index.ts';
+import {
+  canDragResourceCard,
+  decideResourceMove,
+} from '../components/resource/resourceMoveGuard.ts';
 import { showToast } from '../components/base/core/event/toastStore.ts';
 import { logger } from '../components/base/core/log/logger.ts';
 
@@ -102,7 +106,7 @@ export function useResourceMoveToFolder({ connected, onRefreshed }: ResourceMove
   // 源（文件卡片）拖拽属性：仅移动归类
   const sourceDragProps = useCallback(
     (item: ResourceMoveItem): Partial<ResourceDragSourceProps> => {
-      if (item.type === 'folder' || !item.url) return {};
+      if (!canDragResourceCard(item)) return {};
       return {
         draggable: true,
         onDragStart: (e: ReactDragEvent) => {
@@ -123,28 +127,24 @@ export function useResourceMoveToFolder({ connected, onRefreshed }: ResourceMove
       onDrop: async (e: ReactDragEvent) => {
         e.preventDefault();
         e.stopPropagation(); // 不落到面板层的上传 onDrop
-        if (!connected) {
-          showToast('请先连接本地引擎', { type: 'warning' });
-          return;
-        }
-        const it = parseMovePayload(e.dataTransfer.getData(RESOURCE_MOVE_MIME));
-        if (!it) return;
-        const target = folderPathOf(folderCard);
-        if (!canMoveAsset(it)) {
-          showToast('仅支持移动本地资源', { type: 'warning' });
-          return;
-        }
-        const { src, dst, sameDir } = resolveMovePaths(it, target);
-        if (sameDir) {
-          showToast('文件已在目标目录', { type: 'warning' });
+        // 【判据外置】该不该移动、移到哪、该说什么话 —— 全在 `resourceMoveGuard.decideResourceMove`
+        // （纯函数，单测直锁）；本处只做「读事件 → 决策 → 执行」。
+        const decision = decideResourceMove({
+          connected,
+          item: parseMovePayload(e.dataTransfer.getData(RESOURCE_MOVE_MIME)),
+          target: folderPathOf(folderCard),
+        });
+        if (decision.kind === 'ignore') return;
+        if (decision.kind === 'warn') {
+          showToast(decision.message, { type: 'warning' });
           return;
         }
         try {
           // 【增量② · context-only】移动到文件夹 = 只改 resource 行的 folder（UI 分类），
           // 磁盘 / url / contentId 不变 → 不广播 url 改写（url 未变则不需 rewrite，改发也会指向不存在的路径）。
           // 移动 only 刷新列表（新 folder 上下文生效）。
-          await moveFile(src, dst);
-          showToast(`已移动到「${target}」`, { type: 'success' });
+          await moveFile(decision.src, decision.dst);
+          showToast(`已移动到「${decision.target}」`, { type: 'success' });
           onRefreshed?.();
         } catch (err) {
           showToast((err as { message?: string })?.message || '移动失败', { type: 'error' });

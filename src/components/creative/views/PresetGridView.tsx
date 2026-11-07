@@ -14,6 +14,7 @@ import { useRef } from 'react';
 import { Play } from 'lucide-react';
 import LazyImage from '@/components/base/ui/display/LazyImage';
 import type { CreativePreset } from '../creativePresets';
+import { presetCardTitle } from '../presetTitle';
 import { logger } from '@/components/base/core/log/logger';
 
 export interface PresetGridViewProps {
@@ -45,7 +46,7 @@ export default function PresetGridView({ presets, onApply }: PresetGridViewProps
           // 故不引入自定义 tooltip 组件（那是为长文本设计的，此处用不上）。
           // 【为什么不需要判 kind】MJ 与 prompt 类**不走本组件**（各有专属视图，见 CreativeLibrary.tsx:34），
           // 能进这里的只有 style / filter / motion —— 三者都要显示（用户 2026-09-19 裁定）。
-          title={`${p.name}\n${p.prompt}`}
+          title={presetCardTitle(p.name, p.prompt)}
           onClick={() => onApply(p)}
           onMouseEnter={() => {
             const v = videoRefs.current.get(p.id);

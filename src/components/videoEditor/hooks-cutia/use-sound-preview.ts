@@ -1,5 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { videoEditorLogger } from '@/components/videoEditor/lib/videoEditorLogger';
+import {
+  decidePreviewToggle,
+  shouldSettlePreview,
+} from '@/components/videoEditor/lib/soundPreviewState';
 import type { SoundEffect } from '@/components/videoEditor/types/sounds';
 
 type PreviewableSound = Pick<SoundEffect, 'id' | 'previewUrl'>;
@@ -54,20 +58,21 @@ export function useSoundPreview(): SoundPreview {
 
   const toggle = useCallback(
     ({ sound }: { sound: PreviewableSound }) => {
-      // 再点同一条 = 停止。
-      if (playingIdRef.current === sound.id) {
+      // 【判据外置】「同条停 / 换条播 / 无 url 不动」由 `decidePreviewToggle` 决定（纯函数，单测直锁）。
+      const decision = decidePreviewToggle(playingIdRef.current, sound);
+      if (decision.kind === 'stop') {
         stop();
         return;
       }
 
       stop();
-      if (!sound.previewUrl) return;
+      if (decision.kind === 'idle') return;
 
-      const soundId = sound.id;
+      const soundId = decision.id;
       const audio = new Audio(sound.previewUrl);
       const settle = () => {
         // 判等：这条音频已经不是我当前在播的那条 → 不动状态（否则会清掉新歌的播放态）。
-        if (playingIdRef.current !== soundId) return;
+        if (!shouldSettlePreview(playingIdRef.current, soundId)) return;
         audioRef.current = null;
         playingIdRef.current = null;
         setPlayingId(null);

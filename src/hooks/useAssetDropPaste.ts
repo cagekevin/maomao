@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef } from 'react';
 import type { DragEvent as ReactDragEvent, ClipboardEvent as ReactClipboardEvent } from 'react';
 import { detectFileType, isAssetUrl } from '../components/base/utils/media/assetType.ts';
 import { isEditableTarget } from '../components/base/core/interaction/uiHooks.ts';
-import { sanitizePastedText } from '../components/base/utils/net/clipboard.ts';
+import { classifyPastedText, pickDropCandidate } from '../components/canvas/shell/pasteClassify.ts';
 import { showToast, toastError } from '../components/base/core/event/toastStore.ts';
 import {
   resolveNodeAssetUrl,
@@ -300,7 +300,7 @@ export function useAssetDropPaste({
         // 故两者都读，取第一个非空 URL 候选（uri-list 可能多行，取首行 URL）。
         const uriList = e.dataTransfer?.getData('text/uri-list') || '';
         const text = e.dataTransfer?.getData('text/plain') || '';
-        const candidate = (uriList.trim() || text.trim()).split(/\r?\n/)[0]?.trim() || '';
+        const candidate = pickDropCandidate(uriList, text);
         if (candidate) {
           if (isAssetUrl(candidate)) {
             // 网页图 URL → 直接用原 URL 建 assetNode（方案C：能显示就显示，防盗链破图不阻塞导入；不做本地化）
@@ -322,15 +322,11 @@ export function useAssetDropPaste({
   // 建 textGenerateNode（普通文本，经 sanitize 清洗；内部 mutiwindow-* JSON 用原始 text 解析，不在此清洗）
   const handleTextPaste = useCallback(
     (rawText: string, pos: FlowPosition) => {
-      if (!rawText || !rawText.trim()) return;
-      const rawR = tryParse(() => JSON.parse(rawText));
-      const parsedRaw = rawR.ok ? rawR.value : undefined;
-      // 剪贴板 JSON 逐字段读取（type 需 string、images 需数组），不做整体形状假断言（F7）
-      const d =
-        parsedRaw && typeof parsedRaw === 'object'
-          ? (parsedRaw as { type?: unknown; images?: unknown })
-          : null;
-      if (d?.type === 'mutiwindow-nodes') {
+      // 【判据外置】「这段剪贴板该建什么」由 `canvas/shell/pasteClassify` 的纯函数决定
+      // （单测直锁）；本处只做「按分类建节点」。
+      const decision = classifyPastedText(rawText);
+      if (decision.kind === 'empty') return;
+      if (decision.kind === 'node-group') {
         // 粘贴节点组（含连线），交由宿主（App）解析重建。
         // 【2026-09-17 TD-16-27】原来不看返回值：宿主解析失败（false）时整个粘贴**静默无事发生**
         // —— 正是用户报的「复制节点粘贴不上」。现按结果分流，失败必须出声。
@@ -348,12 +344,8 @@ export function useAssetDropPaste({
         });
         return;
       }
-      if (d?.type === 'mutiwindow-images') {
-        const images = (Array.isArray(d.images) ? d.images : []).filter(
-          (x): x is string => typeof x === 'string',
-        );
-        if (images.length === 0) return;
-        images.forEach((img, i) => {
+      if (decision.kind === 'image-group') {
+        decision.images.forEach((img, i) => {
           const col = i % 6;
           const row = Math.floor(i / 6);
           addNode(
@@ -362,14 +354,13 @@ export function useAssetDropPaste({
             { assetUrl: img, label: `提取帧 ${i + 1}` },
           );
         });
-        showToast(`已粘贴 ${images.length} 张提取的图片`);
+        showToast(`已粘贴 ${decision.images.length} 张提取的图片`);
         return;
       }
-      // 普通文本 → textGenerateNode：经 sanitizePastedText 彻底清洗（压缩连续空格/空行、去行首行尾空格、
-      // 统一换行、去不可见脏字符）。用户核心诉求：粘贴表格/富文本时绝不能被当成图片或带样式贴进来，
-      // 必须压成干净纯文本，这里按用户要求更强清洗。
-      const cleanText = sanitizePastedText(rawText);
-      if (cleanText) addNode('textGenerateNode', pos, { text: cleanText, expanded: false });
+      // 普通文本 → textGenerateNode：已在 `classifyPastedText` 内经 sanitizePastedText 彻底清洗
+      // （压缩连续空格/空行、去行首行尾空格、统一换行、去不可见脏字符）。用户核心诉求：粘贴表格/富文本时
+      // 绝不能被当成图片或带样式贴进来，必须压成干净纯文本。
+      addNode('textGenerateNode', pos, { text: decision.text, expanded: false });
     },
     [addNode, onPasteNodeGroup],
   );
