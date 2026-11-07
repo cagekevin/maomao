@@ -20,14 +20,11 @@
  *   ⇒ 逻辑层依赖 UI 层，形成 7 跳结构环（useNodeData → CreativeLibraryButton → FullscreenModal
  *   → FullscreenShell → modalLayer → uiHooks → useNodeData）。
  *   修法 = **摆正依赖方向**：逻辑层直连纯逻辑模块 `creativePresets.ts`（它只依赖 promptChips）；
- *   本门面只继续露**画布节点真正需要的 UI 入口 + 其配套类型/写入原语**。
+ *   本门面只继续露**画布节点真正需要的 UI 入口 + 其配套类型**。
  *   ⚠️ 别再把纯逻辑原语加回本门面 —— 那会让逻辑消费者重新依赖 UI 门面，环必复发。
  */
 /* UI 入口（画布节点用它开预设库） */
 export { default as CreativeLibraryButton } from './CreativeLibraryButton.tsx';
 
-/* 预设字典写入原语（画布节点经门面消费；toDictEntry 产出的 entry 供胶囊落地） */
-export { toDictEntry } from './creativePresets.ts';
-
 /* 预设字典类型（画布节点的 props/state 形参） */
-export type { CreativePreset, CreativePresetsDict } from './creativePresets.ts';
+export type { CreativePresetsDict } from './creativePresets.ts';
