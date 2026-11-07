@@ -1,6 +1,13 @@
-# CLAUDE.md · 猫猫画布（React 原型 + 自研后端）
+# CLAUDE.md · 猫猫画布（已退役 · 仅作章节号索引）
 
-> **本文件定位：项目认知入口。每个 AI 进来第一步读它**，了解"这是什么项目、技术栈、架构、目录、红线、怎么启动"。
+> ## ⛔ 本文件已退役（2026-11-07）
+>
+> **规则唯一入口 = [`AGENTS.md`](./AGENTS.md)。** 新增或修改规则一律只改 `AGENTS.md`，本文件不再维护、不再新增条目。
+>
+> **为什么还留着**：源码与文档里有 206 处注释按 `CLAUDE.md §x` 引用本文件（如 `§5.4.9 单一规则原则`、`§5.1 失败可见`、`§零 决策记录铁律`）。直接删会让这些引用全部断链 —— 那是把「真实不误导」换成「到处都是死链」。
+> **处理方式**：本文件只作索引与历史存档，**内容不再更新**；`§旧章节 → §新章节` 对照表见 `AGENTS.md` §14。新写注释请引用 `AGENTS.md` 的章节号。等旧引用随改动自然迁移完，本文件再删。
+
+> **原定位（已失效）**：本文件曾是项目认知入口。
 > 读完按任务再读对应入口：**写代码 →** **`spec/CONTEXT.md`（规则适用性地图）**；**写/改测试 →** **`spec/TEST-GUIDE.md`（测试权威）**。三文件互补不重叠（见 §七.0）。
 > **最后更新**：2026-09-28（§七.2 新增「本机模型资产（换机还原 / 丢文件 / 加模型）」路由行 → 唯一入口 `localTool/runtime-models/README.md`「零」三条命令）。此前为 2026-09-25（新增 §3.0.1「写代码过程中禁止跑全量测试（须先申请）」——用户裁定，实证为定位 1 个失败用例连跑 3 次全量单测；同步标注 §3.1 为**验收**流程、修正"写完代码跑哪个"的全量口径）。此前为 2026-09-05（五轮核对：① 计数 apiRegistry 60 条、tests/unit 176 文件/约 2209 用例；② 移除已删 `reference-1mao/`、不存 `docs/node-types-map.md`、已退役 `/api/proxy`/`proxyMode`/`x-proxy-url`、`Python 网关`/`lovart_client.py` 引用，节点规范改指 `spec/NEW-NODE-GUIDE.md`；③ 修正 `check:health` 覆盖、`localTool` 测试路径、`base/*.js`→`base/utils/`、`pre-commit` 跑 `test-affected`、`pre-push` 已删、`launch-all.ps1` 无参、代理/转发逻辑改指 `passthrough.ts`/`generate.ts`/`relay-poll.ts`；④ 治理清理：删 5 个 0 引用脚本（`merge-node-audit.cjs`/`test_all_positions.mjs`/`test_group_collapse|persist|size.mjs`）、假入口 `sync-mapping.mjs`（连带 `npm run sync:mapping`）、孤儿 `share/index.html`，卸载零引用包 `zustand`/`three-stdlib`/`@babel/parser`；⑤ 2026-09-05：`lovart-old`/9004 旧轨与死路由 `handleGatewayTask` 已删、`apimart-gateway` 已退役，Lovart 凭证真源 = `localTool/.env`（由 `src/index.ts` `loadDotEnv` 注入），`localTool` 仅走直连上游 `lgw.lovart.ai`；同步 §5.1 端口铁律、§五.5 字符串契约、§7 调试口径。此前为 2026-08-26 事件契约红线收口 + 2026-08-22 API 中转层收口）
 
