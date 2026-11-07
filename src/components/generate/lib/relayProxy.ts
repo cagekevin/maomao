@@ -260,13 +260,16 @@ export async function relayAttachUntilDone(
     // （含「可能已开始生成…请到任务中心确认」），前端原样透出，不以「生成失败」误导用户重提。
     if (st.status === 'unknown') {
       logger.warn('生成', '[relay] 提交结果未知', { frontTaskId, error: st.error });
-      return { ok: false, error: st.error || '提交结果未知，请到任务中心确认' };
+      // 【TD-08-57】终态归属 = unknown（不是 failed）：任务可能已在上游跑，落 failed 会诱导重提。
+      return { ok: false, error: st.error || '提交结果未知，请到任务中心确认', outcome: 'unknown' };
     }
     // 【143 · S3′】`not-found` = 后端明确无此任务 ⇒ **立即终态**，不再空等到超时。
     // 判据：它是**生产者给的确定事实**（后端查过句柄与任务行都没有），不是"查询失败" ⇒ 不许当 transport 错误续查。
     if (st.status === 'not-found') {
       logger.warn('生成', '[relay] 任务不存在', { frontTaskId, error: st.error });
-      return { ok: false, error: st.error || '后端无此任务记录' };
+      // 【TD-08-57】「后端无此记录」= 无从判断，**不是**确定的失败（本地行丢失而上游在跑时尤其如此）
+      // ⇒ 终态归 unknown（TD-08-24「宁 unknown 不 failed」），文案由后端给、前端原样透出。
+      return { ok: false, error: st.error || '后端无此任务记录', outcome: 'unknown' };
     }
     if (st.error) {
       // transport 错误：续查但留痕；连续到阈值 → 直接以真实原因失败（不再等到超时误报）

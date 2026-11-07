@@ -18,8 +18,10 @@ const m = vi.hoisted(() => ({
   patchTask: vi.fn(),
   completeTask: vi.fn(),
   failTask: vi.fn(),
+  markTaskUnknown: vi.fn(),
   stopPolling: vi.fn(),
   showToast: vi.fn(),
+  toastInfo: vi.fn(),
 }));
 
 vi.mock('../../src/components/generate/lib/relayProxy.ts', () => ({
@@ -35,10 +37,12 @@ vi.mock('../../src/components/base/store/taskStore.ts', async (importOriginal) =
   stopPolling: (...a: unknown[]) => m.stopPolling(...a),
   completeTask: (...a: unknown[]) => m.completeTask(...a),
   failTask: (...a: unknown[]) => m.failTask(...a),
+  markTaskUnknown: (...a: unknown[]) => m.markTaskUnknown(...a),
 }));
 vi.mock('../../src/components/base/core/event/toastStore.ts', async (importOriginal) => ({
   ...((await importOriginal()) as Record<string, unknown>),
   showToast: (...a: unknown[]) => m.showToast(...a),
+  toastInfo: (...a: unknown[]) => m.toastInfo(...a),
 }));
 vi.mock('../../src/components/base/core/log/logger.ts', () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
@@ -61,8 +65,10 @@ describe('pollTask · 恢复轮询（停止等待 ≠ 失败）', () => {
     m.patchTask.mockReset();
     m.completeTask.mockReset();
     m.failTask.mockReset();
+    m.markTaskUnknown.mockReset();
     m.stopPolling.mockReset();
     m.showToast.mockReset();
+    m.toastInfo.mockReset();
   });
   afterEach(() => {
     vi.useRealTimers();
@@ -94,5 +100,22 @@ describe('pollTask · 恢复轮询（停止等待 ≠ 失败）', () => {
 
     expect(m.failTask).toHaveBeenCalledWith('t-1', '上游拒绝');
     expect(m.showToast).toHaveBeenCalledWith('上游拒绝', { type: 'error' });
+  });
+
+  it('not-found / 提交结果未知（outcome:unknown）→ 落 unknown，不 failTask、不弹红（TD-08-57）', async () => {
+    m.attach.mockResolvedValue({
+      ok: false,
+      error: '后端无此任务记录',
+      outcome: 'unknown',
+    });
+    const initTaskRecovery = await loadInitTaskRecovery();
+    initTaskRecovery();
+    await vi.advanceTimersByTimeAsync(100);
+
+    expect(m.markTaskUnknown).toHaveBeenCalledWith('t-1', '后端无此任务记录');
+    expect(m.failTask).not.toHaveBeenCalled();
+    expect(m.showToast).not.toHaveBeenCalled(); // 不弹红：可能仍在上游跑，红字诱导重提
+    expect(m.toastInfo).toHaveBeenCalledWith('后端无此任务记录'); // 中性提示，文案原样透出
+    expect(m.stopPolling).toHaveBeenCalledWith('t-1'); // 终态已定，释放占位
   });
 });

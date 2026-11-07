@@ -97,6 +97,14 @@ export interface TaskController {
   progress: (percent: number, stage?: string) => void;
   done: (resultUrl: string) => void;
   fail: (errorMsg?: string) => void;
+  /**
+   * 终态「结果未知」（TD-08-24 / TD-08-57）：生产者无法判定任务是否已生成时用这一臂。
+   *
+   * 【为什么必须与 fail 分开】`fail` 落 `status:'failed'` = **确定的失败**，界面给红块 + 红 toast，
+   * 用户会照着「失败了」去重提 —— 而任务可能正在上游跑 ⇒ 重复计费（红线）。
+   * `unknown` 落 `status:'unknown'`（UI 是「结果未知」而非「失败」，见 `statusLabel` / `taskStatusVisual`）。
+   */
+  unknown: (reason?: string) => void;
 }
 
 /** 左侧面板状态 */
@@ -111,6 +119,27 @@ export interface PanelState {
 let tasks: Task[] = [];
 const listeners = new Set<() => void>();
 
+/**
+ * 把后端任务行**并入**内存镜像（可重复 · 按 id 覆盖 + 本地新行保留）。
+ *
+ * 【范本】`resourceStore.mergeResourcesFromBackend`（TD-01-31 指定的更强形态）。
+ * 【为什么不能整表替换】`initTasks` 的 fetch 是异步的：它返回的那一刻，用户可能刚提交过任务
+ *   （`persist` 已写内存、POST 尚未落库）。整表替换会把那行**抹掉** ⇒ 用户看到任务凭空消失，
+ *   等下一次刷新它才"回来"（这是本债的原始症状；概率低但完全可复现：加载后几百毫秒内提交）。
+ * 【为什么保留后端没有的本地行】镜像不变式是「只反映、不筛除」（ADR-0059）——
+ *   前端不得替真源做减法；后端删行由后端广播/下一次合并反映，不由这里顺手清掉。
+ */
+export function mergeTasksFromBackend(items: Task[]): void {
+  if (!Array.isArray(items) || items.length === 0) return;
+  const incoming = new Map<string, Task>();
+  for (const it of items) {
+    if (it?.id) incoming.set(it.id, it);
+  }
+  const kept = tasks.filter((t) => !incoming.has(t.id));
+  tasks = [...kept, ...Array.from(incoming.values())];
+  notify();
+}
+
 // ── 启动时从后端加载历史任务 ──
 let loaded = false;
 export function initTasks(): void {
@@ -121,12 +150,7 @@ export function initTasks(): void {
   // （任务中心列表 + 「清理全部」计数 + pollTask 查找），**任务数超 100 时历史静默缺失**。
   // 现走「取全量」的唯一实现（`api/pagedList` 按 totalPages 取齐，不抄上限）。
   fetchAllTaskPages()
-    .then((items) => {
-      if (items.length > 0) {
-        tasks = items as Task[];
-        notify();
-      }
-    })
+    .then((items) => mergeTasksFromBackend(items as Task[]))
     .catch((e) => logger.warn('taskStore', '加载历史任务失败（localTool 未连？）', e?.message));
 }
 
@@ -393,6 +417,8 @@ export function reportGenerate(
     done: (resultUrl: string) => completeTask(task.id, resultUrl),
     // 标记失败（同上：委托原语；是否弹提示由调用方决定）
     fail: (errorMsg?: string) => failTask(task.id, errorMsg),
+    // 标记「结果未知」终态（同上：委托原语；文案由生产者给，见 TD-08-57）
+    unknown: (reason?: string) => markTaskUnknown(task.id, reason),
   };
 }
 
@@ -450,6 +476,22 @@ function onTerminalRowMissing(id: string): void {
 }
 
 /**
+ * 终态落地的**共同骨架**：写行 → 通知 → 取消未落的进度写 → 落库。
+ *
+ * 【为什么必须抽（2026-11-07 体检）】`completeTask` / `failTask` / `markTaskUnknown` 三个原语
+ * 的这段五步逐字相同。新增 `markTaskUnknown` 时复制了一份 ⇒ 同一实现 3 份，
+ * 将来终态要多做一件事（如清重试注册）必然改一处漏两处。
+ * 三者的差别只在「状态 + 文案 + 日志级别」，各自表达；落地动作归这里。
+ */
+function commitTerminal(cur: Task, next: Task): void {
+  tasks = tasks.map((t) => (t.id === cur.id ? next : t));
+  notify();
+  progressCancels.get(cur.id)?.(); // 取消未落的进度写，避免晚于终态覆盖
+  progressCancels.delete(cur.id);
+  persist(next);
+}
+
+/**
  * 终态落地唯一原语：**完成**（TD-01-20）。
  *
  * 【谁调】① live：`createTask()` 返回的 `ctl.done(url)`；② 恢复：`pollTask` 的 attach 闭环。
@@ -479,11 +521,7 @@ export function completeTask(id: string, resultUrl: unknown): void {
   );
   // 以**当前行**为基准（原实现用 createTask 时的闭包快照 persist，会把中途更新的字段写回旧值）
   const next: Task = { ...cur, status: 'completed', progress: 100, resultUrl: safeUrl };
-  tasks = tasks.map((t) => (t.id === id ? next : t));
-  notify();
-  progressCancels.get(id)?.(); // 取消未落的进度写，避免晚于 completed 覆盖终态
-  progressCancels.delete(id);
-  persist(next);
+  commitTerminal(cur, next);
   // 【画布同步】任务完成广播（统一入口 publishTaskCompleted，经 eventBus，解耦 window）：
   // 节点监听 agent:task-completed 回写结果，刷新场景靠任务中心的持久 resultUrl 恢复节点显示
   //（落盘由调用方完成，done 不再负责；空 resultUrl 的文本类任务不广播）。
@@ -512,11 +550,35 @@ export function failTask(id: string, errorMsg?: string): void {
     { module: 'image' },
   );
   const next: Task = { ...cur, status: 'failed', errorMsg: msg };
-  tasks = tasks.map((t) => (t.id === id ? next : t));
-  notify();
-  progressCancels.get(id)?.(); // 同 completeTask：取消未落的进度写
-  progressCancels.delete(id);
-  persist(next);
+  commitTerminal(cur, next);
+}
+
+/**
+ * 终态落地唯一原语：**结果未知**（TD-08-57）。
+ *
+ * 【它与 failTask 的差别只有一个字：终态归属】`failed` = 生产者确定了失败；
+ * `unknown` = 生产者**确定自己不知道**（后端无此任务记录 / 提交结果未知，任务可能仍在上游跑）。
+ * 落成 failed 会让界面显示红块 + 红 toast，用户据此重提 ⇒ 撞重复计费红线（TD-08-24 已裁定「宁 unknown 不 failed」）。
+ *
+ * 【为什么必须是一个原语而不是各处 patchTask】`unknown` 与 completed/failed 同属终态：
+ * 都要 ① 取消未落的进度写（否则晚到的 running 快照覆盖终态）② 落库 ③ 广播。
+ * 此前没有这个入口 ⇒ 谁想表达「未知」只能散落写，或干脆折成 failed（本债的原始病灶）。
+ */
+export function markTaskUnknown(id: string, reason?: string): void {
+  const msg = reason || '结果未知';
+  const cur = tasks.find((t) => t.id === id);
+  if (!cur) {
+    onTerminalRowMissing(id);
+    return;
+  }
+  logger.warn('任务', '[任务] unknown 终态落地', {
+    taskId: id,
+    nodeId: cur.nodeId,
+    type: cur.type,
+    reason: msg,
+  });
+  const next: Task = { ...cur, status: 'unknown', errorMsg: msg };
+  commitTerminal(cur, next);
 }
 
 /**

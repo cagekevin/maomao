@@ -51,4 +51,15 @@ export interface GenerationResult {
    * 不是结论。
    */
   pending?: boolean | undefined;
+  /**
+   * 【2026-11-07 · TD-08-57】`ok:false` 时的**终态归属**（缺省 = 确定失败）。
+   *
+   * `'unknown'` = 生产者**确定自己不知道**（后端无此任务记录 / 提交结果未知），任务可能仍在上游跑。
+   * 消费方**必须**落 `status:'unknown'`（`taskCtl.unknown` / `markTaskUnknown`），
+   * **不得**落 `failed`、不得弹红 toast —— 那会让用户以为失败而重提 ⇒ 重复计费（TD-08-24 判据）。
+   *
+   * 与 `pending` 的分工：`pending` = 只是前端不再等（任务行保持 running，交恢复轮询）；
+   * `outcome:'unknown'` = **终态已定**（前端不再等，也不需要再等），只是这个终态叫「未知」。
+   */
+  outcome?: 'unknown' | undefined;
 }

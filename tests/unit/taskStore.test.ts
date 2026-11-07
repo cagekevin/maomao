@@ -42,6 +42,8 @@ const {
   isTaskActive,
   isTaskNeedsAttention,
   taskStatusVisual,
+  mergeTasksFromBackend,
+  markTaskUnknown,
 } = await import('../../src/components/base/store/taskStore.ts');
 
 beforeEach(() => {
@@ -406,6 +408,79 @@ describe('computeTaskCounts — 任务计数口径（TD-04-47 收口）', () => 
 });
 
 // ════════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════
+// mergeTasksFromBackend —— 可重复合并（TD-01-31）
+// 范本：resourceStore.mergeResourcesFromBackend。判据：整表替换会抹掉
+// 「刚提交、POST 还没落库」的本地行（加载后几百毫秒内提交即复现）。
+// ════════════════════════════════════════════════════════════════
+describe('mergeTasksFromBackend — 可重复合并（TD-01-31）', () => {
+  it('后端行并入，本地新提交但后端没有的行保留（不整表替换）', () => {
+    const local = reportGenerate('node-local', 'image', 'p1');
+    mergeTasksFromBackend([
+      { id: 'remote-1', nodeId: 'n-remote', type: 'image', status: 'completed' as const },
+    ]);
+    const ids = getTasks().map((t) => t.id);
+    expect(ids).toContain(local.taskId);
+    expect(ids).toContain('remote-1');
+    expect(getTasks()).toHaveLength(2);
+  });
+
+  it('同 id 以后端为准（本地 running 被后端 completed 覆盖）', () => {
+    const local = reportGenerate('node-same', 'image', 'p1');
+    mergeTasksFromBackend([
+      { id: local.taskId, nodeId: 'node-same', type: 'image', status: 'completed' as const },
+    ]);
+    const row = getTasks().find((t) => t.id === local.taskId);
+    expect(row?.status).toBe('completed');
+    expect(getTasks()).toHaveLength(1);
+  });
+
+  it('可重复调用：同一批后端行合两次不产生重复', () => {
+    reportGenerate('node-rep', 'image', 'p1');
+    const backend = [
+      { id: 'remote-r', nodeId: 'n-r', type: 'image', status: 'completed' as const },
+    ];
+    mergeTasksFromBackend(backend);
+    mergeTasksFromBackend(backend);
+    expect(getTasks().filter((t) => t.id === 'remote-r')).toHaveLength(1);
+  });
+
+  it('空数组 → 镜像不变（不误清空）', () => {
+    reportGenerate('node-keep', 'image', 'p1');
+    const before = getTasks().length;
+    mergeTasksFromBackend([]);
+    expect(getTasks()).toHaveLength(before);
+  });
+});
+
+// ════════════════════════════════════════════════════════════════
+// markTaskUnknown —— unknown 终态的唯一原语（TD-08-57）
+// 判据：unknown ≠ failed。落 failed 会让界面给红块 + 红 toast，用户据此重提 ⇒ 重复计费。
+// ════════════════════════════════════════════════════════════════
+describe('markTaskUnknown — unknown 终态唯一原语（TD-08-57）', () => {
+  it('落 status:unknown（不是 failed），并带原因', () => {
+    const c = reportGenerate('node-u', 'image', 'p1');
+    markTaskUnknown(c.taskId, '后端无此任务记录');
+    const row = getTasks().find((t) => t.id === c.taskId);
+    expect(row?.status).toBe('unknown');
+    expect(row?.errorMsg).toBe('后端无此任务记录');
+  });
+
+  it('缺省原因 → 用中性文案，不造「失败」字样', () => {
+    const c = reportGenerate('node-u2', 'image', 'p1');
+    markTaskUnknown(c.taskId);
+    const row = getTasks().find((t) => t.id === c.taskId);
+    expect(row?.status).toBe('unknown');
+    expect(row?.errorMsg).toBe('结果未知');
+  });
+
+  it('行不在镜像 → 不凭空造行（终态原语统一处置）', () => {
+    const before = getTasks().length;
+    markTaskUnknown('no-such-id', 'x');
+    expect(getTasks()).toHaveLength(before);
+  });
+});
+
 // 注：原「resource:renamed 同步 resultUrl」用例已随 src 移除该订阅逻辑而删除
 //（taskStore.ts 在 2026-09-12 重构中移除了 eventBus.subscribe('resource:renamed', …)
 // 及其依赖的 buildUrlRewritePairs 引入；对应功能收口，测试不再锁该路径，避免变成死测试）。

@@ -25,9 +25,10 @@ import {
   stopPolling,
   completeTask,
   failTask,
+  markTaskUnknown,
 } from '@/components/base/store/taskStore';
 import { relayAttachUntilDone } from '@/components/generate/lib/relayProxy';
-import { showToast } from '@/components/base/core/event/toastStore';
+import { showToast, toastInfo } from '@/components/base/core/event/toastStore';
 import { logger } from '@/components/base/core/log/logger';
 
 // 【143 · S4′】原 `POLL_TIMEOUT_MS = 600_000`（本文件自持的恢复预算）**已删** ——
@@ -111,6 +112,19 @@ async function pollOneTaskAttach(task: PollableTask): Promise<boolean> {
       { module: 'image' },
     );
     return false;
+  }
+  // 【TD-08-57】终态归属 = unknown（后端无此任务记录 / 提交结果未知）：落 unknown，**不落 failed**、
+  // 不弹红 toast —— 任务可能仍在上游跑，红字会诱导用户重提（重复计费）。文案由生产者给，原样透出。
+  if (!st.ok && st.outcome === 'unknown') {
+    const msg = st.error || '结果未知';
+    markTaskUnknown(task.id, msg);
+    toastInfo(msg);
+    logger.warn('任务', '[恢复轮询] 结果未知（终态归 unknown，不判失败）', {
+      taskId: task.id,
+      nodeId: task.nodeId,
+      error: msg,
+    });
+    return true;
   }
   if (!st.ok && st.error) {
     const msg = st.error || '任务失败';

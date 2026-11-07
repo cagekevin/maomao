@@ -99,6 +99,12 @@ export interface GenerationOrchestrationOutcome {
    * 之外的失败态、不要引导重提）。
    */
   pending?: boolean;
+  /**
+   * 【2026-11-07 · TD-08-57】终态归属 = unknown（不是失败）：任务行已落 `status:'unknown'`，
+   * 生产者确定「不知道」是否已生成。调用方**不得**再当失败处理（不弹红、不引导重提）。
+   * 与 `pending` 的区别：`pending` 是「还没终态，继续等」；本字段是「终态已定，只是它叫未知」。
+   */
+  outcome?: 'unknown';
 }
 
 /**
@@ -213,6 +219,18 @@ export async function runGenerationOrchestration({
       logger.info(logTag, 'contract·pending', { taskNodeId, type, error: msg, ...logCtx });
       toastInfo('等待超时：已停止等待，任务仍在后台进行，完成后会自动回填');
       return { ok: false, pending: true, error: msg };
+    }
+
+    // 【TD-08-57】终态归属 = unknown：生产者**确定自己不知道**（后端无此任务记录 / 提交结果未知）。
+    // 与上面 pending 的分工：pending 是「还没终态，继续等」；本分支是「终态已定，只是它叫未知」。
+    // 故：落 unknown 终态（**不**落 failed）、不调 onFail（节点不该显示一个并不存在的失败）、
+    // 提示用中性语气（文案来自生产者，原样透出）。
+    if (r?.outcome === 'unknown') {
+      const msg = r?.error || '结果未知';
+      taskCtl.unknown(msg);
+      logger.warn(logTag, 'contract·unknown', { taskNodeId, type, error: msg, ...logCtx });
+      toastInfo(msg);
+      return { ok: false, error: msg, outcome: 'unknown' };
     }
 
     // 业务失败（run 返回 ok:false）
