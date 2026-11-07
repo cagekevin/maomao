@@ -100,7 +100,7 @@ export function buildLovartPrompt(
   // 英文硬约束：模型名嵌进生成指令句子（对齐 main.py build_gen_prefix:533），质量随模型一并声明。
   const modelClause = modelName ? ` using the ${modelName} model` : '';
   const qualitySuffix = qm?.quality ? `, quality ${qm.quality}` : '';
-  // 中文质量子句（Lovart 自然语言解析用，对齐其明示格式『用 GPT Image 2.5 Sunburst，质量 max』）。
+  // 中文质量子句（Lovart 自然语言解析用，对齐其明示格式『用 GPT Image 2.6 Sunburst，质量 max』）。
   const cnQuality = qm?.quality ? `，质量 ${qm.quality}` : '';
 
   // 尺寸/参数前缀，对齐 build_gen_prefix:521-532：

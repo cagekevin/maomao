@@ -80,16 +80,16 @@ test('B5 结构化路：普通模型下发 tool_config.prefer_tool_categories', 
   assert.deepEqual(tc.prefer_tool_categories.IMAGE, ['generate_image_gpt_image_2']);
 });
 
-test('质量模型 2.5：prompt 去后缀 + 中文质量子句，tool_config 发基础工具名', () => {
-  const p = buildLovartPrompt('gpt-image-2.5-sunburst-medium', 'a sunset', '1024x1024');
-  assert.match(p, /用 GPT Image 2.5 Sunburst，质量 medium。/);
+test('质量模型 2.6：prompt 去后缀 + 中文质量子句，tool_config 发基础工具名', () => {
+  const p = buildLovartPrompt('gpt-image-2.6-sunburst-medium', 'a sunset', '1024x1024');
+  assert.match(p, /用 GPT Image 2.6 Sunburst，质量 medium。/);
   assert.match(
     p,
-    /Generate exactly ONE image using the GPT Image 2.5 Sunburst model, quality medium\./,
+    /Generate exactly ONE image using the GPT Image 2.6 Sunburst model, quality medium\./,
   );
   assert.match(p, /target_size: 1024x1024/);
-  const tc = buildLovartToolConfig('gpt-image-2.5-sunburst-medium');
-  assert.deepEqual(tc.prefer_tool_categories.IMAGE, ['generate_image_gpt_image_2_5_sunburst']);
+  const tc = buildLovartToolConfig('gpt-image-2.6-sunburst-medium');
+  assert.deepEqual(tc.prefer_tool_categories.IMAGE, ['generate_image_gpt_image_2_6_sunburst']);
 });
 
 test('B7 prompt_only：nano-bn-2-lite 无 tool_config（undefined）', () => {
