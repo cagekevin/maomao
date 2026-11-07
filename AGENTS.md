@@ -85,7 +85,7 @@
 2. **定契约**：输入 / 输出 / 边界是什么？状态归哪、走哪个唯一入口？跨模块字符串是否已登记（§5）？
 3. **构思测试 = 细化契约**：能写出「输入 → 输出」的具体断言，契约才算定清。逻辑能抽纯函数就放 `base/utils/`（或 `base/core/`），边写边锁单测；组件只补关键交互 + 防崩。断言须「源码一变必红」，自证式断言无效。
 
-**分层**：纯逻辑 `base/utils/` → 补单测；hook → mock 锁返回值；组件 → 只补关键交互。
+**分层**：纯逻辑 `base/utils/`（或域内 `.ts`）→ 补 `.test.ts`；hook → 把判据抽成纯函数再测；组件 → **不写测试**（见 §2.3）。
 
 ### 2.1 🚫 写代码过程中禁止跑全量测试（用户裁定，最高优先）
 
@@ -107,6 +107,25 @@ npx vitest run --bail=1 tests/unit                    # ④ 不确定时：首�
 - 前端：`logger.debug(分类, 动作, 详情)`，开关 `VITE_DEBUG_ASSET=1` 或 `window.__DEBUG_ASSET=true`；业务代码禁散落 `console.log`。
 - 后端：`logDebug(模块, 动作, 详情)`（`utils/logDebug.ts`），开关 `LOG_DEBUG_<MODULE>=1`；**禁写 `console.debug`**（`logWriter` 不接管，既不落盘也不受开关控制）。
 - 拿真实日志确认根因后再改；排查完**把开关关掉**再提交。
+
+### 2.3 🚫 测试面只许 `.test.ts`：禁止新增 TSX 测试（用户裁定 2026-11-07）
+
+**规则**：`tests/**` 只收 `*.test.ts`。**禁止新增、恢复或保留** `*.test.tsx` / `*.spec.tsx`。
+
+**为什么**：渲染/交互测试的断言绑在 DOM 结构与组件实现上，改一次组件就要跟着改一次断言，维护成本高于收益；而它抓的 bug 大多是"点一下就发现"的。2026-11-07 已整体删除 70 个 `.test.tsx`（593 例），测试面从 3,367 例收敛到 2,863 例。
+
+**该测什么、放哪**：
+
+| 被测物 | 做法 |
+| --- | --- |
+| 纯逻辑 / 算法 / 判据 | 放 `base/utils/`（或域内 `.ts`）→ 写 `tests/unit/<stem>.test.ts` |
+| hook 里的判据 | **先把判据抽成纯函数**（`base/utils/` 或域内 `.ts`）再测；hook 本身只留接线 |
+| 组件渲染 / 交互 / 布局 | **不写测试** —— 靠人工点 + `npm run test:smoke`（契约漂移 / React 单实例 / chunk 完整性）兜底 |
+| 契约 / 登记表 / 结构不变量 | 写元测试（扫源码的 `.test.ts`，如 `mockPartialSpread` / `check-arch` 同族） |
+
+**结构上的排除**：`vitest.config.ts` 的 `include` 只有 `tests/unit/**/*.test.ts` —— 新建 `.test.tsx` **不会被执行**，写了等于没写。这条不额外建闸（`ADR-0004`：结构优先于闸，闸只当证据）；规则靠这一节 + include 本身承载。
+
+**禁止的替代做法**：不要为了"能测组件"去装 `@testing-library/*` / `jsdom` / `happy-dom`，也不要改 `vitest.config.ts` 的 `environment` 或把 `include` 扩回 `tsx`。
 
 ---
 
