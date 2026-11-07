@@ -41,6 +41,7 @@
  */
 import { contentGet } from '../../base/core/contentStore.ts';
 import { tryParse } from '@/components/base/utils/net/asyncGuard';
+import { parseModelJsonText } from '@/components/base/utils/text/modelJson';
 import { logger } from '@/components/base/core/log/logger';
 // 【TD-15-1】agentKey 前缀单源（禁本地拼字面量）
 import { AGENT_KEY_PREFIX } from './agentKeys.ts';
@@ -378,42 +379,32 @@ export function parseSSEChunk(line: string, acc: SSEAccumulator): SSEChunkOutcom
  * 大雄：generations 由 LLM 在普通回复里以 JSON 输出，前端解析暂存，不走工具参数。
  * 返回 { plan, generations }；解析不到 generations 时返回空数组（不 throw）。
  */
-export function parseGenerationsFromReply(content = '') {
-  const text = String(content || '');
-  let plan = null;
-  let generations = [];
-  // 1) 优先提取 ```json ... ``` 代码块
-  let jsonStr = '';
-  const blockMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/);
-  if (blockMatch && blockMatch[1] && blockMatch[1].trim()) {
-    jsonStr = blockMatch[1].trim();
-  }
-  // 2) 没有代码块，尝试找最大的 {...} 或 [...] JSON
-  if (!jsonStr) {
-    const objMatch = text.match(/\{[\s\S]*\}/);
-    if (objMatch) jsonStr = objMatch[0];
-  }
-  if (!jsonStr) return { plan: null, generations: [] };
-  let parsed = null;
-  try {
-    parsed = JSON.parse(jsonStr);
-  } catch {
-    // 3) 解析失败：剥离 markdown 围栏再试
-    try {
-      parsed = JSON.parse(
-        jsonStr
-          .replace(/^```(?:json)?/m, '')
-          .replace(/```$/m, '')
-          .trim(),
-      );
-    } catch {
-      return { plan: null, generations: [] };
+export function parseGenerationsFromReply(content = ''): {
+  plan: Record<string, unknown> | null;
+  generations: Record<string, unknown>[];
+} {
+  // 【2026-11-07 · TD-01-34】提取统一走 `base/utils/text/modelJson.ts`（原实现自带一份
+  // 「代码块正则 + 最大花括号 + 两次 parse」）。本函数只保留 generations 的 schema 判定。
+  const extracted = parseModelJsonText(content);
+  let plan: Record<string, unknown> | null = null;
+  let generations: Record<string, unknown>[] = [];
+  if (!extracted.ok) {
+    // no-json-block = 这条回复本来就没有 JSON（绝大多数普通回复）⇒ 正常结论，不留噪。
+    // parse-error = 模型格式漂移 ⇒ 必须留痕（原实现静默压平，用户与开发者都零线索）。
+    if (extracted.reason === 'parse-error') {
+      logger.warn('Agent', '回复正文 JSON 解析失败（generations 未解析）', extracted.error);
     }
+    return { plan: null, generations: [] };
   }
+  const parsed = extracted.value;
   if (parsed && typeof parsed === 'object') {
-    if (parsed.plan && typeof parsed.plan === 'object') plan = parsed.plan;
-    if (Array.isArray(parsed.generations))
-      generations = parsed.generations.filter((g: unknown) => g && typeof g === 'object');
+    const obj = parsed as Record<string, unknown>;
+    if (obj['plan'] && typeof obj['plan'] === 'object')
+      plan = obj['plan'] as Record<string, unknown>;
+    if (Array.isArray(obj['generations']))
+      generations = obj['generations'].filter(
+        (g: unknown): g is Record<string, unknown> => Boolean(g) && typeof g === 'object',
+      );
   }
   return { plan, generations };
 }

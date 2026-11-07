@@ -1271,8 +1271,8 @@ describe('useAgentChat · parseGenerationsFromReply（回复正文解析）', ()
     const { plan, generations } = parseGenerationsFromReply(content);
     expect(plan).toEqual({ goal: '做5张主图' });
     expect(generations).toHaveLength(1);
-    expect(generations[0].id).toBe('g1');
-    expect(generations[0].prompt).toBe('猫');
+    expect(generations[0]?.['id']).toBe('g1');
+    expect(generations[0]?.['prompt']).toBe('猫');
   });
 
   it('无代码块时回退提取最大 {...} JSON', () => {
@@ -1280,7 +1280,7 @@ describe('useAgentChat · parseGenerationsFromReply（回复正文解析）', ()
       '规划如下 { "generations": [ { "id": "g2", "title": "详情1", "prompt": "狗" } ] } 请确认';
     const { generations } = parseGenerationsFromReply(content);
     expect(generations).toHaveLength(1);
-    expect(generations[0].prompt).toBe('狗');
+    expect(generations[0]?.['prompt']).toBe('狗');
   });
 
   it('没有 generations 字段 → 返回空数组，不 throw', () => {
@@ -1298,7 +1298,7 @@ describe('useAgentChat · parseGenerationsFromReply（回复正文解析）', ()
     const content = '```json\n{ "generations": [ { "id": "g1" }, "bad", null ] }\n```';
     const { generations } = parseGenerationsFromReply(content);
     expect(generations).toHaveLength(1);
-    expect(generations[0].id).toBe('g1');
+    expect(generations[0]?.['id']).toBe('g1');
   });
 
   it('空 content / 空串 → 空结果', () => {

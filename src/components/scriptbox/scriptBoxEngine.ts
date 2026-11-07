@@ -33,6 +33,7 @@ import { uploadFileToLocal } from '../base/api/index.ts';
 import { runGenerationOrchestration } from '../generate/lib/generationOrchestration.ts';
 import { toAbsoluteFileUrl } from '../base/utils/media/assetUrl.ts';
 import { detectFileType } from '../base/utils/media/assetType.ts';
+import { parseModelJsonText } from '../base/utils/text/modelJson.ts';
 import { isAssetCategory, type AssetCategory } from '../../types';
 import { fileNameFromUrl, canvasToImageDataUrl, clamp } from '../base/core/utils.ts';
 import { toastError, toastSuccess } from '../base/core/event/toastStore.ts';
@@ -124,22 +125,9 @@ export interface ScriptBoxEngineDeps {
   captureVideoFrame?: (src: string, atFraction?: number) => Promise<string>;
 }
 
-/** 去掉 ```json 围栏、只保留首个 {...} 块（对齐官方 Ar/Ir 的解析）。
- *  顶层纯函数，导出供单测（剧本盒纯逻辑）。 */
-export function parseJsonText(raw: unknown): { ok: boolean; data: unknown } {
-  let s = String(raw || '')
-    .replace(/```json/gi, '')
-    .replace(/```/g, '')
-    .trim();
-  const f = s.indexOf('{');
-  const p = s.lastIndexOf('}');
-  if (f >= 0 && p > f) s = s.slice(f, p + 1);
-  try {
-    return { ok: true, data: JSON.parse(s) };
-  } catch {
-    return { ok: false, data: null };
-  }
-}
+// 【2026-11-07 · TD-01-34】原 `parseJsonText`（`{ok,data}`、失败无 reason、失败臂仍可取 `data:null`）
+// 已删除：「模型输出读 JSON」的唯一实现改为 `base/utils/text/modelJson.ts::parseModelJsonText`
+// （判别联合 `{ok:true,value} | {ok:false,reason,error?}`，失败臂取不到值）。禁止在本文件恢复第二份提取。
 
 /**
  * 剧本盒子 —— 引擎层（接真系统，经 localTool 统一生成入口 /api/generate → 供应商；旧 /api/proxy 出站已退役）。
@@ -397,7 +385,7 @@ export function createScriptBoxEngine({
           nodeId,
           contentLen: (r.content || '').length,
         });
-        const parsed = parseJsonText(r.content);
+        const parsed = parseModelJsonText(r.content);
         if (!parsed.ok) {
           updateData({ genMask: false });
           toast('模型输出的 JSON 不完整或格式有误，请重试');
@@ -405,7 +393,7 @@ export function createScriptBoxEngine({
           return;
         }
 
-        const m = parsed.data as Record<string, unknown>;
+        const m = parsed.value as Record<string, unknown>;
         const rawShots: Record<string, unknown>[] = Array.isArray(m)
           ? (m as Record<string, unknown>[])
           : Array.isArray(m['shots'])
@@ -792,7 +780,7 @@ export function createScriptBoxEngine({
             });
             return;
           }
-          const parsed = parseJsonText(r.content);
+          const parsed = parseModelJsonText(r.content);
           if (!parsed.ok) {
             failedCount++;
             enqueuePatch((latest) => ({
@@ -804,7 +792,7 @@ export function createScriptBoxEngine({
             logger.error('scriptBox', '生成分镜提示词·JSON解析失败', { nodeId, shotId: shot.id });
             return;
           }
-          const parsedData = (parsed.data as Record<string, unknown>) || {};
+          const parsedData = (parsed.value as Record<string, unknown>) || {};
           const prompt = parsedData['prompt'];
           const videoPrompt = parsedData['videoPrompt'];
           // 结构校验：JSON 合法但缺 prompt/videoPrompt → 视为格式不符，明确提示且不写回空值。
@@ -940,12 +928,16 @@ export function createScriptBoxEngine({
             { role: 'user', content: user },
           ],
         });
-        const parsed = r.ok ? parseJsonText(r.content) : { ok: false, data: null };
+        // 上游失败（r.ok=false）不是「JSON 解析失败」，用 not-string 表示「没有可解析的正文」；
+        // 不重包成 `{ok:false,data:null}` —— 那个旧形状的失败臂仍可取 data（TD-01-34）。
+        const parsed = r.ok
+          ? parseModelJsonText(r.content)
+          : ({ ok: false, reason: 'not-string' } as const);
         const prompt =
-          parsed.ok && typeof parsed.data === 'string'
-            ? parsed.data
-            : parsed.ok && (parsed.data as Record<string, unknown>)?.['prompt']
-              ? (parsed.data as Record<string, unknown>)['prompt']
+          parsed.ok && typeof parsed.value === 'string'
+            ? parsed.value
+            : parsed.ok && (parsed.value as Record<string, unknown>)?.['prompt']
+              ? (parsed.value as Record<string, unknown>)['prompt']
               : r.ok
                 ? r.content
                 : '';

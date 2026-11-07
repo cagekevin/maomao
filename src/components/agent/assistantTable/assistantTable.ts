@@ -24,6 +24,7 @@
  *   （预览=确认的唯一数据源，替代旧 jsonToSb / mergeRowFromObj / buildPreviewModel）。
  */
 import { newTabId, newColId, newRowId } from './tableIds.ts';
+import { parseModelJsonText } from '../../base/utils/text/modelJson.ts';
 
 /** 一列：id 稳定唯一，label 即显示列名（粘贴首行 / AI 设计），顺序即显示顺序 */
 export interface TableColumn {
@@ -452,31 +453,21 @@ export type ParseTableJsonResult =
  * 说明：只做探测，不判定意图（update/append/replace）——由 buildPreviewResult 按选中态统一判定。
  */
 export function tryParseAssistantTableJson(text: unknown): ParseTableJsonResult {
-  // message='' ⇒ 属"这不是表格 JSON"的正常结论，**不该打扰用户**（由生产者声明，消费者照办）
-  if (typeof text !== 'string') return { ok: false, reason: 'not-string', message: '' };
-  // 对齐剧本盒 scriptBoxEngine.parseJsonText 的提取：剥 ```json 围栏、只取首个 {...} 到最后一个 }，
-  // 再严格 JSON.parse——前台自然语言包裹 / 围栏残留 / 尾部杂字都能救回，解析成功率更高。
-  let s = text
-    .replace(/```json/gi, '')
-    .replace(/```/g, '')
-    .trim();
-  const f = s.indexOf('{');
-  const p = s.lastIndexOf('}');
-  if (f < 0 || p <= f) return { ok: false, reason: 'no-brace', message: '' };
-  s = s.slice(f, p + 1);
-  // 【2026-09-17 用户裁定】① **禁止把 catch 换成 tryParse**（那是给兜底换层皮，不是拆）；
-  // ② **失败必须透传、且带可展示信息**（人话由**生产者**给，消费者只转发，禁止自己翻译）。
-  let obj: unknown;
-  try {
-    obj = JSON.parse(s);
-  } catch (e) {
+  // 【2026-11-07 · TD-01-34】提取统一走 `base/utils/text/modelJson.ts::parseModelJsonText`；
+  // 本函数只保留**表格专属**的两件事：schema 判定（对象 / rows 数组）与用户文案（表格域才知道要说"表格 JSON"）。
+  const extracted = parseModelJsonText(text);
+  if (!extracted.ok) {
+    // message='' ⇒ 属"这不是表格 JSON"的正常结论，**不该打扰用户**（由生产者声明，消费者照办）
+    if (extracted.reason === 'not-string') return { ok: false, reason: 'not-string', message: '' };
+    if (extracted.reason === 'no-json-block') return { ok: false, reason: 'no-brace', message: '' };
     return {
       ok: false,
       reason: 'parse-error',
       message: 'AI 返回的表格 JSON 解析失败，请让 AI 重新生成',
-      error: e,
+      error: extracted.error,
     };
   }
+  const obj: unknown = extracted.value;
   if (!obj || typeof obj !== 'object') return { ok: false, reason: 'not-object', message: '' };
   const rows = (obj as Record<string, unknown>)['rows'];
   if (!Array.isArray(rows))

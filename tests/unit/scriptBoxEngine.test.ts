@@ -63,27 +63,14 @@ import {
 } from '@/components/scriptbox/scriptBoxSchema.ts';
 import type { ScriptAsset } from '@/components/scriptbox/scriptBoxPrompts.ts';
 
-const { parseJsonText, dialogueLines, assembleShotUser, createScriptBoxEngine } =
+const { dialogueLines, assembleShotUser, createScriptBoxEngine } =
   await import('@/components/scriptbox/scriptBoxEngine.ts');
 
 const { chatCompletions } = await import('@/components/generate/lib/generate');
 
 describe('scriptBoxEngine · 纯导出函数', () => {
-  describe('parseJsonText', () => {
-    it('提取 ```json 代码块 → {ok:true,data}', () => {
-      const raw = '说明文字\n```json\n{"a":1}\n```\n结束';
-      expect(parseJsonText(raw)).toEqual({ ok: true, data: { a: 1 } });
-    });
-    it('无代码块时截取首尾 {} 直接 parse', () => {
-      expect(parseJsonText('前缀 {"b":2} 后缀')).toEqual({ ok: true, data: { b: 2 } });
-    });
-    it('非法 JSON → {ok:false,data:null}', () => {
-      expect(parseJsonText('{bad}')).toEqual({ ok: false, data: null });
-    });
-    it('空串 → {ok:false,data:null}', () => {
-      expect(parseJsonText('')).toEqual({ ok: false, data: null });
-    });
-  });
+  // 【2026-11-07 · TD-01-34】原 `parseJsonText` 的 4 个用例已迁到 `tests/unit/modelJson.test.ts`
+  // （提取实现收口到 `base/utils/text/modelJson.ts`，断言跟着唯一实现走，不在这里留第二份）。
 
   describe('dialogueLines', () => {
     it('「说话者：原句」格式 → 说话者：X，完整原句：Y', () => {

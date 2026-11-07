@@ -18,6 +18,7 @@ import { useNodeResize } from '@/components/base/core/interaction/uiHooks';
 import { useConnectedInputs } from '@/hooks/useConnectedInputs';
 import { useGenerateNode } from '@/hooks/useGenerateNode';
 import { buildEffectivePrompt } from '@/components/base/core/utils';
+import { parseModelJsonText } from '@/components/base/utils/text/modelJson';
 import { PROMPT_PANEL_PAD_X } from '@/components/canvas/shell/promptLayout';
 import { useNodeData } from '@/hooks/useNodeData';
 import { useAssetInsertion } from '@/hooks/useAssetInsertion';
@@ -236,17 +237,20 @@ function TextGenerate({ id, data, selected }: TextGenerateProps) {
       // 并自动连线（对齐官方 H_.jsx Lr 6326-6380：strip ```json → JSON.parse → items → 新建 textGenerateNode 网格 + 连线）。
       // 解析失败则降级为普通文本（不阻断）。
       if (autoSplit && typeof r.content === 'string') {
-        let items = [];
-        try {
-          const clean = r.content
-            .replace(/```json/g, '')
-            .replace(/```/g, '')
-            .trim();
-          const parsed = JSON.parse(clean);
-          items = parsed.items || parsed;
-        } catch (e) {
-          logger.warn('TextGenerate', '自动拆分 JSON 解析失败，降级为普通文本', e);
-          items = [];
+        // 【2026-11-07 · TD-01-34】提取统一走 `base/utils/text/modelJson.ts`；本处只做 items 的 schema 判定。
+        // 解析失败**降级为普通文本**（不阻断）—— 但 `parse-error` 属真故障，必须留痕；`no-json-block`
+        // 只是"模型没按 JSON 回"，属正常降级，不留噪。
+        let items: unknown = [];
+        const extracted = parseModelJsonText(r.content);
+        if (extracted.ok) {
+          const v = extracted.value;
+          items = Array.isArray(v)
+            ? v
+            : v && typeof v === 'object' && Array.isArray((v as { items?: unknown }).items)
+              ? (v as { items: unknown[] }).items
+              : [];
+        } else if (extracted.reason === 'parse-error') {
+          logger.warn('TextGenerate', '自动拆分 JSON 解析失败，降级为普通文本', extracted.error);
         }
         if (Array.isArray(items) && items.length > 0) {
           const me = getNode(id);
