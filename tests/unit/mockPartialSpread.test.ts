@@ -187,7 +187,8 @@ describe('mock 桩必须从真模块派生（TD-17-15）', () => {
     for (const file of walk(TESTS_DIR)) {
       hits += scanMockHeads(readFileSync(file, 'utf8')).filter((h) => WATCHED.test(h.path)).length;
     }
-    // 2026-09-18 全量扩围后基线 195（只许多不少 —— 少了说明解析器被打瞎，是假绿）
-    expect(hits).toBeGreaterThanOrEqual(195);
+    // 2026-09-18 全量扩围后基线 195；【2026-11-07】TSX 测试整体删除后实测 85（删掉的 70 个文件里
+    // 含大量 vi.mock 桩）⇒ 基线随测试面同步下调。判据不变：只许多不少 —— 少了说明解析器被打瞎，是假绿。
+    expect(hits).toBeGreaterThanOrEqual(85);
   });
 });

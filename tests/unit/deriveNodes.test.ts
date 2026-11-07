@@ -70,7 +70,7 @@ describe('commitNewNodes / spawnAndCommit（建节点唯一原语，TD-04-2/04-1
     history: { record: vi.fn() },
   });
 
-  it('补结构默认：imageGenerateNode 自动补 width/height/style（此前手写 420 与 nodeDefaults 漂移）', () => {
+  it('补结构默认：imageGenerateNode 自动补 width/height（style 尺寸已随二写收口剥离）', () => {
     const handles = makeHandles();
     const out = commitNewNodes(
       { nodes: [{ id: 'n1', type: 'imageGenerateNode', position: { x: 1, y: 2 }, data: {} }] },
@@ -78,7 +78,10 @@ describe('commitNewNodes / spawnAndCommit（建节点唯一原语，TD-04-2/04-1
     );
     expect(at(out, 0).width).toBe(420);
     expect(at(out, 0).height).toBe(420);
-    expect(at(out, 0).style).toEqual({ width: 420, height: 420 });
+    // 【2026-11-06 二写收口 · 本断言随之更新】`nodeDefaults` 不再登记 style 尺寸，且 `fillGeometry`
+    // 补完字段后会剥离 style 的 width/height（单一真源）。原断言 `style = {width,height}` 是收口前的口径，
+    // 在远端 nodeDefaults 收口后成为过期断言（2026-11-07 全量跑发现）。此处改为锁新判据：字段有、style 无。
+    expect(at(out, 0).style).toBeUndefined();
   });
 
   it('原子提交：setNodes/setEdges 追加 + history.record 一次（含节点与边）', () => {

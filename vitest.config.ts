@@ -24,7 +24,9 @@ export default defineConfig({
       ['tests/unit/**/*.test.tsx', 'jsdom'],
     ],
     // 测试已全 TS 化（2026-09-01 收官）：统一 .test.ts（node 纯逻辑）/ .test.tsx（jsdom 组件）。
-    include: ['tests/unit/**/*.test.{ts,tsx}'],
+    // 【2026-11-07】只收 .test.ts：TSX 组件/交互测试已按用户裁定整体删除（渲染测试
+    // 靠人工点 + smoke 兜底，纯逻辑一律下沉到 .ts 再测）。留 tsx 只会让人以为还能加渲染测试。
+    include: ['tests/unit/**/*.test.ts'],
     // 重测试默认排除：imageUpscale 是真实 canvas 图片缩放（×2/clamp/锐化走
     // getImageData/putImageData），单次 7.4s 是全量最慢的 4 倍，99% 的日常改动用不到。
     // 排除后默认 `vitest run` / 门禁 / 覆盖率都不跑它；需要回归时显式跑即可（见 test:unit:heavy）。
