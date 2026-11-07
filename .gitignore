@@ -83,6 +83,15 @@ hastest.txt
 # vitest 运行期重定向日志（tests/unit/ 下 .vitest_*.txt，非源码）
 tests/unit/.vitest_*.txt
 coverage/
+
+# ── ub-mode 质量门禁工具产物（crapper/dryer/mutator 运行期生成，非源码，不入库）──
+# .metrics/：crapper 写 crap.edn、dryer 写 dry.edn、mutator 写 mutate/<ns>.edn；
+#   这些是本地质量快照，随时可重跑重建，且只在 uml-viewer 里才有意义，不入库。
+# target/：mutator 的变异测试 overlay（每核一个 worker 目录，内含硬链接与 symlink，
+#   误提交会直接污染历史；中断残留 target/mutator-backup/ 也在此列）。
+.metrics/
+target/
+
 # 临时调试探针测试（排查 OOM/挂起时生成的 __probe*.test.jsx，非正式用例，不入库）
 __probe*.test.jsx
 __probe*.test.js
